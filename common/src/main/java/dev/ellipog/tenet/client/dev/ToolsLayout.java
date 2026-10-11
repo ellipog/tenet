@@ -1021,8 +1021,9 @@ public final class ToolsLayout {
      * <h2>One table, and it is exact</h2>
      *
      * <p>Which rows a background gets is a property of the background, not of the drawing: a dot grid
-     * has no direction to flip, an image has no spacing to anchor, and a covered image has no tile to
-     * size. The table is written once, here, so the panel that draws the rows and the screen that
+     * has no direction to flip, an image has no spacing to size, a covered image has no tile to size
+     * and no anchor (it is one screen-fixed blit), while a tiled image pairs opacity with the anchor
+     * like the flat patterns. The table is written once, here, so the panel that draws the rows and the screen that
      * presses them cannot disagree about which exist -- a row shown but not handled is a control that
      * lies, and one handled but not shown is a control nobody can reach.
      *
@@ -1051,16 +1052,23 @@ public final class ToolsLayout {
         CanvasBackground.Kind kind = background.kind();
         if (kind == CanvasBackground.Kind.IMAGE) {
             // An image is the one kind whose look is a file: what to draw, how it meets the rectangle,
-            // and -- only when it repeats -- the width one repeat is drawn at.
+            // and -- only when it repeats -- the width one repeat is drawn at. A tile honours the
+            // anchor like any other repeating pattern, so it pairs opacity with the space chooser;
+            // a cover is one screen-fixed blit, so it keeps the full-row opacity and no anchor.
             rows.add(Action.row(CANVAS_TEXTURE, "tenet.dev.canvas.texture"));
             rows.add(Action.choice(CANVAS_FIT, "tenet.dev.canvas.fit"));
             if (background.image().fit() == CanvasBackground.Fit.TILE) {
                 rows.add(Action.field(CANVAS_TILE, "tenet.dev.canvas.tile"));
             }
-            // No ink row and no anchor: an image's strength is the file's own alpha, and it is pinned to
-            // the screen. Opacity is still offered -- it scales that alpha -- and it takes the full row
-            // because there is no anchor to pair it with.
-            rows.add(Action.field(CANVAS_OPACITY, "tenet.dev.canvas.opacity"));
+            // No ink row: an image's strength is the file's own alpha, and opacity scales that alpha.
+            // The opacity takes the full row only when there is no anchor to pair it with.
+            if (background.image().fit() == CanvasBackground.Fit.TILE) {
+                rows.add(Action.pair(Action.field(CANVAS_OPACITY, "tenet.dev.canvas.opacity"),
+                        Action.choice(CANVAS_SPACE, "tenet.dev.tools.canvas_space")));
+            }
+            else {
+                rows.add(Action.field(CANVAS_OPACITY, "tenet.dev.canvas.opacity"));
+            }
         }
         else {
             // The four procedural kinds share a mark size; the hatch has a direction and the speckle a

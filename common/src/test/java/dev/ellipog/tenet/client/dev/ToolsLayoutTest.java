@@ -725,6 +725,30 @@ class ToolsLayoutTest {
                 "a tab without the row has no button to hit");
     }
 
+    @Test
+    @DisplayName("a tiled image pairs opacity with the space chooser; a cover keeps opacity alone")
+    void imageTileShowsItsSpace() {
+        List<ToolsLayout.Action> tiled =
+                ToolsLayout.canvasRows(image(CanvasBackground.Fit.TILE), true, null);
+        ToolsLayout.Action opacity = tiled.stream()
+                .filter(row -> row.key().equals(ToolsLayout.CANVAS_OPACITY))
+                .findFirst().orElseThrow(() -> new AssertionError("no opacity row for a tile: " + tiled));
+        assertNotNull(opacity.right(), "a tile pairs opacity with its anchor, like the flat patterns");
+        assertEquals(ToolsLayout.CANVAS_SPACE, opacity.right().key());
+
+        List<ToolsLayout.Action> covered =
+                ToolsLayout.canvasRows(image(CanvasBackground.Fit.COVER), true, null);
+        assertTrue(covered.stream().noneMatch(row ->
+                        row.key().equals(ToolsLayout.CANVAS_SPACE)
+                                || (row.right() != null
+                                        && row.right().key().equals(ToolsLayout.CANVAS_SPACE))),
+                "a cover is one screen-fixed blit and offers no anchor: " + covered);
+        ToolsLayout.Action alone = covered.stream()
+                .filter(row -> row.key().equals(ToolsLayout.CANVAS_OPACITY))
+                .findFirst().orElseThrow(() -> new AssertionError("no opacity row for a cover: " + covered));
+        assertNull(alone.right(), "so a cover's opacity takes the full row");
+    }
+
     private static boolean inside(BookGeometry.Rect inner, BookGeometry.Rect outer) {
         return inner.x() >= outer.x() && inner.y() >= outer.y()
                 && inner.right() <= outer.right() && inner.bottom() <= outer.bottom();
