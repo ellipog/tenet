@@ -332,6 +332,21 @@ public final class CountingRenderer implements GuiRenderer {
     /**
      * {@inheritDoc}
      *
+     * <p>Counted with {@link #texture} rather than with {@link #sprite}: a GUI sprite is drawn as
+     * authored with no tint, so unlike a scaled blit or an atlas sprite it sets no shader colour
+     * and forces no batch boundary of its own. The kind change still counts the render-type switch
+     * when the last thing drawn was something else.
+     */
+    @Override
+    public void guiSprite(ResourceLocation guiSprite, int x, int y, int width, int height) {
+        textures++;
+        drew(TEXTURE);
+        delegate.guiSprite(guiSprite, x, y, width, height);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
      * <p>Forwarded because the delegate is the only thing here that can read a file's header — the counter
      * exists to watch a frame, not to answer for the textures in it — and a missing delegate has no answer,
      * which is the empty the seam promises for an asset it cannot read.

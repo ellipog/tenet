@@ -173,6 +173,14 @@ final class RecordingRenderer implements GuiRenderer {
     }
 
     @Override
+    public void guiSprite(ResourceLocation guiSprite, int x, int y, int width, int height) {
+        // Recorded with the atlas draws: the panels this recorder exists for draw none yet, and a
+        // caller that does still has to appear in the log. A GUI sprite carries no tint, so the
+        // tintless Sprited record holds everything it chooses.
+        sprites.add(new Sprited(guiSprite, x, y, width, height));
+    }
+
+    @Override
     public boolean blur(float partialTick) {
         return false;
     }

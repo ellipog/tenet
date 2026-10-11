@@ -110,6 +110,7 @@ public final class RecordingRenderer implements GuiRenderer {
                 case FACE -> "face(" + text + " at " + x + "," + y + " " + x2 + "px)";
                 case TEXTURE -> "texture(" + text + " at " + x + "," + y + " -> " + x2 + "," + y2 + ")";
                 case SPRITE -> "sprite(" + text + " at " + x + "," + y + " -> " + x2 + "," + y2 + ")";
+                case GUI_SPRITE -> "guiSprite(" + text + " at " + x + "," + y + " -> " + x2 + "," + y2 + ")";
                 case TURN -> "turn(about " + x + "," + y + " by " + amount + "\u00b0)";
                 case UNTURN -> "unturn";
                 case BLUR -> "blur(yes)";
@@ -128,7 +129,7 @@ public final class RecordingRenderer implements GuiRenderer {
 
     /** What a recorded call was. */
     public enum Op {
-        FILL, TEXT, SHADOWED_TEXT, STYLED_TEXT, ICON, FACE, TEXTURE, SPRITE,
+        FILL, TEXT, SHADOWED_TEXT, STYLED_TEXT, ICON, FACE, TEXTURE, SPRITE, GUI_SPRITE,
         TURN, UNTURN, BLUR, CLIP, UNCLIP, FLUSH, BATCH, END_BATCH
     }
 
@@ -335,6 +336,19 @@ public final class RecordingRenderer implements GuiRenderer {
     /**
      * {@inheritDoc}
      *
+     * <p>Its own op beside {@link Op#SPRITE}: the GUI atlas is a different sheet resolved a
+     * different way, so a test that could not tell which atlas a picture asked for could not hold
+     * either lookup's behaviour. No tint to carry: a GUI sprite draws as authored.
+     */
+    @Override
+    public void guiSprite(ResourceLocation guiSprite, int x, int y, int width, int height) {
+        calls.add(new Call(Op.GUI_SPRITE, x, y, x + width, y + height, 0,
+                guiSprite == null ? "" : guiSprite.toString()));
+    }
+
+    /**
+     * {@inheritDoc}
+     *
      * <p>Recorded, and answers like {@link #icon}: a screen that falls back to a scrim when there is no
      * blur is a path worth being able to drive, and a recorder that always said yes could not drive it.
      */
@@ -441,6 +455,11 @@ public final class RecordingRenderer implements GuiRenderer {
     /** The sprites, in order, each carrying the sprite's own id. */
     public List<Call> sprites() {
         return calls.stream().filter(call -> call.op() == Op.SPRITE).toList();
+    }
+
+    /** The vanilla GUI sprites, in order, each carrying the sprite's own id. */
+    public List<Call> guiSprites() {
+        return calls.stream().filter(call -> call.op() == Op.GUI_SPRITE).toList();
     }
 
     /** The turns, in order, each carrying its pivot and its angle. */
