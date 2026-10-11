@@ -206,15 +206,83 @@ class ToolsPanelTest {
                         + r.describe());
     }
 
+    @Test
+    @DisplayName("the current palette keeps its swatches over its own selection")
+    void selectedPaletteKeepsItsSwatches() {
+        // The layering bug, pinned as an order: the selected row's widget used to draw its opaque
+        // box in the later widget pass, over the swatches this pass drew — so the current palette
+        // lost its preview in every theme. The selection box lives in this pass now, under the
+        // swatches, and the widget draws none; assert the order, which is the whole of the fix.
+        BookGeometry.Rect canvas = new BookGeometry(854, 480, true).canvas();
+        ToolsLayout.Frame frame = ToolsLayout.frame(canvas);
+        List<ToolsLayout.Action> rows = ToolsLayout.rows(true, true, true, true,
+                List.of(new ToolsLayout.Palette("obsidian", "Obsidian")), true);
+        Layout layout = ToolsLayout.build(rows, frame.list().width(), MEASURE);
+        Viewport list = Viewport.fixed().bounds(frame.list().x(), frame.list().y(),
+                frame.list().width(), frame.list().height());
+        RecordingRenderer r = new RecordingRenderer();
+
+        ToolsPanel.draw(r, frame, list, layout, rows,
+                state(dev.ellipog.armature.client.ui.CanvasBackground.NONE, 51, "obsidian"),
+                0, 0);
+
+        String key = ToolsLayout.paletteKey("obsidian");
+        Slot slot = layout.slot(key);
+        Slot onScreen = new Slot(key, frame.list().x() + slot.x(), frame.list().y() + slot.y(),
+                slot.width(), slot.height());
+
+        int selectedEdge = dev.ellipog.armature.client.ArmatureControlStyle.edge(
+                dev.ellipog.armature.client.ArmatureControlStyle.Variant.SELECTED, true, false, false);
+        var fills = r.fills();
+        // The footprint carries the border colour and the inset the fill: a panel is two fills,
+        // so the box is found by its border spanning the row, and the swatches by their tokens.
+        int box = -1;
+        for (int i = 0; i < fills.size(); i++) {
+            var fill = fills.get(i);
+            if (fill.argb() == selectedEdge && fill.left() <= onScreen.x() && fill.right() >= onScreen.right()) {
+                box = i;
+                break;
+            }
+        }
+        assertTrue(box >= 0, () -> "the current palette marks its row: " + r.describe());
+
+        dev.ellipog.armature.client.ui.Theme obsidian =
+                dev.ellipog.armature.client.ui.Themes.any("obsidian");
+        for (String token : List.of("panel", "raised", "title", "accent")) {
+            int argb = obsidian.colour(token);
+            int swatch = -1;
+            for (int i = 0; i < fills.size(); i++) {
+                var fill = fills.get(i);
+                if (fill.argb() == argb && fill.left() >= onScreen.x() && fill.right() <= onScreen.right()
+                        && fill.top() >= onScreen.y() && fill.bottom() <= onScreen.bottom()) {
+                    swatch = i;
+                    break;
+                }
+            }
+            final int found = swatch;
+            assertTrue(found > box,
+                    () -> "the " + token + " swatch paints over the selection, not under it: "
+                            + r.describe());
+        }
+    }
+
     // ------------------------------------------------------------------
     // The canvas strip and its steppers
     // ------------------------------------------------------------------
 
     /** The panel's state for a background and an ink alpha: one helper so a case states only what it tests. */
     private static ToolsPanel.State state(CanvasBackground background, int patternOpacity) {
-        // The record is (theme, background): the status line and the stepper values it used to carry
-        // are not read by the drawing any more, and the alpha parameter stays as the caller's shape.
-        return new ToolsPanel.State(dev.ellipog.armature.client.ui.Themes.MODERN, background);
+        return state(background, patternOpacity, null);
+    }
+
+    /** The same, with a palette marked current: the selection box is the caller's shape. */
+    private static ToolsPanel.State state(CanvasBackground background, int patternOpacity,
+                                          String selectedPalette) {
+        // The record is (theme, background, selectedPalette): the status line and the stepper values
+        // it used to carry are not read by the drawing any more, and the alpha parameter stays as
+        // the caller's shape.
+        return new ToolsPanel.State(dev.ellipog.armature.client.ui.Themes.MODERN, background,
+                selectedPalette);
     }
 
     /** An image background at a tile size the tile case can recognize. */

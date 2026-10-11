@@ -2,6 +2,7 @@ package dev.ellipog.tenet.client.dev;
 
 import dev.ellipog.armature.client.Look;
 import dev.ellipog.tenet.client.ClientAppearance;
+import dev.ellipog.armature.client.ArmatureControlStyle;
 import dev.ellipog.armature.client.ArmatureTheme;
 import dev.ellipog.armature.client.render.GuiRenderer;
 import dev.ellipog.armature.client.ui.Theme;
@@ -60,9 +61,10 @@ public final class ToolsPanel {
     }
 
     /**
-     * What the panel needs to draw: the palette in force, and the canvas background it samples.
+     * What the panel needs to draw: the palette in force, the canvas background it samples, and
+     * which palette row is the current one.
      *
-     * <p>Two things, because two things are read. The record used to carry the selected token, the
+     * <p>Three things, because three things are read. The record used to carry the selected token, the
      * status line and the radius, all of which the drawing stopped asking for when the band and the
      * steppers left -- a record that carries what nobody reads is a list of fields to keep passing.
      *
@@ -71,9 +73,13 @@ public final class ToolsPanel {
      *     {@code ClientAppearance} here, so this panel has one source of truth and the chapter target is
      *     a choice made by the screen rather than a branch in every drawing method.
      * @param background the canvas background in force for that target, for the texture row's thumbnail
+     * @param selectedPalette the palette id the list marks, or null when none is marked. The screen's
+     *     answer, not the theme's name: a chapter with no theme still marks {@code default} while its
+     *     composed palette wears the fallback's name.
      */
     public record State(dev.ellipog.armature.client.ui.Theme theme,
-                        dev.ellipog.armature.client.ui.CanvasBackground background) {
+                        dev.ellipog.armature.client.ui.CanvasBackground background,
+                        String selectedPalette) {
     }
 
     /**
@@ -273,6 +279,15 @@ public final class ToolsPanel {
             // what is *in force* (the player's, or the chapter's while the chapter target is on), and a
             // row that previewed the current theme under every name would show sixteen identical strips.
             Theme theme = Themes.any(palette);
+            if (state.selectedPalette() != null && state.selectedPalette().equals(palette)) {
+                // The selection box lives in this content pass, under the swatches, rather than on
+                // the row's widget: a selected button draws its opaque box in the later widget pass,
+                // over whatever this drew — which is how the current palette lost its preview in
+                // every theme. Same values the widget used, so flat looks unchanged.
+                ArmatureTheme.panel(r, onScreen.x(), onScreen.y(), onScreen.width(), onScreen.height(),
+                        ArmatureControlStyle.fill(ArmatureControlStyle.Variant.SELECTED, true, false, false),
+                        ArmatureControlStyle.edge(ArmatureControlStyle.Variant.SELECTED, true, false, false));
+            }
             if (hovered) {
                 r.fill(onScreen.x(), onScreen.y(), onScreen.right(), onScreen.bottom(),
                         Colour.translucent(ArmatureTheme.rowHover(), 0.22F));

@@ -6699,13 +6699,10 @@ public final class QuestBookScreen extends ArmatureScreen
                     // `pressCanvasCopy`, which follows `disarmDisband`'s reason for doing it in place.
                     canvasCopyButton = button;
                 }
-                String palette = ToolsLayout.paletteId(row.key());
-                if (palette != null) {
-                    // The palette in force is marked on the widget, like the card's list used to: the
-                    // draw pass adds what the name cannot say (the swatches), not the selection. Which
-                    // palette that is depends on the target -- see `currentPalette`.
-                    button.selected(palette.equals(currentPalette()));
-                }
+                // A palette row stays flat even when it is the current one: its selection box is
+                // drawn by the panel under its swatches, because a selected widget draws its opaque
+                // box in the later widget pass, over whatever the draw pass drew -- which is how the
+                // current palette lost its preview in every theme.
                 toolsView.put(row.key(), button);
             }
             else if (ToolsLayout.folds(row.key())) {
@@ -18095,7 +18092,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 elementTargets);
         drawElementPreview(r, element, overlayBodyRect());
         ToolsPanel.drawRows(r, overlayBodyRect(), elementView.viewport(), elementLayout, elementRows,
-                new ToolsPanel.State(editedTheme(), editedBackground()), mouseX, mouseY,
+                new ToolsPanel.State(editedTheme(), editedBackground(), currentPalette()), mouseX, mouseY,
                 InspectLayout.Mode.STACKED);
         // The row under the pointer, like the dock's: the sentences live with the rows that name them
         // (`ElementPanelLayout.help`), and the box is collected for the tooltip layer so the body's own
@@ -24994,7 +24991,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 return;
             }
             // The panel's own surface, drawn by the same method the book tab uses.
-            ToolsPanel.State state = new ToolsPanel.State(editedTheme(), editedBackground());
+            ToolsPanel.State state = new ToolsPanel.State(editedTheme(), editedBackground(), currentPalette());
             ToolsPanel.drawChrome(r, toolsFrame, state);
             // The chapter's own rows, identity first: the band that used to stand here was a second,
             // unclickable copy of the identity rows below it, and it is gone -- the icon, title and
@@ -25026,7 +25023,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 return;
             }
             ToolsPanel.draw(r, toolsFrame, toolsView.viewport(), toolsLayout, toolsRows,
-                    new ToolsPanel.State(editedTheme(), editedBackground()), mouseX, mouseY);
+                    new ToolsPanel.State(editedTheme(), editedBackground(), currentPalette()), mouseX, mouseY);
         }
         // The row under the pointer, collected here and painted in the tooltip band after the panel:
         // the list's own clip would cut a box that reaches past the row's edge, which is the contract
