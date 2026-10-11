@@ -179,6 +179,13 @@ class SyncWiringTest {
                 "tenet:progress_sync",
                 "tenet:quest_sync",
                 "tenet:replica_request",
+                // Not a viewer message either: the editor's reset buttons, one quest, one chapter and
+                // the whole book. Needed because no existing message carries a reset — a reset is not
+                // a task submission, a claim, or an edit — and a menu that sent one of those would
+                // clear nothing while reading as though it had.
+                "tenet:reset_all",
+                "tenet:reset_chapter",
+                "tenet:reset_quest",
                 "tenet:reward_overflow",
                 // Not a viewer message either: a reward-level sentence (toast description, command
                 // feedback) for the book's own stack. Needed because chat cannot be read behind an

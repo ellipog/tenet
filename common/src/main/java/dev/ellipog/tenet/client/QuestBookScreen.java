@@ -93,6 +93,9 @@ import dev.ellipog.tenet.net.ClaimRewardPayload;
 import dev.ellipog.tenet.net.ClaimRewardEntryPayload;
 import dev.ellipog.tenet.net.ClaimAllPayload;
 import dev.ellipog.tenet.net.ClaimChapterPayload;
+import dev.ellipog.tenet.net.ResetQuestPayload;
+import dev.ellipog.tenet.net.ResetChapterPayload;
+import dev.ellipog.tenet.net.ResetAllPayload;
 import dev.ellipog.tenet.net.ChoiceRewardPayload;
 import dev.ellipog.tenet.net.ClaimChoicePayload;
 import dev.ellipog.tenet.net.SubmitTaskPayload;
@@ -2920,6 +2923,18 @@ public final class QuestBookScreen extends ArmatureScreen
      * {@link #closeMenu} does, so every other press, Escape and clicking away all mean "no".
      */
     private boolean menuDeleteArmed;
+
+    /**
+     * Whether the menu's progress reset is armed: the first press asks, the second clears.
+     *
+     * <p>Beside {@code menuDeleteArmed} rather than sharing it, because the two mistakes are
+     * different ones: arming a chapter reset must not re-label the Delete row, and arming a delete
+     * must not re-label the reset. A reset clears progress rather than files, so only the wide
+     * rungs — a chapter, the whole book — ask at all; a single quest resets on one press, which is
+     * the speed the playtesting loop exists for. Cleared with the delete arm in
+     * {@link #closeMenu}, so anything that means "no" means it for both.
+     */
+    private boolean menuResetArmed;
 
     /**
      * What a canvas menu's row was about: a quest, or a line between two.
@@ -15586,15 +15601,34 @@ public final class QuestBookScreen extends ArmatureScreen
             menuY = (int) mouseY;
             return true;
         }
-        openMenu(List.of(
-                MenuItem.of("New chapter...", () -> openNaming("chapter", NamingMode.CREATE,
-                        "", "", Integer.MAX_VALUE)),
-                MenuItem.of("New group...",
-                        () -> openNaming("group", NamingMode.CREATE, "", "", 0))));
+        openMenu(sidebarEmptyMenu());
         menuChapter = null;
         menuX = (int) mouseX;
         menuY = (int) mouseY;
         return true;
+    }
+
+    /**
+     * What the sidebar's empty list offers besides new chapters and groups: clearing the whole
+     * book's progress for playtesting.
+     *
+     * <p>Built by the caller rather than folded into the list above, because this row arms and the
+     * other two do not: a menu built armed has one job and a menu built unarmed has the other, the
+     * same rule the chapter menu's Delete follows.
+     */
+    private List<MenuItem> sidebarEmptyMenu() {
+        List<MenuItem> items = new ArrayList<>();
+        items.add(MenuItem.of("New chapter...", () -> openNaming("chapter", NamingMode.CREATE,
+                "", "", Integer.MAX_VALUE)));
+        items.add(MenuItem.of("New group...",
+                () -> openNaming("group", NamingMode.CREATE, "", "", 0)));
+        boolean resetArmed = menuResetArmed;
+        items.add(MenuItem.destructive(
+                resetArmed ? "Really reset everything?" : "Reset whole book progress",
+                resetArmed
+                        ? this::resetAll
+                        : () -> armReset(() -> openMenu(sidebarEmptyMenu()), null)));
+        return items;
     }
 
     private List<MenuItem> chapterMenu(String id) {
@@ -15621,6 +15655,14 @@ public final class QuestBookScreen extends ArmatureScreen
                 armed
                         ? () -> send(new EditorOp.DeleteChapter(id))
                         : () -> armDelete(() -> openMenu(chapterMenu(id)), id)));
+        // Playtesting the chapter: clearing its progress so reveals and states can be checked again.
+        // Armed like the delete above but on its own flag, so the two mistakes stay different rows.
+        boolean resetArmed = menuResetArmed;
+        items.add(MenuItem.destructive(
+                resetArmed ? "Really reset chapter?" + chapterResetNote(id) : "Reset chapter progress",
+                resetArmed
+                        ? () -> resetChapter(id)
+                        : () -> armReset(() -> openMenu(chapterMenu(id)), id)));
         return items;
     }
 
@@ -15652,6 +15694,30 @@ public final class QuestBookScreen extends ArmatureScreen
         menuDeleteArmed = true;
         menuChapter = chapterId;
         rebuild.run();
+    }
+
+    /**
+     * Arms the menu's progress reset and re-labels it in place.
+     *
+     * <p>The same mechanics as {@link #armDelete}: the press closes the menu before its action
+     * runs, so arming puts a rebuilt menu back where the old one was, anchored at the same point.
+     * A separate flag, because arming a reset must not re-label the Delete row beside it.
+     */
+    private void armReset(Runnable rebuild, String chapterId) {
+        menuResetArmed = true;
+        menuChapter = chapterId;
+        rebuild.run();
+    }
+
+    /** How many quests the chapter holds, for the reset confirm. */
+    private static String chapterResetNote(String chapterId) {
+        int quests = 0;
+        for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
+            if (entry.chapterId().equals(chapterId)) {
+                quests++;
+            }
+        }
+        return quests == 1 ? " (1 quest)" : " (" + quests + " quests)";
     }
 
     /** How many quests the chapter holds, and how many elsewhere depend on them. */
@@ -15750,6 +15816,7 @@ public final class QuestBookScreen extends ArmatureScreen
         menuChapter = null;
         submenuRow = -1;
         menuDeleteArmed = false;
+        menuResetArmed = false;
         canvasMenuQuest = null;
         canvasMenuFrom = null;
         canvasMenuTo = null;
@@ -16107,6 +16174,7 @@ public final class QuestBookScreen extends ArmatureScreen
             menuY = (int) mouseY;
             submenuRow = -1;
             menuDeleteArmed = false;
+            menuResetArmed = false;
             return true;
         }
         canvasMenuQuest = null;
@@ -16151,6 +16219,7 @@ public final class QuestBookScreen extends ArmatureScreen
         menuY = (int) mouseY;
         submenuRow = -1;
         menuDeleteArmed = false;
+        menuResetArmed = false;
         return true;
     }
 
@@ -16163,6 +16232,10 @@ public final class QuestBookScreen extends ArmatureScreen
         items.addAll(pinItems(targets, many));
         items.add(MenuItem.of("Duplicate" + many, () -> duplicateSelection(targets)));
         items.add(MenuItem.of("Copy" + many, this::copySelection));
+        // Playtesting, not editing: clearing progress so reveals and states can be checked again,
+        // without leaving the book for a command. One press, like the command it sends — progress
+        // is replayable, so unlike Delete this is not the row whose mistake cannot be undone.
+        items.add(MenuItem.of("Reset progress" + many, () -> resetQuests(targets)));
         if (targets.size() == 1) {
             items.add(MenuItem.of("Add dependency\u2026", () -> {
                 selectedQuest = id;
@@ -22939,6 +23012,39 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         ArmatureNetwork.sendToServer(new ClaimRewardPayload(questId));
         Constants.LOG.debug("tenet: asked the server to hand over the rewards for {}", questId);
+    }
+
+    /**
+     * Asks the server to clear one or more quests' progress, for playtesting.
+     *
+     * <p>One packet per quest rather than one carrying a list: the server resolves each id against
+     * its own index, so a client naming a list would be a client deciding what it clears, while a
+     * client naming one quest at a time can only ask for quests it could have pressed a button
+     * for. No pending mark — a reset needs no idempotency visual, because pressing it twice
+     * clears the same thing rather than granting it twice.
+     */
+    private void resetQuests(List<String> questIds) {
+        for (String questId : questIds) {
+            ArmatureNetwork.sendToServer(new ResetQuestPayload(questId));
+            Constants.LOG.debug("tenet: asked the server to clear the progress of {}", questId);
+        }
+    }
+
+    /**
+     * Asks the server to clear one chapter's progress, for playtesting.
+     *
+     * <p>The chapter travels as a scope, like the claim menu's banner: which of its quests are
+     * held stays the server's to decide.
+     */
+    private void resetChapter(String chapterId) {
+        ArmatureNetwork.sendToServer(new ResetChapterPayload(chapterId));
+        Constants.LOG.debug("tenet: asked the server to clear the progress of chapter {}", chapterId);
+    }
+
+    /** Asks the server to clear the whole book's progress, for playtesting. */
+    private void resetAll() {
+        ArmatureNetwork.sendToServer(new ResetAllPayload());
+        Constants.LOG.debug("tenet: asked the server to clear the whole book's progress");
     }
 
     // ------------------------------------------------------------------

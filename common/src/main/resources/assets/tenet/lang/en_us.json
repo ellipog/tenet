@@ -165,6 +165,7 @@
     "tenet.screen.quest_book.submit": "Submit",
     "tenet.screen.quest_book.submit_hint": "Hand this one in",
     "tenet.screen.quest_book.claim": "Claim",
+    "tenet.screen.reset_done": "Progress cleared",
     "tenet.screen.party.title": "Parties",
     "tenet.screen.party.button": "Party",
     "tenet.screen.party.none": "You are not in a party.",

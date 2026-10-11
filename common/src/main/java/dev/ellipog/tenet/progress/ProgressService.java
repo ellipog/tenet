@@ -2282,6 +2282,47 @@ public final class ProgressService {
         return 1;
     }
 
+    /**
+     * Whether the team holds any stored progress for a quest — finished, partial, or merely seen.
+     *
+     * <p>The question the reset press asks before it answers: clearing a quest nobody has touched
+     * is a no-op, and a button that goes quiet on a no-op reads as broken. Asked here rather than
+     * in the handler, because what "holds progress" means is this file's to say.
+     */
+    public static boolean hasProgress(MinecraftServer server, UUID owner, Quest quest) {
+        return ProgressStore.of(server).progressOf(owner).progressOf(quest) != QuestProgress.NONE;
+    }
+
+    /**
+     * Clears progress for every quest in one chapter.
+     *
+     * <p>The chapter is a scope, not a list: the members are read off the server's own index under
+     * the chapter's canonical id, so an alias, a rename and a forged packet all resolve the same way — and each member is cleared through {@link #reset(MinecraftServer, UUID, Optional)},
+     * which is what keeps this from disagreeing with the single-quest press about what "reset"
+     * means. A chapter id matching nothing clears nothing.
+     *
+     * <p>Counted honestly, unlike the single reset: only quests that actually held progress are
+     * counted, so the caller can tell "cleared three" from "there was nothing to clear" — which is
+     * the sentence the menu's press owes its author. See the reset handlers' toast.
+     *
+     * @return how many quests held progress and were cleared
+     */
+    public static int resetChapter(MinecraftServer server, UUID owner, String chapterId) {
+        Optional<QuestIndex.ChapterEntry> chapter = TenetQuests.index().chapter(chapterId);
+        if (chapter.isEmpty()) {
+            return 0;
+        }
+        ProgressStore store = ProgressStore.of(server);
+        int cleared = 0;
+        for (QuestIndex.QuestEntry each : TenetQuests.index().questsIn(chapter.get().chapter().id())) {
+            if (store.progressOf(owner).progressOf(each.quest()) == QuestProgress.NONE) {
+                continue;
+            }
+            cleared += reset(server, owner, Optional.of(each.quest().id()));
+        }
+        return cleared;
+    }
+
     // ------------------------------------------------------------------
     // Small helpers
     // ------------------------------------------------------------------

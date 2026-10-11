@@ -99,6 +99,15 @@ in-game editor, and it writes the same files these pages describe: the server re
 validates before anything lands on disk, so no quest file is written by the client — the player's own look
 and text size live in files the client owns.
 
+An author playtesting a pack resets progress from the same book rather than the command line:
+right-click a quest node for `Reset progress`, a chapter's sidebar row for `Reset chapter progress`,
+and the sidebar's empty list for `Reset whole book progress`. All three need edit mode and
+permission level 2, and all three clear the author's own team — parties included, since progress
+belongs to the team. The wide two ask twice; the quest's is one press, because progress is
+replayable and the playtesting loop is press, check the reveal, press again. Every press answers
+in the book — `Progress cleared`, or `There was no progress to clear` when nothing was held —
+so a quiet press is a press that found nothing, never one that went nowhere.
+
 ## Removing something, and getting it back
 
 **Every control that takes something away asks twice.** The quest card's `Delete`, the node and

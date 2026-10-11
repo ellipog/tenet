@@ -245,6 +245,34 @@ public final class TenetNetworking {
                 null,
                 TenetNetworking::handleClaimRewardEntry));
 
+        // --- clearing progress for playtesting, client to server ---
+        //
+        // The editor's reset buttons: one quest, one chapter, the whole book. Three messages rather
+        // than one with a scope, because each rung states its own contract below — and because a new
+        // rung is then a new message rather than a second meaning on one whose contract is already
+        // stated as narrow. See each payload for why the id is a scope and not a list.
+
+        ArmatureNetwork.register(new ArmatureNetwork.Registration<>(
+                ResetQuestPayload.TYPE,
+                ResetQuestPayload.CODEC,
+                ArmatureNetwork.Direction.TO_SERVER,
+                null,
+                TenetNetworking::handleResetQuest));
+
+        ArmatureNetwork.register(new ArmatureNetwork.Registration<>(
+                ResetChapterPayload.TYPE,
+                ResetChapterPayload.CODEC,
+                ArmatureNetwork.Direction.TO_SERVER,
+                null,
+                TenetNetworking::handleResetChapter));
+
+        ArmatureNetwork.register(new ArmatureNetwork.Registration<>(
+                ResetAllPayload.TYPE,
+                ResetAllPayload.CODEC,
+                ArmatureNetwork.Direction.TO_SERVER,
+                null,
+                TenetNetworking::handleResetAll));
+
         // --- a choice reward's entries, and the player's answer ---
 
         ArmatureNetwork.register(new ArmatureNetwork.Registration<>(
@@ -884,6 +912,115 @@ public final class TenetNetworking {
         }
         ProgressService.claimChapter(server, sender, payload.chapterId(), payload.filter());
         sendToTeam(sender, ProgressSyncPayload.REASON_CHANGED);
+    }
+
+    /**
+     * An author pressed Reset on one quest.
+     *
+     * <h2>An operator's act, checked like the command's</h2>
+     *
+     * <p>{@link ProgressService#reset} moves the whole team's record, so this asks for
+     * {@link QuestAuthority#mayEdit} — the same level {@code /tenet reset} declares — where a
+     * claim asks for nothing. A client that asked anyway gets silence and no state change, which
+     * is the honest answer to a press whose only control was never offered: the menu is gated by
+     * the same level, so a refusal here means the permission moved mid-session.
+     *
+     * <p>The sync is sent whether or not anything cleared, for the reason the claim handler
+     * documents — a client showing progress the server does not hold is corrected by the progress
+     * it already knows how to read. And the press is always answered with a toast, because a
+     * reset that clears nothing is otherwise indistinguishable from a button that did nothing.
+     */
+    private static void handleResetQuest(ResetQuestPayload payload, ServerPlayer sender) {
+        MinecraftServer server = sender.getServer();
+        if (server == null || TenetQuests.index().isEmpty()) {
+            return;
+        }
+        if (!QuestAuthority.mayEdit(sender)) {
+            Constants.LOG.warn("tenet: {} asked to reset quest '{}' without edit permission",
+                    sender.getScoreboardName(), payload.questId());
+            return;
+        }
+
+        // The index resolves aliases, so a client holding a stale id after a rename still works.
+        var entry = TenetQuests.index().quest(payload.questId());
+        if (entry.isEmpty()) {
+            Constants.LOG.warn("tenet: {} asked to reset unknown quest '{}'",
+                    sender.getScoreboardName(), payload.questId());
+            return;
+        }
+
+        java.util.UUID owner = ProgressService.progressOwner(server, sender);
+        int cleared = ProgressService.hasProgress(server, owner, entry.get().quest())
+                ? ProgressService.reset(server, owner, Optional.of(entry.get().quest().id()))
+                : 0;
+        answerReset(sender, cleared);
+        sendToTeam(sender, ProgressSyncPayload.REASON_CHANGED);
+    }
+
+    /**
+     * An author pressed Reset on one chapter.
+     *
+     * <p>The same contract as {@link #handleResetQuest} one rung up. The chapter id is a scope
+     * rather than a list: {@link ProgressService#resetChapter} walks its own index, so an id a
+     * modified client invented reaches nothing, and an id naming a real chapter reaches only what
+     * that chapter actually holds.
+     */
+    private static void handleResetChapter(ResetChapterPayload payload, ServerPlayer sender) {
+        MinecraftServer server = sender.getServer();
+        if (server == null || TenetQuests.index().isEmpty()) {
+            return;
+        }
+        if (!QuestAuthority.mayEdit(sender)) {
+            Constants.LOG.warn("tenet: {} asked to reset chapter '{}' without edit permission",
+                    sender.getScoreboardName(), payload.chapterId());
+            return;
+        }
+
+        int cleared = ProgressService.resetChapter(server,
+                ProgressService.progressOwner(server, sender), payload.chapterId());
+        answerReset(sender, cleared);
+        sendToTeam(sender, ProgressSyncPayload.REASON_CHANGED);
+    }
+
+    /**
+     * An author pressed Reset on the whole book.
+     *
+     * <p>The same contract as {@link #handleResetQuest} at the widest scope: the permission is
+     * re-checked here even though the menu arms first, because a menu is a courtesy and this is
+     * the check. An empty book clears nothing, which is the honest outcome rather than an error.
+     */
+    private static void handleResetAll(ResetAllPayload payload, ServerPlayer sender) {
+        MinecraftServer server = sender.getServer();
+        if (server == null || TenetQuests.index().isEmpty()) {
+            return;
+        }
+        if (!QuestAuthority.mayEdit(sender)) {
+            Constants.LOG.warn("tenet: {} asked to reset the whole book without edit permission",
+                    sender.getScoreboardName());
+            return;
+        }
+
+        int cleared = ProgressService.reset(server, ProgressService.progressOwner(server, sender),
+                Optional.empty());
+        answerReset(sender, cleared);
+        sendToTeam(sender, ProgressSyncPayload.REASON_CHANGED);
+    }
+
+    /**
+     * Answers a reset press where its author is looking: in the book.
+     *
+     * <p>A reset that clears nothing sends the same sync as one that clears everything, so
+     * without this a no-op and a broken button read exactly alike — which is the report this
+     * answers. Chat cannot carry it, because the chat behind an open book cannot be read; the
+     * toast is the same sentence the command prints, routed to the book like every other
+     * book-visible notice. Only the presser is told: the team learns it from the progress sync,
+     * which is the message they already read.
+     */
+    private static void answerReset(ServerPlayer sender, int cleared) {
+        ArmatureNetwork.sendToPlayer(sender, cleared > 0
+                ? new RewardToastPayload("tenet.screen.reset_done", true, "Progress cleared")
+                : new RewardToastPayload("tenet.command.reset.nothing", true,
+                        "There was no progress to clear"));
     }
 
     /**

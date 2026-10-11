@@ -137,6 +137,9 @@ class PayloadTest {
                 "tenet:progress_sync",
                 "tenet:quest_sync",
                 "tenet:replica_request",
+                "tenet:reset_all",
+                "tenet:reset_chapter",
+                "tenet:reset_quest",
                 "tenet:reward_overflow",
                 "tenet:reward_toast",
                 "tenet:server_lists",
@@ -208,6 +211,12 @@ class PayloadTest {
         // the table editor sits on "Waiting for this table's file..." or a roll report never arrives.
         assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:table_replica_request"));
         assertEquals(ArmatureNetwork.Direction.TO_CLIENT, directionOf("tenet:table_replica"));
+        // The editor's reset buttons: one quest, one chapter, the whole book. Requests like the
+        // single claim's — the other way round a Reset press would do nothing at all, and the
+        // server would never hear it.
+        assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:reset_quest"));
+        assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:reset_chapter"));
+        assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:reset_all"));
         assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:table_roll_request"));
         assertEquals(ArmatureNetwork.Direction.TO_CLIENT, directionOf("tenet:table_roll"));
         // A table a command told the editor to open, and an import asked for by a panel: one is the
@@ -357,6 +366,38 @@ class PayloadTest {
         assertEquals("The vault is open.", toast.fallback());
         assertEquals("The vault is open.", toast.message().getString(),
                 "a reward-level message is the sentence the book shows while it is open");
+    }
+
+    @Test
+    @DisplayName("the editor's three reset presses survive the wire: a quest, a chapter, everything")
+    void resetPayloadsRoundTrip() {
+        // The quest press names one quest by id or alias, like the claim it sits beside: a codec
+        // that dropped the id would clear nothing from a menu that promised one quest.
+        ResetQuestPayload quest = roundTrip(ResetQuestPayload.CODEC,
+                new ResetQuestPayload("punch_a_tree"));
+        assertEquals("punch_a_tree", quest.questId());
+        assertEquals("", new ResetQuestPayload(null).questId(),
+                "a missing id is blank rather than null, which matches no quest and clears nothing");
+
+        // The chapter press carries the scope and nothing else: a codec that dropped the id would
+        // clear the whole book from a banner, which is the widest mistake this message can make.
+        ResetChapterPayload chapter = roundTrip(ResetChapterPayload.CODEC,
+                new ResetChapterPayload("stone_age"));
+        assertEquals("stone_age", chapter.chapterId(), "the chapter id is the scope of the message");
+        assertEquals("", new ResetChapterPayload(null).chapterId(),
+                "and a missing id is blank rather than null, which matches no chapter");
+
+        // The whole-book press carries nothing at all: there is no field a codec could drop, so
+        // this pins that an empty message encodes to no bytes and still decodes to itself rather
+        // than to null. Written out rather than through `roundTrip`, because that helper asserts
+        // something was written — which is exactly what this message must not do.
+        FriendlyByteBuf plain = new FriendlyByteBuf(Unpooled.buffer());
+        RegistryFriendlyByteBuf empty =
+                RegistryFriendlyByteBuf.decorator(RegistryAccess.EMPTY).apply(plain);
+        ResetAllPayload.CODEC.encode(empty, new ResetAllPayload());
+        assertEquals(0, empty.writerIndex(), "the whole-book press carries no bytes at all");
+        assertEquals(new ResetAllPayload(), ResetAllPayload.CODEC.decode(empty),
+                "and no bytes still decode to the press rather than to null");
     }
 
     private static ArmatureNetwork.Direction directionOf(String id) {
