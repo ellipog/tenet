@@ -1309,4 +1309,269 @@ class BookGeometryTest {
             assertTrue(wide.x() <= narrow.x(), "so a wider column grows towards the canvas");
         }
     }
+
+    // ------------------------------------------------------------------
+    // The chapter list as a panel
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("the chapter list as a pinnable panel")
+    class SidebarPanel {
+
+        /** The states to sweep: docked, floating, slivered, at several widths. */
+        private static List<SidebarState> states() {
+            List<SidebarState> out = new ArrayList<>();
+            for (int width : new int[] {50, 156, 500}) {
+                for (boolean floating : new boolean[] {false, true}) {
+                    for (boolean pinned : new boolean[] {true, false}) {
+                        for (boolean collapsed : new boolean[] {false, true}) {
+                            out.add(new SidebarState(width, floating, pinned, collapsed));
+                        }
+                    }
+                }
+            }
+            return out;
+        }
+
+        /** A coarser sweep than `sizes()`: the state space multiplies it by twenty-four. */
+        private static List<int[]> stateSizes() {
+            List<int[]> out = new ArrayList<>();
+            for (int width = 160; width <= 1400; width += 41) {
+                for (int height = 100; height <= 1000; height += 67) {
+                    out.add(new int[] {width, height});
+                }
+            }
+            return out;
+        }
+
+        private static List<BookGeometry> geometriesAt(int width, int height, SidebarState state) {
+            // Production's own combinations, like the outer sweep: a window too small to hold the
+            // book has no full-bleed geometry worth checking, because the panel becomes the window
+            // and its chrome runs off the edges.
+            if (width < BookGeometry.MIN_PANEL_WIDTH || height < BookGeometry.MIN_PANEL_HEIGHT) {
+                return List.of(new BookGeometry(width, height, false, false, state));
+            }
+            return List.of(new BookGeometry(width, height, false, false, state),
+                    new BookGeometry(width, height, true, true, state));
+        }
+
+        @Test
+        @DisplayName("the default state is a floating pinned box, to the pixel")
+        void theDefaultIsTodaysBook() {
+            BookGeometry geometry = new BookGeometry(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT);
+            assertEquals(SidebarState.DEFAULT, geometry.sidebarState(),
+                    "a geometry that is not told otherwise holds the default state");
+            assertEquals(BookGeometry.SIDEBAR_WIDTH, geometry.sidebarWidth(),
+                    "drawn at today's width");
+            assertEquals(geometry.panel().x(), geometry.canvas().x(),
+                    "with the canvas taking the whole body under the floating box");
+            assertEquals(geometry.panel().x() + BookGeometry.PANEL_GAP, geometry.sidebar().x(),
+                    "and the box inset from the panel's edge");
+            assertEquals(BookGeometry.SIDEBAR_WIDTH, geometry.sidebar().width(),
+                    "at today's width");
+        }
+
+        @Test
+        @DisplayName("no two controls overlap, in any list state at any size swept")
+        void noTwoControlsOverlapInAnyState() {
+            for (int[] size : stateSizes()) {
+                for (SidebarState state : states()) {
+                    for (BookGeometry geometry : geometriesAt(size[0], size[1], state)) {
+                        Map<String, Rect> controls = geometry.controls();
+                        String overlap = firstOverlap(controls);
+                        assertTrue(overlap == null,
+                                () -> "at " + size[0] + "x" + size[1] + " " + state + ": " + overlap);
+                    }
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("every surface stays inside the panel, and the canvas keeps its minimum")
+        void theSurfacesStayInside() {
+            for (int[] size : stateSizes()) {
+                for (SidebarState state : states()) {
+                    for (BookGeometry geometry : geometriesAt(size[0], size[1], state)) {
+                        String at = " at " + size[0] + "x" + size[1] + " " + state;
+                        if (!state.collapsed()) {
+                            assertTrue(geometry.sidebar().isInside(geometry.panel()),
+                                    () -> "the list left the panel" + at);
+                        }
+                        // A sliver is mostly past the panel's left edge on purpose — asserted
+                        // below — so only its size is held here, not its place.
+                        assertTrue(geometry.canvas().isInside(geometry.panel()),
+                                () -> "the canvas left the panel" + at);
+                        assertTrue(geometry.canvas().width() >= 0, () -> "a negative canvas" + at);
+                        assertTrue(geometry.sidebar().width() >= 0, () -> "a negative list" + at);
+                        Rect viewport = geometry.sidebarViewport();
+                        for (Map.Entry<String, Rect> entry : geometry.controls().entrySet()) {
+                            assertFalse(viewport.intersects(entry.getValue()),
+                                    () -> "the rows reach " + entry.getKey() + at);
+                        }
+                        if (!state.floating()) {
+                            assertEquals(geometry.panel().x() + geometry.sidebarWidth(),
+                                    geometry.canvas().x(), () -> "docked, the canvas starts past the list" + at);
+                        }
+                        else {
+                            assertEquals(geometry.panel().x(), geometry.canvas().x(),
+                                    () -> "otherwise the graph gets the whole body" + at);
+                        }
+                        if (state.floating() && state.collapsed()) {
+                            // The sliver is the box slid left: same size, almost fully past the edge.
+                            int peek = BookGeometry.SIDEBAR_PEEK_WIDTH;
+                            int boxWidth = geometry.sidebar().width();
+                            assertEquals(
+                                    geometry.panel().x() + BookGeometry.PANEL_GAP
+                                            + Math.min(boxWidth, peek),
+                                    geometry.sidebar().right(),
+                                    () -> "sticking out by its peek" + at);
+                        }
+                    }
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("the view cluster sits beside the list at the rows' height, in every state")
+        void theViewClusterClearsTheList() {
+            for (int[] size : stateSizes()) {
+                for (SidebarState state : states()) {
+                    for (BookGeometry geometry : geometriesAt(size[0], size[1], state)) {
+                        String at = " at " + size[0] + "x" + size[1] + " " + state;
+                        Map<String, Rect> controls = geometry.controls();
+                        // The first button sits three below the chapter bar; the other two stack
+                        // beneath it in their column (held by the cluster's own test).
+                        assertEquals(geometry.bodyTop() + BookGeometry.CHAPTER_GAP + BookGeometry.VIEW_DROP,
+                                controls.get("zoomIn").y(),
+                                () -> "zoomIn sits three below the chapter bar" + at);
+                        for (String key : List.of("zoomIn", "zoomOut", "centre")) {
+                            Rect button = controls.get(key);
+                            assertEquals(geometry.sidebar().right() + BookGeometry.EDGE, button.x(),
+                                    () -> key + " sits beside the list" + at);
+                            assertFalse(button.intersects(geometry.sidebar()),
+                                    () -> key + " sits under the list" + at);
+                        }
+                        assertEquals(controls.get("zoomIn").x() - BookGeometry.VIEW_MAT,
+                                geometry.viewControls().x(),
+                                () -> "the backing sits behind its buttons" + at);
+                    }
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("the clamp holds its range, and the draw-time cap keeps the canvas")
+        void theClampAndTheCap() {
+            assertEquals(BookGeometry.SIDEBAR_MIN_WIDTH, BookGeometry.clampSidebarWidth(-100), "a floor");
+            assertEquals(BookGeometry.SIDEBAR_MAX_WIDTH, BookGeometry.clampSidebarWidth(10_000),
+                    "and a ceiling");
+            assertEquals(156, BookGeometry.clampSidebarWidth(156), "with the default passing through");
+
+            // A remembered 260 on a panel barely wider than the minimum: the list keeps the
+            // canvas beside it rather than covering it.
+            int capped = BookGeometry.drawnSidebarWidth(BookGeometry.MIN_PANEL_WIDTH, 260);
+            assertTrue(capped <= BookGeometry.MIN_PANEL_WIDTH - BookGeometry.MIN_CANVAS_WIDTH
+                    - BookGeometry.EDGE, "the cap keeps the canvas: " + capped);
+            assertTrue(capped >= 0, "and never goes negative: " + capped);
+            assertEquals(156, BookGeometry.drawnSidebarWidth(800, 156),
+                    "while a window with room draws what was asked");
+        }
+
+        @Test
+        @DisplayName("the drag mirrors the rails': right widens the left-docked list")
+        void theDragMirrors() {
+            assertEquals(160, BookGeometry.sidebarWidthWhileDragging(156, 100, 104),
+                    "four pixels right is four wider");
+            assertEquals(152, BookGeometry.sidebarWidthWhileDragging(156, 100, 96),
+                    "and four left is four narrower");
+            assertEquals(BookGeometry.SIDEBAR_MIN_WIDTH,
+                    BookGeometry.sidebarWidthWhileDragging(120, 100, -10_000), "floored");
+            assertEquals(BookGeometry.SIDEBAR_MAX_WIDTH,
+                    BookGeometry.sidebarWidthWhileDragging(260, 100, 10_000), "and ceilinged");
+        }
+
+        @Test
+        @DisplayName("the handle is the list's own right edge, inside it")
+        void theHandleIsTheListsRightEdge() {
+            for (int width : new int[] {0, 1, 20, 28, 120, 156, 260}) {
+                Rect list = Rect.at(20, 30, width, 300);
+                Rect handle = BookGeometry.sidebarHandle(list);
+                String at = "width " + width;
+                assertTrue(handle.isInside(list) || width == 0, () -> "the strip left the list: " + at);
+                assertEquals(list.right(), handle.right(), () -> "it is on the inner edge: " + at);
+                assertEquals(Math.min(BookGeometry.SIDEBAR_HANDLE, width), handle.width(),
+                        () -> "and is the handle's width: " + at);
+                assertEquals(list.height(), handle.height(), () -> "for the list's whole height: " + at);
+            }
+        }
+
+        @Test
+        @DisplayName("hover room grows every side without moving the rectangle")
+        void inflateIsHoverRoom() {
+            Rect grown = Rect.at(20, 50, 156, 400).inflate(6);
+            assertEquals(Rect.at(14, 44, 168, 412), grown, "six pixels a side");
+            assertEquals(Rect.at(20, 50, 156, 400), grown.inflate(-6), "and back again");
+        }
+
+        @Test
+        @DisplayName("the screenshot-sized window holds every state")
+        void theScreenshotSizeHoldsEveryState() {
+            for (SidebarState state : states()) {
+                for (BookGeometry geometry : geometriesAt(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, state)) {
+                    String overlap = firstOverlap(geometry.controls());
+                    assertTrue(overlap == null, () -> state + ": " + overlap);
+                    if (!state.collapsed()) {
+                        assertTrue(geometry.sidebar().isInside(geometry.panel()),
+                                () -> state + " left");
+                    }
+                    if (!state.floating()) {
+                        assertTrue(geometry.canvas().width() >= BookGeometry.MIN_CANVAS_WIDTH,
+                                () -> state + " squeezed the graph to " + geometry.canvas().width());
+                    }
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("the floating list is a box on the canvas, like a rail anchored left")
+        void theFloatingListIsABox() {
+            for (int[] size : stateSizes()) {
+                SidebarState floating = new SidebarState(200, true, true, false);
+                for (BookGeometry geometry : geometriesAt(size[0], size[1], floating)) {
+                    String at = " at " + size[0] + "x" + size[1];
+                    Rect box = geometry.sidebar();
+                    Rect canvas = geometry.canvas();
+                    assertEquals(canvas.x() + BookGeometry.PANEL_GAP, box.x(),
+                            () -> "inset from the canvas's left edge" + at);
+                    assertEquals(geometry.bodyTop() + BookGeometry.PANEL_GAP, box.y(),
+                            () -> "and from its top" + at);
+                    assertTrue(box.isInside(geometry.panel()), () -> "inside the panel" + at);
+                    assertTrue(box.width() <= canvas.width() - BookGeometry.PANEL_GAP * 2,
+                            () -> "never wider than the canvas less its gaps" + at);
+
+                    // The box's own chrome lives inside it: the pin zone, the rows and the
+                    // toolbar all measure from the box rather than the panel.
+                    assertTrue(geometry.sidebarBoxPin().isInside(box),
+                            () -> "the pin zone sits in its header" + at);
+                    assertTrue(geometry.sidebarViewport().isInside(box),
+                            () -> "the rows stay in the box" + at);
+                    for (Rect toolbar : geometry.sidebarToolbar().values()) {
+                        assertTrue(toolbar.isInside(box), () -> "and the toolbar" + at);
+                    }
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("the pin zone sits in the floating box's header")
+        void thePinZoneIsInTheBoxHeader() {
+            BookGeometry floating =
+                    new BookGeometry(900, 500, false, false, new SidebarState(200, true, true, false));
+            Rect pin = floating.sidebarBoxPin();
+            assertTrue(pin.isInside(floating.sidebar()), "the zone is in the box");
+            assertEquals(floating.sidebar().right() - 4 - BookGeometry.ROW_HEIGHT, pin.x(),
+                    "right-aligned like a close square");
+            assertEquals(BookGeometry.ROW_HEIGHT, pin.height(), "square, like the controls");
+        }
+    }
 }

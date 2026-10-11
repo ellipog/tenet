@@ -38,6 +38,17 @@ public final class SettingsLayout {
     public static final String HUD_KEY = "hud";
 
     /**
+     * The chapter-list row: docked down the panel's left, or floating as a box on the canvas.
+     *
+     * <p>A toggle rather than an action: the row names the placement and the strip carries its
+     * switch, so the state reads at a glance instead of needing the word found every time. The
+     * third thing on this card that is about the player's own screen rather than the book's
+     * appearance: where the navigation sits is a placement, like the HUD row's, and the header
+     * is the book's busiest row — a choice made once lives here rather than in it.
+     */
+    public static final String SIDEBAR_KEY = "sidebar";
+
+    /**
      * One row.
      *
      * @param key   the widget key the screen registers its control under
@@ -51,13 +62,14 @@ public final class SettingsLayout {
     }
 
     /**
-     * The card's rows, in order.
+     * The card's rows, in order: the text size, the chapter list's placement, then the HUD editor.
      *
      * @param textScale the player's text size, as a factor; the slider reads it, the row does not
      */
     public static List<Entry> entries(double textScale) {
         return List.of(
                 new Entry(TEXT_KEY, Component.literal("Text size")),
+                new Entry(SIDEBAR_KEY, Component.translatable("tenet.screen.sidebar_floating_list")),
                 new Entry(HUD_KEY, Component.translatable("tenet.screen.hud_layout")));
     }
 }

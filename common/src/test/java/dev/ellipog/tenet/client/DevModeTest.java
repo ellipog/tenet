@@ -263,6 +263,7 @@ class DevModeTest {
         assertFalse(DevMode.advanced(), "and the depth's default is off, so the editor reads as Normal");
         assertEquals(PanelStack.WIDTH, DevMode.panelWidth(PanelKind.QUEST), "at the ordinary width");
         assertEquals(PanelStack.Fold.AUTO, DevMode.panelFold(), "with the window deciding about folding");
+        assertTrue(DevMode.isSidebarFloating(), "and the list floats, like a new book");
     }
 
     @Test
@@ -345,5 +346,112 @@ class DevModeTest {
         assertEquals(PanelStack.WIDE_WIDTH - 1, DevMode.panelWidth(PanelKind.ASSETS),
                 "a save that has nowhere to go still answers with what was set");
         assertNull(DevMode.file());
+    }
+
+    @Test
+    @DisplayName("the chapter list is a floating pinned box unless a file says otherwise")
+    void theSidebarDefaultsToTodaysBook() {
+        assertEquals(BookGeometry.SIDEBAR_WIDTH, DevMode.sidebarWidth(),
+                "156 wide");
+        assertTrue(DevMode.isSidebarFloating(), "floating as a box on the canvas");
+        assertTrue(DevMode.isSidebarPinned(), "pinned open");
+        assertFalse(DevMode.isSidebarCollapsed(), "and expanded, because it was never slid away");
+        assertEquals(SidebarState.DEFAULT, DevMode.sidebarState(),
+                "so the four answers together are the default state");
+    }
+
+    @Test
+    @DisplayName("the list's width is clamped by its own range, and the default is not stored")
+    void theSidebarWidthIsClamped(@TempDir Path dir) {
+        DevMode.load(dir.resolve("not-there.json"));
+
+        DevMode.setSidebarWidth(-100);
+        assertEquals(BookGeometry.SIDEBAR_MIN_WIDTH, DevMode.sidebarWidth(), "a floor");
+        DevMode.setSidebarWidth(10_000);
+        assertEquals(BookGeometry.SIDEBAR_MAX_WIDTH, DevMode.sidebarWidth(), "and a ceiling");
+
+        DevMode.setSidebarWidth(BookGeometry.SIDEBAR_WIDTH);
+        assertEquals(BookGeometry.SIDEBAR_WIDTH, DevMode.sidebarWidth(),
+                "the default answers the same either way");
+    }
+
+    @Test
+    @DisplayName("the list's four answers round-trip, and a file without them reads as today")
+    void theSidebarRoundTrips(@TempDir Path dir) throws IOException {
+        Path file = dir.resolve(DevMode.FILE_NAME);
+        Map<PanelKind, Integer> none = new EnumMap<>(PanelKind.class);
+
+        // A file that never heard of the list writes not one key for it: the absence of each
+        // already says "today's book", so the update changes nobody's bytes.
+        assertEquals("{\"dev\":false,\"snap\":true,\"progress\":true,\"advanced\":false,"
+                        + "\"panelWidths\":{},\"panelFold\":\"auto\"}",
+                DevMode.write(false, true, true, false, none, PanelStack.Fold.AUTO),
+                "the old shape still writes the old bytes");
+
+        Files.writeString(file,
+                DevMode.write(false, true, true, false, none, PanelStack.Fold.AUTO, 200, true,
+                        false, true),
+                StandardCharsets.UTF_8);
+        DevMode.load(file);
+        assertEquals(200, DevMode.sidebarWidth(), "a dragged width comes back");
+        assertTrue(DevMode.isSidebarFloating(), "floating comes back");
+        assertFalse(DevMode.isSidebarPinned(), "unpinned comes back");
+        assertTrue(DevMode.isSidebarCollapsed(), "and slid-away comes back");
+
+        // And the other direction, through the setters a toggle takes.
+        DevMode.setSidebarWidth(BookGeometry.SIDEBAR_WIDTH);
+        DevMode.setSidebarFloating(true);
+        DevMode.setSidebarPinned(true);
+        DevMode.setSidebarCollapsed(false);
+        String written = Files.readString(file, StandardCharsets.UTF_8);
+        assertFalse(written.contains("sidebar"),
+                "everything back at its default leaves no key: " + written);
+
+        // While docking writes its one key: absence already says floating.
+        DevMode.setSidebarFloating(false);
+        assertTrue(Files.readString(file, StandardCharsets.UTF_8).contains("\"sidebarFloating\":false"),
+                "a docked list says so: " + Files.readString(file, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("a file that never heard of the list floats like a new book")
+    void aFileWithoutTheListFloats() {
+        // Absence says floating pinned expanded: docking is the settings switch, not a missing key.
+        DevMode.Parsed rail = DevMode.parse("{\"sidebarCollapsed\":true}");
+        assertTrue(rail.sidebarFloating(), "a slid-away list was floating");
+        assertTrue(rail.sidebarPinned(), "with the pin it stored");
+        assertTrue(rail.sidebarCollapsed(), "and still slid away");
+
+        DevMode.Parsed card = DevMode.parse("{\"sidebarPinned\":false}");
+        assertTrue(card.sidebarFloating(), "an unpinned list was floating");
+        assertFalse(card.sidebarPinned(), "as it said");
+
+        DevMode.Parsed plain = DevMode.parse("{\"dev\":true}");
+        assertTrue(plain.sidebarFloating(), "while a file that never heard of it floats");
+
+        DevMode.Parsed docked = DevMode.parse("{\"sidebarFloating\":false}");
+        assertFalse(docked.sidebarFloating(), "and a docked list stays docked");
+    }
+
+    @Test
+    @DisplayName("every way a sidebar entry can be wrong costs that entry and nothing else")
+    void badSidebarEntriesAreSkipped(@TempDir Path dir) throws IOException {
+        Path file = dir.resolve(DevMode.FILE_NAME);
+        Files.writeString(file,
+                "{\"dev\":true,\"sidebarWidth\":\"wide\",\"sidebarPinned\":\"yes\",\"sidebarCollapsed\":1}",
+                StandardCharsets.UTF_8);
+        DevMode.load(file);
+
+        assertTrue(DevMode.on(), "the file was read: nothing in it was the wrong shape");
+        assertEquals(BookGeometry.SIDEBAR_WIDTH, DevMode.sidebarWidth(),
+                "a string where a number belongs costs the width");
+        assertTrue(DevMode.isSidebarPinned(), "a string where a boolean belongs costs the pin");
+        assertFalse(DevMode.isSidebarCollapsed(), "and a number where a boolean belongs costs the collapse");
+
+        // While a number outside the range is clamped, because it is a number and a number has a
+        // nearest legal width -- unlike a name, which has no nearest anything.
+        Files.writeString(file, "{\"sidebarWidth\":10000}", StandardCharsets.UTF_8);
+        DevMode.load(file);
+        assertEquals(BookGeometry.SIDEBAR_MAX_WIDTH, DevMode.sidebarWidth());
     }
 }

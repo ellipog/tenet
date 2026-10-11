@@ -425,6 +425,81 @@ public final class PanelLayout {
                 Rect.at(left, top + step * 2, width, GRIP_RIDGE_HEIGHT));
     }
 
+    /**
+     * The same ridges, on the chapter list's own inner (right) edge.
+     *
+     * <p>A separate method rather than a flag on {@link #grip} because the two handles are on
+     * opposite sides: rails dock right so their grip is left, the list docks left so its grip is
+     * right. Same three ridges, same centring, same too-short-yields-nothing rule — one vocabulary
+     * for "this edge drags" wherever the edge is.
+     */
+    public static List<Rect> sidebarGrip(Rect list) {
+        Rect handle = BookGeometry.sidebarHandle(list);
+        int block = GRIP_RIDGE_HEIGHT * GRIP_RIDGES + GRIP_GAP * (GRIP_RIDGES - 1);
+        if (handle.width() <= 0 || handle.height() < block + 4) {
+            return List.of();
+        }
+        int width = Math.min(GRIP_RIDGE_WIDTH, handle.width());
+        int left = handle.x() + (handle.width() - width) / 2;
+        int top = handle.y() + (handle.height() - block) / 2;
+        int step = GRIP_RIDGE_HEIGHT + GRIP_GAP;
+        return List.of(
+                Rect.at(left, top, width, GRIP_RIDGE_HEIGHT),
+                Rect.at(left, top + step, width, GRIP_RIDGE_HEIGHT),
+                Rect.at(left, top + step * 2, width, GRIP_RIDGE_HEIGHT));
+    }
+
+    /**
+     * Where the chapter list's sliding surface is, {@code elapsed} milliseconds into a collapse,
+     * an expand, a pin or a peek: the wipe from one rectangle to the other.
+     *
+     * <p>Every side travels, not just the width, because docking, floating and stripping move
+     * different edges: a collapse wipes the inner edge to the strip, a pin docks the whole card
+     * six pixels over, and a peek grows the tab into the box. Lerping the rectangle lerps all of
+     * those as one motion, and the rows travel by the same wipe's shortfall, so the card and its
+     * rows arrive as one thing. Exact at both ends for the reason {@link #revealed} states, and
+     * instant at zero duration, which is what no-motion asks for.
+     *
+     * @param from           the rectangle the wipe starts at (the list as the action found it)
+     * @param to             the rectangle it lands on (the list as the geometry now says)
+     * @param elapsedMillis  milliseconds since the action
+     * @param durationMillis how long the wipe takes; zero or less lands immediately
+     */
+    public static Rect sidebarWipeRect(Rect from, Rect to, long elapsedMillis, int durationMillis) {
+        if (durationMillis <= 0) {
+            return to;
+        }
+        float t = revealed(elapsedMillis, durationMillis);
+        return Rect.at(Math.round(from.x() + (to.x() - from.x()) * t),
+                Math.round(from.y() + (to.y() - from.y()) * t),
+                Math.round(from.width() + (to.width() - from.width()) * t),
+                Math.round(from.height() + (to.height() - from.height()) * t));
+    }
+
+    /**
+     * Which rectangle the chapter list's travelling rows were built for.
+     *
+     * <p>An expanding wipe builds its rows for the target and anchors to it; a departing wipe
+     * keeps the rows it has and must anchor to the rectangle they were <i>built</i> for — the
+     * expanded box — rather than to the rectangle the wipe starts from. The two are the same
+     * when a collapse starts settled, and differ when it reverses an expand (or a peek) mid-wipe:
+     * anchoring to the mid-wipe start snaps the rows back to their built positions for a frame,
+     * flashing the full list where it was while the surface is already halfway out. The rails
+     * never hit this because a close snapshots its rail and redraws its content immediate-mode
+     * instead of keeping widgets.
+     *
+     * @param departing whether the list is sliding out with its rows still aboard
+     * @param from      the rectangle the wipe starts at (the list as the action found it)
+     * @param target    the rectangle it lands on (the list as the geometry now says)
+     * @param expanded  the expanded box the kept rows were built for, or null when unknown
+     */
+    public static Rect sidebarTravelAnchor(boolean departing, Rect from, Rect target, Rect expanded) {
+        if (!departing) {
+            return target;
+        }
+        return expanded != null ? expanded : (from != null ? from : target);
+    }
+
     // ------------------------------------------------------------------
     // What a point belongs to
     // ------------------------------------------------------------------

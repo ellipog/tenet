@@ -128,6 +128,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Arrays;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -242,7 +243,10 @@ public final class QuestBookScreen extends ArmatureScreen
     // reads it from there -- because a second copy of "the sidebar is 132 wide" is a copy that can
     // disagree with the one the overlap test checks. That disagreement is precisely how two buttons
     // ended up drawn on top of each other: "near the bottom right" written twice.
-    private static final int SIDEBAR_WIDTH = BookGeometry.SIDEBAR_WIDTH;
+    //
+    // There is deliberately no alias for the sidebar's width any more: the list is the player's
+    // width now, read from the geometry that resolved it, and an alias would be a second copy of a
+    // number that moves.
     private static final int HEADER_HEIGHT = BookGeometry.HEADER_HEIGHT;
     private static final int OVERLAY_MARGIN = BookGeometry.OVERLAY_MARGIN;
 
@@ -270,6 +274,37 @@ public final class QuestBookScreen extends ArmatureScreen
     private int geometryHeight = -1;
     /** Whether the cached geometry was built for an author. See {@link #geometry}. */
     private boolean geometryAuthor;
+    /**
+     * The sidebar state the cached geometry was built from. See {@link #sidebarEffective}: a
+     * toggle that left the geometry cached would draw yesterday's rectangles under today's
+     * widgets.
+     */
+    private SidebarState geometrySidebar = SidebarState.DEFAULT;
+
+    /**
+     * The chapter list's effective state: the file's answers, with a held drag's live width over
+     * the stored one, docked forced expanded, and a hover-peek resolved to what it draws as.
+     *
+     * <p>One resolver for the geometry, the widget build and the press dispatch, so the three
+     * cannot disagree about whether the list is docked, floating, or a sliver being hovered. The
+     * file is read live rather than cached: {@code DevMode} is the owner, and a second copy of
+     * its answers here is a copy that can disagree with it.
+     */
+    private SidebarState sidebarEffective() {
+        SidebarState stored = DevMode.sidebarState();
+        int width = sidebarLiveWidth != null ? sidebarLiveWidth : stored.width();
+        if (!stored.floating()) {
+            // Docked is the old column, always expanded: the old mode cannot collapse, whatever
+            // the file's other answers say.
+            return new SidebarState(width, false, true, false);
+        }
+        if (stored.collapsed() && sidebarPeeking) {
+            // A peek draws as a floating expanded box: the full rows over the canvas, with
+            // nothing written. Lifting the pointer resolves back to the sliver on its own.
+            return new SidebarState(width, true, stored.pinned(), false);
+        }
+        return new SidebarState(width, true, stored.pinned(), stored.collapsed());
+    }
 
     /**
      * The two things about the geometry that are not the window: how much of it the book takes, and whether
@@ -289,16 +324,18 @@ public final class QuestBookScreen extends ArmatureScreen
         // permission sees — and the way back out is the floating pill `buildViewCluster` puts over the
         // canvas, not the band, which this geometry does not have.
         boolean author = mayEdit() && !previewing();
+        SidebarState sidebar = sidebarEffective();
         if (geometry == null || geometryWidth != width || geometryHeight != height
-                || geometryAuthor != author) {
+                || geometryAuthor != author || !geometrySidebar.equals(sidebar)) {
             // Full-bleed for an author, a card for a reader, and a band for the same author. See
             // `BookGeometry`'s constructor: the margin and the maximum size exist so a reading panel does
             // not read as a wall, and an author is not reading -- every spare pixel is canvas or colour
             // list.
-            geometry = new BookGeometry(width, height, author, author);
+            geometry = new BookGeometry(width, height, author, author, sidebar);
             geometryWidth = width;
             geometryHeight = height;
             geometryAuthor = author;
+            geometrySidebar = sidebar;
         }
         return geometry;
     }
@@ -1810,6 +1847,180 @@ public final class QuestBookScreen extends ArmatureScreen
      * so a group snapped shut the moment something was dragged into it.
      */
     private static final Map<String, Boolean> sidebarExpansion = new LinkedHashMap<>();
+
+    /**
+     * The chapter list's slide: when the wipe started, and the rectangle it started from. {@code -1}
+     * when settled, which is most frames: the wipe is 160 milliseconds of travel between two
+     * states the widgets already hold, so there is nothing to animate the rest of the time.
+     *
+     * <p>The target is never stored because it is never needed: the geometry is built from the
+     * effective state, so its sidebar rectangle <i>is</i> where the wipe lands. A rebuild for any
+     * other reason mid-slide keeps the same target, which is what stops a replica arriving
+     * mid-wipe from stranding the list between two widths.
+     */
+    private long sidebarSlideStart = -1;
+    private BookGeometry.Rect sidebarSlideFromRect;
+
+    /**
+     * Hover-peek: the strip is hovered, so the collapsed list shows as a floating preview.
+     *
+     * <p>Transient — the file never hears about it. The effective state resolves it before the
+     * geometry is built (collapsed + peeking draws as floating expanded), so no rectangle ever
+     * describes a hover, and lifting the pointer puts the strip back without writing anything.
+     */
+    private boolean sidebarPeeking;
+
+    /**
+     * How long the pointer must rest on the strip before the peek opens, in milliseconds.
+     *
+     * <p>Without it every crossing of the panel's left edge — on the way to a node, to the view
+     * cluster, to anywhere left — would unfold the list under the hand and fold it back a moment
+     * later. A crossing never dwells; an intention does. Leaving stays instant, so the preview
+     * never overstays: arriving is the part that has to prove itself, not leaving.
+     */
+    private static final long SIDEBAR_PEEK_DWELL_MILLIS = 120;
+
+    /** When the current sliver hover began, or -1 outside it. Read by the dwell above. */
+    private long sidebarPeekHoverStart = -1;
+
+    /**
+     * How much room the sliver's hover zone gets past its visible edge, in GUI pixels.
+     *
+     * <p>Presses stay exact — a press past the sliver is the canvas's — but a hover that ends a
+     * pixel short of twenty pixels of tab reads as a peek that flickers, especially along the
+     * top where the pointer arrives diagonally from the header.
+     */
+    private static final int SIDEBAR_PEEK_HOVER = 6;
+
+    /**
+     * How much room the open box's keep zone gets past its edge.
+     *
+     * <p>Same reason one step out: ending the preview the frame the pointer brushes the border —
+     * behind the box, above its header — is a preview that cannot be looked at, only triggered.
+     */
+    private static final int SIDEBAR_KEEP_HOVER = 12;
+
+    /**
+     * How long the pointer may sit outside the keep zone before the preview ends, in milliseconds.
+     *
+     * <p>The mirror of the enter dwell: arriving has to prove itself, and leaving gets the same
+     * courtesy — brushing past the border on the way somewhere else must not fold the list the
+     * hand just opened. Short enough that an honest leave still reads as instant.
+     */
+    private static final long SIDEBAR_PEEK_LEAVE_MILLIS = 200;
+
+    /** When the current outside-the-keep-zone spell began, or -1 inside it. */
+    private long sidebarPeekLeaveStart = -1;
+
+    /**
+     * Rows the collapsing list left behind, drawn by hand till the wipe lands.
+     *
+     * <p>A collapse files the list's live rows here and removes them from the screen at once —
+     * the rails' arrangement, where a close rebuilds immediately and the exit draws from a
+     * snapshot. The rows ride the card out as orphans: positioned from their filed bases every
+     * frame, drawn cold through the button's own {@code draw} inside the wipe's own clip, and
+     * discarded when the wipe lands. Nothing interactive can reach them meanwhile — presses over
+     * the wipe are absorbed, and the screen no longer owns them — so a row can never answer,
+     * hover, or be narrated from a position the card has already left, which is the ghost the
+     * kept-widgets ride flashed.
+     */
+    private record SidebarDeparted(AbstractWidget widget, int x, int y) {
+    }
+
+    /** The departed rows, in build order. Empty unless a collapse or unpeek wipe is travelling. */
+    private final List<SidebarDeparted> sidebarDeparted = new ArrayList<>();
+
+    /**
+     * The box the departed rows were built for, filed when the collapse starts.
+     *
+     * <p>The travel's anchor: orphans and the cluster are positioned from this, never from the
+     * wipe's start, so a collapse that reverses an expand mid-wipe continues from mid-wipe
+     * instead of snapping the rows back to full for a frame. Null outside a departure.
+     */
+    private BookGeometry.Rect sidebarDepartAnchor;
+
+    /**
+     * How far the departed rows lead the wipe's edge, measured when the collapse starts.
+     *
+     * <p>Glued rows end a fixed overhang past the panel's edge — the viewport stops them short
+     * of the box's own edge, but not short of the book's — and discarding them at the settle
+     * would snap that overhang away as a glitch at the end of the ride. Ramping this from
+     * nothing to exactly that overhang over the wipe puts every row fully past the edge the
+     * frame it lands, so the discard changes nothing visible. Measured eagerly against the
+     * sliver, so no constant can go stale against another window size.
+     */
+    private int sidebarDepartOverhang;
+
+    /**
+     * Whether the list is sliding out with departed rows aboard.
+     *
+     * <p>A collapse writes the file at once, files the full rows as orphans, and leaves the
+     * sliver built behind them: the rows ride the card back to the sliver instead of vanishing
+     * the frame it starts, and the settle only discards them. The rails' departed panels are
+     * the same arrangement — state rebuilt at close, content drawn till it lands — for the same
+     * reason: a close that pops its content reads as a glitch, not a gesture. With no motion
+     * there is no wipe to ride, so this never sets and the collapse lands immediately.
+     */
+    private boolean sidebarDeparting;
+
+    /**
+     * Whether the open unpinned box has seen the pointer inside it yet, since it opened.
+     *
+     * <p>See {@code updateSidebarPeek}: auto-hide fires on leaving, and leaving needs an arrival
+     * first — otherwise a freshly opened box slams shut on its first frame with the pointer
+     * elsewhere. Cleared on every expand, set while hovered.
+     */
+    private boolean sidebarBoxHovered;
+
+    /**
+     * Whether the last unpeek was an act rather than a pointer leaving.
+     *
+     * <p>Escape, a map click or B puts the strip back while the pointer is still over it; without
+     * this the dwell would start over at once and re-open the preview under a stationary hand.
+     * Cleared the moment the pointer leaves the strip, so an honest return still peeks.
+     */
+    private boolean sidebarPeekCooling;
+
+    /**
+     * A resize of the list in flight: the list as grabbed, the width it had, and where the
+     * pointer was. The mirror of {@code panelDragRail} and its two companions, for the opposite
+     * edge: the list docks left, so its handle is its right.
+     */
+    private BookGeometry.Rect sidebarDragRail;
+    private int sidebarDragStartWidth;
+    private double sidebarDragStartX;
+
+    /**
+     * A live width override while the edge is held: {@link #sidebarEffective} answers with it
+     * instead of the file, so the chrome, the rows and the controls all follow the pointer
+     * without the settings file being written sixty times a second. Null when the hand is off.
+     */
+    private Integer sidebarLiveWidth;
+
+    /**
+     * Every widget the chapter list built, for the wipe to travel with while it expands.
+     * <p>Filed as the list builds — rows, toolbar, box squares — and read only on the frame path:
+     * an expanding wipe offsets them by the wipe's own shortfall, so the rows ride the card's
+     * edge instead of popping in once it has landed. Same-frame restore, so nothing can leak
+     * into the next frame whatever happens between the two. A collapse needs none of it: its
+     * rows were filed as orphans when it started (see {@code sidebarDeparted}) and are drawn by
+     * hand, so the strip's own icons sit inside the wipe at every frame. The mirror of
+     * `slideBaseX`, for the list rather than the rails.
+     */
+    private final List<AbstractWidget> sidebarRowWidgets = new ArrayList<>();
+
+    /** Each travelling row's placed position, filed on the first slide frame like the rails' own. */
+    private final Map<AbstractWidget, int[]> sidebarTravelBase = new IdentityHashMap<>();
+
+    /**
+     * The view cluster's three buttons, for the sidebar's wipe to travel with.
+     *
+     * <p>The cluster sits beside the list at the rows' height, so when the list slides the
+     * cluster glides with its edge rather than jumping between its docked and floating seats.
+     * Filed here rather than read from the children: the pass holds every widget, and a slide
+     * that moved all of them would move the header too.
+     */
+    private final List<AbstractWidget> viewClusterWidgets = new ArrayList<>();
 
     private boolean dragging;
     private boolean pressMoved;
@@ -3562,6 +3773,472 @@ public final class QuestBookScreen extends ArmatureScreen
         // the bar is where both of those numbers now live.
         sidebarView.bar().pitch(SidebarLayout.pitch());
         return sidebarView.viewport().bounds(rect.x(), rect.y(), rect.width(), rect.height());
+    }
+
+    /**
+     * Offsets one travelling widget by this frame's wipe, filing its placed position first.
+     *
+     * <p>One method for the rows and the cluster because the filing is the delicate half: the
+     * base is read on the first slide frame rather than at build, since a field built for a
+     * scrolling list is constructed at 0,0 and placed by its view afterwards.
+     */
+    private void travelSidebarWidget(AbstractWidget widget, int travelX, int travelY) {
+        int[] base = sidebarTravelBase.get(widget);
+        if (base == null) {
+            base = new int[] {widget.getX(), widget.getY()};
+            sidebarTravelBase.put(widget, base);
+        }
+        widget.setX(base[0] + travelX);
+        widget.setY(base[1] + travelY);
+    }
+
+    /** Puts one travelled widget back where the build placed it. See {@link #travelSidebarWidget}. */
+    private void restoreSidebarTravel(AbstractWidget widget) {
+        int[] base = sidebarTravelBase.get(widget);
+        if (base != null) {
+            widget.setX(base[0]);
+            widget.setY(base[1]);
+        }
+    }
+
+    /**
+     * Draws the departed rows over the sliding card.
+     *
+     * <p>The rails' exit in miniature: the orphans ride the wipe from their filed bases, leading
+     * its edge by the filed overhang so every one of them is fully past the panel's edge the
+     * frame the wipe lands — and all of it inside the wipe's own clip, so a row outside the card
+     * is cut rather than drawn. That clip is the difference from the kept-widgets ride this
+     * replaces: the rows can never paint past the card's edge, whatever the anchor, the window
+     * or the frame rate does, which is what makes the ghost structurally impossible rather than
+     * merely unreproduced.
+     *
+     * <p>Drawn cold: the rows answer nothing while they ride, so no hover washes over the card
+     * on its way out — and no tooltip is left pointing at a row that is already gone. Positions
+     * are restored before returning, so the filed bases stay the single source of truth for the
+     * next frame.
+     */
+    private void drawDepartedSidebar(GuiRenderer renderer) {
+        long now = net.minecraft.Util.getMillis();
+        if (!sidebarSliding(now) || sidebarDepartAnchor == null) {
+            return;
+        }
+        BookGeometry.Rect wipe = sidebarWipeRect(now);
+        int travelX = wipe.x() - sidebarDepartAnchor.x()
+                + wipe.width() - sidebarDepartAnchor.width();
+        int travelY = wipe.y() - sidebarDepartAnchor.y();
+        float progress = PanelLayout.revealed(now - sidebarSlideStart, panelRevealMillis());
+        int lead = Math.round(sidebarDepartOverhang * progress);
+        try (GuiRenderer.Scoped clip = renderer.clip(wipe.x(), wipe.y(), wipe.right(), wipe.bottom())) {
+            for (SidebarDeparted departed : sidebarDeparted) {
+                AbstractWidget widget = departed.widget();
+                widget.setX(departed.x() + travelX - lead);
+                widget.setY(departed.y() + travelY);
+                if (widget instanceof ArmatureButton button) {
+                    button.hoverTold(false).draw(renderer);
+                }
+                widget.setX(departed.x());
+                widget.setY(departed.y());
+            }
+        }
+    }
+
+    /**
+     * Whether the chapter list's wipe is still travelling, on this frame's clock.
+     *
+     * <p>Asked with the frame's time because the wipe is state with a deadline, not a flag: with
+     * motion off the duration is zero and no wipe ever starts, so the list is simply where the
+     * file says on the frame of the press.
+     */
+    private boolean sidebarSliding(long now) {
+        return sidebarSlideStart >= 0 && now - sidebarSlideStart < panelRevealMillis();
+    }
+
+    /**
+     * Where the list's sliding surface is on this frame: the wipe from where the action found
+     * it to where the geometry now says it lives.
+     *
+     * <p>Every side travels, because docking, floating and stripping move different edges — see
+     * {@code PanelLayout#sidebarWipeRect}. Settled, this is the target itself, so callers that
+     * read it never branch on whether a wipe is running.
+     */
+    private BookGeometry.Rect sidebarWipeRect(long now) {
+        if (sidebarSlideStart < 0 || sidebarSlideFromRect == null) {
+            return geometry().sidebar();
+        }
+        return PanelLayout.sidebarWipeRect(sidebarSlideFromRect, geometry().sidebar(),
+                now - sidebarSlideStart, panelRevealMillis());
+    }
+
+    /**
+     * Begins the wipe from where the list is drawn right now.
+     *
+     * <p>Called before the {@code DevMode} write the action makes, so the wipe starts at the old
+     * rectangles and lands on the new geometry the rebuild produces. An action that finds the
+     * same state it would set does not start one: a wipe to where the list already is would
+     * travel nowhere and hold the list inert for its duration.
+     */
+    private void beginSidebarSlide() {
+        long now = net.minecraft.Util.getMillis();
+        // From where the list is drawn right now, not from where it is going: reversing mid-wipe
+        // starts the way back from mid-wipe rather than jumping to the far end first. The
+        // departure's own filings — anchor box and overhang — measure in `orphanSidebarRows`,
+        // against the sliver, once the collapse knows it is one.
+        sidebarSlideFromRect =
+                sidebarSliding(now) ? sidebarWipeRect(now) : geometry().sidebar();
+        sidebarSlideStart = now;
+    }
+
+    /**
+     * Rebuilds the chapter list and the view cluster, and nothing else.
+     *
+     * <p>A collapse or an expand moves no rail, no header and no canvas: the arrangement is the
+     * same before and after, so rebuilding every column would recreate hovered controls under a
+     * stationary pointer and blink them the frame the wipe lands. The geometry cache re-derives
+     * on its own key, and the viewport rebinds inside the sidebar build, so these two builders
+     * are the whole of what a slide owes. Anything that moves a rail — floating, docking —
+     * still takes the full rebuild.
+     */
+    private void rebuildSidebarAndCluster() {
+        buildSidebarWidgets();
+        buildViewCluster();
+    }
+
+    /**
+     * Files the list's live rows as departed orphans for the wipe that just started.
+     *
+     * <p>Called after the collapse's {@code DevMode} write, so the geometry already answers the
+     * sliver the wipe lands on while the widgets still stand where the box was: the anchor filed
+     * here is the expanded box the rows were built for, and the overhang is measured against the
+     * sliver, both before anything moves. The rows leave the screen with this call — presses,
+     * hover and narration cannot reach an orphan — and the wipe draws them by hand till it
+     * lands. With no rows aboard (an empty list) this still files the anchor, so the settle has
+     * one rule whatever the list held.
+     */
+    private void orphanSidebarRows() {
+        sidebarDeparted.clear();
+        for (AbstractWidget widget : sidebarRowWidgets) {
+            sidebarDeparted.add(new SidebarDeparted(widget, widget.getX(), widget.getY()));
+            removeWidget(widget);
+            buttons.remove(widget);
+            sidebarTravelBase.remove(widget);
+        }
+        sidebarRowWidgets.clear();
+        sidebarView.clear();
+        // Rebound to the collapsed zero-area viewport now, not at the settle: the bar, the wheel
+        // and the menu all read this, and for the wipe's length there is no list for them to act on.
+        sidebarViewport();
+        sidebarDepartAnchor = geometry().sidebarExpandedRect();
+        BookGeometry.Rect target = geometry().sidebar();
+        int endShiftX = target.x() - sidebarDepartAnchor.x()
+                + target.width() - sidebarDepartAnchor.width();
+        int overhang = 0;
+        for (SidebarDeparted departed : sidebarDeparted) {
+            overhang = Math.max(overhang,
+                    departed.x() + departed.widget().getWidth() + endShiftX - panelRect().x());
+        }
+        sidebarDepartOverhang = overhang;
+    }
+
+    /** Slides the list away to its sliver, or brings it back, and writes the choice. */
+    private void setSidebarCollapsed(boolean collapsed) {
+        if (DevMode.isSidebarCollapsed() == collapsed) {
+            return;
+        }
+        beginSidebarSlide();
+        DevMode.setSidebarCollapsed(collapsed);
+        if (collapsed) {
+            sidebarPeeking = false;
+            sidebarPeekCooling = true;
+            // Out with the rows aboard, as orphans: filed and removed here, drawn by hand till
+            // the wipe lands (see `sidebarDeparted`), so the full list rides the card back
+            // instead of popping to the sliver at once — and nothing interactive is left where
+            // the card was, which is the ghost the old kept-widgets ride flashed.
+            sidebarDeparting = panelRevealMillis() > 0;
+            if (sidebarDeparting) {
+                orphanSidebarRows();
+            }
+            else {
+                rebuildWidgets();
+                cancelSidebarSlideIfStatic();
+            }
+        }
+        else {
+            // An expand re-arms the auto-hide below: without this a stale "was inside" from
+            // before the collapse would fold a box whose pointer never arrived. The leave clock
+            // restarts with it, for the same reason the peek's own clocks do on a transition.
+            sidebarBoxHovered = false;
+            sidebarPeekLeaveStart = -1;
+            sidebarDeparting = false;
+            rebuildWidgets();
+            cancelSidebarSlideIfStatic();
+        }
+    }
+
+    /** The same, from the B key while floating: docked, the old column cannot collapse. */
+    private void toggleSidebarCollapsed() {
+        if (!DevMode.isSidebarFloating()) {
+            return;
+        }
+        // Pinned never collapses: a box that stays open does not fold for a key. Unpin it first
+        // — then it slides away on its own — or expand a sliver, which is always allowed.
+        if (DevMode.isSidebarPinned() && !DevMode.isSidebarCollapsed()) {
+            return;
+        }
+        setSidebarCollapsed(!DevMode.isSidebarCollapsed());
+    }
+
+    /**
+     * Pins the floating box open, or lets it slide away when the pointer leaves.
+     *
+     * <p>Writes the choice and nothing else: pinning moves no edge, so there is no wipe to run
+     * and no widget to rebuild — the dot reads the file live on the next frame. Docked, there
+     * is nothing to pin and this decides nothing — which is why the docked book carries no pin
+     * control at all.
+     */
+    private void setSidebarPinned(boolean pinned) {
+        if (DevMode.isSidebarPinned() == pinned) {
+            return;
+        }
+        DevMode.setSidebarPinned(pinned);
+    }
+
+    /**
+     * What toggling the pin leaves behind: the three answers the screen must hold after it.
+     *
+     * <p>A static truth table rather than a screen, like {@link #editEffective}: pinning means
+     * "stay open", so from a sliver or its hover preview pinning is an expand rather than a flag
+     * flip. Without that, pinning a peek flips the dot and changes nothing — the leave-check ends
+     * the preview either way, which reads as a pin that does nothing when it is clicked.
+     */
+    record SidebarPinAfter(boolean pinned, boolean collapsed, boolean peeking) {
+    }
+
+    /** The pin toggle's answer for one state, as pure inputs. See {@link #toggleSidebarPinned}. */
+    static SidebarPinAfter pinAfterToggle(boolean pinned, boolean collapsed, boolean peeking) {
+        boolean next = !pinned;
+        if (next && (peeking || collapsed)) {
+            return new SidebarPinAfter(true, false, false);
+        }
+        return new SidebarPinAfter(next, collapsed, peeking);
+    }
+
+    /** The same, from the box's own square and Ctrl+B; docked, there is no pin to toggle. */
+    private void toggleSidebarPinned() {
+        if (!DevMode.isSidebarFloating()) {
+            return;
+        }
+        SidebarPinAfter after = pinAfterToggle(DevMode.isSidebarPinned(),
+                DevMode.isSidebarCollapsed(), sidebarPeeking);
+        setSidebarPinned(after.pinned());
+        if (after.pinned() && DevMode.isSidebarCollapsed()) {
+            // Promoting a sliver or its hover preview into a real open box. The preview's
+            // rows are already built and no rail moves either way, so this is the sidebar's
+            // own rebuild rather than the whole screen's: a full one hitches visibly on a
+            // press whose picture barely changes, which reads as the pin lagging.
+            beginSidebarSlide(); // from the drawn preview or sliver, before the triple lands
+            sidebarPeeking = after.peeking();
+            DevMode.setSidebarCollapsed(after.collapsed());
+            sidebarBoxHovered = false;
+            sidebarPeekLeaveStart = -1;
+            sidebarDeparting = false;
+            // An arrival, like every other: a pin mid-collapse cuts the departure short, and the
+            // box rebuilds its rows live below — orphans filed for the interrupted wipe would draw
+            // over them.
+            sidebarDeparted.clear();
+            sidebarDepartAnchor = null;
+            rebuildSidebarAndCluster();
+            cancelSidebarSlideIfStatic();
+        }
+        else {
+            sidebarPeeking = after.peeking();
+            if (DevMode.isSidebarCollapsed() != after.collapsed()) {
+                setSidebarCollapsed(after.collapsed());
+            }
+        }
+    }
+
+    /**
+     * Floats the list onto the canvas as a box, or docks it back into the panel's left.
+     *
+     * <p>Both landings are expanded: docking clears a stale collapse the old mode could never
+     * have produced, and floating shows the box rather than the sliver the last session may have
+     * left — the mode switch demonstrates itself instead of needing a second press to prove it.
+     */
+    private void setSidebarFloating(boolean floating) {
+        if (DevMode.isSidebarFloating() == floating) {
+            return;
+        }
+        beginSidebarSlide();
+        DevMode.setSidebarFloating(floating);
+        DevMode.setSidebarCollapsed(false);
+        sidebarPeeking = false;
+        sidebarPeekCooling = false;
+        sidebarBoxHovered = false;
+        sidebarPeekLeaveStart = -1;
+        sidebarPeekHoverStart = -1;
+        // The rows are rebuilt below for the new target, so no departure survives the switch: kept
+        // rows belong to the expanded box the collapse found, and a docked column (or a new box) is
+        // not that rectangle — riding them out here would flash them where the old mode was.
+        sidebarDeparting = false;
+        rebuildWidgets();
+        cancelSidebarSlideIfStatic();
+    }
+
+    /**
+     * Shows the collapsed list as a floating preview, or puts the strip back.
+     *
+     * <p>Writes nothing: the file keeps saying "collapsed" while the pointer hovers, which is
+     * what makes lifting the pointer the whole of the way back. The wipe runs either way, so a
+     * peek arrives like an expand and leaves like a collapse.
+     */
+    private void setSidebarPeeking(boolean peeking) {
+        if (sidebarPeeking == peeking) {
+            return;
+        }
+        beginSidebarSlide();
+        sidebarPeeking = peeking;
+        if (!peeking) {
+            // An acted unpeek (Escape, a map click) with the pointer still over the strip must
+            // not re-dwell at once: the cooldown below waits for the pointer to leave first.
+            sidebarPeekCooling = true;
+            // Out with the rows aboard, like any other collapse: filed as orphans and drawn by
+            // hand till the wipe lands.
+            sidebarDeparting = panelRevealMillis() > 0;
+            if (sidebarDeparting) {
+                orphanSidebarRows();
+            }
+            else {
+                rebuildWidgets();
+                cancelSidebarSlideIfStatic();
+            }
+            // A transition restarts every hover clock: a stale leave-stamp would otherwise end the
+            // new state the frame it begins.
+            sidebarPeekLeaveStart = -1;
+            sidebarPeekHoverStart = -1;
+            return;
+        }
+        // A transition restarts every hover clock: a stale leave-stamp would otherwise end the
+        // new state the frame it begins.
+        sidebarPeekLeaveStart = -1;
+        sidebarPeekHoverStart = -1;
+        // An arrival, even one that cuts a departure short: the preview rebuilds its rows live
+        // below, so no orphans survive the switch (see `init`, which drops them with the wipe).
+        sidebarDeparting = false;
+        rebuildWidgets();
+        cancelSidebarSlideIfStatic();
+    }
+
+    /**
+     * Stands down a wipe that would travel nowhere.
+     *
+     * <p>Pinning a list that is already its drawn width — docked expanded to floating expanded —
+     * moves no edge: starting a wipe anyway would hold the list's presses for 160 milliseconds
+     * while nothing visibly moves. Read after the rebuild, when the geometry already answers the
+     * new state, so the comparison is between the width the wipe left from and the one it would
+     * land on.
+     */
+    private void cancelSidebarSlideIfStatic() {
+        if (sidebarSlideFromRect != null && sidebarSlideFromRect.equals(geometry().sidebar())) {
+            sidebarSlideStart = -1;
+        }
+    }
+
+    /**
+     * Follows the pointer over the slid-away sliver and the unpinned box: resting on the sliver
+     * peeks the full box, leaving either puts the sliver back.
+     *
+     * <p>Edge-triggered on the frame path: only a change rebuilds, so a stationary pointer costs
+     * nothing and a travelling one pays one rebuild each way. Never while a wipe travels (the
+     * sliver it would read is mid-flight), while a menu owns the pointer, or while the pointer is
+     * owned by a popover at all — a peek opening under a menu would bury the menu's own press.
+     * Docked, the old column is always out and there is nothing to follow.
+     *
+     * <p>A peek writes nothing: the file keeps saying "collapsed" while the pointer hovers, which
+     * is what makes lifting the pointer the whole of the way back. An unpinned box left behind
+     * writes its collapse, because that is the state it is in — reopening the book finds the
+     * sliver, which is where it was left.
+     *
+     * <p>The keep zone is the box itself: the box carries its own pin and close squares, so
+     * nothing outside it is needed while open, and the canvas lifting the preview is the gesture
+     * the sliver promises.
+     */
+    private void updateSidebarPeek(int hoverX, int hoverY, boolean owned, long now) {
+        if (owned || sidebarSliding(now) || !menu.isEmpty() || colourPopover.isOpen()) {
+            sidebarPeekHoverStart = -1;
+            return;
+        }
+        if (!DevMode.isSidebarFloating()) {
+            sidebarPeekHoverStart = -1;
+            sidebarPeekCooling = false;
+            return;
+        }
+        if (!sidebarPeeking && !DevMode.isSidebarCollapsed()) {
+            // An open box that is not a peek: unpinned, it slides away once the pointer leaves
+            // it; pinned, it stays however long the pointer is gone. The dwell does not apply
+            // here — leaving is instant, because a preview that overstays is the complaint, not
+            // one that arrives late.
+            //
+            // Armed by the pointer being inside first: a freshly opened box with the pointer
+            // elsewhere must not slam shut on its first frame, before the hand has had a chance
+            // to reach it. And never while a panel holds the pointer's attention or a list
+            // gesture is in flight: folding the navigation while a quest panel is being read, or
+            // mid row-drag, trades focus for tidiness.
+            boolean inside = geometry().sidebar().inflate(SIDEBAR_KEEP_HOVER)
+                    .contains(hoverX, hoverY);
+            if (!DevMode.isSidebarPinned() && sidebarBoxHovered && !inside
+                    && overlay == PanelKind.NONE && overlay2 == PanelKind.NONE && !dockOpen
+                    && sidebarDragKey == null && sidebarDragRail == null) {
+                if (sidebarPeekLeaveStart < 0) {
+                    sidebarPeekLeaveStart = now;
+                }
+                else if (now - sidebarPeekLeaveStart >= SIDEBAR_PEEK_LEAVE_MILLIS) {
+                    sidebarPeekLeaveStart = -1;
+                    sidebarBoxHovered = false;
+                    setSidebarCollapsed(true);
+                }
+            }
+            else {
+                sidebarPeekLeaveStart = -1;
+                sidebarBoxHovered = geometry().sidebar().contains(hoverX, hoverY);
+            }
+            return;
+        }
+        if (!sidebarPeeking) {
+            if (sidebarPeekCooling) {
+                // The last unpeek was an act with the pointer still over the sliver: wait for the
+                // pointer to leave before the dwell can start over, or the preview re-opens under
+                // a hand that just put it away.
+                if (!geometry().sidebar().inflate(SIDEBAR_PEEK_HOVER).contains(hoverX, hoverY)) {
+                    sidebarPeekCooling = false;
+                }
+                return;
+            }
+            if (geometry().sidebar().inflate(SIDEBAR_PEEK_HOVER).contains(hoverX, hoverY)) {
+                if (sidebarPeekHoverStart < 0) {
+                    sidebarPeekHoverStart = now;
+                }
+                else if (now - sidebarPeekHoverStart >= SIDEBAR_PEEK_DWELL_MILLIS) {
+                    sidebarPeekHoverStart = -1;
+                    setSidebarPeeking(true);
+                }
+            }
+            else {
+                sidebarPeekHoverStart = -1;
+            }
+            return;
+        }
+        if (!geometry().sidebarExpandedRect().inflate(SIDEBAR_KEEP_HOVER).contains(hoverX, hoverY)) {
+            if (sidebarPeekLeaveStart < 0) {
+                sidebarPeekLeaveStart = now;
+            }
+            else if (now - sidebarPeekLeaveStart >= SIDEBAR_PEEK_LEAVE_MILLIS) {
+                sidebarPeekLeaveStart = -1;
+                setSidebarPeeking(false);
+            }
+        }
+        else {
+            sidebarPeekLeaveStart = -1;
+        }
     }
 
     /**
@@ -10167,14 +10844,33 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void buildSidebarWidgets() {
         SidebarLayout layout = sidebar();
-        // The add buttons live with the list they add to, and are built wherever it is -- the book's own
-        // branch and the three modal branches -- so a card in front of the book cannot leave them absent
-        // when it closes. They draw only in edit mode; their rectangles are always reserved, which is
-        // what keeps one window geometry for every player.
-        buildSidebarToolbar();
+        // Retire what the last build registered on the screen. The full `init` clears every
+        // widget first, but this builder also runs on the partial path
+        // (`rebuildSidebarAndCluster`), where nothing precedes it: without this each rebuild
+        // leaves the previous rows and toolbar buttons behind at their stale positions,
+        // drawn and clickable ghosts of the last arrangement. Departed rows need none of it:
+        // they left the screen when the collapse started and are tracked separately till the
+        // wipe lands (see `sidebarDeparted`).
+        for (AbstractWidget widget : sidebarRowWidgets) {
+            removeWidget(widget);
+            buttons.remove(widget);
+            sidebarTravelBase.remove(widget);
+        }
         sidebarView.clear();
+        sidebarRowWidgets.clear();
 
+        // Built after the clears, so the buttons stay in the list they were filed in: the wipe
+        // travels what this list holds, and the retire above removes what it holds, so a toolbar
+        // built before the clears would be registered on the screen and tracked nowhere —
+        // frozen through every slide and never removed.
+        buildSidebarToolbar();
         sidebarViewport();
+        SidebarState effective = geometry().sidebarState();
+        if (effective.collapsed()) {
+            // The sliver carries no rows: hovering it peeks the box, and the box it peeks is
+            // built when the peek begins. Nothing to place, and the viewport is zero-area to say so.
+            return;
+        }
         int width = geometry().sidebarViewport().width();
 
         // Resolved once per rebuild, not per frame: the icons come from the cache, which only moves when
@@ -10228,6 +10924,7 @@ public final class QuestBookScreen extends ArmatureScreen
             }
 
             sidebarView.put(row.key(), button);
+            sidebarRowWidgets.add(button);
         }
 
         sidebarView.apply(layout.stack(width), width);
@@ -10275,6 +10972,16 @@ public final class QuestBookScreen extends ArmatureScreen
         // longer belongs to the kind it names.
         slideWidgets.clear();
         slideBaseX.clear();
+        sidebarTravelBase.clear();
+        // And the departed rows — unless a collapse is riding out, in which case the rebuild about
+        // to happen builds the sliver behind them and the orphans keep riding: dropping them here
+        // would vanish the list mid-slide, which is the pop they exist to prevent. Every arrival
+        // (expand, peek, float, dock) clears `sidebarDeparting` first, so keeping them here only
+        // ever preserves a departure still in flight.
+        if (!sidebarDeparting) {
+            sidebarDeparted.clear();
+            sidebarDepartAnchor = null;
+        }
         // Nulled with the list it came from. `init` rebuilds Close only on the branch that builds the
         // book, so leaving this set would have `render` draw a control the screen no longer owns — see
         // the guard at the drawing site for what that looks like.
@@ -10433,11 +11140,27 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void buildViewCluster() {
         Map<String, BookGeometry.Rect> controls = geometry().controls();
+        // Retire what the last build registered: this builder runs on the partial path as well
+        // as in `init`, and a cluster left registered draws a second set of map buttons at its
+        // old seat beside the new one. The preview pill rides along: it is nulled below, so it
+        // has to be retired before that line rather than with the list.
+        for (AbstractWidget widget : viewClusterWidgets) {
+            removeWidget(widget);
+            buttons.remove(widget);
+        }
+        if (previewExitButton != null) {
+            removeWidget(previewExitButton);
+            buttons.remove(previewExitButton);
+        }
+        viewClusterWidgets.clear();
 
-        control(controls.get("zoomIn"), Component.literal("+"), () -> zoomCentre(1.25F))
-                .tooltip(List.of(Component.translatable("tenet.screen.zoom_in"),
-                        Component.translatable("tenet.screen.or_scroll_up_over_the_canvas")))
-                .ink(ArmatureButton.Ink.BODY);
+        ArmatureButton zoomIn = control(controls.get("zoomIn"), Component.literal("+"), () -> zoomCentre(1.25F));
+        if (zoomIn != null) {
+            zoomIn.tooltip(List.of(Component.translatable("tenet.screen.zoom_in"),
+                            Component.translatable("tenet.screen.or_scroll_up_over_the_canvas")))
+                    .ink(ArmatureButton.Ink.BODY);
+            viewClusterWidgets.add(zoomIn);
+        }
 
         // The way back out of a pill-entered player's-view preview: a pill over the canvas's
         // top-right corner, opposite the cluster (a command-entered one draws none — see the
@@ -10462,10 +11185,13 @@ public final class QuestBookScreen extends ArmatureScreen
             }
         }
 
-        control(controls.get("zoomOut"), Component.literal("\u2212"), () -> zoomCentre(0.8F))
-                .tooltip(List.of(Component.translatable("tenet.screen.zoom_out"),
-                        Component.translatable("tenet.screen.or_scroll_down_over_the_canvas")))
-                .ink(ArmatureButton.Ink.BODY);
+        ArmatureButton zoomOut = control(controls.get("zoomOut"), Component.literal("\u2212"), () -> zoomCentre(0.8F));
+        if (zoomOut != null) {
+            zoomOut.tooltip(List.of(Component.translatable("tenet.screen.zoom_out"),
+                            Component.translatable("tenet.screen.or_scroll_down_over_the_canvas")))
+                    .ink(ArmatureButton.Ink.BODY);
+            viewClusterWidgets.add(zoomOut);
+        }
 
         // A glyph rather than the word "Centre", because it is an 18-pixel square: "Centre" in that
         // box would be cut off by the button's own font measurement -- and it was that measurement that
@@ -10473,13 +11199,16 @@ public final class QuestBookScreen extends ArmatureScreen
         // the control back out. The tooltip carries the word. The glyph is a house -- "back to where the
         // view started" -- which is one of the few symbols this font has; the fisheye it used to be was
         // not, and drew as the missing-glyph box. See `BookGeometry.TOOLS_PILL_WIDTH`.
-        control(controls.get("centre"), Component.literal("\u2302"), () -> {
+        ArmatureButton centre = control(controls.get("centre"), Component.literal("\u2302"), () -> {
             centred = false;
             centreCanvas();
-        })
-                .tooltip(List.of(Component.translatable("tenet.screen.re_centre_the_view"),
-                        Component.translatable("tenet.screen.drag_with_left_or_middle_to_pan")))
-                .ink(ArmatureButton.Ink.BODY);
+        });
+        if (centre != null) {
+            centre.tooltip(List.of(Component.translatable("tenet.screen.re_centre_the_view"),
+                            Component.translatable("tenet.screen.drag_with_left_or_middle_to_pan")))
+                    .ink(ArmatureButton.Ink.BODY);
+            viewClusterWidgets.add(centre);
+        }
     }
 
     /**
@@ -15938,6 +16667,11 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** The two add buttons above the list. Built wherever the sidebar is, drawn only for an author. */
     private void buildSidebarToolbar() {
+        if (geometry().sidebarState().collapsed()) {
+            // No room on the strip for two half-width buttons: an author expands to add chapters,
+            // which is one more reason the strip is a preview rather than a home.
+            return;
+        }
         Map<String, BookGeometry.Rect> toolbar = geometry().sidebarToolbar();
         BookGeometry.Rect addChapter = toolbar.get("addChapter");
         if (addChapter != null) {
@@ -15946,6 +16680,7 @@ public final class QuestBookScreen extends ArmatureScreen
             button.ink(ArmatureButton.Ink.BODY).flat(true).tooltip(
                     Component.translatable("tenet.screen.add_a_chapter_to_the_selected_group"));
             button.visible = mayEditNow();
+            sidebarRowWidgets.add(button);
         }
         BookGeometry.Rect addGroup = toolbar.get("addGroup");
         if (addGroup != null) {
@@ -15954,6 +16689,7 @@ public final class QuestBookScreen extends ArmatureScreen
             button.ink(ArmatureButton.Ink.BODY).flat(true).tooltip(
                     Component.translatable("tenet.screen.add_a_group_at_the_end_of_the_list"));
             button.visible = mayEditNow();
+            sidebarRowWidgets.add(button);
         }
     }
 
@@ -23951,6 +24687,10 @@ public final class QuestBookScreen extends ArmatureScreen
         boolean owned = overlayOwnsPointer();
         int hoverX = owned ? POINTER_NONE : mouseX;
         int hoverY = owned ? POINTER_NONE : mouseY;
+        // The strip's hover-peek, read before anything draws: a change rebuilds for the new state,
+        // so everything below already answers it. Edge-triggered — a stationary pointer costs
+        // nothing — and never mid-wipe, under a menu, or while the pointer is owned.
+        updateSidebarPeek(hoverX, hoverY, owned, Util.getMillis());
         // The one forced signature in this class for drawing, and the whole of the seam at this call
         // site: a GuiGraphics arrives because Minecraft's Screen hands over one and there is no other
         // override, so it is wrapped and handed on. Nothing below this line names the type.
@@ -24079,6 +24819,11 @@ public final class QuestBookScreen extends ArmatureScreen
             // The chapter tab draws an item icon of its own, which writes depth CHROME_Z + 150 -- the same
             // band the sidebar's rows already leave behind, and the reason POPOVER_Z and TOOLTIP_Z are stepped
             // above the chrome rather than beside it.
+            //
+            // The chapter list's own surface first, so the rails stay above it: a maximally wide rail
+            // may reach the floating list, and the quest it carries is what the press is about. See
+            // `drawSidebarChrome` for why the surface lives up here rather than in `drawBook`.
+            drawSidebarChrome(renderer, hoverX, hoverY, net.minecraft.Util.getMillis());
             drawPanels(renderer, pose, hoverX, hoverY, net.minecraft.Util.getMillis());
 
             // The view cluster's backing panel, and it is drawn here rather than in `drawBook` for
@@ -24096,6 +24841,20 @@ public final class QuestBookScreen extends ArmatureScreen
             // and wrong the moment the modal branches did too: three controls with no panel behind them.
             if (ClientQuestCache.hasData()) {
                 BookGeometry.Rect cluster = viewControls();
+                // Riding the sidebar's wipe like its buttons below: a backing drawn at its landing
+                // while the three buttons travel would frame empty air for 160 milliseconds. Same
+                // anchor the buttons read, so the mat and its controls never disagree mid-slide.
+                long clusterNow = net.minecraft.Util.getMillis();
+                if (sidebarSlideStart >= 0 && sidebarSliding(clusterNow)
+                        && (geometry().sidebarState().expanded() || sidebarDeparting)) {
+                    BookGeometry.Rect wipe = sidebarWipeRect(clusterNow);
+                    BookGeometry.Rect target = geometry().sidebar();
+                    BookGeometry.Rect anchor = PanelLayout.sidebarTravelAnchor(sidebarDeparting,
+                            sidebarSlideFromRect, target, sidebarDepartAnchor);
+                    BookGeometry.Rect base = geometry().viewControlsFor(anchor);
+                    cluster = BookGeometry.Rect.at(base.x() + wipe.right() - anchor.right(),
+                            base.y() + wipe.y() - anchor.y(), base.width(), base.height());
+                }
                 ArmatureTheme.panel(renderer, cluster.x(), cluster.y(), cluster.width(),
                         cluster.height(), ArmatureTheme.panel(), ArmatureTheme.panelEdge());
             }
@@ -24149,22 +24908,99 @@ public final class QuestBookScreen extends ArmatureScreen
                 // moves — `GuiGraphics.applyScissor` calls `flushIfManaged` — which is the invariant that
                 // would otherwise forbid a batch spanning a clip. The text fields in this pass open clips
                 // of their own, and that is exactly the case this relies on.
+                //
+                // The wipe travels the list's rows with its surface while it expands — and back out
+                // while it departs: offset from the rectangle the widgets were built for, so the rows
+                // ride the card's edge instead of popping in once it has landed or vanishing the frame
+                // it starts leaving. Bases filed on the first slide frame and restored right after the
+                // pass, the rails' own arrangement, so a rebuild mid-wipe cannot strand a row off its
+                // list: the next frame re-derives the same answer from the same base.
+                //
+                // The view cluster rides the same wipe, right-edge anchored beside the list: without
+                // it the three buttons jump between their docked and floating seats while the card
+                // glides. Same bases, same restore, one frame later the same answer again.
+                boolean sidebarWipeTravelling = sidebarSlideStart >= 0
+                        && sidebarSliding(Util.getMillis())
+                        && (geometry().sidebarState().expanded() || sidebarDeparting);
+                if (sidebarWipeTravelling) {
+                    BookGeometry.Rect wipe = sidebarWipeRect(Util.getMillis());
+                    BookGeometry.Rect target = geometry().sidebar();
+                    // The anchor is where the widgets were built: the target for an arrival, the
+                    // filed departure box for a collapse. Either way the offset starts at nothing
+                    // and lands whole, so live widgets are glued to the surface at both ends —
+                    // and a collapse that reverses an expand mid-wipe continues from mid-wipe
+                    // instead of snapping the rows back to full for a frame.
+                    BookGeometry.Rect anchor = PanelLayout.sidebarTravelAnchor(sidebarDeparting,
+                            sidebarSlideFromRect, target, sidebarDepartAnchor);
+                    if (!sidebarDeparting) {
+                        // The position's travel plus the width's shortfall: a wipe that only
+                        // narrows keeps the rows' right edge on the moving edge, and one that
+                        // moves the card carries the rows the same pixels. Either is zero when
+                        // it does not apply. Departing rows need none of this: they left the
+                        // screen when the collapse started and are drawn by hand below.
+                        int rowTravelX = wipe.x() - anchor.x() + wipe.width() - anchor.width();
+                        int rowTravelY = wipe.y() - anchor.y();
+                        for (AbstractWidget widget : sidebarRowWidgets) {
+                            travelSidebarWidget(widget, rowTravelX, rowTravelY);
+                        }
+                    }
+                    // One pill that moves: the three buttons ride inside the same travelling mat
+                    // the backing draws above, seated at fixed mat-relative slots — so buttons and
+                    // mat agree by construction on every frame, whatever the anchor, the window or
+                    // the frame rate does. No bases filed, nothing restored, nothing rebuilt for a
+                    // slide: seats are a pure function of the wipe, and settled frames simply keep
+                    // the exact landing seats the last travelling frame put them at.
+                    BookGeometry.Rect mat = geometry().viewControlsFor(anchor);
+                    int matX = mat.x() + wipe.right() - anchor.right();
+                    int matY = mat.y() + wipe.y() - anchor.y();
+                    int slot = 0;
+                    for (AbstractWidget widget : viewClusterWidgets) {
+                        widget.setX(matX + BookGeometry.VIEW_MAT);
+                        widget.setY(matY + BookGeometry.VIEW_MAT
+                                + slot * (BookGeometry.VIEW_BUTTON + BookGeometry.VIEW_GAP));
+                        slot++;
+                    }
+                }
                 renderer.batched(() -> {
                     // The hover pointer for the pass and the rows' marks, and the real one for the menu:
                     // see `overlayOwnsPointer`. The menu *is* the overlay, so it is the one thing here that
                     // is still aimed at where the pointer really is.
                     super.render(graphics, hoverX, hoverY, partialTick);
+                    // The departed rows over the sliding card, drawn by hand: they left the screen
+                    // when the collapse started, so the pass above cannot draw them — and the wipe's
+                    // own clip inside is what keeps them on the card, which is the whole of this
+                    // rewrite. Only while orphans are aboard: settled, they are already discarded.
+                    if (sidebarDeparting && !sidebarDeparted.isEmpty()) {
+                        drawDepartedSidebar(renderer);
+                    }
                     // The chapter rows' progress bars and reward counts, over the rows they belong to and
                     // inside the same clip: a mark drawn outside the list would be a mark over the header.
-                    drawSidebarChapterProgress(renderer, hoverX, hoverY);
+                    // And only while the rows are settled: mid-wipe they travel with the card while the
+                    // marks read unshifted rectangles, and the rail's icons carry no bars — the selected
+                    // fill is the rail's answer to "where am I".
+                    if (!sidebarWipeTravelling && geometry().sidebarState().expanded()) {
+                        drawSidebarChapterProgress(renderer, hoverX, hoverY);
+                    }
                     // The drag's own marks, above the rows it is about and inside the clip for the same
                     // reason the rows are: a seam line that escaped the list would draw into the header.
-                    drawSidebarDrag(renderer);
+                    // Unlike the bars above, these draw for a live rail drag too: reordering from the
+                    // rail is a supported gesture, and a drag with no seam is a drag with no target.
+                    if (!sidebarWipeTravelling
+                            && (geometry().sidebarState().expanded() || sidebarDragLive)) {
+                        drawSidebarDrag(renderer);
+                    }
                     // And the menu, which is outside the rows' clip only in the sense that it overhangs
                     // them -- it belongs to the list, and it is drawn after it so nothing paints over it.
                     drawMenu(renderer, renderMouseX, renderMouseY);
                     return null;
                 });
+                // The rows' travel is undone; the cluster's seats are always valid — freshly built
+                // or wipe-derived — so there is nothing to put back.
+                if (sidebarWipeTravelling && !sidebarDeparting) {
+                    for (AbstractWidget widget : sidebarRowWidgets) {
+                        restoreSidebarTravel(widget);
+                    }
+                }
             }
 
             // Close, drawn by hand rather than by the widget pass above.
@@ -25222,10 +26058,25 @@ public final class QuestBookScreen extends ArmatureScreen
         // Getting a mask wrong is visible and diagnosable rather than subtle, which is the whole reason
         // the mask is a value at the call site instead of a guess inside `fillSurface`.
         int innerRadius = Math.max(0, ArmatureTheme.current().cornerRadius() - 1);
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, SIDEBAR_WIDTH - 1, panelH - 2,
-                ArmatureTheme.recessed(), innerRadius, ArmatureTheme.CORNERS_LEFT);
-        ArmatureTheme.fillSurface(r, left + SIDEBAR_WIDTH, top + 1, panelW - SIDEBAR_WIDTH - 1,
-                HEADER_HEIGHT - 2, ArmatureTheme.raised(), innerRadius, ArmatureTheme.TOP_RIGHT);
+        // The wipe the header travels on when the list is docked: read here because the header
+        // starts past the list. The list's own surface is NOT drawn here — it lives in the chrome
+        // layer (`drawSidebarChrome`), because the canvas is drawn after this method and fills its
+        // whole rect: a surface drawn here would be buried under the graph the moment the list
+        // floats or slides, which is exactly the "no background" fault that moved it. Rails moved
+        // for the same reason; see the chrome layer's own note.
+        SidebarState sidebarShown = geometry().sidebarState();
+        boolean sidebarTall = !sidebarShown.floating();
+        // The wipe the header travels on when the list is docked: read here because the header
+        // starts past the list.
+        int sidebarWipeWidth = sidebarSliding(now) ? sidebarWipeRect(now).width()
+                : geometry().sidebar().width();
+        // The header beside (or above) it: docked, it starts past the list with a square left edge
+        // against the travelling surface; floating, it spans the panel with both top corners round.
+        int headerLeft = sidebarTall ? left + sidebarWipeWidth : left + 1;
+        int headerWidth = Math.max(0, left + panelW - 1 - headerLeft);
+        ArmatureTheme.fillSurface(r, headerLeft, top + 1, headerWidth,
+                HEADER_HEIGHT - 2, ArmatureTheme.raised(), innerRadius,
+                sidebarTall ? ArmatureTheme.TOP_RIGHT : ArmatureTheme.CORNERS_TOP);
         r.fill(left + 1, top + HEADER_HEIGHT - 1, left + panelW - 1, top + HEADER_HEIGHT,
                 ArmatureTheme.panelEdge());
         // The author's band, which is the second chrome strip: the same raised surface as the header, the
@@ -25244,24 +26095,15 @@ public final class QuestBookScreen extends ArmatureScreen
                     ArmatureTheme.CORNERS_NONE);
             r.fill(left + 1, bodyTop - 1, left + panelW - 1, bodyTop, ArmatureTheme.panelEdge());
         }
-        // A divider between the sidebar and everything else, so the two read as separate surfaces
-        // rather than as one dark field with things floating in it. It starts below the band, because the
-        // band is one surface across both columns -- a divider through it would cut the author's toolbar
-        // in half.
-        r.fill(left + SIDEBAR_WIDTH, bodyTop, left + SIDEBAR_WIDTH + 1, top + panelH - 1,
-                ArmatureTheme.panelEdge());
+        // A divider between the sidebar and everything else is drawn with the list's own surface
+        // in the chrome layer (`drawSidebarChrome`): down here the canvas fill would bury it, which
+        // is why the old one never showed. The band's rule above stays: it is above the canvas, so
+        // this method's own fills still reach it.
 
-        // The sidebar's scrollbar. Drawn here rather than by the widget pass, because it is chrome
-        // rather than a widget -- though it *is* clickable, and a press on it is captured by `pressBar`
-        // like every other bar in this screen. Every number it needs comes from the viewport, so the grip
-        // and the rows it describes come from one object.
-        //
-        // **Drawn whether or not a modal is open, and only pressable when none is** -- which is the same
-        // rule the rows themselves follow. The book stays on screen behind a card on purpose (the request
-        // was "dont close whats behind them, just have it in the background"), so the whole of it is drawn
-        // and the whole of it is inert; a bar that vanished while its own rows stayed would be the one
-        // part of the sidebar that behaved differently from the rest of it.
-        drawSidebarScrollbar(r, mouseX, mouseY);
+        // The sidebar's surface, divider, grip and scrollbar all live in the chrome layer now
+        // (`drawSidebarChrome`): the canvas is drawn after this method and fills its whole rect, so
+        // anything of the list's drawn here would be buried under the graph the moment the list
+        // floats or slides. See that method for the full reason.
 
         // The party strip, drawn here beside the sidebar's scrollbar because it is chrome rather than
         // content: it describes the player's own situation, not the questline on screen, so no chapter's
@@ -25299,7 +26141,10 @@ public final class QuestBookScreen extends ArmatureScreen
                             : "tenet.screen.quest_book.waiting")
                     : "tenet.screen.quest_book.nothing_visible";
             Component message = Component.translatable(key);
-            r.centredText(message.getString(), left + SIDEBAR_WIDTH + (panelW - SIDEBAR_WIDTH) / 2,
+            // Centred on the graph as drawn — full-body when the list floats or has slid away, beside
+            // it when docked — rather than on an assumed 156-pixel column.
+            BookGeometry.Rect emptyCanvas = geometry().canvas();
+            r.centredText(message.getString(), emptyCanvas.x() + emptyCanvas.width() / 2,
                     top + panelH / 2, ArmatureTheme.body());
             return null;
         }
@@ -25433,6 +26278,16 @@ public final class QuestBookScreen extends ArmatureScreen
         String elementTitle = hoveredElementTitle();
         if (elementTitle != null) {
             drawTooltip(r, List.of(elementTitle), mouseX, mouseY);
+            return;
+        }
+        // The floating box's pin dot is chrome rather than a widget, so it owns no tooltip of
+        // its own: one short line here, under the same hover the press answers, saying what the
+        // press does.
+        if (geometry().sidebarState().floating() && geometry().sidebarState().expanded()
+                && geometry().sidebarBoxPin().contains(mouseX, mouseY)) {
+            drawTooltip(r, List.of(Component.translatable(DevMode.isSidebarPinned()
+                    ? "tenet.screen.sidebar_unpin" : "tenet.screen.sidebar_pin").getString()),
+                    mouseX, mouseY);
             return;
         }
         for (ArmatureButton button : buttons) {
@@ -27583,6 +28438,121 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
+     * The same affordance on the chapter list's inner edge — and on the floating tab, where the
+     * ridges are the texture that invites the hover.
+     *
+     * <p>The hit test is the same {@code handle.contains} the press uses, so the strip that lights
+     * is exactly the strip that answers. The pinned rail keeps none: its rows are the affordance,
+     * and ridges would promise a drag the strip has no width for.
+     */
+    private void drawSidebarGrip(GuiRenderer r, BookGeometry.Rect surface, int mouseX, int mouseY) {
+        BookGeometry.Rect handle = BookGeometry.sidebarHandle(surface);
+        if (handle.width() <= 0 || handle.height() <= 0) {
+            return;
+        }
+        if (!handle.contains(mouseX, mouseY)) {
+            for (BookGeometry.Rect ridge : PanelLayout.sidebarGrip(surface)) {
+                r.fill(ridge.x(), ridge.y(), ridge.right(), ridge.bottom(), ArmatureTheme.scrollThumb());
+            }
+            return;
+        }
+        r.fill(handle.x(), handle.y(), handle.right(), handle.bottom(),
+                Colour.translucent(ArmatureTheme.rowHover(), 1F));
+        for (BookGeometry.Rect ridge : PanelLayout.sidebarGrip(surface)) {
+            r.fill(ridge.x(), ridge.y(), ridge.right(), ridge.bottom(), ArmatureTheme.controlEdgeBright());
+        }
+    }
+
+    /**
+     * The chapter list's own chrome: its surface, its divider, its grip and its scrollbar.
+     *
+     * <h2>Why this is in the chrome layer rather than in {@code drawBook}</h2>
+     *
+     * <p>Because the canvas is drawn after {@code drawBook} and fills its whole rect. A docked
+     * list never noticed — the canvas starts past it — but a floating list, a strip and every
+     * wipe in between sit over the graph, so a surface drawn down there is buried under it: rows
+     * floating over the map with no card behind them, which reads as the book having no
+     * background at all. Up here, past the canvas and at {@code CHROME_Z}, the surface beats both
+     * the canvas fill and the node icons' depth, exactly like the rails beside it.
+     *
+     * <p>Before the rails and before the widget pass, so a maximally wide rail still wins over
+     * the list and the list's own rows sit on its surface. The header stays in {@code drawBook}:
+     * it is above the canvas and was never buried.
+     */
+    private void drawSidebarChrome(GuiRenderer r, int mouseX, int mouseY, long now) {
+        SidebarState shown = geometry().sidebarState();
+        // Docked, the list is the panel's own left column; floating — box or sliver — it is a
+        // panel over the graph. The old mode has no other shape: docked is always expanded.
+        boolean tall = !shown.floating();
+        BookGeometry.Rect surface =
+                sidebarSliding(now) ? sidebarWipeRect(now) : geometry().sidebar();
+        int innerRadius = Math.max(0, ArmatureTheme.current().cornerRadius() - 1);
+
+        // Clipped to the panel: the sliver and every wipe in between hang past its left edge by
+        // construction, and what hangs past it is not a preview but an overflow — a slab floating
+        // over the margin the dim exists to keep empty. The window cuts further out on its own.
+        BookGeometry.Rect panel = geometry().panel();
+        try (GuiRenderer.Scoped clip = r.clip(panel.x(), panel.y(), panel.right(), panel.bottom())) {
+            if (tall) {
+                // The panel's own left column down the full height — today's recess, at the wipe's
+                // rectangle while it travels.
+                ArmatureTheme.fillSurface(r, surface.x(), surface.y(), surface.width(),
+                        surface.height(), ArmatureTheme.recessed(), innerRadius,
+                        ArmatureTheme.CORNERS_LEFT);
+                // The divider, at the travelling edge: down in `drawBook` the canvas fill buried it,
+                // which is why the old one never showed. Up here it reads as the moving edge it is.
+                r.fill(surface.right(), geometry().bodyTop(), surface.right() + 1,
+                        geometry().panel().bottom() - 1, ArmatureTheme.panelEdge());
+            }
+            else {
+                // A box on the canvas, like the rails beside it: inset on every side with its edge all
+                // round, so it reads as a panel floating over the graph rather than as a column the
+                // graph was cut around.
+                ArmatureTheme.panel(r, surface.x(), surface.y(), surface.width(), surface.height(),
+                        ArmatureTheme.recessed(), ArmatureTheme.panelEdge());
+                // The box's title, in its own header band: truncated short of the pin dot, like every
+                // other title in this screen that shares a band with controls.
+                if (shown.expanded()) {
+                    int titleRoom = Math.max(0, surface.right() - 4 - BookGeometry.ROW_HEIGHT
+                            - BookGeometry.ROW_GAP - (surface.x() + BookGeometry.EDGE));
+                    r.text(Measure.truncate(
+                                    Component.translatable("tenet.screen.sidebar_title").getString(),
+                                    titleRoom, textMeasure(r)),
+                            surface.x() + BookGeometry.EDGE,
+                            surface.y() + (BookGeometry.SIDEBAR_BOX_HEADER - 9) / 2,
+                            ArmatureTheme.title());
+                    // The pin beside the title: the circle glyph itself, with no button around
+                    // it — filled while pinned, a ring while not. Drawn chrome rather than a
+                    // widget, the scrollbar's own arrangement — the settings switch is the
+                    // focusable, narrated road to the same choice.
+                    BookGeometry.Rect pinZone = BookGeometry.sidebarBoxPinFor(surface);
+                    String pinGlyph = DevMode.isSidebarPinned() ? "●" : "○";
+                    int pinWidth = textMeasure(r).width(pinGlyph);
+                    r.shadowedText(pinGlyph, pinZone.x() + (pinZone.width() - pinWidth) / 2,
+                            pinZone.y() + (pinZone.height() - 8) / 2,
+                            DevMode.isSidebarPinned() ? ArmatureTheme.title()
+                                    : pinZone.contains(mouseX, mouseY) ? ArmatureTheme.body()
+                                            : ArmatureTheme.faint(),
+                            1F);
+                }
+            }
+
+            // The grip on the list's inner edge: quiet ridges that brighten under the pointer, because
+            // a thing you can grab has to look grabbable before you grab it. On the expanded list for
+            // resizing, on the sliver as the texture that invites the hover.
+            drawSidebarGrip(r, surface, mouseX, mouseY);
+
+            // The scrollbar: chrome rather than a widget, though clickable, and every number it needs
+            // comes from the viewport, so the grip and the rows it describes come from one object.
+            // Only while the list is expanded and settled: the sliver has no rows at all, and mid-wipe
+            // the bar would draw at its target while the surface travels.
+            if (shown.expanded() && sidebarSlideStart < 0) {
+                drawSidebarScrollbar(r, mouseX, mouseY);
+            }
+        }
+    }
+
+    /**
      * What one kind draws, wherever it is drawn.
      *
      * <h2>Why the dispatcher takes a kind rather than reading the field</h2>
@@ -29527,7 +30497,9 @@ public final class QuestBookScreen extends ArmatureScreen
     private void buildSettingsWidgets() {
         appearanceEntries = SettingsLayout.entries(ClientAppearance.LOOK.textScale());
         appearanceRows = appearanceEntries.stream()
-                .map(entry -> InspectRow.action(entry.key(), entry.label().getString()))
+                .map(entry -> SettingsLayout.SIDEBAR_KEY.equals(entry.key())
+                        ? InspectRow.toggle(entry.key(), entry.label().getString())
+                        : InspectRow.action(entry.key(), entry.label().getString()))
                 .toList();
 
         int cardWidth = framed(PanelKind.SETTINGS).width();
@@ -29566,6 +30538,22 @@ public final class QuestBookScreen extends ArmatureScreen
         appearanceView.put(SettingsLayout.HUD_KEY,
                 control(0, 0, 0, 0, Component.translatable("tenet.screen.hud_edit.open"),
                         HudEditScreen::openFromBook));
+
+        // And the chapter list's placement as a switch in its row's own strip: the row names the
+        // placement and the switch shows which way it stands, so the state reads at a glance. The
+        // strip is the layout's own (`InspectLayout.strip`), so the switch sits where the drawn
+        // label stops — one derivation for the ink and the control, which is what keeps a switch
+        // attached to its row rather than floating beside it.
+        ArmatureSwitch sidebarSwitch = new ArmatureSwitch(0, 0, DevMode.isSidebarFloating());
+        sidebarSwitch.onToggle(() -> setSidebarFloating(sidebarSwitch.selected()));
+        addRenderableWidget(sidebarSwitch);
+        appearanceView.put(SettingsLayout.SIDEBAR_KEY, sidebarSwitch, slot -> {
+            Slot strip = InspectLayout.strip(slot);
+            int width = Math.min(ArmatureSwitch.WIDTH, strip.width());
+            int height = Math.min(ArmatureSwitch.HEIGHT, strip.height());
+            return new Slot(slot.key(), strip.right() - width,
+                    strip.y() + Math.max(0, (strip.height() - height) / 2), width, height);
+        });
 
         appearanceView.apply(appearanceLayout, body.viewWidth());
 
@@ -29611,6 +30599,31 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         Viewport body = appearanceView.viewport();
         appearanceView.apply(appearanceLayout, body.viewWidth());
+        // The arrival's travel, re-applied after the placing above: this draw re-places every
+        // frame, which would otherwise pin every widget while its own panel travels — a switch
+        // that stays behind while its card slides in reads as not attached to it. Same bases
+        // `slidePanelWidgets` reads, so the two cannot disagree about where a widget lives; the
+        // offset is absolute rather than added, so running both is one travel rather than two.
+        long settingsNow = Util.getMillis();
+        if (panelRevealing(PanelKind.SETTINGS, settingsNow)) {
+            int travel = PanelLayout.slideOffset(panelRail(PanelKind.SETTINGS),
+                    panelRevealElapsed(PanelKind.SETTINGS, settingsNow), panelRevealMillis());
+            if (travel != 0) {
+                for (String key : List.of(SettingsLayout.TEXT_KEY, SettingsLayout.HUD_KEY,
+                        SettingsLayout.SIDEBAR_KEY)) {
+                    AbstractWidget widget = appearanceView.get(key);
+                    if (widget == null) {
+                        continue;
+                    }
+                    Integer base = slideBaseX.get(widget);
+                    if (base == null) {
+                        base = widget.getX();
+                        slideBaseX.put(widget, base);
+                    }
+                    widget.setX(base + travel);
+                }
+            }
+        }
         QuestPanel.drawRows(r, BookGeometry.Rect.at(body.originX(), body.originY(),
                 body.viewWidth(), body.viewHeight()), body, appearanceLayout,
                 appearanceRows, mouseX, mouseY);
@@ -31555,6 +32568,22 @@ public final class QuestBookScreen extends ArmatureScreen
             panelDragStartX = mouseX;
             return true;
         }
+        // **And the chapter list's own grip, on its inner edge like every rail's.**
+        //
+        // Claimed here for the same reason the rails' is: no content is ever drawn on that strip --
+        // the handle is narrower than the list's own inset, so there is no control under it to take
+        // the press first. Expanded only: a strip has no width to drag, and its press brings the
+        // list back instead (claimed below, past the widget pass, so a rail row still wins it).
+        //
+        // Left button only, on the same terms as every other grip in this screen.
+        if (button == 0 && !onPicker && geometry().sidebarState().expanded()
+                && sidebarSlideStart < 0
+                && BookGeometry.sidebarHandle(geometry().sidebar()).contains(mouseX, mouseY)) {
+            sidebarDragRail = geometry().sidebar();
+            sidebarDragStartWidth = geometry().sidebarWidth();
+            sidebarDragStartX = mouseX;
+            return true;
+        }
         // **The panels first, before the widget pass**, and this is an ordering the present arrangement is
         // free to choose: every rail is drawn *before* the pass, so a rail's own rows and bars are drawn
         // targets this branch answers, while its real widgets are reached through `super.mouseClicked` a few
@@ -32106,6 +33135,40 @@ public final class QuestBookScreen extends ArmatureScreen
             return true;
         }
 
+        // A press landing mid-wipe is absorbed: the widgets are already at their target while the
+        // surface travels, so anything it caught would act a fraction of a second before the list
+        // has visibly arrived. The wipe is 160 milliseconds; the press waits for it. Either end
+        // of the travel absorbs — the rectangle the wipe left from as well as the one it lands on.
+        long sidebarSlideNow = net.minecraft.Util.getMillis();
+        if (sidebarSlideStart >= 0 && sidebarSlideFromRect != null
+                && sidebarSliding(sidebarSlideNow)
+                && (sidebarSlideFromRect.contains(mouseX, mouseY)
+                        || geometry().sidebar().contains(mouseX, mouseY))) {
+            return true;
+        }
+
+        // A press on the slid-away sliver brings the list back: one press, no aiming at 20 pixels
+        // of tab. Past the widget pass on purpose, so a row still wins its own press where rows
+        // exist; what reaches here touched no row. Left and right both expand — a right press that
+        // opened a menu for a sliver with no rows would be a menu about nothing.
+        if ((button == 0 || button == 1) && geometry().sidebarState().collapsed() && !sidebarPeeking
+                && geometry().sidebar().contains(mouseX, mouseY)) {
+            setSidebarCollapsed(false);
+            return true;
+        }
+
+        // The box's pin dot, drawn chrome rather than a widget: filled while pinned, a ring while
+        // not, and the press flips it. Past the widget pass because there is no widget to meet —
+        // the rows live below the header band, so nothing up here answers first. Left button
+        // only, like every grip: pinning is not a thing to hang off a right press. Peeked counts:
+        // pinning the preview keeps it, now held open.
+        if (button == 0 && geometry().sidebarState().floating()
+                && geometry().sidebarState().expanded()
+                && geometry().sidebarBoxPin().contains(mouseX, mouseY)) {
+            toggleSidebarPinned();
+            return true;
+        }
+
         // The sidebar's scrollbar, which is not a widget -- it is chrome this screen draws and
         // hit-tests itself, in the margin to the right of the rows. It has to be checked here rather
         // than left to the widget pass for that reason, and it cannot steal a click from a row because
@@ -32123,6 +33186,41 @@ public final class QuestBookScreen extends ArmatureScreen
         // it provides has since moved to `mouseReleased`, where a click that did not travel closes the panel
         // and a drag pans the canvas. Deleted rather than left: it is what made a reader of this method
         // believe the canvas was reachable here.)
+
+        // A press on the map while the list floats puts the list away instead of starting a pan:
+        // the click that dismisses the panel is not the click that pans the graph. Peeked, it ends
+        // the peek and the sliver stays; unpinned and open, it slides the list to its sliver. A
+        // pinned box never collapses — unpin it first, and it slides away on its own. Either way
+        // the press is spent dismissing, and the next one acts on the canvas.
+        //
+        // Past the rows, the bar and the sliver above, so only a press on the visible graph — outside
+        // the list's own rectangle — reaches here. A press on the list's empty padding is the list's:
+        // reading it as blank space would slide the panel away from under the hand that just opened
+        // it, which is the fault the panel's own `!panelPress` guard exists for.
+        if ((button == 0 || button == 1 || button == 2) && inCanvas(mouseX, mouseY)
+                && !geometry().sidebar().contains(mouseX, mouseY)
+                && (sidebarPeeking
+                        || (DevMode.isSidebarFloating() && !DevMode.isSidebarCollapsed()
+                                && !DevMode.isSidebarPinned()))) {
+            if (sidebarPeeking) {
+                setSidebarPeeking(false);
+            }
+            else {
+                setSidebarCollapsed(true);
+            }
+            return true;
+        }
+
+        // A press on the floating list's empty padding is the list's, not the graph's: the rows,
+        // the bar and the strip above already had their chance, so what reaches here touched none
+        // of them — and the canvas underneath must not answer through the panel floating over it.
+        // Without this a click between two rows would pan the graph under the list, and its release
+        // would read as blank space and close the quest panel the reader was working in. A docked
+        // list needs none of this: beside the canvas, its padding is not over anything.
+        if (geometry().sidebarState().floating() && geometry().sidebarState().expanded()
+                && geometry().sidebar().contains(mouseX, mouseY)) {
+            return true;
+        }
 
         // Left or middle on the canvas: begin a pan, or -- in developer mode -- pick a node up, or
         // stretch a marquee. Whether it becomes a pan or a click is decided by whether the pointer
@@ -32473,6 +33571,21 @@ public final class QuestBookScreen extends ArmatureScreen
             return true;
         }
 
+        // A resize of the chapter list in flight, and the same contract as the rails' above: the
+        // edge follows the pointer, and the chrome, the rows and the controls all follow it. The
+        // width goes through the list's own clamp, so the edge stops where a list may not go; the
+        // draw-time cap in the geometry keeps the window's remainder for the graph, and a drag back
+        // to the default removes the stored entry on release rather than restating it.
+        if (sidebarDragRail != null) {
+            int wanted = BookGeometry.sidebarWidthWhileDragging(sidebarDragStartWidth,
+                    sidebarDragStartX, mouseX);
+            if (sidebarLiveWidth == null || wanted != sidebarLiveWidth) {
+                sidebarLiveWidth = wanted;
+                rebuildWidgets();
+            }
+            return true;
+        }
+
         // A field's label drag is the screen's, because a label is not a widget: the press armed it and
         // this keeps feeding the same field until the release commits it.
         if (labelScrub != null && labelScrub.labelDragged(mouseX, mouseY,
@@ -32774,6 +33887,17 @@ public final class QuestBookScreen extends ArmatureScreen
             panelLiveWidth = 0;
             DevMode.setPanelWidth(panelDragKind, width);
             panelDragKind = PanelKind.NONE;
+            rebuildWidgets();
+            return true;
+        }
+        // The list's edge let go: what the hand reached is what is remembered, through the same
+        // clamp the drag used — and a width back at the default costs no entry, because the
+        // file is a diff and the absence of the key already says "today's column".
+        if (sidebarDragRail != null) {
+            int width = sidebarLiveWidth != null ? sidebarLiveWidth : sidebarDragRail.width();
+            sidebarDragRail = null;
+            sidebarLiveWidth = null;
+            DevMode.setSidebarWidth(width);
             rebuildWidgets();
             return true;
         }
@@ -33441,6 +34565,23 @@ public final class QuestBookScreen extends ArmatureScreen
             return true;
         }
 
+        // A wipe in flight absorbs the wheel over it: the rows are travelling and the viewport
+        // already answers for its target, so a notch now would scroll a list that is not where it
+        // is drawn. The wipe is 160 milliseconds; the wheel waits for it.
+        long sidebarWheelNow = net.minecraft.Util.getMillis();
+        if (sidebarDeparting && sidebarSliding(sidebarWheelNow)
+                && sidebarWipeRect(sidebarWheelNow).contains(mouseX, mouseY)) {
+            return true;
+        }
+
+        // The wheel over the slid-away sliver is neither the list's nor the canvas's: it carries
+        // no rows, and zooming the graph through a sliver the pointer is hovering to peek would
+        // move the map out from under the preview being opened.
+        if (geometry().sidebarState().collapsed() && geometry().sidebar().contains(mouseX, mouseY)
+                && !sidebarViewport().containsScreen(mouseX, mouseY)) {
+            return true;
+        }
+
         // The wheel over the sidebar scrolls the list, and over the canvas it still zooms. Routed by
         // region rather than by a modifier, because the two regions are visibly separate things and a
         // player pointing at one does not want the other: a list that zoomed the graph behind it, or a
@@ -33589,6 +34730,23 @@ public final class QuestBookScreen extends ArmatureScreen
         // (Ctrl+P stood here, and it flipped the presentation: a card or a docked column. There is one
         // presentation now, so the chord and the client setting behind it are gone -- see `DevMode`, whose
         // parser still tolerates the old key without letting it decide anything.)
+        // B slides the floating list to its sliver and back; Ctrl+B pins it open and lets it go.
+        // Bare keys never fire from a field, like the editor's own keys below: a focused field's B is a
+        // character, and a screen that slid the list out from under someone typing would be a trap.
+        // Nor under an open menu or picker: the list would travel behind the very press the menu is
+        // waiting for. Both no-op where they cannot apply — docked, or pinned for B — so the keys are
+        // acceleration that never surprises rather than the only road.
+        if (getFocused() == null && !Screen.hasControlDown() && !Screen.hasAltDown()
+                && keyCode == GLFW.GLFW_KEY_B && overlay != PanelKind.NAMING && !typePageOpen()
+                && pickingItemPath == null && menu.isEmpty() && !colourPopover.isOpen()) {
+            toggleSidebarCollapsed();
+            return true;
+        }
+        if (getFocused() == null && Screen.hasControlDown() && !Screen.hasAltDown()
+                && keyCode == GLFW.GLFW_KEY_B) {
+            toggleSidebarPinned();
+            return true;
+        }
         if (overlay == PanelKind.TABLE_BROWSER && (keyCode == GLFW.GLFW_KEY_ENTER
                 || keyCode == GLFW.GLFW_KEY_KP_ENTER)) {
             // Enter on the browser takes the row the keyboard is on: the same rule the item picker's
@@ -33800,10 +34958,27 @@ public final class QuestBookScreen extends ArmatureScreen
         // header button also walk, and the order is "the innermost thing that is open first": the child rail
         // the player was in, then a page within a panel, then the panel, then the dock.
         //
+        // **And the floating list is on it first — unless it is pinned.** A peek ends back at
+        // its sliver, and an unpinned box slides to its sliver, before any rail peels: the list is
+        // the outermost thing on screen, so it is the first thing a press puts away. A pinned box
+        // never collapses — that is what pinned means — so Escape walks past it to the ladder,
+        // and a docked list is navigation rather than a dialog, leaving it alone either way.
+        //
         // **And the dock is on it now.** It used to fall through to the screen's own handler, which closes
         // the book -- so an author with their tools open pressed Escape and lost the whole book. It is a rail
         // like any other, it is put away by the thing that names it, and a second Escape then closes the
         // book, which is the pair every other arrangement already had.
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE && getFocused() == null) {
+            if (sidebarPeeking) {
+                setSidebarPeeking(false);
+                return true;
+            }
+            if (DevMode.isSidebarFloating() && !DevMode.isSidebarCollapsed()
+                    && !DevMode.isSidebarPinned()) {
+                setSidebarCollapsed(true);
+                return true;
+            }
+        }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE
                 && (overlay != PanelKind.NONE || overlay2 != PanelKind.NONE || dockOpen)) {
             // **Outermost first.** With a child rail open, the first press peels it -- the thing the player
@@ -34626,6 +35801,22 @@ public final class QuestBookScreen extends ArmatureScreen
             panelBuildPending = false;
             rebuildWidgets();
         }
+        // The list's wipe has landed, so it forgets when it started: a toggle closed and reopened
+        // later begins its second wipe at the beginning rather than part-way through the first. No
+        // rebuild — the widgets were built for the target on the action's own frame, so settling
+        // only ends the press-absorb and the travel, both of which read this flag. A departure
+        // is the exception that needs nothing: its rows were filed as orphans when it started
+        // and the sliver stands behind them, so settling only discards them — and rebuilding
+        // every column here would recreate the rails and the header under a stationary pointer,
+        // and every hovered control would blink the frame it lands.
+        if (sidebarSlideStart >= 0 && !sidebarSliding(now)) {
+            sidebarSlideStart = -1;
+        }
+        if (sidebarDeparting && sidebarSlideStart < 0) {
+            sidebarDeparting = false;
+            sidebarDeparted.clear();
+            sidebarDepartAnchor = null;
+        }
         // Everything settled forgets when it started, so a kind closed and reopened later begins its second
         // arrival at the beginning rather than part-way through the first.
         panelRevealStarts.entrySet().removeIf(entry -> !panelRevealing(entry.getKey(), now));
@@ -35105,6 +36296,10 @@ public final class QuestBookScreen extends ArmatureScreen
         runAllTeardowns();
         panelDepartStarts.clear();
         departRails.clear();
+        // And the departed rows, if the book closes mid-collapse: unregistered orphans nobody
+        // draws after this, dropped with the screen rather than left for a settle that never comes.
+        sidebarDeparted.clear();
+        sidebarDepartAnchor = null;
         // The pending values die with the screen: reopening reads the server's copy, and a draft from
         // a session that is over must not answer for it.
         fieldDraft.clear();

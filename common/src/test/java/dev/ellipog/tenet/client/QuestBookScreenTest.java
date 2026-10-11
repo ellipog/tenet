@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -49,8 +50,7 @@ class QuestBookScreenTest {
 
     @Test
     @DisplayName("a preview ask parks absolutely, and a toggle flips the parked ask")
-    void previewAskParks() {
-        QuestBookScreen.requestPreview(false, true);
+    void previewAskParks() {        QuestBookScreen.requestPreview(false, true);
         assertEquals(true, QuestBookScreen.consumePreviewRequest().orElse(null),
                 "an absolute ask parks as-is");
         assertTrue(QuestBookScreen.consumePreviewRequest().isEmpty(),
@@ -74,5 +74,52 @@ class QuestBookScreenTest {
         QuestBookScreen.requestPreview(true, false);
         assertEquals(false, QuestBookScreen.consumePreviewRequest().orElse(null),
                 "while a toggle over a preview ask leaves it");
+    }
+
+    @Nested
+    @DisplayName("the pin toggle")
+    class PinToggle {
+
+        @Test
+        @DisplayName("pinning an open box flips the flag and moves nothing else")
+        void pinningAnOpenBoxKeepsItOpen() {
+            assertEquals(new QuestBookScreen.SidebarPinAfter(true, false, false),
+                    QuestBookScreen.pinAfterToggle(false, false, false));
+        }
+
+        @Test
+        @DisplayName("unpinning an open box flips the flag and moves nothing else")
+        void unpinningAnOpenBoxKeepsItOpen() {
+            assertEquals(new QuestBookScreen.SidebarPinAfter(false, false, false),
+                    QuestBookScreen.pinAfterToggle(true, false, false));
+        }
+
+        @Test
+        @DisplayName("pinning a hover preview promotes it to an open pinned box")
+        void pinningAPeekPromotesIt() {
+            // The report this locks: pinning the sliver's peek flipped the dot and changed
+            // nothing, so leaving ended the preview either way and the pin read as dead.
+            assertEquals(new QuestBookScreen.SidebarPinAfter(true, false, false),
+                    QuestBookScreen.pinAfterToggle(false, true, true));
+        }
+
+        @Test
+        @DisplayName("pinning a sliver expands it to an open pinned box")
+        void pinningASliverExpandsIt() {
+            // The keyboard road (Ctrl+B) reaches the pin with no preview up: "pin it open" is
+            // the only reading that does anything, so a sliver becomes a box rather than a
+            // pinned sliver the next hover would still fold away.
+            assertEquals(new QuestBookScreen.SidebarPinAfter(true, false, false),
+                    QuestBookScreen.pinAfterToggle(false, true, false));
+        }
+
+        @Test
+        @DisplayName("unpinning anywhere else leaves the other two answers alone")
+        void unpinningChangesOnlyTheFlag() {
+            assertEquals(new QuestBookScreen.SidebarPinAfter(false, true, true),
+                    QuestBookScreen.pinAfterToggle(true, true, true));
+            assertEquals(new QuestBookScreen.SidebarPinAfter(false, true, false),
+                    QuestBookScreen.pinAfterToggle(true, true, false));
+        }
     }
 }

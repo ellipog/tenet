@@ -76,6 +76,17 @@ import java.util.Map;
  * dragged has no entry, and a drag back to the default removes the entry it had. That is
  * {@code ThemeFiles}' own shape and its own reason -- a file that restates every value cannot be read for
  * what the player changed -- and it means the file grows only where somebody made a choice.
+ *
+ * <h2>The chapter list's own four, and why they are fields rather than a fourth table</h2>
+ *
+ * <p>{@code sidebarWidth} is a diff like the table above: absent means today's 156-pixel column, and
+ * only a dragged width is written. {@code sidebarFloating} says whether the list sits as a box on
+ * the canvas rather than docked down the panel's left; {@code sidebarPinned} whether a floating
+ * box stays open; {@code sidebarCollapsed} whether it has slid away to its sliver. Each absent
+ * means a floating pinned expanded box — docking is a switch in the settings card, not the
+ * absence of a key.
+ * All four are read before anything draws, and none is gated on {@link #on()}: a player who never
+ * turns developer mode on still has a layout, and it is theirs.
  */
 public final class DevMode {
 
@@ -88,6 +99,10 @@ public final class DevMode {
     private static boolean advanced;
     private static Map<PanelKind, Integer> panelWidths = new EnumMap<>(PanelKind.class);
     private static PanelStack.Fold panelFold = PanelStack.Fold.AUTO;
+    private static int sidebarWidth = BookGeometry.SIDEBAR_WIDTH;
+    private static boolean sidebarFloating = true;
+    private static boolean sidebarPinned = true;
+    private static boolean sidebarCollapsed;
     private static Path file;
 
     /**
@@ -102,9 +117,15 @@ public final class DevMode {
      * @param advanced    whether every editor menu shows everything; a file that does not say says no
      * @param panelWidths the widths the player has chosen, per kind, keyed only by kinds they have dragged
      * @param panelFold   what the player asked a panel's second column to do
+     * @param sidebarWidth the chapter list's expanded width, clamped to its own range on the way in
+     * @param sidebarFloating whether the list sits as a box on the canvas; a file that does not
+     *     say says floating, like a missing file
+     * @param sidebarPinned whether a floating box stays open; docked, there is nothing to pin
+     * @param sidebarCollapsed whether the list has slid away to its sliver; docked, always expanded
      */
     public record Parsed(boolean dev, boolean snap, boolean progress, boolean advanced,
-            Map<PanelKind, Integer> panelWidths, PanelStack.Fold panelFold) {
+            Map<PanelKind, Integer> panelWidths, PanelStack.Fold panelFold, int sidebarWidth,
+            boolean sidebarFloating, boolean sidebarPinned, boolean sidebarCollapsed) {
     }
 
     private DevMode() {
@@ -258,6 +279,83 @@ public final class DevMode {
     }
 
     // ------------------------------------------------------------------
+    // The chapter list
+    // ------------------------------------------------------------------
+
+    /**
+     * How wide the expanded chapter list is drawn, in GUI pixels.
+     *
+     * <p>The player's width, defaulting to {@link BookGeometry#SIDEBAR_WIDTH} — today's column —
+     * so a file that never heard of it draws what it always drew. The clamp is applied where the
+     * value enters, like {@link #panelWidth}'s, so a hand-edited file is made legal once, on the
+     * way in, and every later reader gets the same number.
+     */
+    public static int sidebarWidth() {
+        return sidebarWidth;
+    }
+
+    /**
+     * Remembers a width and writes it.
+     *
+     * <p>A width back at its default is not stored: the absence of the key already says "today's
+     * column", so storing it as well would be two spellings of one state. See
+     * {@link #setPanelWidth} for the same rule on panels.
+     */
+    public static void setSidebarWidth(int next) {
+        sidebarWidth = BookGeometry.clampSidebarWidth(next);
+        save();
+    }
+
+    /**
+     * Whether the chapter list sits as a box on the canvas rather than docked down the panel's
+     * left. Floating by default: a new book opens on the map beside an open box, and docking is
+     * the settings card's switch rather than the absence of a key. The mode lives in the settings
+     * card rather than the header, because the header is
+     * the book's busiest row and the choice is made once, not pressed daily.
+     */
+    public static boolean isSidebarFloating() {
+        return sidebarFloating;
+    }
+
+    /** Floats the list onto the canvas, or docks it back into the panel, and writes the choice. */
+    public static void setSidebarFloating(boolean next) {
+        sidebarFloating = next;
+        save();
+    }
+
+    /**
+     * Whether a floating box stays open. Pinned by default, so a freshly floated list does not
+     * slide away from under the hand that floated it; unpinned, it slides to its sliver when the
+     * pointer leaves it, like a peek that never ends. Docked, there is nothing to pin and this
+     * decides nothing.
+     */
+    public static boolean isSidebarPinned() {
+        return sidebarPinned;
+    }
+
+    /** Pins the floating box open, or lets it slide away, and writes the choice. */
+    public static void setSidebarPinned(boolean next) {
+        sidebarPinned = next;
+        save();
+    }
+
+    /** Whether the list has slid away to its sticking-out sliver. Expanded by default. */
+    public static boolean isSidebarCollapsed() {
+        return sidebarCollapsed;
+    }
+
+    /** Slides the list away to its sliver, or brings it back, and writes the choice. */
+    public static void setSidebarCollapsed(boolean next) {
+        sidebarCollapsed = next;
+        save();
+    }
+
+    /** The four answers together, as the file holds them. */
+    public static SidebarState sidebarState() {
+        return new SidebarState(sidebarWidth, sidebarFloating, sidebarPinned, sidebarCollapsed);
+    }
+
+    // ------------------------------------------------------------------
     // Persistence
     // ------------------------------------------------------------------
 
@@ -300,8 +398,16 @@ public final class DevMode {
                 snap = read.snap();
                 progress = read.progress();
                 advanced = read.advanced();
-                panelWidths = new EnumMap<>(read.panelWidths());
+                // Filled rather than wrapped: `new EnumMap<>(map)` cannot infer its key type from an
+                // empty table and throws, so a file with no dragged widths — which is every file that
+                // only names the chapter list — would discard itself into the defaults on every load.
+                panelWidths = new EnumMap<>(PanelKind.class);
+                panelWidths.putAll(read.panelWidths());
                 panelFold = read.panelFold() == null ? PanelStack.Fold.AUTO : read.panelFold();
+                sidebarWidth = read.sidebarWidth();
+                sidebarFloating = read.sidebarFloating();
+                sidebarPinned = read.sidebarPinned();
+                sidebarCollapsed = read.sidebarCollapsed();
             }
             catch (IOException | RuntimeException e) {
                 Constants.LOG.warn("tenet: {} could not be read, so developer mode is off. Deleting the"
@@ -371,7 +477,30 @@ public final class DevMode {
                 Map.copyOf(widths),
                 root.has("panelFold")
                         ? PanelStack.foldOf(root.get("panelFold").getAsString())
-                        : PanelStack.Fold.AUTO);
+                        : PanelStack.Fold.AUTO,
+                root.has("sidebarWidth") && root.get("sidebarWidth").isJsonPrimitive()
+                        && root.getAsJsonPrimitive("sidebarWidth").isNumber()
+                        ? BookGeometry.clampSidebarWidth(root.get("sidebarWidth").getAsInt())
+                        : BookGeometry.SIDEBAR_WIDTH,
+                // A file that never heard of the list says none of those, and floats like a new
+                // one: floating pinned expanded is what absence already says for each key below.
+                !root.has("sidebarFloating") || booleanOf(root, "sidebarFloating", true),
+                !root.has("sidebarPinned") || booleanOf(root, "sidebarPinned", true),
+                root.has("sidebarCollapsed") && booleanOf(root, "sidebarCollapsed", false));
+    }
+
+    /**
+     * One field as a boolean, or the default when the file does not say or says something else.
+     *
+     * <p>A wrong type falls back rather than failing the file: a typo should cost a preference,
+     * not the settings beside it.
+     */
+    private static boolean booleanOf(JsonObject root, String field, boolean fallback) {
+        if (!root.has(field) || !root.get(field).isJsonPrimitive()
+                || !root.getAsJsonPrimitive(field).isBoolean()) {
+            return fallback;
+        }
+        return root.get(field).getAsBoolean();
     }
 
     /**
@@ -416,6 +545,22 @@ public final class DevMode {
      */
     public static String write(boolean dev, boolean snap, boolean progress, boolean advanced,
             Map<PanelKind, Integer> widths, PanelStack.Fold fold) {
+        return write(dev, snap, progress, advanced, widths, fold, BookGeometry.SIDEBAR_WIDTH, true,
+                true, false);
+    }
+
+    /**
+     * Writes the file, with the chapter list's four answers. Answer given rather than the default
+     * so a test can assert the format.
+     *
+     * <p>Each is written only when it differs from the defaults, so a file that never heard of
+     * the list stays byte-identical to what it always wrote: the absence of each key already says
+     * "floating, pinned, expanded, today's width". A width that is not its default but clamps to
+     * one is written clamped, because the file must read back as what is drawn.
+     */
+    public static String write(boolean dev, boolean snap, boolean progress, boolean advanced,
+            Map<PanelKind, Integer> widths, PanelStack.Fold fold, int sidebarWidth,
+            boolean sidebarFloating, boolean sidebarPinned, boolean sidebarCollapsed) {
         JsonObject root = new JsonObject();
         root.addProperty("dev", dev);
         root.addProperty("snap", snap);
@@ -430,6 +575,19 @@ public final class DevMode {
         }
         root.add("panelWidths", table);
         root.addProperty("panelFold", PanelStack.foldWord(fold));
+        int listWidth = BookGeometry.clampSidebarWidth(sidebarWidth);
+        if (listWidth != BookGeometry.SIDEBAR_WIDTH) {
+            root.addProperty("sidebarWidth", listWidth);
+        }
+        if (!sidebarFloating) {
+            root.addProperty("sidebarFloating", false);
+        }
+        if (!sidebarPinned) {
+            root.addProperty("sidebarPinned", false);
+        }
+        if (sidebarCollapsed) {
+            root.addProperty("sidebarCollapsed", true);
+        }
         return root.toString();
     }
 
@@ -451,6 +609,10 @@ public final class DevMode {
         advanced = false;
         panelWidths = new EnumMap<>(PanelKind.class);
         panelFold = PanelStack.Fold.AUTO;
+        sidebarWidth = BookGeometry.SIDEBAR_WIDTH;
+        sidebarFloating = true;
+        sidebarPinned = true;
+        sidebarCollapsed = false;
         file = null;
     }
 
@@ -465,7 +627,9 @@ public final class DevMode {
             // leaves the previous flags rather than a half-written file the next load has to guess at.
             // This file's whole contract is that every way of being wrong reads as the safe direction,
             // and a truncated file is the one way that could not be honoured. See JsonWrite.
-            JsonWrite.atomically(file, write(on, snap, progress, advanced, panelWidths, panelFold));
+            JsonWrite.atomically(file,
+                    write(on, snap, progress, advanced, panelWidths, panelFold, sidebarWidth,
+                            sidebarFloating, sidebarPinned, sidebarCollapsed));
         }
         catch (IOException e) {
             Constants.LOG.warn("tenet: developer mode could not be written to {}", file, e);

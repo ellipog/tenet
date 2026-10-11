@@ -96,19 +96,74 @@ public final class BookGeometry {
      *
      * <p>156 rather than the 132 it was, and the reason is the grouped sidebar rather than taste. A
      * heading's label and a chapter's are now at two different indents inside one column, so the room
-     * a title has is {@code 156 - EDGE*2 - SIDEBAR_SCROLLBAR - SIDEBAR_INDENT} = 124 rather than the
-     * 116 the flat list had — and the flat list was already truncating {@code "Getting Started"}.
+     * a title has is {@code 156 - EDGE*2 - SIDEBAR_SCROLLBAR - SIDEBAR_HANDLE - SIDEBAR_INDENT} = 119
+     * rather than the 116 the flat list had — and the flat list was already truncating
+     * {@code "Getting Started"}.
      * Grouping the list without widening it would have made the truncation worse and blamed it on the
      * grouping.
      *
      * <p>Worth recording what the number is measured against, since a sidebar is easy to over-widen: the
      * gallery's longest chapter title is {@code "High Contrast"} and the longest heading is
-     * {@code "Getting Started"}, so 124 is roughly twice what the content asks for. That margin is
+     * {@code "Getting Started"}, so 119 is roughly twice what the content asks for. That margin is
      * deliberate — a pack author's titles are not this file's — and it costs the canvas 24 pixels out
      * of a 200-pixel minimum, which is why {@link #MIN_PANEL_WIDTH} still fits a screenshot-sized
      * window comfortably.
      */
     public static final int SIDEBAR_WIDTH = 156;
+
+    /**
+     * The narrowest the chapter list is dragged to, in GUI pixels.
+     *
+     * <p>120 rather than something smaller, and it is measured against the same titles
+     * {@link #SIDEBAR_WIDTH} is: the inner room is {@code 120 - EDGE*2 - SIDEBAR_SCROLLBAR} = 96,
+     * less one {@link #SIDEBAR_INDENT} for a nested chapter, so ~88 pixels of title. Below that a
+     * chapter row is a scrollbar beside an ellipsis, which is a width that cannot be read rather
+     * than a narrow one.
+     */
+    public static final int SIDEBAR_MIN_WIDTH = 120;
+
+    /**
+     * The widest the chapter list is dragged to.
+     *
+     * <p>260: past this the list is map rather than navigation — a chapter title longer than 228
+     * inner pixels is a sentence, not a name — and every pixel past it comes off the graph the
+     * panel is for. The draw-time cap in {@link #drawnSidebarWidth} still has the last word on a
+     * window too small for even this, so a remembered width can never eat the canvas.
+     */
+    public static final int SIDEBAR_MAX_WIDTH = 260;
+
+    /**
+     * How much of the slid-away box still sticks out past the panel's left edge.
+     *
+     * <p>20: the box keeps its size and slides left until 20 pixels of its right edge show — its
+     * grip and its edge, enough to hover and to grab the eye, not enough to read as a panel. The
+     * collapsed state is one translation rather than a second layout, so there is nothing about
+     * it that can disagree with the box it belongs to.
+     */
+    public static final int SIDEBAR_PEEK_WIDTH = 20;
+
+    /**
+     * The strip a press drags the chapter list by, on its inner (right) edge and inside it.
+     *
+     * <p>The same figure as {@link #PANEL_HANDLE}, and for the same reason: a band reaching past
+     * the edge into the canvas would be a press that either resizes or answers the graph. The
+     * relation to the body's own inset is asserted the same way — narrower than every surface's
+     * inset, so there is no control under it.
+     *
+     * <p>Five rather than a reference to {@link #PANEL_HANDLE}, because a static initializer cannot
+     * read a field declared below it — and the sameness is asserted where it matters, in the tests
+     * that hold both handles inside their columns.
+     */
+    public static final int SIDEBAR_HANDLE = 5;
+
+    /**
+     * The floating list's own header band: room for its title and its close square.
+     *
+     * <p>26 rather than the rail's 45: a rail's header carries a title, a state tag and a chapter
+     * line, while this one carries one word and one square. Tall enough for an 18-pixel control
+     * with air either side, like every other band measured this way.
+     */
+    public static final int SIDEBAR_BOX_HEADER = 26;
 
     /** The title bar across the top of the panel. Holds the title, the count and Close. */
     public static final int HEADER_HEIGHT = 26;
@@ -374,6 +429,18 @@ public final class BookGeometry {
      * pixels, and the three of them sit inside a single raised panel.
      */
     public static final int VIEW_MAT = 3;
+
+    /**
+     * How far below the rows' top edge the view cluster sits, in pixels.
+     *
+     * <p>Three rather than level: level with the chapter bar the cluster reads as attached to the
+     * list, a hair below it reads as on the map beside it. Both anchors that place the cluster —
+     * the buttons in {@link #controls} and the backing in {@link #viewControlsFor} — add this,
+     * so the two cannot disagree about where it lives. At the minimum panel height this spends
+     * three of the canvas term's bottom margin; seven remain, and the cluster stays inside the
+     * canvas, which is what the sweep holds.
+     */
+    public static final int VIEW_DROP = 3;
 
     /**
      * The smallest panel that can hold its own chrome, derived rather than written out.
@@ -784,6 +851,18 @@ public final class BookGeometry {
             return y + height;
         }
 
+        /**
+         * The rectangle grown by {@code margin} on every side: hover room, not layout.
+         *
+         * <p>Hit tests for presses stay exact — a press that spills onto the canvas must act on
+         * the canvas — but a hover that ends a pixel short of an edge reads as a control that
+         * flickers. The sliver's peek zone and the box's keep zone both read through this, so
+         * the pointer has room to live around the thing it is holding open.
+         */
+        public Rect inflate(int margin) {
+            return new Rect(x - margin, y - margin, width + margin * 2, height + margin * 2);
+        }
+
         public boolean intersects(Rect other) {
             return x < other.right() && other.x < right()
                     && y < other.bottom() && other.y < bottom();
@@ -815,6 +894,9 @@ public final class BookGeometry {
     private final int screenWidth;
     private final int screenHeight;
     private final boolean authorBand;
+    private final SidebarState sidebarState;
+    /** The expanded list's drawn width: the player's, clamped and capped to the window. */
+    private final int sidebarWidth;
     private final Rect panel;
     private final Rect header;
     private final Rect canvas;
@@ -868,9 +950,25 @@ public final class BookGeometry {
      * panel's, because the canvas's term was what bound it. That is the trade this flag records.
      */
     public BookGeometry(int screenWidth, int screenHeight, boolean fullBleed, boolean authorBand) {
+        this(screenWidth, screenHeight, fullBleed, authorBand, SidebarState.DEFAULT);
+    }
+
+    /**
+     * The book, with the chapter list's own state beside the window it is drawn in.
+     *
+     * <p>The sidebar's three answers travel together ({@link SidebarState}) because every
+     * rectangle below follows from all three at once: the canvas is full-width unless the list
+     * is pinned <i>and</i> expanded, and the list's own rectangle is the expanded one or its
+     * sticking-out strip. A caller holding a peek therefore resolves it first — a collapsed
+     * state being peeked is passed as floating expanded — so this never sees a state that is
+     * half held by the pointer, and the file's three answers stay the whole of what is drawn.
+     */
+    public BookGeometry(int screenWidth, int screenHeight, boolean fullBleed, boolean authorBand,
+            SidebarState sidebar) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
         this.authorBand = authorBand;
+        this.sidebarState = sidebar == null ? SidebarState.DEFAULT : sidebar;
 
         // Clamped to a minimum, and allowed to exceed the window below it. A window smaller than this
         // cannot show the book sensibly at any layout, so the choice is between a panel that runs off
@@ -900,8 +998,38 @@ public final class BookGeometry {
         int bodyTop = panelTop + HEADER_HEIGHT + (authorBand ? AUTHOR_BAND_HEIGHT : 0);
         int bodyHeight = panelHeight - (bodyTop - panelTop);
 
-        this.canvas = Rect.at(panelLeft + SIDEBAR_WIDTH, bodyTop, panelWidth - SIDEBAR_WIDTH, bodyHeight);
-        this.sidebar = Rect.at(panelLeft, bodyTop, SIDEBAR_WIDTH, bodyHeight);
+        // The expanded list's drawn width: the player's, clamped to its own range and then capped
+        // against the window, so a remembered width can never eat the canvas on a window too small
+        // for it. The cap is drawn, not stored: growing the window brings the width back without a
+        // second drag.
+        this.sidebarWidth = drawnSidebarWidth(panelWidth, this.sidebarState.width());
+
+        // Docked is today's rectangle at the drawn width; floating is the same rectangle over the
+        // canvas rather than beside it, so sliding between them is one wipe rather than two
+        // surfaces. Collapsed is the sticking-out strip at the panel's left edge, where the tab
+        // the pointer hovers is.
+        // Docked is today's rectangle at the drawn width and cannot collapse — the old mode is
+        // the old column, whatever the file's other answers say. Floating is a box on the canvas;
+        // collapsed is that same box slid left until only its peek sticks out.
+        Rect body = Rect.at(panelLeft, bodyTop, panelWidth, bodyHeight);
+        if (!this.sidebarState.floating()) {
+            this.sidebar = Rect.at(panelLeft, bodyTop, this.sidebarWidth, bodyHeight);
+        }
+        else if (this.sidebarState.expanded()) {
+            this.sidebar = sidebarFloatRect(this.sidebarWidth, body);
+        }
+        else {
+            Rect box = sidebarFloatRect(this.sidebarWidth, body);
+            int over = Math.max(0, box.width() - SIDEBAR_PEEK_WIDTH);
+            this.sidebar = Rect.at(box.x() - over, box.y(), box.width(), box.height());
+        }
+        // Pinned and expanded, the canvas starts past the list, as it always has. Anything else —
+        // floating, or slid away to its sliver — and the graph gets the whole body: that regained
+        // map is the point of both.
+        this.canvas = !this.sidebarState.floating()
+                ? Rect.at(panelLeft + this.sidebarWidth, bodyTop, panelWidth - this.sidebarWidth,
+                        bodyHeight)
+                : Rect.at(panelLeft, bodyTop, panelWidth, bodyHeight);
         this.overlay = Rect.at(OVERLAY_MARGIN, OVERLAY_MARGIN,
                 Math.max(MIN_PANEL_WIDTH, screenWidth - OVERLAY_MARGIN * 2),
                 Math.max(MIN_PANEL_HEIGHT, screenHeight - OVERLAY_MARGIN * 2));
@@ -952,6 +1080,136 @@ public final class BookGeometry {
         return sidebar;
     }
 
+    /**
+     * How the chapter list is shown: the player's width, pin and collapse, as the file holds them.
+     *
+     * <p>Exposed because the screen builds its cache key from it: a toggle that left the geometry
+     * cached would draw yesterday's rectangles under today's widgets, which is the class of fault
+     * this class exists to end.
+     */
+    public SidebarState sidebarState() {
+        return sidebarState;
+    }
+
+    /**
+     * The expanded list's drawn width: the player's, clamped and capped to the window.
+     *
+     * <p>What the list is drawn at and what a drag starts from. The file's own number lives in
+     * the state above; this is that number made legal for this window, so a remembered width is
+     * never the thing that eats the canvas.
+     */
+    public int sidebarWidth() {
+        return sidebarWidth;
+    }
+
+    // ------------------------------------------------------------------
+    // The chapter list's own arithmetic
+    // ------------------------------------------------------------------
+
+    /**
+     * The player's width made legal: into its own range, whatever the file says.
+     *
+     * <p>One function rather than a floor and a ceiling at the call site, for the reason
+     * {@code PanelStack#clampWidth} states: a drag and a hand-edited file both go through it,
+     * because a remembered number is only as legal as this makes it.
+     */
+    public static int clampSidebarWidth(int wanted) {
+        return clamp(wanted, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH);
+    }
+
+    /**
+     * The width the expanded list is drawn at in a panel this wide.
+     *
+     * <p>The clamp above, then a cap against the window: the list keeps {@link #MIN_CANVAS_WIDTH}
+     * of graph beside it even in a full-bleed window smaller than the book, so a remembered 260
+     * never covers the canvas it is for. The cap is drawn, not stored — growing the window
+     * brings the width back without a second drag.
+     */
+    public static int drawnSidebarWidth(int panelWidth, int wanted) {
+        return Math.max(0,
+                Math.min(clampSidebarWidth(wanted), Math.max(0, panelWidth - MIN_CANVAS_WIDTH - EDGE)));
+    }
+
+    /**
+     * The floating box's pin zone: what keeps the box open when the pointer leaves it.
+     *
+     * <p>Right-aligned in the box's own header, where the close square stood: pinned, the box
+     * stays; unpinned, it slides to its sliver when the pointer leaves, like a peek that never
+     * ends. Drawn as a dot rather than a square — filled while pinned, a ring while not — and
+     * hit-tested here, the scrollbar's own arrangement: chrome the screen draws and answers
+     * itself, with the settings switch as the focusable, narrated road to the same choice.
+     */
+    public Rect sidebarBoxPin() {
+        return sidebarBoxPinFor(sidebar);
+    }
+
+    /**
+     * The same zone for any box rectangle, settled or mid-wipe.
+     *
+     * <p>The drawing reads it rather than the field: mid-wipe the surface travels and the dot
+     * travels on it, while presses keep answering the settled zone — a press landing mid-wipe is
+     * absorbed before it reaches either.
+     */
+    public static Rect sidebarBoxPinFor(Rect box) {
+        return Rect.at(box.right() - 4 - ROW_HEIGHT,
+                box.y() + (SIDEBAR_BOX_HEADER - ROW_HEIGHT) / 2, ROW_HEIGHT, ROW_HEIGHT);
+    }
+
+    /**
+     * The box a floating list sits in: inset from the canvas on every side, like a rail anchored
+     * left where rails anchor right.
+     *
+     * <h2>Why this mirrors {@link #panelRail} instead of sharing it</h2>
+     *
+     * <p>Because the anchor is the whole difference: a rail hangs off the canvas's right edge and
+     * this hangs off its left, so the column the graph keeps clear is on opposite sides. The cap
+     * is the same — the canvas less a {@link #PANEL_GAP} on each side — and a width of zero or
+     * less, or a canvas with no room at all, gives a zero-width rectangle rather than a negative
+     * one, for the same reason that method states.
+     *
+     * @param drawnWidth the expanded list's drawn width, already clamped and capped for the window
+     * @param body       the whole body the graph gets while the list floats
+     */
+    public static Rect sidebarFloatRect(int drawnWidth, Rect body) {
+        int limit = Math.max(0, body.width() - PANEL_GAP * 2);
+        int w = Math.max(0, Math.min(drawnWidth, limit));
+        int h = Math.max(0, body.height() - PANEL_GAP * 2);
+        return Rect.at(body.x() + PANEL_GAP, body.y() + PANEL_GAP, w, h);
+    }
+
+    /** The whole body the graph gets while the list floats: the canvas's own rectangle then. */
+    private Rect sidebarBody() {
+        return Rect.at(panel.x(), bodyTop(), panel.width(), panel.bottom() - bodyTop());
+    }
+
+    /**
+     * The width a drag of the list's edge has reached.
+     *
+     * <p>The mirror of {@code PanelStack#widthWhileDragging}: a rail docks right so its inner
+     * edge is its left and moving the pointer left widens it, while the list docks left so its
+     * inner edge is its right and moving the pointer <i>right</i> widens it. Pure, so the gesture
+     * is asserted without a mouse.
+     *
+     * @param startWidth the width when the press landed
+     * @param startX     where the press landed
+     * @param currentX   where the pointer is now
+     */
+    public static int sidebarWidthWhileDragging(int startWidth, double startX, double currentX) {
+        return clampSidebarWidth((int) Math.round(startWidth + (currentX - startX)));
+    }
+
+    /**
+     * The strip a press drags the list by: its inner (right) edge, inside it.
+     *
+     * <p>The mirror of {@link #panelHandle}, which sits on a rail's left because rails dock
+     * right. Static and taking the list, for the same reason that one does: a caller holding
+     * the list should be able to ask where its handle is without holding this geometry.
+     */
+    public static Rect sidebarHandle(Rect list) {
+        return Rect.at(list.right() - Math.min(SIDEBAR_HANDLE, Math.max(0, list.width())), list.y(),
+                Math.min(SIDEBAR_HANDLE, Math.max(0, list.width())), list.height());
+    }
+
     // ------------------------------------------------------------------
     // The docked column
     // ------------------------------------------------------------------
@@ -979,8 +1237,10 @@ public final class BookGeometry {
      *
      * <p>A column is anchored to the canvas's right edge and may cover the whole of it — that is what "the
      * panel wins" means — but the cap is the canvas less a {@link #PANEL_GAP} on each side, so it can
-     * never reach the chapter list. Hiding the navigation to show a quest would be a trade nobody asked
-     * for: the list is how the reader gets anywhere else.
+     * never reach a docked chapter list. Hiding the navigation to show a quest would be a trade nobody asked
+     * for: the list is how the reader gets anywhere else. A <i>floating</i> list is the exception, and
+     * deliberately so: it floats over the canvas's left corner while rails dock right, so a maximally
+     * wide rail may reach it — and the screen draws rails above it, so the quest stays reachable.
      *
      * <p>At the cap the column is the canvas minus a hair on each side, which reads as a full-page panel
      * rather than as a slab pinned to one edge. A width of zero or less, or a canvas with no room at all,
@@ -1081,10 +1341,12 @@ public final class BookGeometry {
      *   <li><b>Bottom: the panel's own {@link #EDGE}.</b> Measured to the panel's edge, because there is
      *       nothing else below the list any more — see {@link #MIN_PANEL_HEIGHT} for the two appearance
      *       rows that used to be anchored there and the bug their anchoring caused.</li>
-     *   <li><b>Right: {@link #SIDEBAR_SCROLLBAR}.</b> Room for the scrollbar, so the bar is drawn in the
-     *       sidebar's margin rather than over the end of a row. The alternative — a bar drawn over the
-     *       content, or a viewport that stops short of one — puts the bar and the row it belongs to in
-     *       the same pixels, and a row that a bar can be read through is a row whose text is cut off.</li>
+     *   <li><b>Right: {@link #SIDEBAR_SCROLLBAR} and {@link #SIDEBAR_HANDLE}.</b> Room for the
+     *       scrollbar, so the bar is drawn in the sidebar's margin rather than over the end of a row. The
+     *       alternative — a bar drawn over the content, or a viewport that stops short of one — puts the
+     *       bar and the row it belongs to in the same pixels, and a row that a bar can be read through is
+     *       a row whose text is cut off. Past the bar, room for the resize handle, for the same reason
+     *       one step further out: a grip over the bar would shadow the thumb it overlaps.</li>
      * </ul>
      *
      * <p>Both dimensions are floored at zero rather than assumed. A window can be dragged smaller than
@@ -1106,6 +1368,22 @@ public final class BookGeometry {
      * the caller that knows which mode it is drawing in passes it.
      */
     public Rect sidebarViewport(boolean toolbar) {
+        if (sidebarState.collapsed()) {
+            // The sliver carries no rows: hovering it peeks the box, and the box it peeks is
+            // built when the peek begins. A zero-area viewport is what tells every caller that.
+            return Rect.at(panel.x(), chapterListTop(), 0, 0);
+        }
+        if (sidebarState.floating()) {
+            // The floating box's rows: below its own header (and the toolbar when authors), above
+            // its bottom inset, between its side insets with room for the scrollbar and the grip —
+            // the same three reservations the docked list makes, measured from the box instead.
+            int boxTop = sidebar.y() + SIDEBAR_BOX_HEADER + ROW_GAP
+                    + (toolbar ? SIDEBAR_ROW_HEIGHT + SIDEBAR_TOOLBAR_GAP : 0);
+            int boxBottom = sidebar.bottom() - EDGE;
+            return Rect.at(sidebar.x() + EDGE, boxTop,
+                    Math.max(0, sidebar.width() - EDGE * 2 - SIDEBAR_SCROLLBAR - SIDEBAR_HANDLE),
+                    Math.max(0, boxBottom - boxTop));
+        }
         int top = toolbar
                 ? chapterListTop() + SIDEBAR_ROW_HEIGHT + SIDEBAR_TOOLBAR_GAP
                 : chapterListTop();
@@ -1114,8 +1392,13 @@ public final class BookGeometry {
         // class of fault this whole class exists to prevent: a row that stays clickable under a control
         // drawn on top of it.
         int bottom = panel.bottom() - EDGE;
+        // Room for the scrollbar and then for the resize handle, side by side: the bar sits in
+        // its own 8 pixels and the handle owns the outermost 5, so a press on one can never be
+        // read as the other. The rows end where the bar begins, exactly as they always have —
+        // only the bar stands 5 pixels further from the edge than it did, which is what keeps the
+        // grip from covering the thumb it would otherwise shadow.
         return Rect.at(panel.x() + EDGE, top,
-                Math.max(0, sidebarInner() - SIDEBAR_SCROLLBAR),
+                Math.max(0, sidebarInner(sidebarWidth) - SIDEBAR_SCROLLBAR - SIDEBAR_HANDLE),
                 Math.max(0, bottom - top));
     }
 
@@ -1128,10 +1411,30 @@ public final class BookGeometry {
      * already the place controls go when they are about the book rather than about the list.
      */
     public Map<String, Rect> sidebarToolbar() {
-        int top = chapterListTop();
-        int width = Math.max(0, sidebarInner() - SIDEBAR_SCROLLBAR);
-        int each = Math.max(0, (width - SIDEBAR_ROW_GAP) / 2);
         Map<String, Rect> out = new LinkedHashMap<>();
+        if (sidebarState.collapsed()) {
+            // No room on the strip for two half-width buttons: an author expands to add chapters,
+            // which is one more reason the strip is a preview rather than a home.
+            return out;
+        }
+        if (sidebarState.floating()) {
+            // The box's own strip, under its header: the same two halves, measured from the box
+            // rather than the panel, and short of the handle like the rows below it.
+            int boxTop = sidebar.y() + SIDEBAR_BOX_HEADER + ROW_GAP;
+            int boxWidth = Math.max(0, sidebar.width() - EDGE * 2 - SIDEBAR_HANDLE);
+            int boxEach = Math.max(0, (boxWidth - SIDEBAR_ROW_GAP) / 2);
+            out.put("addChapter",
+                    Rect.at(sidebar.x() + EDGE, boxTop, boxEach, SIDEBAR_ROW_HEIGHT));
+            out.put("addGroup", Rect.at(sidebar.x() + EDGE + boxEach + SIDEBAR_ROW_GAP, boxTop,
+                    boxEach, SIDEBAR_ROW_HEIGHT));
+            return out;
+        }
+        int top = chapterListTop();
+        // Short of the resize handle, like the rows below: the handle owns the list's outermost
+        // 5 pixels for its whole height, toolbar strip included, so a button under it would take
+        // presses the edge answers.
+        int width = Math.max(0, sidebarInner(sidebarWidth) - SIDEBAR_HANDLE);
+        int each = Math.max(0, (width - SIDEBAR_ROW_GAP) / 2);
         out.put("addChapter", Rect.at(panel.x() + EDGE, top, each, SIDEBAR_ROW_HEIGHT));
         out.put("addGroup", Rect.at(panel.x() + EDGE + each + SIDEBAR_ROW_GAP, top, each,
                 SIDEBAR_ROW_HEIGHT));
@@ -1326,16 +1629,49 @@ public final class BookGeometry {
      * The backing panel behind the three view buttons.
      *
      * <p>Three pixels larger than the buttons on every side, and it is what makes them read as one
-     * cluster rather than three controls that happen to be stacked.
+     * cluster rather than three controls that happen to be stacked. Beside the chapter list
+     * rather than in the canvas's corner, so no floating panel ever covers a map control: the
+     * sweep holds the clearance because a cluster under a panel is a control that looks broken
+     * rather than hidden.
      */
     public Rect viewControls() {
-        return Rect.at(canvas.x() + EDGE - VIEW_MAT, canvas.y() + EDGE - VIEW_MAT,
+        return viewControlsFor(sidebar);
+    }
+
+    /**
+     * The same backing for any list rectangle, settled or mid-wipe.
+     *
+     * <p>The screen's slide reads it rather than moving the field's answer by hand: the backing
+     * and its buttons share one anchor, so the mat and its controls never disagree mid-slide.
+     */
+    public Rect viewControlsFor(Rect list) {
+        return Rect.at(list.right() + EDGE - VIEW_MAT, bodyTop() + CHAPTER_GAP - VIEW_MAT + VIEW_DROP,
                 VIEW_BUTTON + VIEW_MAT * 2, VIEW_COLUMN_HEIGHT + VIEW_MAT * 2);
     }
 
-    /** The width available inside the sidebar, between its two edges. */
-    private int sidebarInner() {
-        return SIDEBAR_WIDTH - EDGE * 2;
+    /**
+     * The expanded list's rectangle at the panel's left: what a collapse wipes from and an
+     * expand wipes to, whatever the list's current state is.
+     *
+     * <p>The screen's slide reads it rather than the {@link #sidebar()} field because that field
+     * is the <i>target</i> — the strip, once collapsed — while the wipe travels between the two.
+     * Docked, this is the column; floating, the box; from a strip, the box a peek opens. One
+     * expression, so the wipe and the press-absorb around it cannot disagree about where the
+     * list is going.
+     */
+    public Rect sidebarExpandedRect() {
+        if (!sidebarState.collapsed()) {
+            return sidebar;
+        }
+        // A collapsed list always peeks as a floating box, pinned or not — so the wipe travels
+        // between the strip and the box, never the docked column.
+        return sidebarFloatRect(sidebarWidth, sidebarBody());
+    }
+
+    /**
+     * The width available inside a list this wide, between its two edges. */
+    private static int sidebarInner(int listWidth) {
+        return listWidth - EDGE * 2;
     }
 
     // ------------------------------------------------------------------
@@ -1409,6 +1745,10 @@ public final class BookGeometry {
         // would be a control the sweep tests in one build and not the next.
         out.putAll(sidebarToolbar());
 
+        // The floating box's pin zone is drawn chrome rather than a widget, so it is not in this
+        // map: see `sidebarBoxPin` for the arrangement. Everything drawable here is a widget the
+        // screen builds, which is what the overlap sweep holds.
+
         // The theme and motion controls are deliberately absent, and their absence is a decision worth
         // recording because the geometry for them existed and worked.
         //
@@ -1422,10 +1762,12 @@ public final class BookGeometry {
         // space the rows occupied went back to the chapter list -- which is the honest use for it, since
         // it was always a compromise between a list of chapters and two controls that are not chapters.
 
-        // The view cluster, top-left inside the canvas. A column, so it reads as one tool group and
-        // leaves the canvas's width for the graph.
-        int vx = canvas.x() + EDGE;
-        int vy = canvas.y() + EDGE;
+        // The view cluster, beside the chapter list at the rows' height: docked, that is the
+        // canvas's own corner, and floating, it is clear of the box. One rule for every state, so
+        // the cluster never sits under the list and never needs a state of its own to avoid it.
+        // Three pixels below the rows' top edge rather than level with it (see VIEW_DROP).
+        int vx = sidebar.right() + EDGE;
+        int vy = bodyTop() + CHAPTER_GAP + VIEW_DROP;
         out.put("zoomIn", Rect.at(vx, vy, VIEW_BUTTON, VIEW_BUTTON));
         out.put("zoomOut", Rect.at(vx, vy + VIEW_BUTTON + VIEW_GAP, VIEW_BUTTON, VIEW_BUTTON));
         out.put("centre", Rect.at(vx, vy + (VIEW_BUTTON + VIEW_GAP) * 2, VIEW_BUTTON, VIEW_BUTTON));

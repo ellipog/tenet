@@ -424,6 +424,110 @@ class PanelLayoutTest {
     }
 
     @Test
+    @DisplayName("the list's grip is the same three ridges, on its own right edge")
+    void theSidebarGripIsInsideItsHandle() {
+        // The list docks left where a rail docks right, so its handle is its right edge rather
+        // than its left -- and the ridges follow the handle, or the mark would name a strip the
+        // press does not answer.
+        for (int w : new int[] {0, 1, 20, 28, 120, 156, 260}) {
+            for (int h : new int[] {0, 60, 120, 260, 480}) {
+                Rect list = Rect.at(20, 30, w, h);
+                Rect handle = BookGeometry.sidebarHandle(list);
+                List<Rect> ridges = PanelLayout.sidebarGrip(list);
+                String where = list + " handle " + handle;
+
+                assertEquals(handle.x() + handle.width(), list.right(),
+                        "the handle is the list's right edge: " + where);
+                if (ridges.isEmpty()) {
+                    assertTrue(handle.height() < PanelLayout.GRIP_RIDGE_HEIGHT * PanelLayout.GRIP_RIDGES
+                                    + PanelLayout.GRIP_GAP * (PanelLayout.GRIP_RIDGES - 1) + 4
+                                    || handle.width() == 0,
+                            "ridges are only absent when there is no room for them: " + where);
+                    continue;
+                }
+                assertEquals(PanelLayout.GRIP_RIDGES, ridges.size(), "three ridges: " + where);
+                for (Rect ridge : ridges) {
+                    assertTrue(ridge.isInside(handle), "every ridge is on the handle: " + where);
+                }
+                for (int i = 1; i < ridges.size(); i++) {
+                    assertEquals(PanelLayout.GRIP_RIDGE_HEIGHT + PanelLayout.GRIP_GAP,
+                            ridges.get(i).y() - ridges.get(i - 1).y(),
+                            "the ridges are evenly spaced: " + where);
+                }
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("the wipe lands exactly on both ends, and instantly with no motion")
+    void theSidebarWipeIsExactAtBothEnds() {
+        Rect from = Rect.at(20, 50, 156, 400);
+        Rect to = Rect.at(20, 50, 28, 400);
+        assertEquals(from, PanelLayout.sidebarWipeRect(from, to, 0, 160), "it starts where it is");
+        assertEquals(to, PanelLayout.sidebarWipeRect(from, to, 10_000, 160),
+                "and lands on the strip");
+        assertEquals(from, PanelLayout.sidebarWipeRect(to, from, 10_000, 160),
+                "and the way back lands on the list");
+        // A pin docks the whole card six pixels over rather than only narrowing it: every side
+        // travels, so the motion is one glide rather than a wipe plus a jump.
+        Rect docked = Rect.at(20, 50, 156, 400);
+        Rect boxed = Rect.at(26, 56, 144, 388);
+        assertEquals(boxed, PanelLayout.sidebarWipeRect(docked, boxed, 10_000, 160),
+                "with the position travelling beside the size");
+        assertEquals(boxed, PanelLayout.sidebarWipeRect(docked, boxed, 10_000, 0),
+                "while no motion lands on the end immediately, whatever it is");
+        assertEquals(boxed, PanelLayout.sidebarWipeRect(docked, boxed, 10_000, -1),
+                "and so does a negative duration");
+    }
+
+    @Test
+    @DisplayName("the wipe never leaves the span between its ends")
+    void theSidebarWipeStaysBetweenItsEnds() {
+        Rect from = Rect.at(20, 50, 156, 400);
+        Rect to = Rect.at(26, 56, 28, 388);
+        for (long elapsed : new long[] {0, 1, 40, 80, 120, 159, 160, 500}) {
+            Rect closing = PanelLayout.sidebarWipeRect(from, to, elapsed, 160);
+            String at = " at " + elapsed + "ms: " + closing;
+            assertTrue(closing.x() >= 20 && closing.x() <= 26, () -> "x stays between" + at);
+            assertTrue(closing.y() >= 50 && closing.y() <= 56, () -> "y stays between" + at);
+            assertTrue(closing.width() >= 28 && closing.width() <= 156,
+                    () -> "width stays between" + at);
+            assertTrue(closing.height() >= 388 && closing.height() <= 400,
+                    () -> "height stays between" + at);
+        }
+    }
+
+    @Test
+    @DisplayName("a collapse that reverses an expand anchors its rows to the box they were built for")
+    void theSidebarCollapseAnchorsToTheBuiltBox() {
+        // The floating box and the sliver it slides to: same size, shifted left off the panel.
+        Rect box = Rect.at(26, 56, 156, 376);
+        Rect strip = Rect.at(26 - (156 - 20), 56, 156, 376);
+        // A settled collapse starts at the box, so the start and the built box agree either way.
+        assertEquals(box, PanelLayout.sidebarTravelAnchor(true, box, strip, box),
+                "settled: the wipe's start is the box the rows were built for");
+        // Reversing an expand mid-wipe starts from mid-wipe, but the rows were still built for
+        // the box: anchoring to the start would snap them back to full for a frame, flashing
+        // the list where it was while the surface is already halfway out.
+        Rect midExpand = PanelLayout.sidebarWipeRect(strip, box, 80, 160);
+        assertEquals(box, PanelLayout.sidebarTravelAnchor(true, midExpand, strip, box),
+                "reversed mid-expand: the anchor is the built box, not the mid-wipe start");
+        // An expand builds for its target, departing or not.
+        assertEquals(box, PanelLayout.sidebarTravelAnchor(false, midExpand, box, box),
+                "expanding: the anchor is the target");
+        // With that anchor the rows ride the surface in both cases: the screen's own travel is
+        // wipe minus anchor, so a row inset into the box stays inset into the wipe at every frame.
+        int inset = 8;
+        for (long elapsed : new long[] {0, 40, 80, 120, 159}) {
+            Rect wipe = PanelLayout.sidebarWipeRect(midExpand, strip, elapsed, 160);
+            Rect anchor = PanelLayout.sidebarTravelAnchor(true, midExpand, strip, box);
+            int rowTravelX = wipe.x() - anchor.x() + wipe.width() - anchor.width();
+            assertEquals(wipe.x() + inset, box.x() + inset + rowTravelX,
+                    "rows glued to the surface at " + elapsed + "ms: " + wipe);
+        }
+    }
+
+    @Test
     @DisplayName("the visible canvas edge is the innermost column's, or the canvas's own with none")
     void theVisibleEdge() {
         Rect canvas = Rect.at(156, 26, 644, 440);
