@@ -1405,14 +1405,16 @@ public final class QuestBookScreen extends ArmatureScreen
     private ArmatureButton disbandButton;
     private final ArmedPress disbandPress = new ArmedPress();
 
-    /** Which question the panel is asking, if any: the two flows that need an answer before acting. */
+    /** Which question the panel is asking, if any: the flows that need an answer before acting. */
     private enum PartyPhase {
         /** The ordinary panel. */
         NONE,
         /** Hand the party to one member, confirmed. */
         CONFIRM_TRANSFER,
         /** The owner is leaving and must pick who owns it — or disband. */
-        PICK_SUCCESSOR
+        PICK_SUCCESSOR,
+        /** Dissolving a party with members in it, confirmed. Solo owners skip this. */
+        CONFIRM_DISBAND
     }
 
     private PartyPhase partyPhase = PartyPhase.NONE;
@@ -5896,6 +5898,18 @@ public final class QuestBookScreen extends ArmatureScreen
                     "/tenet party transfer " + target));
             actions.add(PartyPanelLayout.Control.small("phase:cancel", null));
         }
+        else if (partyPhase == PartyPhase.CONFIRM_DISBAND) {
+            String name = ClientPartyCache.snapshot().teamName();
+            if (name == null || name.isEmpty()) {
+                name = Component.translatable("tenet.screen.party.unnamed").getString();
+            }
+            lines.add(PartyPanelLayout.Line.header("confirm:title",
+                    Component.translatable("tenet.screen.party.confirm.disband.title", name).getString()));
+            lines.add(PartyPanelLayout.Line.plain("confirm:body",
+                    Component.translatable("tenet.screen.party.confirm.disband.body").getString()));
+            actions.add(PartyPanelLayout.Control.primary("phase:disband", "/tenet party disband"));
+            actions.add(PartyPanelLayout.Control.small("phase:cancel", null));
+        }
         else {
             lines.add(PartyPanelLayout.Line.header("confirm:title",
                     Component.translatable("tenet.screen.party.confirm.successor.title").getString()));
@@ -5930,7 +5944,10 @@ public final class QuestBookScreen extends ArmatureScreen
         if (partyCreateName.isEmpty()) {
             partyCreateName = defaultPartyName();
         }
-        partyLeftFace = PartyPanelLayout.soloLeft(roster, snapshot, selfName(), partyCreateName);
+        // The create row wraps below NARROW_WRAP_WIDTH so the wider Create button never squeezes the
+        // field away. Measured from the rail the card will take, like the notice face does.
+        int soloWidth = Math.max(0, panelRail(PanelKind.PARTY).width() - BookGeometry.MODAL_INSET * 2);
+        partyLeftFace = PartyPanelLayout.soloLeft(roster, snapshot, selfName(), partyCreateName, soloWidth);
         partyRightFace = PartyPanelLayout.soloRight(snapshot);
         buildTwoColumns();
         buildPartyFooter(Footer.doneOnly(), roster);
@@ -5938,7 +5955,11 @@ public final class QuestBookScreen extends ArmatureScreen
         partyCreateField = new ArmatureTextField(0, 0, 0, 0, partyCreateName);
         partyCreateField.onSubmit(text -> {
             partyCreateName = text;
-            runPartyCommand("/tenet party create " + text.trim());
+            String trimmed = text == null ? "" : text.trim();
+            if (trimmed.isEmpty()) {
+                return;
+            }
+            runPartyCommand("/tenet party create " + trimmed);
         });
         addRenderableWidget(partyCreateField);
         if (partyCreateFocused) {
@@ -5981,25 +6002,9 @@ public final class QuestBookScreen extends ArmatureScreen
             }
         }
 
-        // The party's name is the rename control: a flat, empty-labelled button laid over its row, so
-        // the name itself is what a player clicks. It draws nothing (flat, no label) and the label
-        // underneath is the name. A pencil was the first shape and it is gone at the owner's request --
-        // and it was also the control the scroll view's key matching hid, so one control fewer to get
-        // wrong. Non-owners get no target at all.
-        if (roster.canRename() && !partyRenaming) {
-            ArmatureButton rename = control(0, 0, 0, 0, Component.empty(), () -> {
-                partyRenaming = true;
-                rebuildWidgets();
-            });
-            if (rename != null) {
-                rename.flat(true);
-                rename.tooltip(List.of(Component.translatable("tenet.screen.party.rename")));
-                partyControls.put("left:name:edit", rename);
-            }
-        }
-
         // The rename field replaces the name row's label while it is open, so there is one thing in
-        // that row rather than a field over a name.
+        // that row rather than a field over a name. The Rename button itself comes from the layout's
+        // left:name row (owner only); this only owns the field.
         if (partyRenaming) {
             partyNameField = new ArmatureTextField(0, 0, 0, 0, snapshot.teamName());
             partyNameField.onSubmit(text -> {
@@ -6029,14 +6034,21 @@ public final class QuestBookScreen extends ArmatureScreen
         // **Stacked, because the sidebar is tall.** The two faces are one line list here -- the roster's
         // lines, a gap, and the management's -- so the panel is one column of content: one layout, one
         // view, one bar, and the whole of the canvas's height to spend instead of the width the faces
-        // used to share. `face(...)` is the same builder the notice and the phases use for a single
-        // face, and the roster's own rows are not lines at all, so they keep answering: they are placed
-        // by key against this layout, which is built from the same keys.
+        // used to share. The roster's own rows are not lines at all: they live in the left face's stack
+        // (appended composition), so the combined stack must append the two faces' stacks rather than
+        // rebuilding from the line list alone — rebuilding from lines drops every member row, which is
+        // exactly how a party of 1 drew no roster at all.
         List<PartyPanelLayout.Line> stacked = new ArrayList<>(partyLeftFace.lines());
         stacked.add(PartyPanelLayout.Line.spacer("stack:gap"));
         stacked.addAll(partyRightFace.lines());
+        dev.ellipog.armature.client.ui.kit.Stack combined = partyLeftFace.stack()
+                .gap(PartyPanelLayout.ROW_GAP)
+                .append(PartyPanelLayout.stack(
+                        List.of(PartyPanelLayout.Line.spacer("stack:gap"))))
+                .gap(PartyPanelLayout.ROW_GAP)
+                .append(partyRightFace.stack());
         partyRightFace = null;
-        partyLeftFace = PartyPanelLayout.face(stacked);
+        partyLeftFace = new PartyPanelLayout.Face(combined, List.copyOf(stacked));
 
         partyLeftLayout = partyLeftFace.build(partyColumn(true).viewWidth(), TEXT_MEASURE);
         partyLeftView.apply(partyLeftLayout, partyColumn(true).viewWidth());
@@ -6080,8 +6092,18 @@ public final class QuestBookScreen extends ArmatureScreen
         if (partyCard == null) {
             return null;
         }
-        return PanelLayout.frame(partyCard, carriesFold(PanelKind.PARTY),
-                BookGeometry.MODAL_FOOTER_HEIGHT).body();
+        PanelLayout.Frame frame = PanelLayout.frame(partyCard, carriesFold(PanelKind.PARTY),
+                BookGeometry.MODAL_FOOTER_HEIGHT);
+        if (carriesFold(PanelKind.PARTY)) {
+            return frame.body();
+        }
+        // No header content: this panel draws no title in the column's 54px header band, so the
+        // body starts below the border instead of below the band. The fold cell only exists when
+        // this column carries it, which a root never does -- the Back control is built on the
+        // child column -- so nothing overlaps up there.
+        BookGeometry.Rect body = frame.body();
+        int top = Math.min(partyCard.y() + PanelLayout.BODY_INSET, body.bottom());
+        return BookGeometry.Rect.at(body.x(), top, body.width(), Math.max(0, body.bottom() - top));
     }
 
     /**
@@ -6100,8 +6122,25 @@ public final class QuestBookScreen extends ArmatureScreen
                 if (spec.isToggle()) {
                     ArmatureSwitch toggle = new ArmatureSwitch(0, 0, toggleState(spec.key()));
                     toggle.onToggle(() -> runPartyCommand(toggleCommand(spec.key(), toggle.selected())));
+                    // Settings are owner-only (PartyRoster.canSetPolicy): a member sees the state but
+                    // cannot flip it. Disabled rather than hidden, so the policy is still readable.
+                    toggle.active = partyRoster().canSetPolicy();
                     addRenderableWidget(toggle);
                     partyControls.put(spec.key(), toggle);
+                }
+                else if (spec.key() != null && spec.key().endsWith(":rename")) {
+                    // Visible Rename button on the name row (owner only — the layout only emits it
+                    // when the roster permits). Opens the inline rename field; the old invisible
+                    // click-on-name overlay is gone because an affordance nobody can see is not one.
+                    ArmatureButton rename = control(0, 0, 0, 0,
+                            buttonLabel(spec, line), () -> {
+                                partyRenaming = true;
+                                rebuildWidgets();
+                            });
+                    if (rename != null) {
+                        rename.tooltip(List.of(Component.translatable("tenet.screen.party.rename")));
+                        partyControls.put(spec.key(), rename);
+                    }
                 }
                 else if (spec.sendsCommand()) {
                     ArmatureButton button = control(0, 0, 0, 0,
@@ -6223,9 +6262,26 @@ public final class QuestBookScreen extends ArmatureScreen
      * a translator owns and literal text for the ones it composes from data — a member's name, a
      * count, an age. This is the one place the two are told apart, and the marker is the key prefix
      * every such key shares.
+     *
+     * <p>A label may carry one format arg after a {@code \0} separator (see
+     * {@code PartyPanelLayout.ARG_SEP}): the outgoing {@code Invited %s} row and the filtered
+     * {@code Nobody matches} search row. Split here and resolved via
+     * {@code Component.translatable(key, arg)} so translators can reorder the sentence.
      */
     private static String partyText(String label) {
-        return label != null && label.startsWith("tenet.") ? Component.translatable(label).getString() : label;
+        if (label == null) {
+            return "";
+        }
+        int sep = label.indexOf('\0');
+        if (sep >= 0) {
+            String key = label.substring(0, sep);
+            String arg = label.substring(sep + 1);
+            if (key.startsWith("tenet.")) {
+                return Component.translatable(key, arg).getString();
+            }
+            return arg.isEmpty() ? key : key + " " + arg;
+        }
+        return label.startsWith("tenet.") ? Component.translatable(label).getString() : label;
     }
 
     private String selfName() {
@@ -6281,6 +6337,9 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         if (key.startsWith("solo:create")) {
             return Component.translatable("tenet.screen.party.create");
+        }
+        if (key.endsWith(":rename")) {
+            return Component.translatable("tenet.screen.party.rename.button");
         }
         return Component.literal(line.label().isEmpty() ? key : partyText(line.label()));
     }
@@ -9829,14 +9888,22 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * Disband, which takes two presses inside a three-second window.
+     * Disband: a confirm card when members would lose the party, two presses when solo.
      *
-     * <p>The label is changed on the control rather than by rebuilding the panel, and that is not a
+     * <p>A party with members in it ends for everybody, including offline members who cannot be
+     * asked — so it goes through the confirm card like transfer and successor-pick do. A solo
+     * owner's party ends for nobody but them, so it keeps the 3-second double-press on the button.
+     * The label is changed on the control rather than by rebuilding the panel, and that is not a
      * shortcut: a rebuild goes through {@code init}, which disarms — so arming and rebuilding cannot be
      * the same press. The window lives in {@link ArmedPress}, which is where its boundaries are
      * testable; this method only decides what to do about the answer.
      */
     private void pressDisband() {
+        PartyRoster roster = partyRoster();
+        if (roster.isReal() && roster.memberCount() > 1 && partyPhase == PartyPhase.NONE) {
+            openPartyPhase(PartyPhase.CONFIRM_DISBAND, null);
+            return;
+        }
         if (disbandPress.press(net.minecraft.Util.getMillis())) {
             runPartyCommand("/tenet party disband");
             return;
@@ -9884,7 +9951,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * control drawn over this one.
      */
     private void placePartyWidget(net.minecraft.client.gui.components.AbstractWidget widget,
-                                  Slot slot, Viewport body) {
+                                  Slot slot, Viewport body, int slideDx) {
         if (widget == null) {
             return;
         }
@@ -9893,7 +9960,13 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         Slot onScreen = screenSlot(body, slot);
-        widget.setX(onScreen.x());
+        // The rail's own arrival, added here rather than left to the slide pass: this placement
+        // runs every frame from the draw, *after* `slidePanelWidgets` wrote `base + offset`, so
+        // without the shift it overwrites the travelled position with the settled one and the
+        // control spawns at its destination while its sheet is still gliding in. The slide pass
+        // still files these widgets and still holds them inert mid-travel; its position write is
+        // simply always overwritten by this one later in the same frame, so the offset counts once.
+        widget.setX(onScreen.x() + slideDx);
         widget.setY(onScreen.y());
         widget.setWidth(onScreen.width());
         widget.setHeight(onScreen.height());
@@ -9901,7 +9974,8 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** Places a face's row controls, one per control, from the row's own strip. */
-    private void placePartyLineControls(PartyPanelLayout.Face face, Layout layout, Viewport body) {
+    private void placePartyLineControls(PartyPanelLayout.Face face, Layout layout, Viewport body,
+                                        int slideDx) {
         if (face == null || layout == null) {
             return;
         }
@@ -9913,21 +9987,22 @@ public final class QuestBookScreen extends ArmatureScreen
             List<Slot> slots = row == null ? List.of() : PartyPanelLayout.controlSlots(line, row);
             for (int i = 0; i < line.controls().size(); i++) {
                 placePartyWidget(partyControls.get(line.controls().get(i).key()),
-                        i < slots.size() ? slots.get(i) : null, body);
+                        i < slots.size() ? slots.get(i) : null, body, slideDx);
             }
         }
     }
 
     /** Places a text field in this face's row for it, if the face has that row. */
     private void placePartyField(net.minecraft.client.gui.components.AbstractWidget field,
-                                 PartyPanelLayout.Face face, Layout layout, String key, Viewport body) {
+                                 PartyPanelLayout.Face face, Layout layout, String key, Viewport body,
+                                 int slideDx) {
         if (field == null || face == null || layout == null) {
             return;
         }
         PartyPanelLayout.Line line = face.line(key);
         Slot row = layout.slot(key);
         placePartyWidget(field, line == null || row == null ? null
-                : PartyPanelLayout.textSlot(line, row), body);
+                : PartyPanelLayout.textSlot(line, row), body, slideDx);
     }
 
     /**
@@ -24614,7 +24689,7 @@ public final class QuestBookScreen extends ArmatureScreen
         PartyRoster roster = partyRoster();
         if (roster.isReal() && partyPhase == PartyPhase.NONE && partiesAvailable()
                 && partyLeftLayout != null) {
-            drawPartyMembers(r, partyLeftLayout, roster, partyColumn(true), now);
+            drawPartyMembers(r, partyLeftLayout, roster, partyColumn(true), mouseX, mouseY, now);
         }
     }
 
@@ -24633,36 +24708,66 @@ public final class QuestBookScreen extends ArmatureScreen
         view.apply(layout, body.viewWidth());
         // Placement first, then the drawing: every widget this column owns gets its rectangle from the
         // same layout the rows are drawn from, so a switch cannot sit beside the wrong label.
-        placePartyLineControls(face, layout, body);
-        placePartyField(partyCreateField, face, layout, "solo:create", body);
-        placePartyField(partyNameField, face, layout, "left:name", body);
-        placePartyField(partySearchField, face, layout, "right:search", body);
-        // The click target over the party's name, when this face has that row and the viewer may rename.
-        placePartyWidget(partyControls.get("left:name:edit"), layout.slot("left:name"), body);
+        // The rail's arrival travels with them: the surface draws shifted by this offset inside its
+        // clip (see `drawPanels`), so a widget placed without it spawns at its destination while the
+        // sheet glides in -- the input field's pop-in, and the row buttons' too.
+        int slideDx = PanelLayout.slideOffset(panelRail(PanelKind.PARTY),
+                panelRevealElapsed(PanelKind.PARTY, now), panelRevealMillis());
+        placePartyLineControls(face, layout, body, slideDx);
+        placePartyField(partyCreateField, face, layout, "solo:create", body, slideDx);
+        placePartyField(partyNameField, face, layout, "left:name", body, slideDx);
+        placePartyField(partySearchField, face, layout, "right:search", body, slideDx);
         try (GuiRenderer.Scoped clip = r.clip(body)) {
             for (PartyPanelLayout.Line line : face.lines()) {
                 Slot slot = layout.slot(line.key());
-                if (slot == null || line.label().isEmpty()) {
+                if (slot == null) {
+                    continue;
+                }
+                if (line.isRule()) {
+                    Slot onScreen = screenSlot(body, slot);
+                    r.fill(onScreen.x() + 4, onScreen.y(), onScreen.right() - 4, onScreen.y() + 1,
+                            ArmatureTheme.panelEdge());
+                    continue;
+                }
+                if (line.label().isEmpty()) {
                     continue;
                 }
                 Slot onScreen = screenSlot(body, slot);
-                int colour = line.header()
-                        ? ArmatureTheme.heading()
-                        : ArmatureTheme.body();
+                int colour;
+                if (line.header()) {
+                    colour = ArmatureTheme.heading();
+                }
+                else if (line.isEmptyState() || line.key().endsWith(":hint")
+                        || line.key().equals("solo:subtitle")) {
+                    colour = ArmatureTheme.faint();
+                }
+                else {
+                    colour = ArmatureTheme.body();
+                }
                 String label = partyText(line.label());
-                // The label stops short of the room the row reserved for its controls, so it cannot run
-                // under a switch or a button.
-                r.text(Measure.truncate(label,
-                                Math.max(0, onScreen.width() - line.controlRoom() - 8), textMeasure(r)),
+                // Detail-first: the detail (counts, ages, On/Off) is the answer, so reserve its width
+                // before truncating the label. The old code dropped the detail when room ran out,
+                // losing data with no ellipsis signal.
+                String detail = line.detail() != null && !line.detail().isEmpty()
+                        ? partyText(line.detail()) : "";
+                int detailWidth = detail.isEmpty() ? 0 : r.textWidth(detail);
+                int labelRoom = Math.max(0, onScreen.width() - line.controlRoom() - 8
+                        - (detail.isEmpty() ? 0 : detailWidth + 8));
+                // Never squeeze the label into nothing when a detail exists: keep a 40px minimum so
+                // the row degrades to truncated label + detail rather than detail alone vanishing.
+                if (!detail.isEmpty() && labelRoom < 40) {
+                    labelRoom = 40;
+                }
+                r.text(Measure.truncate(label, labelRoom, textMeasure(r)),
                         onScreen.x() + 4, onScreen.y() + (onScreen.height() - r.lineHeight()) / 2,
                         colour);
-                if (line.detail() != null && !line.detail().isEmpty()) {
-                    String detail = partyText(line.detail());
-                    int detailX = onScreen.right() - line.controlRoom() - 4 - r.textWidth(detail);
+                if (!detail.isEmpty()) {
+                    int detailX = onScreen.right() - line.controlRoom() - 4 - detailWidth;
                     if (detailX > onScreen.x() + 4) {
+                        boolean stateOn = line.detail().equals("tenet.screen.on");
                         r.text(detail, detailX,
                                 onScreen.y() + (onScreen.height() - r.lineHeight()) / 2,
-                                ArmatureTheme.faint());
+                                stateOn ? ArmatureTheme.title() : ArmatureTheme.faint());
                     }
                 }
             }
@@ -24682,7 +24787,30 @@ public final class QuestBookScreen extends ArmatureScreen
      * them and not the others.
      */
     private void drawPartyMembers(GuiRenderer r, Layout layout, PartyRoster roster, Viewport body,
-                                  long now) {
+                                  int mouseX, int mouseY, long now) {
+        // Same arrival as the face rows: these buttons are placed per frame, after the slide pass,
+        // so they need the offset here rather than from it. See `placePartyWidget`.
+        int slideDx = PanelLayout.slideOffset(panelRail(PanelKind.PARTY),
+                panelRevealElapsed(PanelKind.PARTY, now), panelRevealMillis());
+        // One hovered row per frame, hit-tested: updating the tracker per row left it stuck on the
+        // last member with a permanent full wash. There is no wash at all now -- the hover only
+        // swaps the role chip for the row's actions. The pointer is tested against the unshifted
+        // layout, so it is shifted back by the arrival first.
+        Object hovered = null;
+        int pointerX = mouseX - slideDx;
+        for (PartyRoster.Member member : roster.members()) {
+            Slot slot = layout.slot(member.key());
+            if (slot == null) {
+                continue;
+            }
+            Slot onScreen = screenSlot(body, slot);
+            if (hovered == null && pointerX >= onScreen.x() && pointerX < onScreen.right()
+                    && mouseY >= onScreen.y() && mouseY < onScreen.bottom()
+                    && onScreen.y() < body.viewBottom() && onScreen.bottom() > body.originY()) {
+                hovered = member.key();
+            }
+        }
+        rowHover.update(hovered, now);
         for (PartyRoster.Member member : roster.members()) {
             Slot slot = layout.slot(member.key());
             if (slot == null) {
@@ -24690,11 +24818,7 @@ public final class QuestBookScreen extends ArmatureScreen
             }
             Slot onScreen = screenSlot(body, slot);
 
-            rowHover.update(member.key(), now);
             float hover = rowHover.amount(member.key(), now);
-            if (hover > 0F) {
-                rowWash(r, onScreen, onScreen.right(), hover);
-            }
 
             int portraitX = onScreen.x() + PartyPanelLayout.HEAD_INSET;
             r.face(member.id(), portraitX,
@@ -24719,26 +24843,47 @@ public final class QuestBookScreen extends ArmatureScreen
                             textMeasure(r)),
                     nameX, textY, member.self() ? ArmatureTheme.title() : ArmatureTheme.body());
 
-            // The chip, in the same strip the hover controls occupy. Drawn only while the row is at
-            // rest, so a hover reads as "these are the actions" rather than as a third state.
-            if (hover <= 0.05F) {
+            // The chip, in the same strip the hover controls occupy. It steps aside while the row's
+            // actions are showing -- a hover reads as "these are the actions" rather than as a third
+            // state -- and stays put when there is nothing to step aside for, so hovering your own
+            // row does not blink your own badge out. When the row has owner actions, a faint
+            // overflow mark left of the chip signals that hovering reveals more — otherwise the
+            // hover-only buttons are undiscoverable, and on touch there is no hover to discover
+            // them with.
+            Slot rowSlot = layout.slot(member.key());
+            ArmatureButton remove = partyRemoveButtons.get(member.id());
+            ArmatureButton transfer = partyTransferButtons.get(member.id());
+            boolean actionsShown = (remove != null || transfer != null)
+                    && (hover > 0.05F
+                            || (remove != null && remove.isHoveredOrFocused())
+                            || (transfer != null && transfer.isHoveredOrFocused()));
+            if (!actionsShown) {
                 drawRoleChip(r, member, onScreen, textY);
+                if ((remove != null || transfer != null) && hover <= 0.05F) {
+                    String dots = "···";
+                    int dotsWidth = r.textWidth(dots);
+                    String role = member.roleLabel().toUpperCase(java.util.Locale.ROOT);
+                    int chipWidth = r.textWidth(role) + PartyPanelLayout.CHIP_PAD * 2;
+                    int chipX = onScreen.right() + PartyRoster.actionStrip()
+                            - PartyPanelLayout.CONTROL_INSET - chipWidth;
+                    int dotsX = chipX - 4 - dotsWidth;
+                    if (dotsX > nameX) {
+                        r.text(dots, dotsX, textY, ArmatureTheme.faint());
+                    }
+                }
             }
 
             // And the controls' visibility follows the same hover. Placed first -- the rectangle comes
             // from the row's own strip, like every other control here -- and then hidden unless the row
             // is hovered, so a scrolled-out button is neither drawn nor clickable.
-            Slot rowSlot = layout.slot(member.key());
-            ArmatureButton remove = partyRemoveButtons.get(member.id());
             if (remove != null) {
                 placePartyWidget(remove, rowSlot == null ? null
-                        : PartyRoster.removeSlot(member, rowSlot), body);
+                        : PartyRoster.removeSlot(member, rowSlot), body, slideDx);
                 remove.visible = remove.visible && (hover > 0.05F || remove.isHoveredOrFocused());
             }
-            ArmatureButton transfer = partyTransferButtons.get(member.id());
             if (transfer != null) {
                 placePartyWidget(transfer, rowSlot == null ? null
-                        : PartyRoster.transferSlot(member, rowSlot), body);
+                        : PartyRoster.transferSlot(member, rowSlot), body, slideDx);
                 transfer.visible = transfer.visible && (hover > 0.05F || transfer.isHoveredOrFocused());
             }
         }
@@ -24767,8 +24912,11 @@ public final class QuestBookScreen extends ArmatureScreen
         int ink = member.owner() ? ArmatureTheme.title() : ArmatureTheme.faint();
         ArmatureTheme.panel(r, x, chipY, width, PartyPanelLayout.CHIP_HEIGHT,
                 ArmatureTheme.recessed(), ArmatureTheme.panelEdge());
+        // One pixel below arithmetic centre: a centred line box carries descender space under the
+        // baseline, so the word reads high in an 11px chip -- the same optical point as
+        // `PartyPanelLayout.NAME_DROP` one row up, at this chip's own smaller scale.
         r.text(role, x + PartyPanelLayout.CHIP_PAD,
-                chipY + (PartyPanelLayout.CHIP_HEIGHT - r.lineHeight()) / 2, ink);
+                chipY + (PartyPanelLayout.CHIP_HEIGHT - r.lineHeight()) / 2 + 1, ink);
     }
     /**
      * One row's label, drawn where its slot is.

@@ -728,9 +728,10 @@ public final class BookGeometry {
      *
      * <p>This deliberately does not measure the real font, because a geometry class has no font and must
      * not grow one; {@code Measure} exists for that and lives in the kit. So it is a margin of safety
-     * for a known set of short English words, and a longer translation will be tight.
+     * for a known set of short English words, plus ~30% headroom for longer translations (German
+     * "Auflösen", French "Dissoudre"): 66 was exact for English and tight everywhere else, 80 fits.
      */
-    public static final int PARTY_SHORT_LABEL_WIDTH = 7 * 6 + 24;
+    public static final int PARTY_SHORT_LABEL_WIDTH = 80;
 
     /** Leave's and Disband's width, in the party panel's footer. See {@link #PARTY_SHORT_LABEL_WIDTH}. */
     public static final int PARTY_ACTION_WIDTH = PARTY_SHORT_LABEL_WIDTH;

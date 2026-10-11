@@ -219,22 +219,23 @@ class PartyPanelLayoutTest {
     class Active {
 
         @Test
-        @DisplayName("the name row is plain text; who may rename it is the roster's answer")
+        @DisplayName("the name row carries a visible Rename control for the owner only")
         void renameIsTheRostersAnswer() {
-            // The rename control is the screen's now: a flat button over this row, so the name itself
-            // is clicked. The layout draws a plain line and reserves nothing for it -- which is why
-            // this asserts no controls *and* that the roster still reports the permission the screen's
-            // overlay depends on.
+            // The rename control is a visible small button on the name row (owner only) — the old
+            // invisible click-on-name overlay is gone because an affordance nobody can see is not one.
             PartyRoster owner = PartyRoster.of(party(), OWNER, PartyPanelLayoutTest::nameOf, id -> true);
             PartyRoster member = rosterWithoutRename();
 
             PartyPanelLayout.Face asOwner = PartyPanelLayout.activeLeft(owner, snapshot());
             PartyPanelLayout.Face asMember = PartyPanelLayout.activeLeft(member, snapshot());
 
-            assertEquals(0, asOwner.line("left:name").controls().size(),
-                    "no control reserves a strip beside the name");
+            assertEquals(1, asOwner.line("left:name").controls().size(),
+                    "one visible Rename control beside the name");
+            assertTrue(asOwner.line("left:name").controls().get(0).key().endsWith(":rename"));
             assertEquals("the crew", asOwner.line("left:name").label());
-            assertTrue(owner.canRename(), "the owner may rename, and the screen lays its button");
+            assertTrue(owner.canRename(), "the owner may rename, and the layout says so");
+            assertEquals(0, asMember.line("left:name").controls().size(),
+                    "a member gets no rename control");
             assertFalse(member.canRename(), "a member may not, and gets no button");
             assertEquals("the crew", asMember.line("left:name").label(),
                     "a member still reads the name");
@@ -250,7 +251,8 @@ class PartyPanelLayoutTest {
 
             PartyPanelLayout.Face left = PartyPanelLayout.activeLeft(roster, snapshot());
 
-            assertEquals("Members - 2/8", left.line("left:stats").label());
+            assertEquals("2/8", left.line("left:stats").label(),
+                    "the count once, without the redundant Members - prefix");
             assertEquals("2 online", left.line("left:stats").detail(),
                     "both members are in the snapshot's present list -- the number the header "
                             + "highlights");
@@ -268,6 +270,9 @@ class PartyPanelLayoutTest {
             assertTrue(memberInvites.isToggle(), "a state, not an action -- a switch");
             assertTrue(open.isToggle());
             assertFalse(memberInvites.sendsCommand());
+            assertNotNull(right.line("right:member-invites").detail(),
+                    "the state word (On/Off) travels in the detail slot");
+            assertNotNull(right.line("right:open").detail());
         }
 
         @Test
@@ -318,9 +323,14 @@ class PartyPanelLayoutTest {
             PartySnapshot many = new PartySnapshot(snapshot().teamId(), "the crew", OWNER,
                     snapshot().members(), List.of(), List.of("Ada", "Cy", "Dee"), "one_member",
                     List.of(), List.of(), TeamPolicy.DEFAULT, 8, List.of());
-            assertEquals("tenet.screen.party.invite.none.filtered",
-                    PartyPanelLayout.activeRight(roster(), many, "Ada", "zz").line("right:invite:none").label(),
-                    "and a search that hid everybody says the filter is responsible, not the server");
+            String filtered = PartyPanelLayout.activeRight(roster(), many, "Ada", "zz")
+                    .line("right:invite:none").label();
+            assertTrue(filtered.startsWith("tenet.screen.party.invite.none.filtered"),
+                    "and a search that hid everybody says the filter is responsible, not the server: "
+                            + filtered);
+            assertTrue(filtered.contains("zz"),
+                    "the query travels with the key so translators can show what was filtered: "
+                            + filtered);
         }
 
         @Test
@@ -333,7 +343,8 @@ class PartyPanelLayoutTest {
             PartyPanelLayout.Face right = PartyPanelLayout.activeRight(roster(), sent, "Ada", "");
 
             PartyPanelLayout.Line row = right.line("sent:Dee");
-            assertEquals("Invited Dee", row.label());
+            assertEquals(PartyPanelLayout.outgoingLabel("Dee"), row.label(),
+                    "the translatable key plus the name, so translators can reorder Invited %s");
             assertNotNull(row.detail(), "and how long ago, which travels as an age");
             assertEquals("/tenet party uninvite Dee", row.controls().get(0).command());
             assertNull(right.line("solo:public"),
@@ -458,6 +469,60 @@ class PartyPanelLayoutTest {
         assertEquals("3/8", PartyPanelLayout.members(3, 8));
         assertEquals("3 members", PartyPanelLayout.members(3, 0),
                 "zero is 'the source cannot say', and a made-up cap would disagree with the server");
+    }
+
+    @Test
+    @DisplayName("the online count reads 1 online and N online")
+    void onlineLine() {
+        assertEquals("1 online", PartyPanelLayout.online(1));
+        assertEquals("0 online", PartyPanelLayout.online(0));
+        assertEquals("3 online", PartyPanelLayout.online(3));
+    }
+
+    @Test
+    @DisplayName("a button fits its label plus padding, floored at the constant")
+    void buttonWidthFits() {
+        // The solo screenshot's fault: Create Party truncated to Create P... at width 58.
+        assertTrue(PartyPanelLayout.ROW_BUTTON >= MEASURE.width("Create Party") + PartyPanelLayout.BUTTON_PAD,
+                "ROW_BUTTON fits Create Party at the test measure");
+        assertTrue(PartyPanelLayout.SHORT_BUTTON >= MEASURE.width("Decline") + PartyPanelLayout.BUTTON_PAD,
+                "SHORT_BUTTON fits Decline at the test measure");
+        assertEquals(PartyPanelLayout.ROW_BUTTON,
+                PartyPanelLayout.buttonWidth("Join", MEASURE, PartyPanelLayout.ROW_BUTTON),
+                "a short label keeps the floor rather than jittering per row");
+        assertTrue(PartyPanelLayout.buttonWidth("Create Party", MEASURE, PartyPanelLayout.ROW_BUTTON)
+                        >= MEASURE.width("Create Party") + PartyPanelLayout.BUTTON_PAD,
+                "a long label grows past the floor instead of truncating");
+    }
+
+    @Test
+    @DisplayName("the solo face has a subtitle, hints and rules")
+    void soloGuidance() {
+        PartySnapshot bare = new PartySnapshot(new UUID(0L, 0L), "", new UUID(0L, 0L), List.of(),
+                List.of(), List.of(), "one_member", List.of(), List.of(), TeamPolicy.DEFAULT, 0,
+                List.of());
+        PartyPanelLayout.Face left = PartyPanelLayout.soloLeft(roster(), bare, "Cy", "Cy party");
+        assertNotNull(left.line("solo:subtitle"), "what to do when both lists are empty");
+        assertNotNull(left.line("solo:create:hint"), "the name rule under the field");
+        assertNotNull(left.line("solo:incoming:none:hint"), "what to do with no invites");
+        assertTrue(left.lines().stream().anyMatch(PartyPanelLayout.Line::isRule),
+                "a rule separates the sections");
+        PartyPanelLayout.Face right = PartyPanelLayout.soloRight(bare);
+        assertNotNull(right.line("solo:public:none:hint"), "what a public party is");
+    }
+
+    @Test
+    @DisplayName("the create row wraps below the narrow width")
+    void createWrapsWhenNarrow() {
+        PartyPanelLayout.Face wide = PartyPanelLayout.soloLeft(roster(), soloSnapshot(), "Cy", "Cy party",
+                PartyPanelLayout.NARROW_WRAP_WIDTH + 100);
+        assertNotNull(wide.line("solo:create"), "field and button share one row when wide");
+        assertNull(wide.line("solo:create:button"), "no second row when wide");
+
+        PartyPanelLayout.Face narrow = PartyPanelLayout.soloLeft(roster(), soloSnapshot(), "Cy", "Cy party",
+                PartyPanelLayout.NARROW_WRAP_WIDTH - 1);
+        assertNotNull(narrow.line("solo:create"), "the field keeps its own row when narrow");
+        assertNotNull(narrow.line("solo:create:button"), "the button drops below it when narrow");
     }
 
     @Test

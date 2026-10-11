@@ -59,10 +59,10 @@ public final class PartyPanelLayout {
     // Geometry
     // ------------------------------------------------------------------
 
-    /** The space between the two columns. */
+    /** The space between the two columns. Kept for the deprecated split arithmetic below. */
     public static final int COLUMN_GAP = 8;
 
-    /** The left column's share of the body, in percent. The spec's 55/45 split. */
+    /** The left column's share of the body, in percent. Deprecated: the panel stacks, see below. */
     public static final int LEFT_SHARE = 55;
 
     /** The height of an ordinary row. */
@@ -87,10 +87,26 @@ public final class PartyPanelLayout {
     public static final int EMPTY_GAP = 3;
 
     /** How wide an ordinary row button is — Create, Accept, Invite, Join, Choose. */
-    public static final int ROW_BUTTON = 58;
+    public static final int ROW_BUTTON = 88;
 
     /** How wide a short one is — Decline, Cancel. */
-    public static final int SHORT_BUTTON = 46;
+    public static final int SHORT_BUTTON = 64;
+
+    /**
+     * Horizontal padding inside a row button, both sides combined.
+     *
+     * <p>Matches {@code ArmatureButton}'s own {@code LABEL_INSET} of 6 per side plus a few pixels of
+     * border slack, so a measured label plus this pad is the smallest width that does not truncate.
+     * {@code Create Party} is 12 chars (~72px at 6px advance) + 12 inset = 84, which is why the old
+     * 58 truncated it to {@code Create P...} in the solo screenshot.
+     */
+    public static final int BUTTON_PAD = 16;
+
+    /** Below this body width the create row wraps to a field row plus a button row. */
+    public static final int NARROW_WRAP_WIDTH = 280;
+
+    /** The height of a 1px section rule row. The gaps around it come from spacers. */
+    public static final int RULE_HEIGHT = 1;
 
     /** How wide a settings toggle is. Matches {@code ArmatureSwitch}'s own width. */
     public static final int SWITCH_WIDTH = 22;
@@ -244,6 +260,26 @@ public final class PartyPanelLayout {
         /** A blank row, for the space between two paragraphs. Carries no words, so nothing is drawn. */
         public static Line spacer(String key) {
             return new Line(key, "", null, List.of(), false, EMPTY_GAP);
+        }
+
+        /**
+         * A 1px section rule. Drawn by the screen as a faint line; carries no words and no controls.
+         *
+         * <p>The key must start with {@code rule:} so the screen can tell a rule from a spacer without
+         * a new field on this record.
+         */
+        public static Line rule(String key) {
+            return new Line(key, "", null, List.of(), false, RULE_HEIGHT);
+        }
+
+        /** Whether this row is a section rule (see {@link #rule}). */
+        public boolean isRule() {
+            return key() != null && key().startsWith("rule:") && label().isEmpty() && !hasControls();
+        }
+
+        /** Whether this row is an empty-state note (key ends in {@code :none}). Drawn muted. */
+        public boolean isEmptyState() {
+            return key() != null && key().endsWith(":none");
         }
 
         public static Line detail(String key, String label, String detail) {
@@ -458,9 +494,23 @@ public final class PartyPanelLayout {
      * made that concrete.
      */
     public static Face soloLeft(PartyRoster roster, PartySnapshot snapshot, String self, String createName) {
+        return soloLeft(roster, snapshot, self, createName, Integer.MAX_VALUE);
+    }
+
+    /**
+     * The solo face's left column, with a body width for the create row's wrap decision.
+     *
+     * <p>Wide bodies keep the name field and its Create button on one row; narrow ones (below
+     * {@link #NARROW_WRAP_WIDTH}) put the field on its own row and the button below it, so a wider
+     * Create button never squeezes the field into nothing. The stacked single column is the spec —
+     * the old 55/45 side-by-side split survives only as deprecated {@link #leftWidth} arithmetic.
+     */
+    public static Face soloLeft(PartyRoster roster, PartySnapshot snapshot, String self, String createName,
+                                int bodyWidth) {
         Objects.requireNonNull(snapshot, "snapshot");
         List<Line> lines = new ArrayList<>();
         lines.add(Line.plain(TITLE, "Parties"));
+        lines.add(Line.prose("solo:subtitle", "tenet.screen.party.solo.subtitle"));
 
         // A heading before the field, and it is not decoration: without it the row is a text box
         // holding a party-shaped name and a button, which reads as *the party you are in* rather than
@@ -468,12 +518,23 @@ public final class PartyPanelLayout {
         // box and understood the party to still exist. The heading is the spec's own "top card
         // (Create)" and it is what makes the row say what it does.
         lines.add(Line.header("solo:create:heading", "tenet.screen.party.create.heading"));
-        lines.add(Line.controls("solo:create", createName,
-                Control.primary("solo:create:go", "/tenet party create " + createName)));
+        String createCommand = "/tenet party create " + (createName == null ? "" : createName);
+        if (bodyWidth < NARROW_WRAP_WIDTH) {
+            lines.add(Line.plain("solo:create", createName == null ? "" : createName));
+            lines.add(Line.controls("solo:create:button", "",
+                    Control.primary("solo:create:go", createCommand)));
+        }
+        else {
+            lines.add(Line.controls("solo:create", createName == null ? "" : createName,
+                    Control.primary("solo:create:go", createCommand)));
+        }
+        lines.add(Line.prose("solo:create:hint", "tenet.screen.party.create.hint"));
 
+        lines.add(Line.rule("rule:solo:0"));
         lines.add(Line.header("solo:incoming", "tenet.screen.party.section.incoming"));
         if (snapshot.invites().isEmpty()) {
             lines.add(Line.plain("solo:incoming:none", "tenet.screen.party.section.incoming.none"));
+            lines.add(Line.prose("solo:incoming:none:hint", "tenet.screen.party.section.incoming.none.hint"));
         }
         else {
             for (PartySnapshot.Invite invite : snapshot.invites()) {
@@ -493,9 +554,11 @@ public final class PartyPanelLayout {
     /** The solo face's right column: the open parties anyone may join. */
     public static Face soloRight(PartySnapshot snapshot) {
         List<Line> lines = new ArrayList<>();
+        lines.add(Line.rule("rule:solo:1"));
         lines.add(Line.header("solo:public", "tenet.screen.party.section.public"));
         if (snapshot.publicParties().isEmpty()) {
             lines.add(Line.plain("solo:public:none", "tenet.screen.party.section.public.none"));
+            lines.add(Line.prose("solo:public:none:hint", "tenet.screen.party.section.public.none.hint"));
         }
         else {
             for (PartySnapshot.PublicParty party : snapshot.publicParties()) {
@@ -512,20 +575,24 @@ public final class PartyPanelLayout {
     /**
      * The active face's left column: the identity and the roster.
      *
-     * <p>The name row's control is the rename pencil, present only for the owner — the permission is
-     * asked here rather than at the screen, because "may I rename" is {@code PartyRoster}'s answer and
-     * a panel that decided for itself would draw a pencil the server refuses.
+     * <p>The name row carries a visible {@code Rename} control for the owner — the permission is
+     * asked here via {@code PartyRoster.canRename} rather than at the screen, because "may I rename"
+     * is the roster's answer and a panel that decided for itself would draw a button the server
+     * refuses. The old invisible click-on-name overlay is gone: an affordance nobody can see is not
+     * an affordance.
      */
     public static Face activeLeft(PartyRoster roster, PartySnapshot snapshot) {
         Objects.requireNonNull(roster, "roster");
         List<Line> lines = new ArrayList<>();
 
-        // A plain line, always. The rename control is the screen's: it lays a flat, empty button over
-        // this row when the viewer may rename, so the name itself is what a player clicks. The layout
-        // cannot draw that -- the affordance is the label the screen already draws -- and a control
-        // here would reserve a strip beside the name for something invisible.
         String name = snapshot.teamName().isEmpty() ? "tenet.screen.party.unnamed" : snapshot.teamName();
-        lines.add(Line.plain("left:name", name));
+        if (roster.canRename()) {
+            lines.add(Line.controls("left:name", name,
+                    Control.small("left:name:rename", null)));
+        }
+        else {
+            lines.add(Line.plain("left:name", name));
+        }
 
         int online = 0;
         for (PartyRoster.Member member : roster.members()) {
@@ -533,8 +600,8 @@ public final class PartyPanelLayout {
                 online++;
             }
         }
-        lines.add(Line.detail("left:stats", "Members - " + members(roster.memberCount(), roster.memberLimit()),
-                online + " online"));
+        lines.add(Line.detail("left:stats", members(roster.memberCount(), roster.memberLimit()),
+                online(online)));
 
         // The roster's own composition, nested in whole -- the member rows and their reserved action
         // strip -- under the identity rows. It is appended rather than listed as `Line`s because a
@@ -548,16 +615,28 @@ public final class PartyPanelLayout {
     /** The active face's right column: the settings, then the people who could be invited. */
     public static Face activeRight(PartyRoster roster, PartySnapshot snapshot, String self, String query) {
         Objects.requireNonNull(snapshot, "snapshot");
+        Objects.requireNonNull(roster, "roster");
         List<Line> lines = new ArrayList<>();
 
+        lines.add(Line.rule("rule:active:0"));
         lines.add(Line.header("right:settings", "tenet.screen.party.section.settings"));
         lines.add(Line.controls("right:member-invites", "tenet.screen.party.setting.member_invites",
+                roster.membersCanInvite() ? "tenet.screen.on" : "tenet.screen.off",
                 Control.toggle("right:member-invites:switch")));
+        lines.add(Line.prose("right:member-invites:hint", "tenet.screen.party.setting.member_invites.hint"));
         lines.add(Line.controls("right:open", "tenet.screen.party.setting.open",
+                roster.openJoin() ? "tenet.screen.on" : "tenet.screen.off",
                 Control.toggle("right:open:switch")));
+        lines.add(Line.prose("right:open:hint", "tenet.screen.party.setting.open.hint"));
+        if (!roster.canSetPolicy()) {
+            lines.add(Line.prose("right:settings:owner",
+                    "tenet.screen.party.setting.owner_only"));
+        }
 
+        lines.add(Line.rule("rule:active:1"));
         lines.add(Line.header("right:invite", "tenet.screen.party.section.invite"));
         lines.add(Line.plain("right:search", ""));
+        lines.add(Line.prose("right:search:hint", "tenet.screen.party.invite.search_hint"));
 
         List<String> invitable = invitable(snapshot, roster, self, query);
         if (invitable.isEmpty()) {
@@ -566,9 +645,19 @@ public final class PartyPanelLayout {
             // compared the online list instead, and told a player alone on their server "Nobody
             // matches", as though a filter were responsible.
             boolean anyone = !invitable(snapshot, roster, self, "").isEmpty();
-            lines.add(Line.plain("right:invite:none", anyone
-                    ? "tenet.screen.party.invite.none.filtered"
-                    : "tenet.screen.party.invite.none.empty"));
+            boolean filtered = query != null && !query.trim().isEmpty();
+            if (anyone && filtered) {
+                lines.add(Line.plain("right:invite:none",
+                        "tenet.screen.party.invite.none.filtered" + ARG_SEP + query.trim()));
+            }
+            else {
+                lines.add(Line.plain("right:invite:none", anyone
+                        ? "tenet.screen.party.invite.none.filtered"
+                        : "tenet.screen.party.invite.none.empty"));
+            }
+            if (!anyone) {
+                lines.add(Line.prose("right:invite:none:hint", "tenet.screen.party.invite.none.empty.hint"));
+            }
         }
         else {
             for (String name : invitable) {
@@ -577,6 +666,7 @@ public final class PartyPanelLayout {
             }
         }
 
+        lines.add(Line.rule("rule:active:2"));
         lines.add(Line.header("right:outgoing", "tenet.screen.party.section.outgoing"));
         if (snapshot.sent().isEmpty()) {
             lines.add(Line.plain("right:outgoing:none", "tenet.screen.party.outgoing.none"));
@@ -584,7 +674,7 @@ public final class PartyPanelLayout {
         else {
             for (PartySnapshot.SentInvite invite : snapshot.sent()) {
                 String when = relativeTime(invite.age());
-                lines.add(Line.controls("sent:" + invite.name(), "Invited " + invite.name(), when,
+                lines.add(Line.controls("sent:" + invite.name(), outgoingLabel(invite.name()), when,
                         Control.small("cancel:" + invite.name(), "/tenet party uninvite " + invite.name())));
             }
         }
@@ -648,6 +738,46 @@ public final class PartyPanelLayout {
      */
     public static String members(int count, int limit) {
         return limit > 0 ? count + "/" + limit : count + " members";
+    }
+
+    /**
+     * The online count for the stats line's detail slot.
+     *
+     * <p>Split from the label so the row says the count once ({@code 1/8}) and the presence once
+     * ({@code 1 online}) instead of the old {@code Members - 1/8} label that repeated the number.
+     */
+    public static String online(int count) {
+        return count == 1 ? "1 online" : count + " online";
+    }
+
+    /** Translation key for an outgoing invite row; the name travels after a {@code \0} separator. */
+    public static final String OUTGOING_ROW_KEY = "tenet.screen.party.outgoing.row";
+
+    /** Separator between a translatable row key and its format arg (a player name). */
+    public static final String ARG_SEP = "\0";
+
+    /**
+     * An outgoing invite row's label: the translatable key plus the invited name.
+     *
+     * <p>The screen splits on {@link #ARG_SEP} and resolves via {@code Component.translatable(key,
+     * name)} so translators can reorder {@code Invited %s}. A raw {@code Invited + name}
+     * concatenation froze English word order.
+     */
+    public static String outgoingLabel(String name) {
+        return OUTGOING_ROW_KEY + ARG_SEP + (name == null ? "" : name);
+    }
+
+    /**
+     * The smallest button width that fits {@code label} without truncation.
+     *
+     * <p>{@code min} is the floor (e.g. {@link #ROW_BUTTON} for ordinary buttons) so a short label
+     * like {@code Join} does not get a jittery per-row width while a long one like
+     * {@code Create Party} grows past the floor instead of truncating to {@code Create P...}.
+     */
+    public static int buttonWidth(String label, Measure measure, int min) {
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(measure, "measure");
+        return Math.max(min, measure.width(label) + BUTTON_PAD);
     }
 
     /**
