@@ -1,6 +1,8 @@
 package dev.ellipog.tenet.fabric;
 
 import dev.ellipog.armature.api.net.ArmatureNetwork;
+import dev.ellipog.tenet.QuestBook;
+import dev.ellipog.tenet.QuestBookTabs;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.inventory.FluidAccesses;
 import dev.ellipog.tenet.inventory.InventoryAccesses;
@@ -8,6 +10,9 @@ import dev.ellipog.tenet.inventory.VanillaInventory;
 import dev.ellipog.tenet.net.TenetNetworking;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.CreativeModeTab;
 
 /**
  * Fabric entry point.
@@ -22,6 +27,9 @@ import net.fabricmc.api.ModInitializer;
  *   <li>{@code FabricNetworking.registerReceivers()} registers the <b>server-side receivers</b>. Done
  *       here rather than in the client initialiser because a client with an integrated server is a
  *       server, and it receives the same packets a dedicated one would.</li>
+ *   <li>The quest book's creative-tab entries, one per tab in {@link QuestBookTabs}. Here rather
+ *       than in the client initialiser because both entry points call {@code Tenet.init()} on a
+ *       client, and registering twice would list the book twice.</li>
  * </ol>
  *
  * <p>Runs on client and server both. Nothing here may touch a client class —
@@ -47,6 +55,19 @@ public final class TenetFabric implements ModInitializer {
 
         // Stored energy is Armature's seam (api.energy, installed by its entry points) -- Tenet
         // only reads it, so there is nothing to install here.
+
+        // The quest book in the creative inventory. Read at event time rather than captured now:
+        // the tab event fires after registration, and the null guard keeps a failed registration
+        // from breaking tab population. Once per tab in QuestBookTabs, and only in this
+        // initialiser — the client one runs too on a client, and a second registration would
+        // list the book twice.
+        for (ResourceKey<CreativeModeTab> tab : QuestBookTabs.TABS) {
+            ItemGroupEvents.modifyEntriesEvent(tab).register(entries -> {
+                if (QuestBook.ITEM != null) {
+                    entries.accept(QuestBook.ITEM);
+                }
+            });
+        }
 
         // The server half of Fabric's two-part registration. The client half is in TenetFabricClient.
         TenetFabric.registerServerReceivers();

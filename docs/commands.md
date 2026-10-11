@@ -1,6 +1,8 @@
 # Commands
 
-Everything Tenet can be asked from the command line is under `/tenet`. Player actions — submitting,
+Everything Tenet can be asked from the command line is under `/tenet`. `/quests` and `/questbook`
+are aliases for the same tree — every subcommand below works under all three roots, and bare
+`/quests` or `/questbook` opens the book, like `/tenet open_book`. Player actions — submitting,
 claiming, opening the book, and everything under `party` — are for whoever is playing. The commands that change the
 quest files or operator state (`reload`, `removed`, `restore`, `complete`, `complete-all`, `reset`, `reset-all`, `rewards
 block|unblock`, `stage add|remove`, and naming another player in `stage list`) ask for permission level

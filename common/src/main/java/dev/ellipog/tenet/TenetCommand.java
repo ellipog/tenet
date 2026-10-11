@@ -72,7 +72,7 @@ public final class TenetCommand {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(Commands.literal(Tenet.MOD_ID)
+        var root = dispatcher.register(Commands.literal(Tenet.MOD_ID)
                 .then(Commands.literal("version")
                         .executes(TenetCommand::version))
 
@@ -328,6 +328,24 @@ public final class TenetCommand {
                         // and a return value survive the trip through Armature's command event.
                         .then(Commands.argument("times", IntegerArgumentType.integer(1, 5))
                                 .executes(TenetCommand::echo))));
+
+        // Short aliases: /quests and /questbook behave exactly like /tenet, and bare either one
+        // opens the book like `/tenet open_book`. A redirect rather than a second tree, so the
+        // three roots can never disagree about a subcommand — and only here, never duplicated in
+        // a loader, because this method already runs once per dispatcher rebuild (see the class
+        // comment: the event fires again on every datapack reload).
+        //
+        // Skipped when another mod claimed the name first: losing an alias beats breaking every
+        // /tenet subcommand, which is what a registration clash on the shared root would do.
+        for (String alias : new String[] {"quests", "questbook"}) {
+            if (dispatcher.getRoot().getChild(alias) != null) {
+                Constants.LOG.warn("Tenet: /{} is already registered by another mod; alias skipped", alias);
+                continue;
+            }
+            dispatcher.register(Commands.literal(alias)
+                    .executes(ctx -> openBook(ctx, ""))
+                    .redirect(root));
+        }
     }
 
     // ------------------------------------------------------------------
