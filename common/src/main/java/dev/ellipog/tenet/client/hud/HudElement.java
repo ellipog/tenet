@@ -194,7 +194,14 @@ public enum HudElement {
         return id;
     }
 
-    /** Where it sits before anybody moves it, as a position in the window. */
+    /**
+     * Where it sits before anybody moves it, as a position in the window.
+     *
+     * <p>The table's own default: {@code (2, 2)} for the button. What the game draws when the file holds
+     * nothing is the <b>effective</b> default instead -- {@code (22, 2)} with FTB Library's sidebar around,
+     * see {@code FtbCompat} -- so this constant stays the no-sidebar position and the shift lives one layer
+     * up in {@code HudSettings}.
+     */
     public int defaultX() {
         return defaultX;
     }

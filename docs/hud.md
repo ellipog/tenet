@@ -119,7 +119,7 @@ The elements are:
 
 | Element | Where it ships | What it is |
 |---|---|---|
-| **Inventory button** | Top-left, over containers | The quest book's other door. Shown on every container screen — your inventory in survival *and* creative, chests, crafting, furnaces and modded interfaces, wherever recipe viewers draw. Anchor it to the inventory from its editor row and it follows the panel across GUI scales; on a taller or wider container a button parked outside keeps its gap outside instead of being swallowed — `Under` stays under the chest, not inside it. |
+| **Inventory button** | Top-left, over containers — one sidebar cell to the right with FTB Library installed | The quest book's other door. Shown on every container screen — your inventory in survival *and* creative, chests, crafting, furnaces and modded interfaces, wherever recipe viewers draw. FTB Library's sidebar draws from the same top-left corner, so with any FTB mod around the button ships at `(22, 2)` instead of `(2, 2)` to sit right of that column; a position you set yourself in the HUD editor or `hud.json` always wins over both. Anchor it to the inventory from its editor row and it follows the panel across GUI scales; on a taller or wider container a button parked outside keeps its gap outside instead of being swallowed — `Under` stays under the chest, not inside it. If you moved or hid FTB's own sidebar, drag ours back once with `H` — the choice persists like any other move. |
 | **Pinned quests** | Middle-left of the HUD | The boxes described above. |
 | **Notifications** | Top-left of the HUD | The notices described above. |
 
@@ -141,7 +141,11 @@ touched does not exist and one you have put back is empty:
 ```
 
 An `anchor` of `"inventory"` measures the button from the inventory panel's corner; left out, the
-button is a window pixel as it has always been.
+button is a window pixel as it has always been. `x` and `y` are the config for the default position:
+this file holds only what you changed, so an untouched button follows its shipped spot — `(2, 2)` alone,
+`(22, 2)` with FTB Library — and putting it back there empties the entry again. Explicitly writing
+`"inventory_button": { "x": 2, "y": 2 }` with FTB installed pins it under that sidebar on purpose and
+survives FTB leaving.
 
 `pinned.json` holds your pins, in the order they are drawn — most recent first:
 
