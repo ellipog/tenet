@@ -483,6 +483,16 @@ public final class QuestBookScreen extends ArmatureScreen
     private final Hover edgeHover = new Hover();
 
     /**
+     * The quest whose lines glow steadily: the one being read, else a lone selection.
+     *
+     * <p>Its own tracker rather than a second key in {@link #nodeHover}, because a pointer glow and
+     * a reading glow overlap -- the quest under the pointer is often the quest being read -- and one
+     * tracker holds one thing. It eases like every hover, so opening a quest fades its lines up and
+     * closing one fades them down instead of snapping.
+     */
+    private final Hover selectionGlow = new Hover();
+
+    /**
      * The last line-hover answer, and the pointer/view state it was computed under.
      *
      * <p>The nearest-line walk reads every point of every route, and it used to run every frame in edit
@@ -17496,6 +17506,15 @@ public final class QuestBookScreen extends ArmatureScreen
     private static final float LINE_HOVER_BRIGHTEN = 0.5F;
 
     /**
+     * How far a line joined to the hovered or glowing node is lightened at full glow.
+     *
+     * <p>Quieter than a directly hovered line, so the line under the pointer still reads loudest
+     * and the two cues never tie. Same {@code shade} for the same reason: a completed line stays
+     * recognisably completed underneath.
+     */
+    private static final float ADJACENT_LINE_BRIGHTEN = 0.35F;
+
+    /**
      * The dependency line under the pointer, as {dependency, dependent}, or null.
      *
      * <p>The candidates are {@link #edgeCandidates}, which is the drawing's own walk -- so a line that
@@ -22496,6 +22515,13 @@ public final class QuestBookScreen extends ArmatureScreen
                 if (captioned.link() != null) {
                     drawLinkCaption(renderer, captioned.link());
                 }
+                // The hovered line names itself at the pointer: a line brightens where the menu
+                // opens, and the caption says which line that is. A tooltip rather than a caption
+                // box, because a line has no box to sit under -- and here, at TOOLTIP_Z, item icons
+                // cannot cover it however they are drawn.
+                if (captioned.line() != null) {
+                    drawTooltip(renderer, List.of(captioned.line()), hoverX, hoverY);
+                }
             }
             // The notices first, so a tooltip -- which is what the pointer is asking for -- stays on top.
             // They keep the main theme: a toast is the book talking, not the chapter.
@@ -23515,15 +23541,15 @@ public final class QuestBookScreen extends ArmatureScreen
     // ------------------------------------------------------------------
 
     /**
-     * What the canvas asks to have captioned: the hovered quest and the hovered link's slot, or
-     * nulls when the pointer names neither.
+     * What the canvas asks to have captioned: the hovered quest, the hovered link's slot, and the
+     * hovered dependency line's caption, or nulls when the pointer names none of them.
      *
      * <p>Returned rather than drawn because captions belong over everything, at {@code TOOLTIP_Z}
      * in {@code render}: a caption drawn here, at canvas Z, loses the depth test wherever a
      * depth-writing picture sits — which is how node textures ended up covering the title they
      * name. The values are this frame's, so there is no stale caption when the canvas is hidden.
      */
-    private record CanvasCaption(ClientQuestCache.Entry quest, LinkSlot link) {
+    private record CanvasCaption(ClientQuestCache.Entry quest, LinkSlot link, String line) {
     }
 
     private CanvasCaption drawCanvas(GuiRenderer r, int mouseX, int mouseY,
@@ -23569,7 +23595,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // No caption here: see CanvasCaption. The hovered link's slot is resolved now, while the
         // frame that placed it is current, so the render pass has nothing to look up.
         LinkSlot link = hoveredQuestLink == null ? null : linkSlot(hoveredQuestLink);
-        return new CanvasCaption(hovered, link);
+        return new CanvasCaption(hovered, link, hoveredEdgeCaption);
     }
 
     /** The canvas's own drawing, inside the clip. Returns the hovered node, for the caption above. */
@@ -23609,12 +23635,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // A value-equal key -- a List, not the candidate's own array -- because Hover compares by
         // equals, and a fresh array every frame would restart the fade every frame and never arrive.
         edgeHover.update(hoveredEdge == null ? null : List.of(hoveredEdge[0], hoveredEdge[1]), now);
-
-        // The element under the pointer, and only when no node is: a node is drawn over an element, so a press
-        // that lands on both belongs to the node. Asked here rather than in the element pass below because the
-        // tooltip pass reads it after the canvas is done.
-        hoveredQuestLink = hovered == null ? linkAtId(mouseX, mouseY) : null;
-        hoveredElement = hovered == null && hoveredQuestLink == null ? elementAt(mouseX, mouseY) : null;
+        // The caption the tooltip pass reads: what the line menu would act on, in the titles the
+        // canvas draws rather than the ids the files hold. Published like hoveredQuestLink, read
+        // with the captions at TOOLTIP_Z so a depth-writing icon cannot cover it.
+        hoveredEdgeCaption = hoveredEdge == null ? null : lineCaption(hoveredEdge[0], hoveredEdge[1]);
 
         // The canvas's decoration, under everything else on it: a box behind a cluster of quests, a label over
         // the backdrop, a rule between two tiers. After the chapter's own background and **before** the
@@ -23634,6 +23658,25 @@ public final class QuestBookScreen extends ArmatureScreen
             drawElementGrips(r, gripped);
         }
 
+        // The element under the pointer, and only when no node is: a node is drawn over an element, so a press
+        // that lands on both belongs to the node. Asked here rather than in the element pass below because the
+        // tooltip pass reads it after the canvas is done.
+        hoveredQuestLink = hovered == null ? linkAtId(mouseX, mouseY) : null;
+        hoveredElement = hovered == null && hoveredQuestLink == null ? elementAt(mouseX, mouseY) : null;
+
+        // Told what the pointer is over and what is being read, once, before the lines and the nodes
+        // are drawn. Then every node asks how hovered it is -- which is what makes the ring ease in
+        // as the pointer arrives and ease out as it leaves -- and every line asks how much glow
+        // reaches it, so a sweep across a chapter hands the lines over instead of snapping them.
+        // See Hover for why both halves have to ease.
+        //
+        // A hovered link answers here too, under its own id: link ids can never equal quest ids --
+        // the index refuses the file -- so one map holds both without either reaching through the
+        // other. The steady glow is told separately, for the reason its field gives.
+        nodeHover.update(hoveredQuestLink != null ? hoveredQuestLink : hovered == null ? null : hovered.id(),
+                now);
+        selectionGlow.update(glowSelection(), now);
+
         // Dependency lines first, so nodes draw over them.
         //
         // Through the edge's own geometry rather than through `drawStyledPath(path, style, ...)`: the
@@ -23643,17 +23686,6 @@ public final class QuestBookScreen extends ArmatureScreen
             drawStyledPath(r, edge.geometry(), edge.path().get(0),
                     lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now));
         }
-
-        // Told which node the pointer is over, once, before any node is drawn. Then every node asks how
-        // hovered it is -- which is what makes the ring ease in as the pointer arrives and ease out as
-        // it leaves, and what makes a fast sweep across a chapter look like following the pointer
-        // rather than like flicker. See Hover for why both halves have to ease.
-        //
-        // A hovered link answers here too, under its own id: link ids can never equal quest ids --
-        // the index refuses the file -- so one map holds both without either reaching through the
-        // other.
-        nodeHover.update(hoveredQuestLink != null ? hoveredQuestLink : hovered == null ? null : hovered.id(),
-                now);
 
         // How far out this frame is, once, for everything below it. Zooming out is what puts the most
         // nodes on screen at once, and it is also where the fine detail stops being readable -- so the
@@ -23780,6 +23812,29 @@ public final class QuestBookScreen extends ArmatureScreen
         QuestNodeArt.caption(r, slot.slot().box().left(), slot.slot().box().top(),
                 slot.slot().box().width(), titleOf(slot.target()), canvasLeft(), visibleCanvasRight(),
                 canvasBottom());
+    }
+
+    /** A dependency line's caption: the two quests it joins, in the titles the canvas draws. */
+    private String lineCaption(String fromId, String toId) {
+        ClientQuestCache.Entry from = entryFor(fromId);
+        ClientQuestCache.Entry to = entryFor(toId);
+        return (from == null ? fromId : titleOf(from)) + " \u2192 " + (to == null ? toId : titleOf(to));
+    }
+
+    /**
+     * The quest whose lines glow steadily, or null: the quest being read, else a lone selection.
+     *
+     * <p>The overlay first, because reading is what the glow is for -- and a lone selection second,
+     * like FTB's single-selection highlight, because a marquee of six quests has no one set of lines
+     * to name. A stale id glows nothing: an edge that no longer exists cannot touch it, so a deleted
+     * quest leaves no light behind.
+     */
+    private String glowSelection() {
+        if (overlay == PanelKind.QUEST && overlayQuest != null) {
+            return overlayQuest;
+        }
+        List<String> sel = selection();
+        return sel.size() == 1 ? sel.get(0) : null;
     }
 
     // drawIcon(GuiGraphics, ...) used to be here, delegating to ArmatureTheme's copy. Both are gone:
@@ -24280,6 +24335,9 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** The link under the pointer, by id, or null. Published by the draw, read by the press. */
     private String hoveredQuestLink;
+
+    /** The hovered dependency line's caption, or null. Published by the draw, read with the captions. */
+    private String hoveredEdgeCaption;
 
     /** The link a press took hold of, by id, or null. Decided on release, like a node's. */
     private String pressedQuestLink;
@@ -25081,15 +25139,43 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * A line's ink with the hover's brightening on it: the cue that a right-click lands here.
+     * A line's ink with every brightening on it: the direct hover's, the hovered node's, and the
+     * steady glow's.
      *
-     * <p>Eased by the same {@link Hover} the node ring uses, so the line being left dims as the one
-     * being arrived at lights; and {@code shade} lightens towards white without picking a hue, so a
-     * completed line stays recognisably completed underneath.
+     * <p>The direct hover is the cue that a right-click lands here, and it stays the loudest. The
+     * other two name the line's place in the graph instead: the lines joined to the quest under the
+     * pointer, and the lines joined to the quest being read or solely selected. All three ease --
+     * the trackers crossfade, so a sweep hands the glow over and opening a quest fades it up --
+     * and {@code shade} lightens towards white without picking a hue, so a completed line stays
+     * recognisably completed underneath.
      */
     private int lineInk(int base, String from, String to, long now) {
-        float amount = edgeHover.amount(List.of(from, to), now);
-        return amount <= 0F ? base : Colour.shade(base, LINE_HOVER_BRIGHTEN * amount);
+        float direct = edgeHover.amount(List.of(from, to), now) * LINE_HOVER_BRIGHTEN;
+        float beside = Math.max(adjacency(nodeHover, from, to, now),
+                adjacency(selectionGlow, from, to, now)) * ADJACENT_LINE_BRIGHTEN;
+        float glow = Math.max(direct, beside);
+        return glow <= 0F ? base : Colour.shade(base, glow);
+    }
+
+    /**
+     * How much of a tracker's glow reaches one line: the eased amount when the tracker names an end
+     * of it, the fade-out included.
+     *
+     * <p>Both ends of the crossfade, because a line the pointer just left should dim as the one
+     * arrived at lights -- a glow that snapped off would stutter where the ring glides. A link id
+     * never matches an end, so a marker's hover reaches no line without being asked not to.
+     */
+    private static float adjacency(Hover tracker, String from, String to, long now) {
+        float glow = 0F;
+        Object current = tracker.current();
+        if (current instanceof String id && LineArt.touches(from, to, id)) {
+            glow = Math.max(glow, tracker.amount(id, now));
+        }
+        Object previous = tracker.previous();
+        if (previous instanceof String id && LineArt.touches(from, to, id)) {
+            glow = Math.max(glow, tracker.amount(id, now));
+        }
+        return glow;
     }
 
     /**

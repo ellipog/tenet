@@ -1539,6 +1539,18 @@ public final class LineArt {
         return best;
     }
 
+    /**
+     * Whether a line joins a quest: one of its two ends names it, in either direction.
+     *
+     * <p>Ids, not entries, because the canvas asks this per edge per frame and an entry lookup per
+     * edge per frame is a walk the drawing has already done. A link id can never match: markers live
+     * in their own namespace, so a marker's hover reaches no line by construction rather than by a
+     * special case the next reader has to find.
+     */
+    public static boolean touches(String fromId, String toId, String nodeId) {
+        return fromId.equals(nodeId) || toId.equals(nodeId);
+    }
+
     /** The point a given distance along the path, clamped to its ends. */
     public static Point pointAt(List<Point> path, double at) {
         if (path.isEmpty()) {

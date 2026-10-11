@@ -359,6 +359,15 @@ class LineArtTest {
                 "the tolerance is inclusive, because a hit test that excluded its own edge is a dead band");
     }
 
+    @Test
+    @DisplayName("a line touches its two ends in either direction, and nothing else")
+    void aLineTouchesItsEnds() {
+        assertTrue(LineArt.touches("a", "b", "a"), "the prerequisite end");
+        assertTrue(LineArt.touches("a", "b", "b"), "the dependent end");
+        assertFalse(LineArt.touches("a", "b", "c"), "a quest the line does not join");
+        assertFalse(LineArt.touches("a", "b", "link:a"), "a marker lives in its own namespace");
+    }
+
     // ------------------------------------------------------------------
     // Split handles: the cubic, and the chord's own frame
     // ------------------------------------------------------------------
