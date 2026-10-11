@@ -12118,27 +12118,15 @@ public final class QuestBookScreen extends ArmatureScreen
         return QuestPanelLayout.prettiedArgument(member, typeId, arg, QuestBookScreen::advancementTitle);
     }
 
-    /** An id token's advancement title, or null when this client has not been told about it. */
+    /**
+     * An id token's advancement title, or null when this client has not been told about it.
+     *
+     * <p>One implementation, read from the cache: the adopted quest titles ask the same
+     * question one level up, and two spellings of this lookup is how they would come to
+     * disagree about what an advancement is called.
+     */
     private static String advancementTitle(String id) {
-        net.minecraft.resources.ResourceLocation location =
-                net.minecraft.resources.ResourceLocation.tryParse(id);
-        if (location == null) {
-            return null;
-        }
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft == null || minecraft.getConnection() == null) {
-            return null;
-        }
-        for (net.minecraft.advancements.AdvancementNode node
-                : minecraft.getConnection().getAdvancements().getTree().nodes()) {
-            net.minecraft.advancements.AdvancementHolder holder = node.holder();
-            if (holder.id().equals(location)) {
-                return holder.value().display()
-                        .map(display -> display.getTitle().getString())
-                        .orElse(null);
-            }
-        }
-        return null;
+        return ClientQuestCache.advancementTitle(id);
     }
 
     /**

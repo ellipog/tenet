@@ -41,6 +41,23 @@ it is translated with `chapter.<id>.subtitle` — see [[tenet:authoring/language
 **group** has an id, a title, a description and an icon, and no subtitle: a group is a heading over
 chapters, and a second line of prose above them belongs to the chapter it is about.
 
+### The default title
+
+A new quest is minted titled `New quest`, and the file keeps saying so until its author writes a
+better one — but the book does not. While the file still carries exactly that literal, the quest
+reads as its first task's subject instead: a quest asking for blue dye reads **Blue Dye** with no
+manual rename. Thirteen of the eighteen task kinds lend a name — items, item tags, blocks and
+block tags, mobs, fluids, dimensions, biomes, structures, advancements, stats, observations, a
+filter matching exactly one item, and a task carrying the author's own caption, which outranks
+its requirement (a kill task captioned "Cull the horde" reads that, not "Zombie"). Advancements
+read their real display title where the client knows it. The five that lend nothing do so for a
+reason: energy and xp have no noun to lend, a location is coordinates, and stage and custom ids
+are pack spelling rather than player words. A quest with nothing to lend keeps the default.
+
+Adoption is display-only and in the player's own language — the file is untouched — and any edit
+to the title wins permanently, as does a `quest.<id>.title` translation (see
+[[tenet:authoring/languages]]). Retyping `New quest` verbatim re-enables it.
+
 ### Tags
 
 Quests, chapters, chapter groups, tasks and rewards each carry an optional `tags` list: words the

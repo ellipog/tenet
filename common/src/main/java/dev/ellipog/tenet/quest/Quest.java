@@ -111,6 +111,16 @@ public record Quest(
         QuestPresentation presentation
 ) {
 
+    /**
+     * The title every new quest is minted with, until its author writes a better one.
+     *
+     * <p>One constant rather than two spellings, so the editor's create path and the client's
+     * title adoption agree about what "still the default" means. An author edit wins permanently:
+     * adoption only ever applies while the file still carries exactly this literal as a plain
+     * string — retyping it verbatim re-enables adoption, which is documented rather than fenced.
+     */
+    public static final String DEFAULT_TITLE = "New quest";
+
     /** A quest with nothing in it. The starting point for the editor's "new quest" button. */
     public static Quest blank(String id, QuestText title) {
         return new Quest(id, title, Optional.empty(), List.of(), Icon.DEFAULT_ICON, QuestLayout.DEFAULT,

@@ -146,6 +146,9 @@ said about this exact quest wins over the pack-wide convention. The `fallback` i
 when neither is translated, which is why the validator warns when it is missing: without it a missing
 translation shows the raw key.
 
+Either key also suppresses the default-title adoption: a quest still titled `New quest` borrows its
+first task's name (see [[tenet:authoring/quests]]), unless a translation has words of its own.
+
 ### Stale keys
 
 A key for an object that is gone — a deleted quest, a renamed table — warns on reload, with the file

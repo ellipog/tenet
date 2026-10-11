@@ -10,8 +10,11 @@ import dev.ellipog.tenet.net.QuestSync;
 import dev.ellipog.tenet.progress.QuestState;
 import dev.ellipog.tenet.quest.CanvasElement;
 import dev.ellipog.tenet.quest.DependencyStyle;
+import dev.ellipog.tenet.quest.EditorSpecs;
+import dev.ellipog.tenet.quest.Quest;
 import dev.ellipog.tenet.quest.QuestLayout;
 import dev.ellipog.tenet.quest.QuestShape;
+import dev.ellipog.tenet.quest.TagLabels;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -213,6 +216,184 @@ public final class ClientQuestCache {
             }
             return Component.literal(label.isEmpty() ? "?" : label);
         }
+
+        /**
+         * The noun this task lends a default-titled quest, if any.
+         *
+         * <p>The subject rather than the sentence: an item's own name rather than a row's
+         * {@code 5 / 8}, a tag's humanized words rather than its id, a block or mob's
+         * prettified id rather than the {@code Kill …} / {@code Break …} sentence around
+         * it. Counts live on the progress chip, so a title that kept them would say the
+         * number twice.
+         *
+         * <p>Thirteen of the eighteen task kinds lend something: the five tenet#29 names
+         * (item, item_tag, break, kill, fluid) plus dimension, biome, structure,
+         * advancement, stat, observation, a filter matching exactly one item, and a
+         * task carrying the author's own caption. The five that lend nothing do so
+         * for a reason beside each arm below — energy and xp have no noun, a location
+         * is coordinates, and stage and custom ids are pack spelling the rows do not
+         * prettify either. Everything unlisted answers empty, and the quest falls back
+         * to its file title.
+         */
+        public java.util.Optional<String> subjectName() {
+            java.util.Optional<String> authorWords = authorWords();
+            if (authorWords.isPresent()) {
+                return authorWords;
+            }
+            if (!item.isEmpty()) {
+                String name = item.getHoverName().getString().trim();
+                if (!name.isEmpty()) {
+                    return java.util.Optional.of(name);
+                }
+            }
+            return switch (type) {
+                case "tenet:item" -> itemId.isEmpty() ? java.util.Optional.empty()
+                        : blankToEmpty(friendlyId(itemId));
+                case "tenet:item_tag" -> tagId.isEmpty() ? java.util.Optional.empty()
+                        : blankToEmpty(humanizeTag(tagId));
+                case "tenet:break" -> {
+                    if (!blockTag.isEmpty()) {
+                        java.util.Optional<String> tag = blankToEmpty(humanizeTag(blockTag));
+                        if (tag.isPresent()) {
+                            yield tag;
+                        }
+                    }
+                    yield block.isEmpty() ? java.util.Optional.empty() : blankToEmpty(friendlyId(block));
+                }
+                case "tenet:kill" -> killSubject();
+                case "tenet:fluid" -> {
+                    String fluid = lastIdToken(labelArg);
+                    yield fluid == null ? java.util.Optional.empty() : blankToEmpty(friendlyId(fluid));
+                }
+                case "tenet:dimension", "tenet:stat" -> idOrTagSubject(labelArg);
+                case "tenet:biome", "tenet:structure" -> idOrTagSubject(labelArg);
+                case "tenet:advancement" -> advancementSubject();
+                case "tenet:observation" -> observationSubject();
+                case "tenet:filter" -> singleFilterSubject();
+                default -> java.util.Optional.empty();
+            };
+        }
+
+        /**
+         * A task's own caption, when the author wrote one.
+         *
+         * <p>The author's words outrank the requirement: a kill task captioned
+         * "Cull the horde" names its quest that rather than "Zombie", and a titled
+         * checkmark — the one task whose row <i>is</i> its caption, since a bare one
+         * carries no text at all — lends a tutorial quest its first instruction.
+         * A bare checkmark therefore still lends nothing, and the row keeps the
+         * caption either way.
+         *
+         * <p>Recognised by shape rather than by type: every built-in sentence travels
+         * as a {@code tenet.*} key or as an empty label, so a non-empty label outside
+         * that namespace can only be what the author typed. Restricted to this
+         * namespace's own types all the same — an addon's sentence key is an unknown
+         * shape, and reading it as a title would be a guess about a format this
+         * build has never seen.
+         */
+        private java.util.Optional<String> authorWords() {
+            if (type == null || !type.startsWith("tenet:") || label == null || label.isEmpty()
+                    || label.startsWith("tenet.")) {
+                return java.util.Optional.empty();
+            }
+            if (!labelFallback.isEmpty()) {
+                return blankToEmpty(RichText.plain(ClientLocale.text(label, labelFallback)));
+            }
+            return blankToEmpty(RichText.plain(label));
+        }
+
+        /** The kill task's subject: a tag's humanized words, an entity's prettified id, or nothing. */
+        private java.util.Optional<String> killSubject() {
+            String arg = labelArg == null ? "" : labelArg.trim();
+            if (arg.isEmpty() || arg.equals("anything")) {
+                return java.util.Optional.empty();
+            }
+            return idOrTagSubject(arg);
+        }
+
+        /**
+         * What an observation is of: the watched block or mob, or a tag's humanized
+         * words. A state predicate or a block-entity key lends nothing — the first is
+         * a matcher rather than a name, and the second is NBT rather than words.
+         */
+        private java.util.Optional<String> observationSubject() {
+            String target = observeTarget == null ? "" : observeTarget.trim();
+            if (target.isEmpty()) {
+                return java.util.Optional.empty();
+            }
+            String kind = observeType == null ? "" : observeType;
+            return switch (kind) {
+                case "block", "entity_type", "block_entity_type" -> blankToEmpty(friendlyId(target));
+                case "block_tag", "entity_type_tag" -> blankToEmpty(humanizeTag(target));
+                default -> java.util.Optional.empty();
+            };
+        }
+
+        /**
+         * A filter naming exactly one item lends that item's name.
+         *
+         * <p>Exactly one, and that number is the whole rule: a title must not cycle
+         * through frames the way the adopted icon does, so a filter matching two
+         * things lends nothing rather than the first of them. A filter nothing
+         * answers to lends nothing either — and the parse is guarded, because a
+         * draw path must never throw over a title.
+         */
+        private java.util.Optional<String> singleFilterSubject() {
+            if (filter == null || filter.isBlank()) {
+                return java.util.Optional.empty();
+            }
+            try {
+                FilterMatches.Matches matches = FilterMatches.of(filter);
+                if (matches.shown().size() != 1) {
+                    return java.util.Optional.empty();
+                }
+                return blankToEmpty(matches.shown().get(0).getHoverName().getString().trim());
+            }
+            catch (RuntimeException e) {
+                return java.util.Optional.empty();
+            }
+        }
+
+        /**
+         * An advancement's own display title when this client knows it, else the last
+         * leg of its id in words.
+         *
+         * <p>The live lookup first, because an advancement id's last leg is its
+         * filename rather than its name ({@code mine_diamond} is really
+         * "Diamonds!") — and the row beside the title already reads that way, so
+         * the two agree. A criterion watched on its own ({@code touch of …})
+         * resolves to the advancement all the same. Headless or unknown: the
+         * prettified leg, which is still the quest's subject if not its poetry.
+         */
+        private java.util.Optional<String> advancementSubject() {
+            String arg = labelArg == null ? "" : labelArg.trim();
+            if (arg.isEmpty()) {
+                return java.util.Optional.empty();
+            }
+            String idPart = arg;
+            int of = arg.lastIndexOf(" of ");
+            if (of >= 0) {
+                idPart = arg.substring(of + 4).trim();
+            }
+            if (idPart.isEmpty()) {
+                return java.util.Optional.empty();
+            }
+            String live = advancementTitle(idPart);
+            if (live != null && !live.isBlank()) {
+                return java.util.Optional.of(live.trim());
+            }
+            ResourceLocation location = ResourceLocation.tryParse(idPart);
+            if (location == null) {
+                return java.util.Optional.empty();
+            }
+            String path = location.getPath();
+            int slash = path.lastIndexOf('/');
+            String last = slash >= 0 ? path.substring(slash + 1) : path;
+            if (last.isEmpty()) {
+                return java.util.Optional.empty();
+            }
+            return blankToEmpty(friendlyId(location.getNamespace() + ":" + last));
+        }
     }
 
     /**
@@ -333,6 +514,146 @@ public final class ClientQuestCache {
             }
         }
         return ItemStack.EMPTY;
+    }
+
+    /**
+     * What a quest still titled {@link Quest#DEFAULT_TITLE} reads as: its first task's
+     * subject, or empty when nothing has a name to lend.
+     *
+     * <p>The title half of {@link #adoptedQuestIcon}, and the same bargain: an explicit
+     * title always wins — a translatable file title, any literal that is not the default,
+     * or a pack translation under {@code quest.<id>.title} — and a quest that is still
+     * the default borrows its first lending task's noun. Empty is the "no adoption"
+     * answer, and what calls this falls back to the file title, which is the floor.
+     *
+     * <p>Display-only, like the icon: the file keeps saying {@code New quest} until its
+     * author writes a better title, so an author edit freezes the title permanently
+     * without any flag to migrate. Retyping the default verbatim re-enables adoption.
+     */
+    public static String adoptedQuestTitle(Entry entry) {
+        if (entry == null) {
+            return "";
+        }
+        if (!entry.titleFallback().isEmpty()) {
+            return "";
+        }
+        if (!Quest.DEFAULT_TITLE.equals(entry.title())) {
+            return "";
+        }
+        if (ClientLocale.find("quest." + entry.id() + ".title") != null) {
+            return "";
+        }
+        for (TaskEntry task : entry.tasks()) {
+            java.util.Optional<String> name = task.subjectName();
+            if (name.isPresent() && !name.get().isBlank()) {
+                return name.get().trim();
+            }
+        }
+        return "";
+    }
+
+    /**
+     * A registry id as a title reads it: the path's words, with a tag's leading
+     * {@code #} kept. The same spelling the task rows use
+     * ({@code QuestPanelLayout#friendlyId}), so a title and its row agree.
+     */
+    static String friendlyId(String id) {
+        if (id == null || id.isBlank()) {
+            return "";
+        }
+        boolean tag = id.startsWith("#");
+        ResourceLocation location = ResourceLocation.tryParse(tag ? id.substring(1) : id);
+        if (location == null) {
+            return "";
+        }
+        return (tag ? "#" : "") + EditorSpecs.label(location.getPath());
+    }
+
+    /** A tag id as a title reads it: {@code c:ores/iron} becomes {@code Any Iron Ores}. */
+    static String humanizeTag(String id) {
+        if (id == null || id.isBlank()) {
+            return "";
+        }
+        ResourceLocation location = ResourceLocation.tryParse(id.startsWith("#") ? id.substring(1) : id);
+        if (location == null) {
+            return "";
+        }
+        return TagLabels.humanize(location);
+    }
+
+    /**
+     * An id-or-tag argument as a title reads it: a tag's humanized words, an id's
+     * prettified path, or empty for anything else. What the biome, structure,
+     * dimension and stat subjects share — and what the kill subject narrows with
+     * its own {@code anything} guard.
+     */
+    static java.util.Optional<String> idOrTagSubject(String arg) {
+        String text = arg == null ? "" : arg.trim();
+        if (text.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        if (text.startsWith("#")) {
+            return blankToEmpty(humanizeTag(text.substring(1)));
+        }
+        if (text.contains(":")) {
+            return blankToEmpty(friendlyId(text));
+        }
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * An advancement id's display title, or null when this client has not been told
+     * about it.
+     *
+     * <p>Moved here from the quest book screen so the rows and the adopted titles
+     * read one implementation: the row prettifier asks it for every advancement id
+     * token first and falls back to the prettified id, and the title adoption does
+     * the same one level up. Null-safe throughout — headless, disconnected, or an
+     * id no tree holds all answer null rather than throwing, because both callers
+     * are draw paths.
+     */
+    public static String advancementTitle(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        ResourceLocation location = ResourceLocation.tryParse(id);
+        if (location == null) {
+            return null;
+        }
+        net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
+        if (minecraft == null || minecraft.getConnection() == null) {
+            return null;
+        }
+        for (net.minecraft.advancements.AdvancementNode node
+                : minecraft.getConnection().getAdvancements().getTree().nodes()) {
+            net.minecraft.advancements.AdvancementHolder holder = node.holder();
+            if (holder.id().equals(location)) {
+                return holder.value().display()
+                        .map(display -> display.getTitle().getString())
+                        .orElse(null);
+            }
+        }
+        return null;
+    }
+
+    /** The last {@code namespace:path} token in a sentence, or null when there is none. */
+    static String lastIdToken(String sentence) {
+        if (sentence == null || sentence.isBlank()) {
+            return null;
+        }
+        String found = null;
+        for (String token : sentence.split(" ")) {
+            if (token.contains(":")) {
+                found = token;
+            }
+        }
+        return found;
+    }
+
+    /** Empty and blank read as absent, so callers deal in {@code Optional} throughout. */
+    private static java.util.Optional<String> blankToEmpty(String value) {
+        return value == null || value.isBlank() ? java.util.Optional.empty()
+                : java.util.Optional.of(value.trim());
     }
 
     /**
@@ -816,8 +1137,16 @@ public final class ClientQuestCache {
          * wire carried — a literal, or the author's translation key — because the editor seeds its
          * text fields from it and a translated string written back to a quest file would silently
          * replace the author's own words. See {@link ClientQuestCache#text}.
+         *
+         * <p>A quest still carrying {@link Quest#DEFAULT_TITLE} borrows its first lending
+         * task's subject instead (see {@link ClientQuestCache#adoptedQuestTitle}); any author
+         * edit, translatable title, or pack translation wins permanently.
          */
         public String titleText() {
+            String adopted = ClientQuestCache.adoptedQuestTitle(this);
+            if (!adopted.isEmpty()) {
+                return adopted;
+            }
             return text(title, titleFallback, "quest." + id + ".title");
         }
 
@@ -826,9 +1155,14 @@ public final class ClientQuestCache {
          *
          * <p>The same resolution as {@link #titleText} — the same words, agreed by construction — and
          * only the ink differs. Measuring still takes the stripped reading, because colours are
-         * widthless and the two must agree about how wide the words are.
+         * widthless and the two must agree about how wide the words are. Adopted titles are
+         * plain, so both readings agree here too.
          */
         public String titleTextRaw() {
+            String adopted = ClientQuestCache.adoptedQuestTitle(this);
+            if (!adopted.isEmpty()) {
+                return adopted;
+            }
             return textRaw(title, titleFallback, "quest." + id + ".title");
         }
 

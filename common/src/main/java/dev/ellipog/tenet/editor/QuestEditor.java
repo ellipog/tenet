@@ -11,6 +11,7 @@ import dev.ellipog.armature.api.data.Problems;
 import dev.ellipog.tenet.Constants;
 import dev.ellipog.tenet.quest.ChapterNaming;
 import dev.ellipog.tenet.quest.ParsedFiles;
+import dev.ellipog.tenet.quest.Quest;
 import dev.ellipog.tenet.quest.QuestFiles;
 import dev.ellipog.tenet.quest.QuestShape;
 import dev.ellipog.tenet.quest.QuestValidator;
@@ -992,7 +993,7 @@ public final class QuestEditor {
         JsonObject root = new JsonObject();
         root.addProperty("$schema", schemaPath());
         root.addProperty("id", id);
-        root.addProperty("title", "New quest");
+        root.addProperty("title", Quest.DEFAULT_TITLE);
         root.addProperty("x", Math.round(x));
         root.addProperty("y", Math.round(y));
         JsonObject icon = new JsonObject();
