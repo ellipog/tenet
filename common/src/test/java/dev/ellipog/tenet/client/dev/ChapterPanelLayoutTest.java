@@ -140,6 +140,16 @@ class ChapterPanelLayoutTest {
     }
 
     @Test
+    @DisplayName("the problems heading names its two gestures")
+    void theProblemsHeadingExplainsItself() {
+        // The heading's press prints the report to the chat rather than folding anything away,
+        // and a fault's press copies its file — neither is discoverable from a truncated row,
+        // so the heading carries the sentence the rows cannot.
+        assertEquals("tenet.dev.chapter.help.problems",
+                ChapterPanelLayout.help(ChapterPanelLayout.PROBLEMS));
+    }
+
+    @Test
     @DisplayName("the sections are there, in order, and every key is the path it commits to")
     void sectionsInOrder() {
         List<ToolsLayout.Action> rows = ChapterPanelLayout.rows(chapter(), Set.of());

@@ -858,9 +858,11 @@ public final class ChapterPanelLayout {
             Map.entry(DEPENDENCY_STYLE + ".weight", "tenet.dev.chapter.help.line_weight"),
             Map.entry(GROUP_PREFIX + "title", "tenet.dev.chapter.help.group_title"),
             Map.entry(GROUP_PREFIX + ICON, "tenet.dev.chapter.help.group_icon"),
-            Map.entry(GROUP_PREFIX + "collapsedByDefault", "tenet.dev.chapter.help.group_collapsed"));
+            Map.entry(GROUP_PREFIX + "collapsedByDefault", "tenet.dev.chapter.help.group_collapsed"),
+            Map.entry(PROBLEMS, "tenet.dev.chapter.help.problems"));
 
-    /** The help a chapter row key offers, or null. Headings and quest rows say themselves. */
+    /** The help a chapter row key offers, or null. Headings say themselves, except the problems
+     * heading, which names its two gestures; quest rows say themselves. */
     public static String help(String key) {
         return key == null ? null : HELP.get(key);
     }

@@ -70,6 +70,7 @@ import dev.ellipog.tenet.client.dev.MenuFlyout;
 import dev.ellipog.tenet.client.dev.MenuFlyoutArt;
 import dev.ellipog.tenet.client.dev.MenuPlacement;
 import dev.ellipog.tenet.client.dev.ChapterBar;
+import dev.ellipog.tenet.client.dev.ProblemText;
 import dev.ellipog.tenet.client.dev.QuestPanel;
 import dev.ellipog.tenet.client.dev.QuestSettingsLayout;
 import dev.ellipog.tenet.client.dev.RewardBadge;
@@ -8038,6 +8039,40 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
+     * The fault a press landed on in the Chapter tab's problem list, as an index into the
+     * listed lines, or -1.
+     *
+     * <p>Hit-tested from the same slots the list was drawn from — the arrangement the element
+     * and link rows already have, and for the same reason: these rows hold no widget, so the
+     * press they answer is read from their rectangles rather than from a control. The count
+     * row ({@code v:problems:more}) answers nothing, like the lists' own "more" rows.
+     */
+    private int chapterProblemRowAt(double mouseX, double mouseY) {
+        if (chapterLayout == null || toolsTab != ToolsLayout.Tab.CHAPTER) {
+            return -1;
+        }
+        String prefix = ChapterPanelLayout.VALUE_PREFIX + "problem:";
+        Viewport view = toolsView.viewport();
+        int index = 0;
+        for (ToolsLayout.Action row : chapterRows) {
+            if (!row.key().startsWith(prefix)) {
+                continue;
+            }
+            Slot slot = chapterLayout.slot(row.key());
+            if (slot == null) {
+                continue;
+            }
+            Slot onScreen = ToolsLayout.onScreen(view, slot);
+            if (BookGeometry.Rect.at(onScreen.x(), onScreen.y(), onScreen.width(), onScreen.height())
+                    .contains(mouseX, mouseY)) {
+                return index;
+            }
+            index++;
+        }
+        return -1;
+    }
+
+    /**
      * A chapter flag's press, to the state the switch was moved to.
      *
      * <h2>Why the wanted state is an argument rather than an inversion</h2>
@@ -8069,6 +8104,51 @@ public final class QuestBookScreen extends ArmatureScreen
         // The button's own label is built from this value, so the flip is visible on this press
         // rather than on the tree that follows it.
         rebuildWidgets();
+    }
+
+    /**
+     * Answers a press on one fault of the pack's report: the file goes on the clipboard and the
+     * whole line goes to the chat.
+     *
+     * <p>The row is a pointer at a message whose full text fits nowhere in the dock, so the
+     * press delivers both halves where they fit: the file (what an external editor opens) on
+     * the clipboard, and the line (what the log carries) in the chat, where it keeps full
+     * width and a history. Client-local: no packet, no command, and nothing the validator sees.
+     */
+    private void pressProblemRow(int problem) {
+        String line = problemLineAt(problem);
+        if (line == null || line.isEmpty()) {
+            return;
+        }
+        String file = ProblemText.fileOf(line);
+        Minecraft game = Minecraft.getInstance();
+        if (game != null && game.keyboardHandler != null && !file.isEmpty()) {
+            game.keyboardHandler.setClipboard(file);
+        }
+        if (game != null && game.player != null) {
+            game.player.displayClientMessage(Component.literal(line), false);
+        }
+        status(Labels.of("tenet.dev.chapter.problem_copied", file), false);
+    }
+
+    /**
+     * Prints the pack's current faults to the chat, one line each: the heading's press.
+     *
+     * <p>The same sentences the payload carried — the log's own wording, not a rewording — so
+     * an author can read them outside the narrow panel. Nothing to print is a status line
+     * rather than silence, so the press always answers.
+     */
+    private void printProblemsToChat() {
+        List<String> lines = ClientEditProblems.current()
+                .map(ClientEditProblems.Report::lines)
+                .orElse(List.of());
+        Minecraft game = Minecraft.getInstance();
+        if (!lines.isEmpty() && game != null && game.player != null) {
+            for (String line : lines) {
+                game.player.displayClientMessage(Component.literal(line), false);
+            }
+        }
+        status(Labels.of("tenet.dev.chapter.problems_to_chat", lines.size()), false);
     }
 
     /**
@@ -8867,6 +8947,13 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Folds or unfolds one of the quest panel's sections. */
     private void foldQuestSection(String key) {
+        // The problems heading is not a section to put away — a folded fault is a hidden one —
+        // so its press prints the report to the chat instead. That press used to toggle a fold
+        // state nothing reads, which is to say it did nothing at all.
+        if (ChapterPanelLayout.PROBLEMS.equals(key) && toolsTab == ToolsLayout.Tab.CHAPTER) {
+            printProblemsToChat();
+            return;
+        }
         if (!questFolded.remove(key)) {
             questFolded.add(key);
         }
@@ -24074,9 +24161,17 @@ public final class QuestBookScreen extends ArmatureScreen
                 toolsView.viewport(), mouseX, mouseY,
                 toolsTab == ToolsLayout.Tab.CHAPTER ? this::chapterHelp : ToolsLayout::help);
         if (hovered != null && inTools(mouseX, mouseY)) {
-            rowTooltips.add(new RowTooltip(
-                    ToolsLayout.onScreen(toolsView.viewport(), activeLayout().slot(hovered.key())),
-                    List.of(Labels.of(hovered.help()))));
+            // A fault's own sentence is the fault, not a key: it bypasses `Labels` (whose
+            // `tenet.`-prefix scan would mangle text naming this mod) and reaches the box
+            // pre-split, header first. Every other row resolves as before.
+            List<String> tip = isProblemRow(hovered.key())
+                    ? ProblemText.tooltipLines(hovered.help())
+                    : List.of(Labels.of(hovered.help()));
+            if (!tip.isEmpty()) {
+                rowTooltips.add(new RowTooltip(
+                        ToolsLayout.onScreen(toolsView.viewport(), activeLayout().slot(hovered.key())),
+                        tip));
+            }
         }
         // The bar, from the kit's own rectangles and drawn only when there is more than fits -- the same
         // call the sidebar and the party panel make. It was missing entirely, which left a list that
@@ -24092,8 +24187,64 @@ public final class QuestBookScreen extends ArmatureScreen
      * not have to: after the move they are rows of the same list, drawn by the same dispatch.
      */
     private String chapterHelp(String key) {
+        String problem = problemLine(key);
+        if (problem != null) {
+            return problem;
+        }
         String sentence = ChapterPanelLayout.help(key);
         return sentence != null ? sentence : ToolsLayout.help(key);
+    }
+
+    /**
+     * Whether a chapter-tab row key names one fault of the pack's report.
+     *
+     * <p>The count row ({@code v:problems:more}) is not one: it is the tally of what the
+     * payload could not carry, and neither hovering nor pressing it says anything.
+     */
+    private static boolean isProblemRow(String key) {
+        return key != null && key.startsWith(ChapterPanelLayout.VALUE_PREFIX + "problem:");
+    }
+
+    /**
+     * The fault a problem row carries, or null when the key names no such row.
+     *
+     * <p>Read from the rows just drawn rather than from the report: the row's own value is the
+     * server's sentence, so the tooltip describes the row the pointer is over however the
+     * report has moved since. Null doubles as "no help", which is the shape {@code helpAt}
+     * already skips.
+     */
+    private String problemLine(String key) {
+        if (!isProblemRow(key)) {
+            return null;
+        }
+        for (ToolsLayout.Action row : chapterRows) {
+            if (key.equals(row.key())) {
+                return row.value();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The fault at one problem-row position, in the order the tab lists them, or null.
+     *
+     * <p>The press hit-tests rectangles while this counts rows, and the two walk the same list
+     * in the same order — which is what makes the index the press found name the line this
+     * reads.
+     */
+    private String problemLineAt(int index) {
+        String prefix = ChapterPanelLayout.VALUE_PREFIX + "problem:";
+        int seen = 0;
+        for (ToolsLayout.Action row : chapterRows) {
+            if (!row.key().startsWith(prefix)) {
+                continue;
+            }
+            if (seen == index) {
+                return row.value();
+            }
+            seen++;
+        }
+        return null;
     }
 
     private CanvasCaption drawBook(GuiRenderer r, int mouseX, int mouseY, long now) {
@@ -31035,6 +31186,18 @@ public final class QuestBookScreen extends ArmatureScreen
                     selectedLink = link.equals(selectedLink) ? null : link;
                     linkConfirmingDelete = null;
                     rebuildWidgets();
+                    return true;
+                }
+            }
+            // A fault row in the Chapter tab is read and copied: the row is too narrow to hold
+            // the whole `file:line:column: severity: message`, so the press puts the full line in
+            // the chat (where there is room for it and a history of it) and the file on the
+            // clipboard (which an external editor can open). Before the quest drag below: a
+            // fault is not draggable, and a press on one must never start a reorder.
+            if (toolsTab == ToolsLayout.Tab.CHAPTER && mayEditNow() && chapterLayout != null) {
+                int problem = chapterProblemRowAt(mouseX, mouseY);
+                if (problem >= 0) {
+                    pressProblemRow(problem);
                     return true;
                 }
             }
