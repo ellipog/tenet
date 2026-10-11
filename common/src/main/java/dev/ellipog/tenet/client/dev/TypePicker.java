@@ -44,23 +44,32 @@ public final class TypePicker {
     /**
      * One type that can be added.
      *
-     * @param id    the registered id, which is what a file spells and what the row shows at the right
-     * @param label the name in the author's words; falls back to the id when a table names none
-     * @param group the heading it is listed under, or empty for a list with no headings
-     * @param note  why it cannot be taken, or empty — see {@link ItemPickerLayout.Row#note()}
+     * @param id     the row's own id: a registered type id, which is what a file spells
+     * @param label  the name in the author's words; falls back to the id when a table names none
+     * @param group  the heading it is listed under, or empty for a list with no headings
+     * @param note   why it cannot be taken, or empty — see {@link ItemPickerLayout.Row#note()}
+     * @param detail what the row shows at its right end: the id, unless the entry stands for
+     *               something with its own spelling — a saved template shows its type, which is
+     *               what a file would hold, rather than the shelf's own row id
      */
-    public record Entry(String id, String label, String group, String note) {
+    public record Entry(String id, String label, String group, String note, String detail) {
 
         public Entry {
             Objects.requireNonNull(id, "id");
             label = label == null || label.isBlank() ? id : label;
             group = group == null ? "" : group;
             note = note == null ? "" : note;
+            detail = detail == null || detail.isBlank() ? id : detail;
         }
 
         /** A type with nothing against it. */
         public Entry(String id, String label, String group) {
-            this(id, label, group, "");
+            this(id, label, group, "", null);
+        }
+
+        /** A type with a refusal. */
+        public Entry(String id, String label, String group, String note) {
+            this(id, label, group, note, null);
         }
     }
 
@@ -115,8 +124,9 @@ public final class TypePicker {
     /** One catalogue entry as a row: name, the id at the right, and the refusal when there is one. */
     private static ItemPickerLayout.Row row(Entry entry) {
         return entry.note().isEmpty()
-                ? ItemPickerLayout.Row.of(ItemPickerLayout.Kind.TYPE, entry.id(), entry.label(), entry.id())
+                ? ItemPickerLayout.Row.of(ItemPickerLayout.Kind.TYPE, entry.id(), entry.label(),
+                        entry.detail())
                 : ItemPickerLayout.Row.blocked(ItemPickerLayout.Kind.TYPE, entry.id(), entry.label(),
-                        entry.id(), entry.note());
+                        entry.detail(), entry.note());
     }
 }

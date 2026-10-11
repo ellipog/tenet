@@ -43,6 +43,18 @@ public final class EdgePulse {
     /** One packet's bright length along the route. Short: a comet, not a highlighter. */
     public static final double PACKET_LEN = 8.0;
 
+    /**
+     * The shortest travelling end that still carries a packet: below this a dot would sit on the
+     * arrowhead, and a line whose whole length is arrival carries no flow.
+     */
+    public static final double MIN_TRAVEL = 6.0;
+
+    /**
+     * The quiet lead's floor: the lead scales down with short routes (see {@link #centers}), but a
+     * loop with no gap at all reads as a strobe rather than as arrivals.
+     */
+    public static final double MIN_LEAD = 16.0;
+
     /** How far apart packets space on long lines. Several short lines show one traveller each. */
     public static final double SPACING = 200.0;
 
@@ -66,10 +78,16 @@ public final class EdgePulse {
     /**
      * Packet centers, in pixels from the route's start, at this moment.
      *
-     * <p>Empty for a route too short to carry one: shorter than a packet plus the arrowhead's keep
-     * is a line whose whole length is arrival, and a packet on it would sit on the head. Otherwise
-     * one packet per spacing that fits, each placed along the loop — the seed spreads loops across
-     * edges so neighbouring lines do not march in lockstep.
+     * <p>Empty for a route too short to carry one: shorter than {@link #MIN_TRAVEL} past the
+     * arrowhead's keep is a line whose whole length is arrival, and a packet on it would sit on
+     * the head. Otherwise one packet per spacing that fits, each placed along the loop — the seed
+     * spreads loops across edges so neighbouring lines do not march in lockstep.
+     *
+     * <p>The loop scales with short routes rather than refusing them: the lead is bounded by the
+     * travelling end, so a zoomed-out line carries the same traveller as its full-size twin,
+     * looping faster over less road. Routes are measured in screen pixels, so nothing here needs
+     * the zoom — a short screen route <i>is</i> a short route, whatever the canvas scale made it
+     * one.
      *
      * @param length    the route's length, in pixels
      * @param nowMillis the frame's clock; only the time within one loop reaches floating point
@@ -78,10 +96,10 @@ public final class EdgePulse {
      */
     public static List<Double> centers(double length, long nowMillis, int seed) {
         double travel = length - ARROW_KEEP;
-        if (!(travel >= PACKET_LEN)) {
+        if (!(travel >= MIN_TRAVEL)) {
             return List.of();
         }
-        double cycle = travel + LEAD;
+        double cycle = travel + leadFor(travel);
         // The loop's own period, so the wrap is exact: deriving the distance from the time within
         // one loop keeps wall-clock magnitudes (a trillion milliseconds and climbing) out of the
         // floating point, where they would quantise the march into visible steps.
@@ -95,16 +113,49 @@ public final class EdgePulse {
         // that fits the loop — a short loop carries the head alone rather than aliasing trailers
         // into its window.
         int packets = (int) (cycle / SPACING) + 1;
+        double lead = leadFor(travel);
         for (int k = 0; k < packets; k++) {
             double looped = (head - k * SPACING) % cycle;
             if (looped < 0) {
                 looped += cycle;
             }
-            double at = looped - LEAD / 2;
+            double at = looped - lead / 2;
             if (at >= 0 && at <= travel) {
                 out.add(at);
             }
         }
         return List.copyOf(out);
+    }
+
+    /**
+     * The quiet lead for a travelling end: the full {@link #LEAD} where it fits, shrinking with
+     * short routes but never below {@link #MIN_LEAD}.
+     */
+    static double leadFor(double travel) {
+        return Math.min(LEAD, Math.max(MIN_LEAD, travel));
+    }
+
+    /**
+     * One packet's drawn length on a route: the full {@link #PACKET_LEN} where it fits, shrinking
+     * with short routes so the comet never overruns the road it travels.
+     */
+    public static double packetLength(double routeLength) {
+        return Math.min(PACKET_LEN, Math.max(0, routeLength - ARROW_KEEP));
+    }
+
+    /**
+     * One dot's opacity inside a packet: faint at the tail, full at the head.
+     *
+     * <p>Quadratic rather than linear, so the head reads as a head: a linear ramp is a bright dash
+     * with a dim end, while the square keeps most of the packet quiet and spends the brightness on
+     * arrival. The tail never reaches zero, so the packet reads as one traveller rather than as a
+     * dot with a smudge behind it.
+     *
+     * @param glow the line's own glow, 0 to 1; the packet eases with the hover like the ink does
+     * @param t    how far along the packet the dot sits, 0 at the tail and 1 at the head
+     */
+    public static float packetAlpha(float glow, double t) {
+        double clamped = Math.min(1, Math.max(0, t));
+        return (float) (glow * (0.15 + 0.85 * clamped * clamped));
     }
 }

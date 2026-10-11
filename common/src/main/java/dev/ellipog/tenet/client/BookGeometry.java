@@ -1621,6 +1621,45 @@ public final class BookGeometry {
     }
 
     /**
+     * The room for the label on the node at {@code x}: its own neighbours' gap, not the
+     * chapter's.
+     *
+     * <h2>Why this exists beside {@link #labelRoom}</h2>
+     *
+     * <p>Because the narrowest gap in the chapter is the wrong answer for every node but the two
+     * that make it: a single crowded pair in an otherwise airy row used to decide every label in
+     * it, so titles truncated to a gap they were nowhere near. Each label is centred on its own
+     * node, so what crowds it is the nearest column either side — nothing further away can touch
+     * it, and the overlap test already guards what is below.
+     *
+     * <p>The arithmetic is the same rule halved: a centred label reaches half its width each way,
+     * so half the width must clear the nearer gap less the margin. Alone in its chapter — or
+     * sharing its column — a node has no neighbour to crowd and gets the cap.
+     */
+    public static int labelRoomFor(List<Integer> columnXs, int x, int labelGap, int maxWidth) {
+        List<Integer> sorted = new ArrayList<>(columnXs);
+        sorted.sort(Integer::compareTo);
+
+        int leftGap = Integer.MAX_VALUE;
+        int rightGap = Integer.MAX_VALUE;
+        for (int column : sorted) {
+            if (column < x) {
+                // The last one below wins, which is the nearest: the list is sorted.
+                leftGap = x - column;
+            }
+            else if (column > x) {
+                rightGap = column - x;
+                break;
+            }
+        }
+        int near = Math.min(leftGap, rightGap);
+        if (near == Integer.MAX_VALUE) {
+            return maxWidth;
+        }
+        return clamp(2 * near - labelGap * 2, 0, maxWidth);
+    }
+
+    /**
      * Which of {@code rects} the pointer is in, or -1.
      *
      * <p>Backwards, so the last drawn — and therefore the topmost — wins. Two quests may legitimately

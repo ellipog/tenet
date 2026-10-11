@@ -996,9 +996,10 @@ public final class QuestEditor {
         root.addProperty("title", Quest.DEFAULT_TITLE);
         root.addProperty("x", Math.round(x));
         root.addProperty("y", Math.round(y));
-        JsonObject icon = new JsonObject();
-        icon.addProperty("item", "minecraft:paper");
-        root.add("icon", icon);
+        // No icon: a new quest adopts its first task's picture on every surface that adopts, and
+        // writing the paper placeholder here would now read as an authored choice — paper crosses
+        // the wire as paper, so a placeholder nobody chose would block the adoption it was meant
+        // to stand in for. An author who truly wants paper picks it in the icon row.
         root.add("tasks", new com.google.gson.JsonArray());
 
         JsonFile created = JsonFile.of(pathOf(id), root);

@@ -270,3 +270,8 @@ Filling a container from a table is a command rather than a button, because it n
 screen captures the mouse: `/tenet table export <id>`. Reading one is a button above — the panel's
 `Import... › From target chest` row — and `/tenet table import <id>` is the same read for a player who is
 walking around. See [commands](../commands.md).
+
+## Reusing a setup
+
+A reward worth writing twice is worth saving once: the card's ★ keeps the setup as a
+[[tenet:authoring/templates|template]], and the next quest takes it with one press.

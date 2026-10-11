@@ -184,6 +184,9 @@ public final class TenetFabricClient implements ClientModInitializer {
         // same reason the two above are: a panel opened in the first second of a session must not open on
         // a default because the file had not been read yet.
         ClientWorking.loadFromConfig();
+        // The component template library beside it: shipped presets need no file, but saved ones do,
+        // and the Templates page must list them from the first open for the same reason as above.
+        dev.ellipog.tenet.client.dev.ComponentTemplates.loadFromConfig();
         // And the canvas's own thresholds: how much of it to draw, and from how far out. Read here for the
         // same reason as the rest — a canvas drawn in the first second must not be drawn at the mod's
         // defaults because the file had not been read. See CanvasSettings.

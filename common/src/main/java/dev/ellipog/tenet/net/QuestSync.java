@@ -712,9 +712,15 @@ public final class QuestSync {
         //
         // Omitted when the file named none: the client adopts the first task's picture instead
         // (cycling for a filter), and a paper default on the wire would read as explicit and block
-        // the adoption. An author who truly wants paper names it — indistinguishable from the
-        // default here, and vanishingly rare beside thousands of adopting quests.
-        if (!quest.icon().equals(dev.ellipog.tenet.quest.Icon.DEFAULT_ICON)) {
+        // the adoption.
+        //
+        // <p>"Named none" is identity, not value: {@code optionalFieldOf("icon", Icon.DEFAULT_ICON)}
+        // substitutes that <b>same instance</b> when the field is absent (see {@code chapterIcon} for
+        // the chapters' half of this), so {@code !=} separates "the file said nothing" from "the file
+        // said paper" — and an author who truly wants paper keeps it, on every surface that draws an
+        // explicit icon. Comparing by value would not work: an absent icon and an authored paper are
+        // equal, and the second would vanish from the wire exactly like the first.
+        if (quest.icon() != dev.ellipog.tenet.quest.Icon.DEFAULT_ICON) {
             iconAsJson(quest.icon(), json, "icon", "iconComponents", "iconKind");
         }
         json.addProperty("x", quest.layout().x());

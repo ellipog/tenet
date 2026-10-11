@@ -769,6 +769,24 @@ class QuestSyncTest {
     }
 
     @Test
+    @DisplayName("a quest that authored paper sends it, so the client draws paper")
+    void authoredPaperCrosses() {
+        // Paper is a valid icon, not an absence: the file below says paper the way any other
+        // file says oak logs, and the wire must not swallow it back into the default.
+        QuestIndex index = Fixtures.indexOf(Fixtures.file(
+                "{\"id\": \"a\", \"title\": \"a\", \"icon\": {\"item\": \"minecraft:paper\"}, \"tasks\": "
+                        + "[ {\"type\": \"tenet:item\", \"item\": \"minecraft:oak_log\", \"count\": 8} ]}"));
+        ClientQuestCache.acceptTree(index.questCount(), index.chapterCount(), QuestSync.treeAsJson(index));
+
+        ClientQuestCache.Entry entry = entryFor("a");
+        assertEquals(Items.PAPER, entry.icon().getItem(),
+                "authored paper is paper, not an absence the client would adopt over");
+        assertEquals("minecraft:paper", entry.iconId(), "and the id crosses with it");
+        assertTrue(ClientQuestCache.adoptedQuestIcon(entry).isEmpty(),
+                "an explicit icon blocks adoption, even paper");
+    }
+
+    @Test
     @DisplayName("a quest with an explicit icon keeps it over adoption")
     void explicitIconBlocksAdoption() {
         QuestIndex index = Fixtures.indexOf(Fixtures.file(

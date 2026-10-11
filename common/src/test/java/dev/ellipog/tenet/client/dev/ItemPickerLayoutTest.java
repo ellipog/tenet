@@ -221,4 +221,35 @@ class ItemPickerLayoutTest {
         assertEquals(1, ItemPickerLayout.clamp(rows, 2),
                 "a selection that lands on a refusal slides back to the nearest row that can be taken");
     }
+
+    @Test
+    @DisplayName("a row's words keep what they need and its id takes what is left, never overlapping")
+    void textRoomGivesTheLabelPriority() {
+        // Widths in characters, so the arithmetic is exact: the label is 5, the id is 20.
+        java.util.function.ToIntFunction<String> widthOf = String::length;
+
+        ItemPickerLayout.TextRoom wide = ItemPickerLayout.textRoom("Item", "tenet:item", 100, widthOf);
+        assertEquals(4, wide.label(), "room to spare, the words are whole");
+        assertEquals(10, wide.secondary(), "and so is the id");
+
+        ItemPickerLayout.TextRoom narrow =
+                ItemPickerLayout.textRoom("Gather oak logs", "template:built_in/gather_oak_logs", 40, widthOf);
+        assertEquals(15, narrow.label(), "the words are whole: the id yields first");
+        assertEquals(40 - 15 - ItemPickerLayout.TEXT_GAP, narrow.secondary(),
+                "taking exactly what is left");
+
+        ItemPickerLayout.TextRoom squeezed =
+                ItemPickerLayout.textRoom("Gather oak logs", "template:built_in/gather_oak_logs", 20, widthOf);
+        assertEquals(15, squeezed.label(), "still whole");
+        assertEquals(0, squeezed.secondary(),
+                "a sliver of an id is noise, so the id goes rather than overlapping");
+
+        ItemPickerLayout.TextRoom tiny = ItemPickerLayout.textRoom("Gather oak logs", "tenet:item", 8, widthOf);
+        assertEquals(8, tiny.label(), "past even that, the words truncate to the row itself");
+        assertEquals(0, tiny.secondary());
+
+        ItemPickerLayout.TextRoom noId = ItemPickerLayout.textRoom("Item", "", 100, widthOf);
+        assertEquals(4, noId.label());
+        assertEquals(0, noId.secondary(), "a row with no id has no room for one");
+    }
 }

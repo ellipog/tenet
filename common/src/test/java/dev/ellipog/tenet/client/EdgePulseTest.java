@@ -22,12 +22,57 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EdgePulseTest {
 
     @Test
-    @DisplayName("routes too short for a packet show nothing")
-    void shortRoutesShowNothing() {
+    @DisplayName("routes too short for a dot show nothing")
+    void tinyRoutesShowNothing() {
         assertTrue(EdgePulse.centers(0, 1_000L, 7).isEmpty(), "no route, no packets");
         assertTrue(EdgePulse.centers(-40, 1_000L, 7).isEmpty(), "and no negative one either");
-        assertTrue(EdgePulse.centers(EdgePulse.ARROW_KEEP + EdgePulse.PACKET_LEN - 1, 1_000L, 7).isEmpty(),
-                "shorter than a packet plus the arrowhead's keep is all arrival");
+        assertTrue(
+                EdgePulse.centers(EdgePulse.ARROW_KEEP + EdgePulse.MIN_TRAVEL - 1, 1_000L, 7).isEmpty(),
+                "shorter than the minimum travelling end is all arrival");
+    }
+
+    @Test
+    @DisplayName("short routes carry one short packet rather than nothing")
+    void shortRoutesCarryOne() {
+        // A zoomed-out stub: 16 pixels of route, 6 of travel. The packet shrinks to the road
+        // rather than refusing it, so pulling back keeps the flow instead of losing it.
+        double length = 16;
+        double travel = length - EdgePulse.ARROW_KEEP;
+        assertEquals(6, EdgePulse.packetLength(length), 0.001, "a 6-pixel road carries a 6-pixel comet");
+        assertEquals(8, EdgePulse.packetLength(300), 0.001, "and a long road keeps the full one");
+        boolean carried = false;
+        double cycle = travel + EdgePulse.leadFor(travel);
+        long periodMs = Math.round(cycle / EdgePulse.SPEED_PX_PER_SECOND * 1000.0);
+        for (long now = 0; now < periodMs; now += 5) {
+            for (double at : EdgePulse.centers(length, now, 9)) {
+                assertTrue(at >= 0 && at <= travel, "even a short packet stays on its road: " + at);
+                carried = true;
+            }
+        }
+        assertTrue(carried, "a 16-pixel line should carry its packet somewhere in its loop");
+    }
+
+    @Test
+    @DisplayName("the lead shrinks with short routes but never below its floor")
+    void leadScalesDown() {
+        assertEquals(EdgePulse.LEAD, EdgePulse.leadFor(500), 0.001, "room to spare, the full quiet gap");
+        assertEquals(40, EdgePulse.leadFor(40), 0.001, "a 40-pixel road waits 40");
+        assertEquals(EdgePulse.MIN_LEAD, EdgePulse.leadFor(5), 0.001,
+                "and a loop with no gap at all would read as a strobe");
+    }
+
+    @Test
+    @DisplayName("a packet brightens towards its head and never fully dies at the tail")
+    void packetAlphaRisesToTheHead() {
+        assertEquals(0.15F, EdgePulse.packetAlpha(1F, 0), 0.001F, "the tail is quiet, not gone");
+        assertEquals(1F, EdgePulse.packetAlpha(1F, 1), 0.001F, "the head carries the full glow");
+        assertTrue(EdgePulse.packetAlpha(1F, 0.5) > EdgePulse.packetAlpha(1F, 0.25)
+                && EdgePulse.packetAlpha(1F, 1) > EdgePulse.packetAlpha(1F, 0.5),
+                "monotonic, so the comet reads as one traveller");
+        assertEquals(0.5F, EdgePulse.packetAlpha(0.5F, 1), 0.001F, "easing with the hover, like the ink");
+        assertEquals(EdgePulse.packetAlpha(1F, 0), EdgePulse.packetAlpha(1F, -3), 0.001F,
+                "past either end clamps rather than inventing brightness");
+        assertEquals(EdgePulse.packetAlpha(1F, 1), EdgePulse.packetAlpha(1F, 3), 0.001F);
     }
 
     @Test

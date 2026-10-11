@@ -15,6 +15,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -134,6 +136,26 @@ class IconTest {
         void absentIsPaper() {
             assertEquals(Icon.DEFAULT_ICON, quest("""
                     {"id": "one", "title": "One"}""").icon());
+        }
+
+        @Test
+        @DisplayName("a quest that declared no icon is told apart from one that declared paper")
+        void anAbsentQuestIconIsNotPaper() {
+            // The property `QuestSync`'s quest-icon branch rests on, asserted here rather than
+            // assumed because it is a codec's behaviour rather than this project's:
+            // `optionalFieldOf` substitutes the *same instance* when the field is absent, so `==`
+            // separates "the file said nothing" from "the file said paper" -- and comparing by
+            // value cannot, because the two are equal.
+            Quest absent = quest("""
+                    {"id": "one", "title": "One"}""");
+            assertSame(Icon.DEFAULT_ICON, absent.icon(),
+                    "an absent icon is the default instance itself, not a copy of it");
+
+            Quest authored = quest("""
+                    {"id": "one", "title": "One", "icon": {"item": "minecraft:paper"}}""");
+            assertEquals("minecraft:paper", authored.icon().describe(), "authored paper is paper");
+            assertNotSame(Icon.DEFAULT_ICON, authored.icon(),
+                    "and it is a different instance, which is the only thing that tells the two apart");
         }
 
         @Test

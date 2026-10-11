@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * One card entry's form: its badge, its labelled fields, and the two controls in its corner.
+ * One card entry's form: its badge, its labelled fields, and the three controls in its corner.
  *
  * <h2>Why this replaced a flow layout</h2>
  *
@@ -86,8 +86,9 @@ public final class EntryFormLayout {
     /** The narrowest a value box may be before the layout stops trying to fit two on a line. */
     public static final int MIN_VALUE_WIDTH = 56;
 
-    /** The reserved corner: Copy, the fold, and the cross, in that order along the badge's line. */
+    /** The reserved corner: Copy, the template star, the fold, and the cross, in that order along the badge's line. */
     public static final int COPY_WIDTH = 34;
+    public static final int SAVE_WIDTH = 14;
     public static final int FOLD_WIDTH = 14;
     public static final int REMOVE_WIDTH = 16;
 
@@ -127,7 +128,8 @@ public final class EntryFormLayout {
     }
 
     /**
-     * One condition under an entry: its badge line, its own form's cells, and the cross that removes it.
+     * One condition under an entry: its badge line, its own form's cells, and the two controls in
+     * its corner — the template star and the cross that removes it.
      *
      * <p>No grip and no fold. A conditions list is an AND, so its order is cosmetic and there is nothing
      * a reorder would mean; and a condition is two or three controls, which folded would still need its
@@ -136,7 +138,7 @@ public final class EntryFormLayout {
      * @param lines the badge line plus the condition's own field lines, for the entry's total
      */
     public record ConditionRow(int index, BookGeometry.Rect icon, BookGeometry.Rect name,
-                               BookGeometry.Rect remove, List<Cell> cells, int lines) {
+                               BookGeometry.Rect save, BookGeometry.Rect remove, List<Cell> cells, int lines) {
     }
 
     /**
@@ -152,7 +154,8 @@ public final class EntryFormLayout {
      * @param lines the height in lines, which is what {@link OverlayLayout#entryRowHeight} wants
      */
     public record Form(BookGeometry.Rect badge, BookGeometry.Rect icon, BookGeometry.Rect name,
-                       BookGeometry.Rect grip, BookGeometry.Rect copy, BookGeometry.Rect fold,
+                       BookGeometry.Rect grip, BookGeometry.Rect copy, BookGeometry.Rect save,
+                       BookGeometry.Rect fold,
                        BookGeometry.Rect remove, List<Cell> cells, List<ConditionRow> conditions,
                        BookGeometry.Rect addCondition, int lines) {
 
@@ -187,7 +190,12 @@ public final class EntryFormLayout {
                 LINE_HEIGHT);
         BookGeometry.Rect fold = BookGeometry.Rect.at(remove.x() - GAP - FOLD_WIDTH, badgeY, FOLD_WIDTH,
                 LINE_HEIGHT);
-        BookGeometry.Rect copy = BookGeometry.Rect.at(fold.x() - GAP - COPY_WIDTH, badgeY, COPY_WIDTH,
+        // The star between Copy and the fold: a harmless control beside a harmless one, with the
+        // destructive cross still last at the edge — so a mis-aimed press travels past two saves
+        // before it can reach the removal.
+        BookGeometry.Rect save = BookGeometry.Rect.at(fold.x() - GAP - SAVE_WIDTH, badgeY, SAVE_WIDTH,
+                LINE_HEIGHT);
+        BookGeometry.Rect copy = BookGeometry.Rect.at(save.x() - GAP - COPY_WIDTH, badgeY, COPY_WIDTH,
                 LINE_HEIGHT);
 
         int nameWidth = Math.max(0, copy.x() - GAP - (icon.right() + GAP));
@@ -258,7 +266,7 @@ public final class EntryFormLayout {
         int gripHeight = Math.max(10, OverlayLayout.entryRowHeight(lines_) - 2 * PAD + 2);
         BookGeometry.Rect grip = BookGeometry.Rect.at(slot.x(), slot.y() + 2, GRIP_WIDTH, gripHeight);
         return new Form(BookGeometry.Rect.at(slot.x(), badgeY, slot.width(), LINE_HEIGHT), icon, name, grip,
-                copy, fold, remove, List.copyOf(cells), List.copyOf(conditionRows), addCondition, lines_);
+                copy, save, fold, remove, List.copyOf(cells), List.copyOf(conditionRows), addCondition, lines_);
     }
 
     /** The type an entry names, or empty when it names none or names one badly. */
@@ -287,7 +295,9 @@ public final class EntryFormLayout {
         int y = badgeY + line * LINE_HEIGHT;
         BookGeometry.Rect icon = BookGeometry.Rect.at(x, y, ICON_BOX, LINE_HEIGHT);
         BookGeometry.Rect remove = BookGeometry.Rect.at(right - REMOVE_WIDTH, y, REMOVE_WIDTH, LINE_HEIGHT);
-        int nameWidth = Math.max(0, remove.x() - GAP - (icon.right() + GAP));
+        BookGeometry.Rect save = BookGeometry.Rect.at(remove.x() - GAP - SAVE_WIDTH, y, SAVE_WIDTH,
+                LINE_HEIGHT);
+        int nameWidth = Math.max(0, save.x() - GAP - (icon.right() + GAP));
         BookGeometry.Rect name = BookGeometry.Rect.at(icon.right() + GAP, y, nameWidth, LINE_HEIGHT);
 
         List<EditorField> fields = QuestPanelLayout.conditionEditorFor(condition);
@@ -307,7 +317,7 @@ public final class EntryFormLayout {
                 cells.add(cell(lineFields.get(1), fieldLeft + half + GAP, cellY, half, labelWidth));
             }
         }
-        return new ConditionRow(index, icon, name, remove, List.copyOf(cells), 1 + fieldLines.size());
+        return new ConditionRow(index, icon, name, save, remove, List.copyOf(cells), 1 + fieldLines.size());
     }
 
     /**

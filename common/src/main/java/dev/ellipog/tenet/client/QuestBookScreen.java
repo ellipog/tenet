@@ -416,15 +416,15 @@ public final class QuestBookScreen extends ArmatureScreen
      * that read as <em>"Punch a SomewherStone To…"</em>, which is three quest titles interleaved and
      * looks like a corrupt string rather than like three labels that are too wide.
      *
-     * <p>So the room is <b>measured</b> — the smallest horizontal gap between node columns, in screen
-     * pixels — and every label is truncated to it by <b>width</b>
-     * ({@code Font.plainSubstrByWidth}), not by character count. Where there is not enough room for
-     * even a few characters, no labels are drawn at all and the hover caption carries the name. One
-     * measured rule, instead of a zoom threshold that was a guess.
+     * <p>So the room is <b>measured</b> — each node's own nearest columns, in screen pixels — and every
+     * label is truncated to it by <b>width</b> ({@code Font.plainSubstrByWidth}), not by character
+     * count. A label with not enough room of its own is not drawn at all and the hover caption
+     * carries the name, while its neighbours keep theirs. One measured rule per node, instead of a
+     * zoom threshold that was a guess.
      */
     // Aliases again, for the same reason as the layout constants above: the number lives in
-    // BookGeometry, where BookGeometryTest can assert the invariant that depends on it -- that the
-    // room is always strictly less than the gap between two nodes.
+    // BookGeometry, where BookGeometryTest can assert the invariant that depends on it -- that a
+    // label's half-width is always strictly less than its nearest gap.
     private static final int MAX_LABEL_WIDTH = BookGeometry.MAX_LABEL_WIDTH;
 
     /** Below this there is no room for a readable label, so none are drawn. */
@@ -2127,6 +2127,10 @@ public final class QuestBookScreen extends ArmatureScreen
     private enum EditAction {
         FIELD, FLAG, ITEM, RAW, ADD_TASK, ADD_REWARD, ADD_DEP, PICK_DEP, REMOVE_DEP, COPY_ENTRY,
         REMOVE_ENTRY,
+        /** An entry's star: save this task or reward as a component template. */
+        SAVE_ENTRY,
+        /** A condition's star: save this condition as a component template. */
+        SAVE_CONDITION,
         /** A prerequisite's name: the press opens that quest's card, the reader's own jump. */
         NAVIGATE_DEP,
         /** A prerequisite's locate icon: close the card and take the canvas to that node. */
@@ -2216,6 +2220,14 @@ public final class QuestBookScreen extends ArmatureScreen
         ASSETS_COPY,
         ASSETS_REMOVE,
         ASSETS_NEW,
+        /** A tab in the panel's strip: show the section it names. */
+        ASSETS_SECTION,
+        /** The Templates page's footer: cycle the sort the shelf is listed in. */
+        ASSETS_TEMPLATE_SORT,
+        /** A saved template's cross: delete it from this client's shelf, asking first. */
+        ASSETS_TEMPLATE_DELETE,
+        /** A saved template's pencil: rename it in place, through the inline editor. */
+        ASSETS_RENAME,
         /** The element panel's close chip: put the form away and leave the element selected. */
         ELEMENT_CLOSE,
         /** The pinned list's close chip: put the list away. */
@@ -2608,6 +2620,16 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Which list the modal's type picker is adding to ("tasks"/"rewards"), or null when it is closed. */
     private String pickingEntryType;
+
+    /**
+     * A type picker row that applies a saved setup instead of a fresh default: the template's id
+     * under this prefix.
+     *
+     * <p>The prefix because a picker row's id is otherwise a type id, and a template's name is
+     * free text an author chose — "Kill" could be either. The Assets page needs no prefix: its
+     * rows resolve inside their own section, where a template id can never meet a quest id.
+     */
+    private static final String TEMPLATE_ROW_PREFIX = "template:";
 
     /**
      * Which entry's conditions list the picker is adding to, as a path ("tasks.3"), or null.
@@ -8571,6 +8593,21 @@ public final class QuestBookScreen extends ArmatureScreen
         pickingEntryType = null;
         pickingConditionFor = pathPrefix;
         overlayView.scrollTo(0);
+        // The entry the picker is adding to is where the author is: a condition template applied
+        // from the shelf lands here next.
+        if (pathPrefix != null && editTarget() != null) {
+            int dot = pathPrefix.lastIndexOf('.');
+            if (dot > 0) {
+                try {
+                    dev.ellipog.tenet.client.dev.ComponentTemplates.noteEntryContext(editTarget(),
+                            pathPrefix.substring(0, dot), Integer.parseInt(pathPrefix.substring(dot + 1)));
+                }
+                catch (NumberFormatException notAnEntry) {
+                    // A path that does not end in an index names no entry, so there is no context
+                    // to remember — and the picker's own press will say so if it matters.
+                }
+            }
+        }
         rebuildWidgets();
     }
 
@@ -8582,6 +8619,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * order already make. One op, so one undo.
      */
     private void pressConditionTypeRow(String typeId) {
+        if (typeId.startsWith(TEMPLATE_ROW_PREFIX)) {
+            pressTemplateConditionRow(typeId.substring(TEMPLATE_ROW_PREFIX.length()));
+            return;
+        }
         String prefix = pickingConditionFor;
         if (prefix == null || editTarget() == null) {
             return;
@@ -8594,9 +8635,44 @@ public final class QuestBookScreen extends ArmatureScreen
             status("This build cannot add a " + typeId + " here", true);
             return;
         }
+        if (appendCondition(prefix, fresh)) {
+            status("Added a " + typeId + " condition", false);
+        }
+    }
+
+    /**
+     * One row of the condition picker that is a template: append a copy of the saved condition
+     * instead of the type's default.
+     */
+    private void pressTemplateConditionRow(String templateId) {
+        String prefix = pickingConditionFor;
+        if (prefix == null || editTarget() == null) {
+            return;
+        }
+        var template = dev.ellipog.tenet.client.dev.ComponentTemplates.byId(templateId).orElse(null);
+        if (template == null) {
+            return;
+        }
+        if (!knownTemplateType(template) || template.kind()
+                != dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION) {
+            status("tenet.status.template_unknown_type", true);
+            return;
+        }
+        if (appendCondition(prefix, template.freshCopy())) {
+            dev.ellipog.tenet.client.dev.ComponentTemplates.markUsed(templateId);
+            status("Applied \"" + template.name() + "\"", false);
+        }
+    }
+
+    /**
+     * Appends one condition tree to an entry's conditions list.
+     *
+     * @return whether the op was sent: false when the open quest is gone, so callers report nothing
+     */
+    private boolean appendCondition(String prefix, com.google.gson.JsonObject fresh) {
         JsonObject quest = replicaQuest();
         if (quest == null) {
-            return;
+            return false;
         }
         com.google.gson.JsonArray conditions = new com.google.gson.JsonArray();
         JsonElement existing = QuestPanelLayout.get(quest, prefix + ".conditions");
@@ -8608,7 +8684,7 @@ public final class QuestBookScreen extends ArmatureScreen
         conditions.add(fresh);
         sendField(editTarget(), prefix + ".conditions", conditions);
         pickingConditionFor = null;
-        status("Added a " + typeId + " condition", false);
+        return true;
     }
 
     /**
@@ -8668,6 +8744,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * whose defaults cannot be encoded is refused out loud rather than inserted half-formed.
      */
     private void pressTypeRow(String typeId) {
+        if (typeId.startsWith(TEMPLATE_ROW_PREFIX)) {
+            pressTemplateRow(typeId.substring(TEMPLATE_ROW_PREFIX.length()));
+            return;
+        }
         if (pickingConditionFor != null) {
             pressConditionTypeRow(typeId);
             return;
@@ -8718,7 +8798,62 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         send(new EditorOp.Insert(editTarget(), member, at, entry));
         pickingEntryType = null;
+        dev.ellipog.tenet.client.dev.ComponentTemplates.noteEntryContext(editTarget(), member, at);
         status("Added " + typeId, false);
+    }
+
+    /**
+     * One row of the type picker that is a template: add a copy of the saved setup instead of a
+     * fresh default, and close the picker.
+     *
+     * <p>Every road {@link #pressTypeRow} walks, with the payload swapped: the table editor wraps
+     * a reward into an entry, the quest card inserts at the end of the list, and an unknown type
+     * or a template deleted between the draw and the press is refused out loud. A copy, so the
+     * shelf and the quest never share an id.
+     */
+    private void pressTemplateRow(String templateId) {
+        var template = dev.ellipog.tenet.client.dev.ComponentTemplates.byId(templateId).orElse(null);
+        if (template == null) {
+            return;
+        }
+        if (!knownTemplateType(template)) {
+            status("tenet.status.template_unknown_type", true);
+            return;
+        }
+        if (tableAddress != null && typePickReturn && pickingEntryType != null) {
+            if (template.kind()
+                    != dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.REWARD) {
+                return;
+            }
+            int at = tableModel().map(dev.ellipog.tenet.quest.loot.RewardTable::entryCount).orElse(0);
+            tableDraft.forgetList(effectiveChapter(), tableOwnerKey(), "entries");
+            sendTableOp(new dev.ellipog.tenet.editor.TableOp.Insert(tableAddress, at,
+                    QuestPanelLayout.tableEntry(template.freshCopy())));
+            closeTypePick();
+            dev.ellipog.tenet.client.dev.ComponentTemplates.markUsed(templateId);
+            status("Applied \"" + template.name() + "\"", false);
+            return;
+        }
+        String member = pickingEntryType;
+        if (member == null || editTarget() == null) {
+            return;
+        }
+        var want = "rewards".equals(member)
+                ? dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.REWARD
+                : dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.TASK;
+        if (template.kind() != want) {
+            return;
+        }
+        JsonObject quest = replicaQuest();
+        int at = quest == null ? 0 : QuestPanelLayout.strings(quest, member).size();
+        if (quest != null && quest.has(member) && quest.get(member).isJsonArray()) {
+            at = quest.getAsJsonArray(member).size();
+        }
+        send(new EditorOp.Insert(editTarget(), member, at, template.freshCopy()));
+        pickingEntryType = null;
+        dev.ellipog.tenet.client.dev.ComponentTemplates.noteEntryContext(editTarget(), member, at);
+        dev.ellipog.tenet.client.dev.ComponentTemplates.markUsed(templateId);
+        status("Applied \"" + template.name() + "\"", false);
     }
 
     /**
@@ -8754,6 +8889,9 @@ public final class QuestBookScreen extends ArmatureScreen
         fieldDraft.forgetList(effectiveChapter(), editTarget(), member);
         if (copy) {
             send(new EditorOp.Insert(editTarget(), member, index + 1, found.getAsJsonObject().deepCopy()));
+            // The copy is where the author is now: a condition template applied from the shelf lands
+            // on the entry the last press left them at.
+            dev.ellipog.tenet.client.dev.ComponentTemplates.noteEntryContext(editTarget(), member, index + 1);
             status("Copied " + member.substring(0, member.length() - 1) + " " + (index + 1), false);
         }
         else {
@@ -11565,14 +11703,15 @@ public final class QuestBookScreen extends ArmatureScreen
             drawRawRow(r, form, member, index, mouseX, mouseY);
         }
 
-        // Copy and the cross, on the badge's line at the entry's corner. **Flat, with the frame only on
-        // hover**, and that is a fix rather than a taste: drawn like everything else they carried the same
-        // faint frame a value box carries, so every entry ended in what read as two more text fields --
-        // "Copy" and "×" sitting in boxes the size of the ones you type in.
-        String[] labels = {"Copy", "\u00d7"};
-        EditAction[] actions = {EditAction.COPY_ENTRY, EditAction.REMOVE_ENTRY};
-        BookGeometry.Rect[] boxes = {form.copy(), form.remove()};
-        for (int i = 0; i < 2; i++) {
+        // Copy, the template star and the cross, on the badge's line at the entry's corner. **Flat,
+        // with the frame only on hover**, and that is a fix rather than a taste: drawn like everything
+        // else they carried the same faint frame a value box carries, so every entry ended in what read
+        // as two more text fields -- "Copy" and "×" sitting in boxes the size of the ones you type in.
+        String[] labels = {"Copy", "\u2605", "\u00d7"};
+        EditAction[] actions = {EditAction.COPY_ENTRY, EditAction.SAVE_ENTRY, EditAction.REMOVE_ENTRY};
+        BookGeometry.Rect[] boxes = {form.copy(), form.save(), form.remove()};
+        String[] words = {"", "Save as template", ""};
+        for (int i = 0; i < 3; i++) {
             BookGeometry.Rect box = boxes[i];
             boolean hot = box.contains(mouseX, mouseY);
             if (hot) {
@@ -11582,6 +11721,9 @@ public final class QuestBookScreen extends ArmatureScreen
                     box.y() + (box.height() - 8) / 2, hot ? ArmatureTheme.title() : ArmatureTheme.body());
             registerInto(editTargets, actions[i], null, box, box.x(),
                     box.y() + (box.height() - 8) / 2, "", member, index);
+            if (hot && !words[i].isEmpty()) {
+                pendingLabels.add(new PendingLabel(box, words[i]));
+            }
         }
 
         // The fold: the triangle between Copy and the cross, pointing down at the fields while they are
@@ -11647,6 +11789,24 @@ public final class QuestBookScreen extends ArmatureScreen
                         textMeasure(r)),
                 row.name().x() + 1, row.name().y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2,
                 ArmatureTheme.faint());
+
+        // The star before the cross: this condition as a template, one press. Flat like the entry's
+        // own three, and last-but-one for the same reason the entry's cross is last — a press that
+        // travels past the harmless control to reach the destructive one.
+        BookGeometry.Rect save = row.save();
+        boolean saveHot = save.contains(mouseX, mouseY);
+        if (saveHot) {
+            drawEditAffordance(r, save, true);
+        }
+        String star = "\u2605";
+        r.text(star, save.x() + (save.width() - r.textWidth(star)) / 2,
+                save.y() + (save.height() - 8) / 2,
+                saveHot ? ArmatureTheme.title() : ArmatureTheme.body());
+        registerInto(editTargets, EditAction.SAVE_CONDITION, pathPrefix, save, save.x(),
+                save.y() + (save.height() - 8) / 2, "", member, index);
+        if (saveHot) {
+            pendingLabels.add(new PendingLabel(save, "Save as template"));
+        }
 
         BookGeometry.Rect remove = row.remove();
         boolean removeHot = remove.contains(mouseX, mouseY);
@@ -12713,7 +12873,54 @@ public final class QuestBookScreen extends ArmatureScreen
             entries.add(new dev.ellipog.tenet.client.dev.TypePicker.Entry(typeId, row.label(), group,
                     tableTypeRefusal(typeId)));
         }
+        entries.addAll(templateCatalogue());
         return List.copyOf(entries);
+    }
+
+    /**
+     * The templates half of the type catalogue: saved setups and shipped presets for the list
+     * being added to, under the fresh types.
+     *
+     * <p>Last because the catalogue is the stable list every author learns — its groups, order
+     * and fallback row for an addon's type all live in {@code QuestPanelLayout} — and the shelf
+     * is personal: appending keeps the learned list in place while the templates wait at the end.
+     * A query is unaffected either way, since matches rank by quality rather than by position. A
+     * template for a type this build does not know carries its reason as its refusal, so the row
+     * teaches what is missing instead of silently doing nothing — the picker's own contract for
+     * untakeable rows.
+     */
+    private List<dev.ellipog.tenet.client.dev.TypePicker.Entry> templateCatalogue() {
+        var kind = pickingConditionFor != null
+                ? dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION
+                : "rewards".equals(pickingEntryType)
+                        ? dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.REWARD
+                        : "tasks".equals(pickingEntryType)
+                                ? dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.TASK
+                                : null;
+        if (kind == null) {
+            return List.of();
+        }
+        String group = dev.ellipog.tenet.client.dev.Labels.of("tenet.dev.template.group");
+        List<dev.ellipog.tenet.client.dev.TypePicker.Entry> out = new ArrayList<>();
+        for (dev.ellipog.tenet.client.dev.ComponentTemplate.Template template
+                : dev.ellipog.tenet.client.dev.ComponentTemplates.all()) {
+            if (template.kind() != kind) {
+                continue;
+            }
+            String note = "";
+            if (!knownTemplateType(template)) {
+                note = "Needs " + template.typeId();
+            }
+            else if (kind == dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.REWARD) {
+                note = tableTypeRefusal(template.typeId());
+            }
+            // The row's own id stays the shelf's (it is what the press resolves), while the row
+            // shows the type a file would spell -- the same spelling every sibling row carries.
+            out.add(new dev.ellipog.tenet.client.dev.TypePicker.Entry(
+                    TEMPLATE_ROW_PREFIX + template.id(), template.name(), group, note,
+                    template.typeId()));
+        }
+        return out;
     }
 
     /**
@@ -12846,6 +13053,11 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** A picker row's icon: the registered type's, from whichever of the three registries it came. */
     private ItemStack pickerIcon(String typeId) {
+        if (typeId.startsWith(TEMPLATE_ROW_PREFIX)) {
+            var template = dev.ellipog.tenet.client.dev.ComponentTemplates.byId(
+                    typeId.substring(TEMPLATE_ROW_PREFIX.length())).orElse(null);
+            return template == null ? ItemStack.EMPTY : templateIcon(template);
+        }
         net.minecraft.resources.ResourceLocation id =
                 net.minecraft.resources.ResourceLocation.tryParse(typeId);
         if (id == null) {
@@ -12857,6 +13069,18 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** A picker row's hover: the author's description, from whichever registry the picker is over. */    private List<Component> pickerTooltip(String typeId) {
+        if (typeId.startsWith(TEMPLATE_ROW_PREFIX)) {
+            var template = dev.ellipog.tenet.client.dev.ComponentTemplates.byId(
+                    typeId.substring(TEMPLATE_ROW_PREFIX.length())).orElse(null);
+            if (template == null) {
+                return List.of();
+            }
+            List<Component> out = new ArrayList<>();
+            out.add(Component.literal(dev.ellipog.tenet.client.dev.ComponentTemplate.blurb(
+                    template.kind(), template.typeId(), template.payload())));
+            out.add(Component.literal(template.typeId()));
+            return List.copyOf(out);
+        }
         List<String> lines = pickingConditionFor != null
                 ? QuestPanelLayout.conditionTypeTooltip(typeId)
                 : QuestPanelLayout.typeTooltip(pickingEntryType, typeId);
@@ -12955,6 +13179,8 @@ public final class QuestBookScreen extends ArmatureScreen
             case NAVIGATE_DEP -> navigateToQuest(target.path());
             case LOCATE_DEP -> locateOnCanvas(target.path());
             case COPY_ENTRY -> pressEntry("h:" + target.member() + "." + target.index(), true);
+            case SAVE_ENTRY -> saveEntryAsTemplate(target.member(), target.index());
+            case SAVE_CONDITION -> saveConditionAsTemplate(target.path(), target.member(), target.index());
             case REMOVE_ENTRY -> {
                 // The same rule as the condition's cross one case up, and the same arm: a task or a reward
                 // row's own removal asks before it takes the entry away.
@@ -13070,6 +13296,16 @@ public final class QuestBookScreen extends ArmatureScreen
         if (area) {
             return target.box();
         }
+        // A saved template's name: the hit box is the pencil chip, which is no width to type in,
+        // so the editor opens over the name's own origin at a width fit for words, bounded by the
+        // list it belongs to. The text lands back on the name it replaces.
+        if (target.path() != null && target.path().startsWith(TEMPLATE_ROW_PREFIX)) {
+            BookGeometry.Rect region = inlineRegion(target.path());
+            int height = Math.max(12, target.box().height() + 4);
+            int width = Math.min(220, Math.max(60, region.width() - 8));
+            return BookGeometry.Rect.at(target.textX() - ArmatureTextField.PAD,
+                    target.textY() - (height - 8) / 2, width, height);
+        }
         int height = Math.max(12, target.box().height() + 4);
         return BookGeometry.Rect.at(target.textX() - ArmatureTextField.PAD,
                 target.textY() - (height - 8) / 2,
@@ -13183,6 +13419,12 @@ public final class QuestBookScreen extends ArmatureScreen
         if (InlineEdit.inHeader(path)) {
             return BookGeometry.Rect.at(overlayLeft(), overlayTop(), overlayWidth(), BODY_TOP);
         }
+        // A saved template's name belongs to the Assets page's own list: the field is drawn over
+        // the row and clipped to the band the rows are drawn in, scrolled rows and all.
+        if (path != null && path.startsWith(TEMPLATE_ROW_PREFIX) && assetsFrame != null) {
+            BookGeometry.Rect band = assetsFrame.rows();
+            return BookGeometry.Rect.at(band.x(), band.y(), band.right(), band.bottom());
+        }
         // A table editor's field belongs to its row, and that is the region it is clipped to: the field's
         // box is a couple of pixels taller than the line it replaces, and those pixels are padding -- the
         // ink is centred on the line, so clipping to the row keeps every drawn pixel and stops the box
@@ -13276,10 +13518,26 @@ public final class QuestBookScreen extends ArmatureScreen
         if (editingPath == null) {
             return;
         }
-        for (EditTarget target : editTargets) {
-            if (!editingPath.equals(target.path())) {
-                continue;
+        // The quest card's list, then the Assets panel's: a path lives in one or the other --
+        // quest fields name quest pieces, template names name shelf rows -- so whichever list
+        // holds it is where its box is read from. Without the second list a rename box would go
+        // blind the frame after it opened, standing down while its row is still on screen.
+        EditTarget target = inlineTarget(editTargets);
+        if (target == null) {
+            target = inlineTarget(assetsTargets);
+        }
+        if (target == null) {
+            if (inlineArea != null) {
+                inlineArea.visible = false;
+                inlineArea.active = false;
             }
+            if (inlineField != null) {
+                inlineField.visible = false;
+                inlineField.active = false;
+            }
+            return;
+        }
+        {
             boolean area = inlineArea != null;
             BookGeometry.Rect box = inlineBox(target, area);
             // On screen is a question about the box and the region the piece belongs to, not about the
@@ -13305,16 +13563,20 @@ public final class QuestBookScreen extends ArmatureScreen
                 inlineField.visible = onScreen;
                 inlineField.active = onScreen;
             }
-            return;
         }
-        if (inlineArea != null) {
-            inlineArea.visible = false;
-            inlineArea.active = false;
+    }
+
+    /**
+     * The target the open editor replaces, by path: the first match wins, and a path the frame
+     * never drew has none.
+     */
+    private EditTarget inlineTarget(List<EditTarget> targets) {
+        for (EditTarget target : targets) {
+            if (editingPath.equals(target.path())) {
+                return target;
+            }
         }
-        if (inlineField != null) {
-            inlineField.visible = false;
-            inlineField.active = false;
-        }
+        return null;
     }
 
     private void closeInlineEditor() {
@@ -13432,6 +13694,22 @@ public final class QuestBookScreen extends ArmatureScreen
             closeInlineEditor();
             commitTableText(edit, text);
             rebuildWidgets();
+            return;
+        }
+        // A saved template's new name: client-local, so it needs neither the quest below nor the
+        // edit permission a file write wants. An empty name keeps the old one rather than shelving
+        // a row with no words, and the id never changes.
+        if (path != null && path.startsWith(TEMPLATE_ROW_PREFIX)) {
+            String id = path.substring(TEMPLATE_ROW_PREFIX.length());
+            String name = text == null ? "" : text.trim();
+            closeInlineEditor();
+            if (name.isEmpty()) {
+                status("A template needs a name — keeping the old one", true);
+                return;
+            }
+            if (dev.ellipog.tenet.client.dev.ComponentTemplates.rename(id, name)) {
+                status("Renamed to \"" + name + "\"", false);
+            }
             return;
         }
         String target = editTarget();
@@ -14462,11 +14740,17 @@ public final class QuestBookScreen extends ArmatureScreen
             }
             boolean blocked = placeholder || row.kind() == ItemPickerLayout.Kind.CLEAR
                     || !row.note().isEmpty();
-            r.text(Measure.truncate(row.label(), rect.width() - (textX - rect.x()) - 30, measure),
+            // The label keeps what it needs and the id takes what is left, both truncated to one
+            // derivation in the layout: a narrowed panel shrinks the id first, drops it when even a
+            // sliver will not fit, and only then touches the words — so the two never overlap.
+            ItemPickerLayout.TextRoom room = ItemPickerLayout.textRoom(row.label(), row.secondary(),
+                    rect.width() - (textX - rect.x()) - 4, r::textWidth);
+            r.text(Measure.truncate(row.label(), room.label(), measure),
                     textX, rect.y() + (rect.height() - 8) / 2,
                     blocked ? ArmatureTheme.blocked() : ArmatureTheme.body());
-            if (!row.secondary().isEmpty()) {
-                r.text(row.secondary(), rect.right() - 4 - r.textWidth(row.secondary()),
+            if (room.secondary() > 0) {
+                String shown = Measure.truncate(row.secondary(), room.secondary(), measure);
+                r.text(shown, rect.right() - 4 - r.textWidth(shown),
                         rect.y() + (rect.height() - 8) / 2,
                         blocked ? ArmatureTheme.blocked() : ArmatureTheme.faint());
             }
@@ -21692,11 +21976,12 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private record AssetLine(dev.ellipog.tenet.client.dev.AssetsLayout.Kind kind, String label,
                              String detail, String id, EditAction action, boolean blocked,
+                             boolean hasRemove,
                              net.minecraft.world.item.ItemStack icon) {
 
         static AssetLine heading(String label) {
             return new AssetLine(dev.ellipog.tenet.client.dev.AssetsLayout.Kind.HEADING, label, "", "",
-                    null, false, net.minecraft.world.item.ItemStack.EMPTY);
+                    null, false, false, net.minecraft.world.item.ItemStack.EMPTY);
         }
 
         /**
@@ -21712,14 +21997,14 @@ public final class QuestBookScreen extends ArmatureScreen
          */
         static AssetLine table(ClientQuestCache.TableSummary table) {
             return new AssetLine(dev.ellipog.tenet.client.dev.AssetsLayout.Kind.ROW, table.title(),
-                    table.id(), table.id(), EditAction.ASSETS_ROW, false, table.icon());
+                    table.id(), table.id(), EditAction.ASSETS_ROW, false, false, table.icon());
         }
 
         /** A quest row: the path it lives at is drawn, and the quest's own id is what a press acts on. */
         static AssetLine quest(ClientQuestCache.Entry quest) {
             return new AssetLine(dev.ellipog.tenet.client.dev.AssetsLayout.Kind.ROW, quest.titleText(),
                     quest.chapterId() + "/" + quest.id(), quest.id(), EditAction.ASSETS_ROW, false,
-                    quest.icon());
+                    false, quest.icon());
         }
 
         /**
@@ -21732,7 +22017,23 @@ public final class QuestBookScreen extends ArmatureScreen
          */
         static AssetLine refused(String label, String detail) {
             return new AssetLine(dev.ellipog.tenet.client.dev.AssetsLayout.Kind.ROW, label, detail, "",
-                    null, true, net.minecraft.world.item.ItemStack.EMPTY);
+                    null, true, false, net.minecraft.world.item.ItemStack.EMPTY);
+        }
+
+        /**
+         * A template row: the name drawn, the blurb as the detail, and the template's id as what a
+         * press applies.
+         *
+         * <p>A row press <i>is</i> the Apply — the page's one-press promise — so the action is the
+         * row's own rather than a chip. The cross is the only chip, and only a saved template
+         * carries one: a shipped row has nothing to delete. A template whose type this build does
+         * not know is blocked with its reason as the detail, but keeps the cross — a template for
+         * a removed addon must still be removable.
+         */
+        static AssetLine template(String name, String detail, String id, boolean known,
+                                  boolean removable, net.minecraft.world.item.ItemStack icon) {
+            return new AssetLine(dev.ellipog.tenet.client.dev.AssetsLayout.Kind.ROW, name, detail, id,
+                    known ? EditAction.ASSETS_ROW : null, !known, removable, icon);
         }
 
         boolean pressable() {
@@ -21784,6 +22085,7 @@ public final class QuestBookScreen extends ArmatureScreen
         return switch (assetsSection) {
             case TABLES -> assetsTableLines();
             case QUESTS -> assetsQuestLines();
+            case TEMPLATES -> assetsTemplateLines();
         };
     }
 
@@ -21834,6 +22136,117 @@ public final class QuestBookScreen extends ArmatureScreen
         return lines;
     }
 
+    /**
+     * The component template library, under its two headings: what shipped, then what this
+     * client saved.
+     *
+     * <p>Two lists rather than one because the two halves answer different questions — "what
+     * can I use" and "what did I keep" — and an author scanning for their own saves should not
+     * have to read past the presets to find them. The order inside each half is the shelf's own
+     * sort, so cycling it reorders both halves at once.
+     */
+    private List<AssetLine> assetsTemplateLines() {
+        List<AssetLine> lines = new ArrayList<>();
+        var sort = dev.ellipog.tenet.client.dev.ComponentTemplates.Sort
+                .known(ClientWorking.templateSort());
+        List<dev.ellipog.tenet.client.dev.ComponentTemplate.Template> shipped = new ArrayList<>();
+        List<dev.ellipog.tenet.client.dev.ComponentTemplate.Template> yours = new ArrayList<>();
+        for (dev.ellipog.tenet.client.dev.ComponentTemplate.Template template
+                : dev.ellipog.tenet.client.dev.ComponentTemplates.sorted(sort)) {
+            (template.builtIn() ? shipped : yours).add(template);
+        }
+        if (!shipped.isEmpty()) {
+            lines.add(AssetLine.heading(
+                    dev.ellipog.tenet.client.dev.Labels.of("tenet.dev.template.shipped")));
+            for (dev.ellipog.tenet.client.dev.ComponentTemplate.Template template : shipped) {
+                lines.add(templateLine(template));
+            }
+        }
+        if (!yours.isEmpty()) {
+            lines.add(AssetLine.heading(
+                    dev.ellipog.tenet.client.dev.Labels.of("tenet.dev.template.yours")));
+            for (dev.ellipog.tenet.client.dev.ComponentTemplate.Template template : yours) {
+                lines.add(templateLine(template));
+            }
+        }
+        if (lines.isEmpty()) {
+            lines.add(AssetLine.heading(
+                    dev.ellipog.tenet.client.dev.Labels.of("tenet.dev.template.empty")));
+        }
+        return lines;
+    }
+
+    /** One template as a row: its name, its sentence, and whether this build can apply it. */
+    private AssetLine templateLine(dev.ellipog.tenet.client.dev.ComponentTemplate.Template template) {
+        boolean known = knownTemplateType(template);
+        String detail = known
+                ? dev.ellipog.tenet.client.dev.ComponentTemplate.blurb(template.kind(),
+                        template.typeId(), template.payload())
+                : "Needs " + template.typeId();
+        return AssetLine.template(template.name(), detail, template.id(), known, !template.builtIn(),
+                templateIcon(template));
+    }
+
+    /** Whether this build can apply a template: its type is registered, under a parseable id. */
+    private static boolean knownTemplateType(
+            dev.ellipog.tenet.client.dev.ComponentTemplate.Template template) {
+        net.minecraft.resources.ResourceLocation id =
+                net.minecraft.resources.ResourceLocation.tryParse(template.typeId());
+        if (id == null) {
+            return false;
+        }
+        return switch (template.kind()) {
+            case TASK -> dev.ellipog.tenet.quest.task.TaskTypes.ids().contains(id);
+            case REWARD -> dev.ellipog.tenet.quest.reward.RewardTypes.ids().contains(id);
+            case CONDITION -> dev.ellipog.tenet.quest.condition.ConditionTypes.ids().contains(id);
+        };
+    }
+
+    /**
+     * A template row's picture: the item the setup is about where it names one, else the type's
+     * own badge.
+     *
+     * <p>The subject first, because a row of ten chest icons says nothing while a row of the
+     * actual items says what each template hands over or asks for. An item reward wearing an
+     * override still reads as its payout — the icon override is presentation, and the row is
+     * about content.
+     */
+    private static ItemStack templateIcon(
+            dev.ellipog.tenet.client.dev.ComponentTemplate.Template template) {
+        com.google.gson.JsonObject payload = template.payload();
+        if (payload != null && payload.has("item")) {
+            com.google.gson.JsonElement item = payload.get("item");
+            if (item.isJsonPrimitive() && !item.getAsString().isBlank()) {
+                ItemStack stack = itemStack(item.getAsString());
+                if (!stack.isEmpty()) {
+                    return stack;
+                }
+            }
+            if (item.isJsonObject() && item.getAsJsonObject().has("item")) {
+                try {
+                    ItemStack stack = itemStack(item.getAsJsonObject().get("item").getAsString());
+                    if (!stack.isEmpty()) {
+                        return stack;
+                    }
+                }
+                catch (RuntimeException ignored) {
+                    // A hand-edited template with an item object of an unexpected shape still gets
+                    // its type's badge below rather than an empty row.
+                }
+            }
+        }
+        if (template.kind()
+                == dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION) {
+            net.minecraft.resources.ResourceLocation id =
+                    net.minecraft.resources.ResourceLocation.tryParse(template.typeId());
+            return id == null ? ItemStack.EMPTY
+                    : dev.ellipog.tenet.quest.condition.ConditionTypes.iconOf(id).toStack();
+        }
+        return typeIcon(template.kind()
+                == dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.REWARD ? "rewards" : "tasks",
+                template.typeId());
+    }
+
     /** One line of the page: its icon where it has one, its label, and its detail at the right. */
 
     /** One line of the page: its icon where it has one, its label, and its detail at the right. */
@@ -21867,17 +22280,33 @@ public final class QuestBookScreen extends ArmatureScreen
         boolean chipped = line.pressable()
                 && assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TABLES
                 && line.action() == EditAction.ASSETS_ROW;
+        // A saved template's pencil and cross: rename, then delete, the destructive one last at
+        // the edge -- the same harmless-first order the entry rows follow. Even a blocked row keeps
+        // both: a template for a removed addon must still be renamable and removable.
+        boolean cullable = assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES
+                && line.kind() == dev.ellipog.tenet.client.dev.AssetsLayout.Kind.ROW
+                && line.hasRemove();
         int reserved = chipped
                 ? dev.ellipog.tenet.client.dev.AssetsLayout.CHIPS
                         + dev.ellipog.tenet.client.dev.AssetsLayout.DETAIL_GAP
-                : 0;
+                : cullable ? dev.ellipog.tenet.client.dev.AssetsLayout.CHIP * 2
+                        + dev.ellipog.tenet.client.dev.AssetsLayout.CHIP_GAP
+                        + dev.ellipog.tenet.client.dev.AssetsLayout.DETAIL_GAP
+                        : 0;
         var ink = line.blocked() ? ArmatureTheme.blocked()
                 : hot ? ArmatureTheme.title() : ArmatureTheme.body();
         String detail = line.detail().isEmpty() ? "" : Measure.truncate(line.detail(),
                 Math.max(0, box.width() / 2), textMeasure(r));
         int room = box.width() - inset - reserved - 4 - (detail.isEmpty() ? 0 : r.textWidth(detail) + 6);
-        r.text(Measure.truncate(line.label(), Math.max(0, room), textMeasure(r)), box.x() + inset,
-                baseline, ink);
+        // One drawing of a value, never two: while the rename box is open for this row the widget
+        // draws the name, so the row must not draw it underneath. See `InlineEdit.replaces`.
+        boolean renaming = cullable
+                && dev.ellipog.tenet.client.dev.InlineEdit.replaces(TEMPLATE_ROW_PREFIX + line.id(),
+                        editingPath);
+        if (!renaming) {
+            r.text(Measure.truncate(line.label(), Math.max(0, room), textMeasure(r)), box.x() + inset,
+                    baseline, ink);
+        }
         if (!detail.isEmpty()) {
             // Left of the row's controls and their gap, which is the half that was missing: see `reserved`.
             r.text(detail, box.right() - reserved - 4 - r.textWidth(detail), baseline,
@@ -21908,12 +22337,71 @@ public final class QuestBookScreen extends ArmatureScreen
                         removeBox.x(), removeBox.y(), line.label(), null, assetsTargets.size()));
             }
             if (hot) {
-                assetsHint = "Open " + line.label();
+                assetsHint = assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES
+                        ? applyHint(line)
+                        : "Open " + line.label();
             }
         }
         else if (line.blocked() && box.contains(mouseX, mouseY)) {
             assetsHint = line.detail();
         }
+        if (cullable) {
+            int chip = dev.ellipog.tenet.client.dev.AssetsLayout.CHIP;
+            int gap = dev.ellipog.tenet.client.dev.AssetsLayout.CHIP_GAP;
+            BookGeometry.Rect renameBox = BookGeometry.Rect.at(box.right() - chip * 2 - gap,
+                    box.y() + 1, chip - 1, height - 2);
+            BookGeometry.Rect removeBox = BookGeometry.Rect.at(box.right() - chip, box.y() + 1,
+                    chip - 1, height - 2);
+            boolean renameHot = renameBox.contains(mouseX, mouseY);
+            boolean removeHot = removeBox.contains(mouseX, mouseY);
+            r.text("\u270E", renameBox.x() + (renameBox.width() - r.textWidth("\u270E")) / 2, baseline,
+                    renameHot ? ArmatureTheme.title() : ArmatureTheme.faint());
+            r.text("\u00d7", removeBox.x() + (removeBox.width() - r.textWidth("\u00d7")) / 2, baseline,
+                    removeHot ? ArmatureTheme.title() : ArmatureTheme.faint());
+            // The rename target carries the name's origin for the editor's box, while its own box
+            // stays the chip: a press on the pencil renames, and a press on the name still applies.
+            assetsTargets.add(new EditTarget(EditAction.ASSETS_RENAME, TEMPLATE_ROW_PREFIX + line.id(),
+                    renameBox, box.x() + inset, baseline, line.label(), null, assetsTargets.size()));
+            assetsTargets.add(new EditTarget(EditAction.ASSETS_TEMPLATE_DELETE, line.id(), removeBox,
+                    removeBox.x(), removeBox.y(), line.label(), null, assetsTargets.size()));
+            if (renameHot) {
+                assetsHint = "Rename \"" + line.label() + "\"";
+            }
+            else if (removeHot) {
+                assetsHint = "Delete \"" + line.label() + "\" from this shelf";
+            }
+        }
+    }
+
+    /** The sort footer's label: what the shelf is ordered by now. */
+    private String sortLabel() {
+        return switch (dev.ellipog.tenet.client.dev.ComponentTemplates.Sort
+                .known(ClientWorking.templateSort())) {
+            case NAME -> "Sort: Name";
+            case TYPE -> "Sort: Type";
+            case RECENT -> "Sort: Recent";
+        };
+    }
+
+    /**
+     * What a hover over a template row promises: where the press lands.
+     *
+     * <p>The landing is stated because it depends on state the row cannot show — which quest is
+     * open, and which entry was touched last. A promise the press then keeps: {@code applyHint}
+     * and {@code applyTemplate} read the same two answers.
+     */
+    private String applyHint(AssetLine line) {
+        String quest = editTarget();
+        if (quest == null) {
+            return "Apply \"" + line.label() + "\" — open a quest first";
+        }
+        var template = dev.ellipog.tenet.client.dev.ComponentTemplates.byId(line.id()).orElse(null);
+        if (template != null
+                && template.kind() == dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION
+                && conditionLanding(quest) == null) {
+            return "Apply \"" + line.label() + "\" — touch a task or reward first";
+        }
+        return "Apply \"" + line.label() + "\" to " + quest;
     }
 
     /** The panel's own pressable list, and its registration: one shape, so the two cannot drift. */
@@ -21948,12 +22436,36 @@ public final class QuestBookScreen extends ArmatureScreen
         // pointer, and the depth is what decides it. See `AssetsLayout.shown`.
         var sections = dev.ellipog.tenet.client.dev.AssetsLayout.shown();
         for (int i = 0; i < sections.length; i++) {
-            BookGeometry.Rect box = assetsFrame.section(i);
+            BookGeometry.Rect box = assetsFrame.tab(i);
             boolean chosen = sections[i] == assetsSection;
-            boolean hot = box.contains(mouseX, mouseY);
-            var ink = chosen ? ArmatureTheme.title() : hot ? ArmatureTheme.body() : ArmatureTheme.faint();
-            r.text(sectionName(sections[i]), box.x() + 4, box.y() + (box.height() - 8) / 2, ink);
+            // Drawn like the texture picker's own tabs: the open one wears the recessed wash, a
+            // hovered one the affordance frame, and the labels sit centred in their third of the
+            // strip rather than against its left edge. Two tab strips that read as one family.
+            if (chosen) {
+                r.fill(box.x(), box.y(), box.right(), box.bottom(), ArmatureTheme.recessed());
+            }
+            else if (box.contains(mouseX, mouseY)) {
+                drawEditAffordance(r, box, true);
+            }
+            String name = Measure.truncate(sectionName(sections[i]), Math.max(0, box.width() - 4),
+                    textMeasure(r));
+            r.text(name, box.x() + (box.width() - r.textWidth(name)) / 2,
+                    box.y() + (box.height() - 8) / 2,
+                    chosen ? ArmatureTheme.title() : ArmatureTheme.faint());
+            // Registered, because a drawn tab no press can reach is a dead tab: the press gate only
+            // walks this panel's target list, and a tab drawn without one is a press the gate drops
+            // before `pressAssets` ever runs. The section itself is resolved from the layout there,
+            // so this registration carries the name for the gate and nothing else.
+            BookGeometry.Rect hit = shiftHit(box);
+            assetsTargets.add(new EditTarget(EditAction.ASSETS_SECTION,
+                    sections[i].name().toLowerCase(java.util.Locale.ROOT), hit, hit.x() + 2,
+                    hit.y() + 3, sectionName(sections[i]), null, assetsTargets.size()));
         }
+        // The rule under the strip, like the texture picker's: the tabs are controls above a list,
+        // and the line is what says so.
+        r.fill(assetsFrame.tabs().x() + 1, assetsFrame.tabs().bottom(),
+                assetsFrame.tabs().right() - 1, assetsFrame.tabs().bottom() + 1,
+                ArmatureTheme.panelEdge());
 
         try (GuiRenderer.Scoped clip = r.clip(band.x(), band.y(), band.right(), band.bottom())) {
             for (int i = 0; i < lines.size(); i++) {
@@ -21983,10 +22495,20 @@ public final class QuestBookScreen extends ArmatureScreen
             drawTableButton(r, footer.newTable(), "New table", mouseX, mouseY, EditAction.ASSETS_NEW,
                     assetsTargets);
         }
+        else if (assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES) {
+            // The shelf's order, as the footer's own action: one press cycles Recent, Name, Type,
+            // and the page re-lists under both headings at once.
+            drawTableButton(r, footer.newTable(), sortLabel(), mouseX, mouseY,
+                    EditAction.ASSETS_TEMPLATE_SORT, assetsTargets);
+        }
         drawTableButton(r, footer.done(), Labels.of("tenet.screen.done"), mouseX, mouseY,
                 EditAction.ASSETS_CLOSE, assetsTargets);
 
         drawTableHint(r, assetsHint);
+
+        // Where the open rename box goes, every frame: the shelf scrolls under it like the card's
+        // fields scroll under theirs, so it is repositioned from this panel's own target list.
+        repositionInlineEditor();
     }
 
     /** The section's name in the author's words. */
@@ -21994,15 +22516,17 @@ public final class QuestBookScreen extends ArmatureScreen
         return switch (section) {
             case TABLES -> "Tables";
             case QUESTS -> "Quests";
+            case TEMPLATES -> "Templates";
         };
     }
 
     /**
-     * The panel's press: the section column first, then the page's rows, then the footer.
+     * The panel's press: the tab strip first, then the page's rows, then the footer.
      *
-     * <p>The sections come first because their rectangles are drawn over the page's band's left edge in no
-     * way at all — they are a separate column — and asking the layout's own function keeps the answer the
-     * same one the drawing used.
+     * <p>The tabs come first because their rectangles touch the page's band in no way at all — they are
+     * a separate strip — and asking the layout's own function keeps the answer the same one the
+     * drawing used. The tabs are also registered targets, which is what gets a press past the gate
+     * that only walks target lists; the resolution here is what names the section.
      */
     private void pressAssets(double mouseX, double mouseY) {
         if (assetsFrame == null) {
@@ -22014,16 +22538,21 @@ public final class QuestBookScreen extends ArmatureScreen
             showAssets(section);
             return;
         }
-        for (EditTarget target : assetsTargets) {
+        // Last drawn wins: a row's chips sit inside the row's own rectangle, so a forward scan meets
+        // the row first and the chip behind it never fires -- which is exactly how a template's ×
+        // (and a table's Copy and × beside it) came to do nothing at all. The drawing paints chips
+        // over rows, and the press reads the stack in the same order.
+        for (int i = assetsTargets.size() - 1; i >= 0; i--) {
+            EditTarget target = assetsTargets.get(i);
             if (target.box().contains(mouseX, mouseY)) {
-                pressAssetTarget(target);
+                pressAssetTarget(target, mouseX, mouseY);
                 return;
             }
         }
     }
 
     /** What a press on one of the panel's targets does. */
-    private void pressAssetTarget(EditTarget target) {
+    private void pressAssetTarget(EditTarget target, double mouseX, double mouseY) {
         switch (target.action()) {
             case ASSETS_CLOSE -> closeOverlay();
             // The browser's own three verbs, so the two lists cannot disagree about what making, copying
@@ -22045,6 +22574,42 @@ public final class QuestBookScreen extends ArmatureScreen
                 assetsConfirmRemove = null;
                 deleteTable(target.path());
             }
+            case ASSETS_TEMPLATE_SORT -> {
+                // Recent, Name, Type and back: the order the shelf is already in decides the next one,
+                // read from the file rather than a field, so the footer can never disagree with the page.
+                // Each key is written whole, because the language sweep matches literals: a concatenated
+                // key would render fine in game and read as an orphan in the test.
+                var next = switch (dev.ellipog.tenet.client.dev.ComponentTemplates.Sort
+                        .known(ClientWorking.templateSort())) {
+                    case RECENT -> dev.ellipog.tenet.client.dev.ComponentTemplates.Sort.NAME;
+                    case NAME -> dev.ellipog.tenet.client.dev.ComponentTemplates.Sort.TYPE;
+                    case TYPE -> dev.ellipog.tenet.client.dev.ComponentTemplates.Sort.RECENT;
+                };
+                ClientWorking.rememberTemplateSort(next.key());
+                assetsBody.setScrollY(0);
+                status(switch (next) {
+                    case NAME -> "tenet.status.template_sort_name";
+                    case TYPE -> "tenet.status.template_sort_type";
+                    case RECENT -> "tenet.status.template_sort_recent";
+                }, false);
+            }
+            case ASSETS_TEMPLATE_DELETE -> {
+                // The same second press the tables' cross asks for: a saved setup is the author's own
+                // work, and one press on a thirteen-pixel cross must never be enough to lose it.
+                if (!target.path().equals(assetsConfirmRemove)) {
+                    assetsConfirmRemove = target.path();
+                    status("Press again to delete \"" + target.value() + "\"", true);
+                    return;
+                }
+                assetsConfirmRemove = null;
+                if (dev.ellipog.tenet.client.dev.ComponentTemplates.delete(target.path())) {
+                    status("Deleted \"" + target.value() + "\"", false);
+                }
+            }
+            // A saved template's pencil: the name edits in place, through the same inline editor
+            // the quest card's fields use. The id never changes, so nothing that names the template
+            // moves while its words do.
+            case ASSETS_RENAME -> openInlineEditor(target, mouseX, mouseY);
             case ASSETS_ROW -> {
                 switch (assetsSection) {
                     case TABLES -> openTableEditorOn(target.path());
@@ -22056,13 +22621,182 @@ public final class QuestBookScreen extends ArmatureScreen
                         // taken there; opening its card instantly answered a question nobody had asked.
                         locateOnCanvas(target.path());
                     }
+                    case TEMPLATES -> applyTemplate(target.path());
                     default -> {
                     }
                 }
             }
+            // A tab press that reached the target scan: `pressAssets` resolves the section from the
+            // layout first and usually returns before this runs, so this is the second road to the
+            // same section rather than a second answer. It resolves by name among the sections this
+            // depth shows, which is never a blank page.
+            case ASSETS_SECTION -> showAssets(sectionNamed(target.path()));
             default -> {
             }
         }
+    }
+
+    /**
+     * Saves one entry of the open quest as a component template: the setup as it stands,
+     * conditions included, onto this client's shelf.
+     *
+     * <p>What is saved is the tree the replica holds — pending inline edits included, because
+     * the replica is what the overlay already carries — so what the author sees is what the
+     * template keeps. The store copies and strips it; the quest is untouched, and one op is
+     * never sent, so saving is not an undo step.
+     */
+    private void saveEntryAsTemplate(String member, int index) {
+        JsonObject quest = replicaQuest();
+        String questId = editTarget();
+        if (quest == null || questId == null || member == null || index < 0) {
+            return;
+        }
+        JsonElement found = QuestPanelLayout.get(quest, member + "." + index);
+        if (found == null || !found.isJsonObject()) {
+            return;
+        }
+        var kind = "rewards".equals(member)
+                ? dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.REWARD
+                : dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.TASK;
+        JsonObject tree = found.getAsJsonObject();
+        String type = tree.has("type") && tree.get("type").isJsonPrimitive()
+                ? tree.get("type").getAsString()
+                : "tenet:unknown";
+        String name = dev.ellipog.tenet.client.dev.ComponentTemplate.blurb(kind, type, tree);
+        var existing = dev.ellipog.tenet.client.dev.ComponentTemplates.duplicateOf(kind, type, tree);
+        // An entry saved is an entry touched: a condition template applied from the shelf lands
+        // here next, which is where the author already is.
+        dev.ellipog.tenet.client.dev.ComponentTemplates.noteEntryContext(questId, member, index);
+        if (existing.isPresent()) {
+            // One setup, one row: pressing the star ten times lists it once rather than shelving
+            // ten identical copies.
+            status("Already on the shelf as \"" + existing.get().name() + "\"", false);
+            return;
+        }
+        var saved = dev.ellipog.tenet.client.dev.ComponentTemplates.saveNew(kind, type, tree, name);
+        status("Saved \"" + saved.name() + "\" — find it in Assets, under Templates", false);
+    }
+
+    /**
+     * Saves one condition of one entry as a component template.
+     *
+     * @param path the condition's own path ({@code tasks.3.conditions.1}); {@code member} and
+     *             {@code entry} name the entry it hangs under, for the landing context
+     */
+    private void saveConditionAsTemplate(String path, String member, int entry) {
+        JsonObject quest = replicaQuest();
+        String questId = editTarget();
+        if (quest == null || questId == null || path == null || member == null || entry < 0) {
+            return;
+        }
+        JsonElement found = QuestPanelLayout.get(quest, path);
+        if (found == null || !found.isJsonObject()) {
+            return;
+        }
+        JsonObject tree = found.getAsJsonObject();
+        String type = tree.has("type") && tree.get("type").isJsonPrimitive()
+                ? tree.get("type").getAsString()
+                : "tenet:unknown";
+        String name = dev.ellipog.tenet.client.dev.ComponentTemplate.blurb(
+                dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION, type, tree);
+        var existing = dev.ellipog.tenet.client.dev.ComponentTemplates.duplicateOf(
+                dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION, type, tree);
+        dev.ellipog.tenet.client.dev.ComponentTemplates.noteEntryContext(questId, member, entry);
+        if (existing.isPresent()) {
+            status("Already on the shelf as \"" + existing.get().name() + "\"", false);
+            return;
+        }
+        var saved = dev.ellipog.tenet.client.dev.ComponentTemplates.saveNew(
+                dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION, type, tree, name);
+        status("Saved \"" + saved.name() + "\" — find it in Assets, under Templates", false);
+    }
+
+    /**
+     * Applies a template to the open quest: a copy with fresh ids, never a link.
+     *
+     * <p>Tasks and rewards append to the quest's own list through {@code Insert} — the same op
+     * duplicating an entry sends, so undo is one step and the server validates the copy like any
+     * hand-made edit. Conditions append to the last-touched entry's list through a rebuilt
+     * array — the same move the condition picker makes — after verifying that entry is still
+     * the open quest's. A refusal costs nothing and says where the picker's own path is.
+     */
+    private void applyTemplate(String templateId) {
+        var template = dev.ellipog.tenet.client.dev.ComponentTemplates.byId(templateId).orElse(null);
+        if (template == null) {
+            return;
+        }
+        if (!knownTemplateType(template)) {
+            status("tenet.status.template_unknown_type", true);
+            return;
+        }
+        String quest = editTarget();
+        if (quest == null) {
+            status("tenet.status.template_open_a_quest", true);
+            return;
+        }
+        JsonObject replica = replicaQuest();
+        switch (template.kind()) {
+            case TASK, REWARD -> {
+                String member = template.kind()
+                        == dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.TASK ? "tasks" : "rewards";
+                int at = 0;
+                if (replica != null && replica.has(member) && replica.get(member).isJsonArray()) {
+                    at = replica.getAsJsonArray(member).size();
+                }
+                send(new EditorOp.Insert(quest, member, at, template.freshCopy()));
+                dev.ellipog.tenet.client.dev.ComponentTemplates.noteEntryContext(quest, member, at);
+                dev.ellipog.tenet.client.dev.ComponentTemplates.markUsed(templateId);
+                status("Applied \"" + template.name() + "\" to " + quest, false);
+            }
+            case CONDITION -> {
+                var landing = conditionLanding(quest);
+                if (landing == null) {
+                    status("tenet.status.template_condition_needs_entry", true);
+                    return;
+                }
+                com.google.gson.JsonArray conditions = new com.google.gson.JsonArray();
+                JsonElement existing = QuestPanelLayout.get(landing.replica(), landing.path());
+                if (existing != null && existing.isJsonArray()) {
+                    for (JsonElement value : existing.getAsJsonArray()) {
+                        conditions.add(value.deepCopy());
+                    }
+                }
+                conditions.add(template.freshCopy());
+                sendField(quest, landing.path(), conditions);
+                dev.ellipog.tenet.client.dev.ComponentTemplates.markUsed(templateId);
+                status("Applied \"" + template.name() + "\" to " + quest, false);
+            }
+        }
+    }
+
+    /**
+     * Where a condition template lands: the remembered entry's conditions list, verified against
+     * the open quest.
+     *
+     * <p>One derivation for the hover's promise and the press's act ({@code applyHint} asks this
+     * too), because a landing the hint names and the press cannot find is the fault the hint
+     * exists to prevent.
+     *
+     * @param quest the open quest's id
+     * @return the replica and the conditions path, or null when there is no live entry
+     */
+    private ConditionLanding conditionLanding(String quest) {
+        if (quest == null) {
+            return null;
+        }
+        var context = dev.ellipog.tenet.client.dev.ComponentTemplates.entryContext()
+                .filter(each -> each.questId().equals(quest)).orElse(null);
+        JsonObject replica = replicaQuest();
+        JsonElement found = context == null || replica == null ? null
+                : QuestPanelLayout.get(replica, context.member() + "." + context.index());
+        if (context == null || found == null || !found.isJsonObject()) {
+            return null;
+        }
+        return new ConditionLanding(replica, context.member() + "." + context.index() + ".conditions");
+    }
+
+    /** A verified landing for a condition template: the replica it was checked against, and the path. */
+    private record ConditionLanding(JsonObject replica, String path) {
     }
 
     /**
@@ -24749,7 +25483,7 @@ public final class QuestBookScreen extends ArmatureScreen
         for (FrameEdge edge : edges) {
             drawStyledPath(r, edge.geometry(), edge.path().get(0),
                     lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now));
-            drawEdgePulse(r, edge, now, detail);
+            drawEdgePulse(r, edge, now);
         }
 
         // The chapter's markers, in the node layer but beneath the nodes: a shortcut beside the quests
@@ -25072,24 +25806,6 @@ public final class QuestBookScreen extends ArmatureScreen
                     ArmatureTheme.labelBackdrop());
             RichText.draw(r, label.cut(), label.x(), label.y(), textColour);
         }
-    }
-
-    /**
-     * The narrowest horizontal gap between node columns, in screen pixels, less a margin.
-     *
-     * <p>Measured from the nodes that are actually on screen rather than fixed, because the answer
-     * depends on the chapter's authored spacing and on the zoom — and a fixed answer is what let three
-     * labels overlap. One column means no neighbour to crowd, so the cap applies.
-     */
-    private int labelRoom(List<ClientQuestCache.Entry> quests) {
-        // The arithmetic is BookGeometry's, which BookGeometryTest asserts the invariant of: the room
-        // is strictly less than the gap, so two labels truncated to it cannot touch. This method only
-        // does the part that needs the screen — turning nodes into their screen columns.
-        //
-        // `distinct` matters: two quests on the same column, which the index warns about, would
-        // otherwise contribute a gap of 0 and crush every label in the chapter to nothing.
-        List<Integer> columns = quests.stream().map(this::nodeScreenX).distinct().toList();
-        return BookGeometry.labelRoom(columns, LABEL_GAP, MAX_LABEL_WIDTH);
     }
 
     // `overlapsAnotherNode` used to live here: a scan of every node, per label, recomputing each
@@ -25714,43 +26430,47 @@ public final class QuestBookScreen extends ArmatureScreen
                     named.add(entry);
                 }
             }
-            // Not enough room for a readable label anywhere in this chapter, and nothing is
-            // built at all: the hover caption carries the name. Building them anyway is what
-            // "Punch a SomewherStone To…" was: three titles interleaved, which reads as a
-            // corrupt string rather than as crowding.
-            int room = labelRoom(named);
-            if (room >= MIN_LABEL_WIDTH) {
-                // One box per node on the canvas, and the index that finds a node's own box:
-                // the placement and the collision test read the same boxes, so the two cannot
-                // disagree about where a node is.
-                List<LabelOverlap.Box> boxes = new ArrayList<>(quests.size());
-                Map<String, Integer> boxOf = new HashMap<>(quests.size() * 2);
-                for (ClientQuestCache.Entry entry : quests) {
-                    boxOf.put(entry.id(), boxes.size());
-                    boxes.add(new LabelOverlap.Box(nodeScreenX(entry), nodeScreenY(entry),
-                            nodeSize(entry)));
+            // One room per node, from its own neighbours: a single crowded pair used to decide
+            // every label in the chapter, so the airy majority truncated to a gap they were nowhere
+            // near. A label with no room of its own is not built at all -- the hover caption carries
+            // the name -- while its neighbours keep theirs. Skipping it here rather than drawing it
+            // is what keeps one tight cluster from reading as a corrupt string.
+            List<Integer> columns = named.stream().map(this::nodeScreenX).toList();
+            // One box per node on the canvas, and the index that finds a node's own box:
+            // the placement and the collision test read the same boxes, so the two cannot
+            // disagree about where a node is.
+            List<LabelOverlap.Box> boxes = new ArrayList<>(quests.size());
+            Map<String, Integer> boxOf = new HashMap<>(quests.size() * 2);
+            for (ClientQuestCache.Entry entry : quests) {
+                boxOf.put(entry.id(), boxes.size());
+                boxes.add(new LabelOverlap.Box(nodeScreenX(entry), nodeScreenY(entry),
+                        nodeSize(entry)));
+            }
+            LabelOverlap overlap = new LabelOverlap(boxes);
+            dev.ellipog.armature.client.ui.kit.Measure measure = textMeasure(r);
+            for (ClientQuestCache.Entry entry : named) {
+                int room = BookGeometry.labelRoomFor(columns, nodeScreenX(entry), LABEL_GAP,
+                        MAX_LABEL_WIDTH);
+                if (room < MIN_LABEL_WIDTH) {
+                    continue;
                 }
-                LabelOverlap overlap = new LabelOverlap(boxes);
-                dev.ellipog.armature.client.ui.kit.Measure measure = textMeasure(r);
-                for (ClientQuestCache.Entry entry : named) {
-                    int owner = boxOf.get(entry.id());
-                    LabelOverlap.Box box = boxes.get(owner);
-                    int size = box.size();
-                    RichText.Cut cut = RichText.truncate(titleOfRaw(entry), room, measure);
-                    int width = cut.advance();
-                    // Clamped inward so a label on the edge node is not half off the canvas,
-                    // but never so far that it slides away from the node it belongs to. The
-                    // clamp reads the dock-aware edge, which is why it sits in the key.
-                    int textX = Mth.clamp(box.x() + size / 2 - width / 2, canvasLeft() + 2,
-                            visibleCanvasRight() - width - 2);
-                    int textY = box.y() + size + LABEL_GAP;
-                    if (textY + 9 > canvasBottom() || overlap.over(owner, textX, textY, width)) {
-                        // A label drawn over the node below it, or out of the canvas, is worse
-                        // than no label.
-                        continue;
-                    }
-                    labels.add(new FrameLabel(entry.id(), shownState(entry), textX, textY, cut));
+                int owner = boxOf.get(entry.id());
+                LabelOverlap.Box box = boxes.get(owner);
+                int size = box.size();
+                RichText.Cut cut = RichText.truncate(titleOfRaw(entry), room, measure);
+                int width = cut.advance();
+                // Clamped inward so a label on the edge node is not half off the canvas,
+                // but never so far that it slides away from the node it belongs to. The
+                // clamp reads the dock-aware edge, which is why it sits in the key.
+                int textX = Mth.clamp(box.x() + size / 2 - width / 2, canvasLeft() + 2,
+                        visibleCanvasRight() - width - 2);
+                int textY = box.y() + size + LABEL_GAP;
+                if (textY + 9 > canvasBottom() || overlap.over(owner, textX, textY, width)) {
+                    // A label drawn over the node below it, or out of the canvas, is worse
+                    // than no label.
+                    continue;
                 }
+                labels.add(new FrameLabel(entry.id(), shownState(entry), textX, textY, cut));
             }
         }
         // Zoomed far enough out that no title is drawn, the labels stay empty: the boxes
@@ -26223,34 +26943,40 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * The direction cue on a glowing line: bright packets travelling prerequisite to dependent.
+     * The direction cue on a glowing line: bright comets travelling prerequisite to dependent.
      *
      * <p>An overlay over the stamped geometry, never a rebuild of it: the route's rectangles stay as
      * the frame built them and a few dots ride above, only while the line glows, so quiet chapters
      * pay nothing. The packets ease in with the hover (their ink carries the same glow), stop short
-     * of the arrowhead (which already says the direction, statically), and stay out of the far zoom
-     * (where a shimmer would be noise) and of motion-off (where nothing travels).
+     * of the arrowhead (which already says the direction, statically), and read the same at every
+     * zoom: routes are measured in screen pixels and short ones carry short comets rather than
+     * nothing, so pulling back keeps the flow instead of losing it. Motion off still stills
+     * everything, which is the reduced-motion promise.
      */
-    private void drawEdgePulse(GuiRenderer r, FrameEdge edge, long now, CanvasDetail detail) {
+    private void drawEdgePulse(GuiRenderer r, FrameEdge edge, long now) {
         float glow = lineGlow(edge.fromId(), edge.toId(), now);
-        if (glow < 0.05F || !ClientAppearance.LOOK.motion() || !detail.rings()) {
+        if (glow < 0.05F || !ClientAppearance.LOOK.motion()) {
             return;
         }
         List<LineArt.Point> path = edge.path();
         double length = LineArt.length(path);
+        double travel = length - EdgePulse.ARROW_KEEP;
+        double len = EdgePulse.packetLength(length);
         List<Double> centers = EdgePulse.centers(length, now, edgeSeed(edge));
-        if (centers.isEmpty()) {
+        if (centers.isEmpty() || len <= 0) {
             return;
         }
-        int ink = Colour.translucent(Colour.shade(edge.baseColour(), Math.min(1F, glow + 0.35F)),
-                Math.min(1F, glow));
+        int hue = Colour.shade(edge.baseColour(), Math.min(1F, glow + 0.35F));
         for (double center : centers) {
-            for (double s = center - EdgePulse.PACKET_LEN; s <= center; s += 2) {
-                if (s < 0 || s > length - EdgePulse.ARROW_KEEP) {
+            for (double s = center - len; s <= center; s += 2) {
+                if (s < 0 || s > travel) {
                     continue;
                 }
+                // 0 at the tail, 1 at the head: the packet brightens towards arrival.
+                double t = (s - (center - len)) / len;
                 LineArt.Point p = LineArt.pointAt(path, s);
-                r.fill(p.x() - 1, p.y() - 1, p.x() + 1, p.y() + 1, ink);
+                r.fill(p.x() - 1, p.y() - 1, p.x() + 1, p.y() + 1,
+                        Colour.translucent(hue, EdgePulse.packetAlpha(glow, t)));
             }
         }
     }
@@ -34191,6 +34917,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // The clipboard goes too: another server's quests are not this one's to paste, and a tree
         // carried across a disconnect is an op the new server would dutifully apply to its own files.
         ClientEditorClipboard.clear();
+        // And the template landing context with it: it names an entry of the server being left, and
+        // a condition applied on the next server must land where the author is there. The shelf
+        // itself stays — templates are this client's, not the server's.
+        dev.ellipog.tenet.client.dev.ComponentTemplates.clearEntryContext();
         // And the server's lists, for the same reason: a picker still offering the last server's worlds
         // or structures would write an id the new one has never heard of.
         ClientServerLists.clear();

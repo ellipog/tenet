@@ -40,16 +40,19 @@ class ClientWorkingTest {
     }
 
     @Test
-    @DisplayName("reading, writing and reading back all three")
+    @DisplayName("reading, writing and reading back all four")
     void roundTrip(@TempDir Path dir) throws IOException {
         Path file = dir.resolve(ClientWorking.FILE_NAME);
 
-        assertEquals("{\"lastTable\":\"dice\",\"section\":\"quests\",\"drawerTab\":\"chapter\"}",
-                ClientWorking.write("dice", ClientWorking.QUESTS, ClientWorking.CHAPTER_TAB),
+        assertEquals("{\"lastTable\":\"dice\",\"section\":\"quests\",\"drawerTab\":\"chapter\","
+                        + "\"templateSort\":\"name\"}",
+                ClientWorking.write("dice", ClientWorking.QUESTS, ClientWorking.CHAPTER_TAB,
+                        ClientWorking.TEMPLATE_SORT_NAME),
                 "the format, stated once");
 
         Files.writeString(file,
-                ClientWorking.write("dice", ClientWorking.QUESTS, ClientWorking.CHAPTER_TAB),
+                ClientWorking.write("dice", ClientWorking.QUESTS, ClientWorking.CHAPTER_TAB,
+                        ClientWorking.TEMPLATE_SORT_NAME),
                 StandardCharsets.UTF_8);
         ClientWorking.load(file);
 
@@ -57,13 +60,16 @@ class ClientWorkingTest {
         assertEquals("dice", ClientWorking.lastTable());
         assertEquals(ClientWorking.QUESTS, ClientWorking.section());
         assertEquals(ClientWorking.CHAPTER_TAB, ClientWorking.drawerTab());
+        assertEquals(ClientWorking.TEMPLATE_SORT_NAME, ClientWorking.templateSort());
 
         // And the writing direction, which is the one a press takes.
         ClientWorking.rememberTable("toll");
         ClientWorking.rememberSection(ClientWorking.TABLES);
+        ClientWorking.rememberTemplateSort(ClientWorking.TEMPLATE_SORT_TYPE);
 
         assertEquals("toll", ClientWorking.lastTable());
         assertEquals(ClientWorking.TABLES, ClientWorking.section());
+        assertEquals(ClientWorking.TEMPLATE_SORT_TYPE, ClientWorking.templateSort());
         String written = Files.readString(file, StandardCharsets.UTF_8);
         assertEquals("toll", ClientWorking.parse(written).lastTable(), "what was written is what is read");
 
@@ -72,6 +78,8 @@ class ClientWorkingTest {
         assertEquals("toll", ClientWorking.lastTable());
         assertEquals(ClientWorking.TABLES, ClientWorking.section());
         assertEquals(ClientWorking.CHAPTER_TAB, ClientWorking.drawerTab(), "and the tab it did not touch");
+        assertEquals(ClientWorking.TEMPLATE_SORT_TYPE, ClientWorking.templateSort(),
+                "and the order it did touch");
     }
 
     @Test
@@ -104,6 +112,18 @@ class ClientWorkingTest {
         assertEquals("dice", ClientWorking.lastTable());
         assertEquals(ClientWorking.TABLES, ClientWorking.section(), "a missing field takes its default");
         assertEquals(ClientWorking.BOOK_TAB, ClientWorking.drawerTab());
+        assertEquals(ClientWorking.TEMPLATE_SORT_RECENT, ClientWorking.templateSort(),
+                "and the shelf sorts by recent use");
+    }
+
+    @Test
+    @DisplayName("an unknown order sorts by recent use rather than opening unsorted")
+    void unknownSortIsRecent() {
+        ClientWorking.rememberTemplateSort("loudest");
+        assertEquals(ClientWorking.TEMPLATE_SORT_RECENT, ClientWorking.templateSort());
+        ClientWorking.rememberTemplateSort(ClientWorking.TEMPLATES);
+        assertEquals(ClientWorking.TEMPLATE_SORT_RECENT, ClientWorking.templateSort(),
+                "a section name is not an order");
     }
 
     @Test
@@ -114,7 +134,7 @@ class ClientWorkingTest {
         // opening on a table from a file that says something else entirely.
         Path file = dir.resolve(ClientWorking.FILE_NAME);
         Files.writeString(file, ClientWorking.write("dice", ClientWorking.QUESTS,
-                ClientWorking.CHAPTER_TAB), StandardCharsets.UTF_8);
+                ClientWorking.CHAPTER_TAB, ClientWorking.TEMPLATE_SORT_RECENT), StandardCharsets.UTF_8);
         ClientWorking.load(file);
         assertEquals("dice", ClientWorking.lastTable());
 
@@ -124,6 +144,7 @@ class ClientWorkingTest {
         assertEquals("", ClientWorking.lastTable(), "the broken file's values are gone, not kept");
         assertEquals(ClientWorking.TABLES, ClientWorking.section());
         assertEquals(ClientWorking.BOOK_TAB, ClientWorking.drawerTab());
+        assertEquals(ClientWorking.TEMPLATE_SORT_RECENT, ClientWorking.templateSort());
     }
 
     @Test

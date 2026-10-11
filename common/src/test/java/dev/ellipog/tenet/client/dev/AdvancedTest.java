@@ -401,22 +401,26 @@ class AdvancedTest {
     }
 
     @Test
-    @DisplayName("the Assets panel shows one section at the shallow depth, and presses land on a drawn one")
+    @DisplayName("the Assets panel shows two sections at the shallow depth, and presses land on a drawn one")
     void theAssetsSectionsAreASubset() {
         DevMode.setAdvanced(true);
-        assertEquals(List.of(AssetsLayout.Section.TABLES, AssetsLayout.Section.QUESTS),
-                List.of(AssetsLayout.shown()), "both sections at full depth");
+        assertEquals(
+                List.of(AssetsLayout.Section.TABLES, AssetsLayout.Section.QUESTS,
+                        AssetsLayout.Section.TEMPLATES),
+                List.of(AssetsLayout.shown()), "all three sections at full depth");
 
         DevMode.setAdvanced(false);
-        assertEquals(List.of(AssetsLayout.Section.QUESTS), List.of(AssetsLayout.shown()),
-                "and the quest files alone at the shallow one");
+        assertEquals(List.of(AssetsLayout.Section.QUESTS, AssetsLayout.Section.TEMPLATES),
+                List.of(AssetsLayout.shown()),
+                "and the quest files and the template shelf at the shallow one: tables are the"
+                        + " half an author meets late, templates are everyday reuse");
         // The pairing that matters: `sectionAt` maps a point to a section *by index* into this list, so a
         // drawn list and a pressed list that disagreed would put every press on the row above.
         AssetsLayout.Frame frame = AssetsLayout.Frame.of(BookGeometry.Rect.at(0, 0, 400, 260));
-        BookGeometry.Rect first = frame.section(0);
+        BookGeometry.Rect first = frame.tab(0);
         assertEquals(AssetsLayout.Section.QUESTS,
                 AssetsLayout.sectionAt(frame, first.x() + 2, first.y() + 2),
-                "the first drawn row is the section a press on it names");
+                "the first drawn tab is the section a press on it names");
         // And the coercion, for the two places a section arrives from somewhere that knows no depth: the
         // remembered name in the client's file, and the command that opens a table's editor.
         assertEquals(AssetsLayout.Section.QUESTS, AssetsLayout.shownOrFirst(AssetsLayout.Section.TABLES));

@@ -701,6 +701,47 @@ class BookGeometryTest {
         }
 
         @Test
+        @DisplayName("each node gets its own neighbours' room, not the chapter's narrowest gap")
+        void roomIsPerNode() {
+            // Columns 0, 300, 340: the crowded pair at 300, 340 used to decide the node at 0 as
+            // well, so every label in an otherwise airy chapter truncated to the pair's gap. Now
+            // the airy node gets the cap and only the pair shares the narrow room.
+            assertEquals(120, BookGeometry.labelRoomFor(List.of(0, 300, 340), 0, 4, 120),
+                    "nowhere near the pair, so the cap");
+            assertEquals(72, BookGeometry.labelRoomFor(List.of(0, 300, 340), 300, 4, 120),
+                    "twice the nearer gap less the margins: 2*40 - 8");
+            assertEquals(72, BookGeometry.labelRoomFor(List.of(0, 300, 340), 340, 4, 120),
+                    "the pair's other half reads the same gap");
+            // And the nearer side rules, not the airy one: 140 sits 40 from 100 and 260 from 400.
+            assertEquals(72, BookGeometry.labelRoomFor(List.of(100, 140, 400), 140, 4, 120));
+        }
+
+        @Test
+        @DisplayName("a node alone, or sharing its column, gets the cap")
+        void lonelyNodesGetTheCap() {
+            assertEquals(120, BookGeometry.labelRoomFor(List.of(500), 500, 4, 120));
+            assertEquals(120, BookGeometry.labelRoomFor(List.of(), 500, 4, 120),
+                    "no columns at all is no neighbour to crowd");
+            assertEquals(120, BookGeometry.labelRoomFor(List.of(200, 200, 400), 200, 4, 120),
+                    "a column-mate is not a neighbour: strict inequalities skip equals");
+        }
+
+        @Test
+        @DisplayName("a centred label at full room never reaches its nearest neighbour")
+        void halfRoomClearsTheNearestGap() {
+            // The invariant the per-node rule rests on, swept like the global one above: the room
+            // is a centred label's *whole* width, so half of it must clear the nearer gap less the
+            // margin. Where the cap binds the half-width is 60, which only happens past a gap of 60.
+            for (int distance = 9; distance <= 400; distance++) {
+                int room = BookGeometry.labelRoomFor(List.of(0, distance), 0, 4, 120);
+                assertTrue(room / 2 < distance,
+                        "gap " + distance + " gave room " + room + ", whose half reaches the neighbour");
+            }
+            assertEquals(8, BookGeometry.labelRoomFor(List.of(0, 8), 0, 4, 120),
+                    "a gap of exactly the margins leaves nothing after them");
+        }
+
+        @Test
         @DisplayName("hit testing picks the last drawn, which is the one on top")
         void hitTestPicksTheTopmost() {
             // Quests may legitimately share a position -- the index warns about it -- and picking the

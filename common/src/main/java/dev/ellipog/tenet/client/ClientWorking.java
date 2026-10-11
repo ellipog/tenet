@@ -40,6 +40,12 @@ public final class ClientWorking {
     /** The Assets panel's sections, as the file spells them. */
     public static final String TABLES = "tables";
     public static final String QUESTS = "quests";
+    public static final String TEMPLATES = "templates";
+
+    /** The Templates page's orders, as the file spells them. */
+    public static final String TEMPLATE_SORT_NAME = "name";
+    public static final String TEMPLATE_SORT_TYPE = "type";
+    public static final String TEMPLATE_SORT_RECENT = "recent";
 
     /** The drawer's two tabs, as the file spells them. */
     public static final String BOOK_TAB = "book";
@@ -48,6 +54,7 @@ public final class ClientWorking {
     private static volatile String lastTable = "";
     private static volatile String section = TABLES;
     private static volatile String drawerTab = BOOK_TAB;
+    private static volatile String templateSort = TEMPLATE_SORT_RECENT;
     private static volatile Path file;
 
     private ClientWorking() {
@@ -64,7 +71,7 @@ public final class ClientWorking {
         save();
     }
 
-    /** The Assets panel's section: one of {@link #TABLES}, {@link #QUESTS}, {@link #TYPES}. */
+    /** The Assets panel's section: one of {@link #TABLES}, {@link #QUESTS} or {@link #TEMPLATES}. */
     public static String section() {
         return section;
     }
@@ -83,6 +90,17 @@ public final class ClientWorking {
     /** Remembers which of the drawer's two tabs was open, and writes it. */
     public static void rememberDrawerTab(String next) {
         drawerTab = CHAPTER_TAB.equals(next) ? CHAPTER_TAB : BOOK_TAB;
+        save();
+    }
+
+    /** The Templates page's order: one of the {@code TEMPLATE_SORT_} spellings. */
+    public static String templateSort() {
+        return templateSort;
+    }
+
+    /** Remembers how the Templates page is ordered, and writes it. */
+    public static void rememberTemplateSort(String next) {
+        templateSort = knownSort(next);
         save();
     }
 
@@ -120,6 +138,7 @@ public final class ClientWorking {
         lastTable = "";
         section = TABLES;
         drawerTab = BOOK_TAB;
+        templateSort = TEMPLATE_SORT_RECENT;
 
         if (Files.isRegularFile(path)) {
             try {
@@ -127,6 +146,7 @@ public final class ClientWorking {
                 lastTable = read.lastTable();
                 section = knownSection(read.section());
                 drawerTab = CHAPTER_TAB.equals(read.drawerTab()) ? CHAPTER_TAB : BOOK_TAB;
+                templateSort = knownSort(read.templateSort());
             }
             catch (IOException | RuntimeException e) {
                 Constants.LOG.warn("tenet: {} could not be read, so nothing is remembered. Deleting the"
@@ -136,7 +156,7 @@ public final class ClientWorking {
     }
 
     /** The three values as read from a file. */
-    public record Parsed(String lastTable, String section, String drawerTab) {
+    public record Parsed(String lastTable, String section, String drawerTab, String templateSort) {
     }
 
     /**
@@ -154,15 +174,17 @@ public final class ClientWorking {
         return new Parsed(
                 root.has("lastTable") ? root.get("lastTable").getAsString() : "",
                 root.has("section") ? root.get("section").getAsString() : TABLES,
-                root.has("drawerTab") ? root.get("drawerTab").getAsString() : BOOK_TAB);
+                root.has("drawerTab") ? root.get("drawerTab").getAsString() : BOOK_TAB,
+                root.has("templateSort") ? root.get("templateSort").getAsString() : TEMPLATE_SORT_RECENT);
     }
 
     /** Writes the file. Answer given rather than the default so a test can assert the format. */
-    public static String write(String lastTable, String section, String drawerTab) {
+    public static String write(String lastTable, String section, String drawerTab, String templateSort) {
         JsonObject root = new JsonObject();
         root.addProperty("lastTable", lastTable == null ? "" : lastTable);
         root.addProperty("section", knownSection(section));
         root.addProperty("drawerTab", CHAPTER_TAB.equals(drawerTab) ? CHAPTER_TAB : BOOK_TAB);
+        root.addProperty("templateSort", knownSort(templateSort));
         return root.toString();
     }
 
@@ -181,18 +203,33 @@ public final class ClientWorking {
         lastTable = "";
         section = TABLES;
         drawerTab = BOOK_TAB;
+        templateSort = TEMPLATE_SORT_RECENT;
         file = null;
     }
 
     /**
-     * One of the two, or the first: see {@link #parse}.
+     * One of the three, or the first: see {@link #parse}.
      *
      * <p>Which is what makes a file written by a build with an Assets <b>Types</b> section — since removed,
      * because the card's own form shows a type's fields where the author is already writing the entry —
      * open on the Tables rather than on a section that no longer exists.
      */
     private static String knownSection(String candidate) {
-        return QUESTS.equals(candidate) ? QUESTS : TABLES;
+        if (QUESTS.equals(candidate) || TEMPLATES.equals(candidate)) {
+            return candidate;
+        }
+        return TABLES;
+    }
+
+    /**
+     * One of the three orders, or the most recently used: an unknown order sorts by what the
+     * author reaches for rather than opening an unsorted shelf.
+     */
+    private static String knownSort(String candidate) {
+        if (TEMPLATE_SORT_NAME.equals(candidate) || TEMPLATE_SORT_TYPE.equals(candidate)) {
+            return candidate;
+        }
+        return TEMPLATE_SORT_RECENT;
     }
 
     private static void save() {
@@ -206,7 +243,7 @@ public final class ClientWorking {
             // is small and re-derivable, so the stakes are lower than a chapter's -- but a file that
             // parses to nothing is worse than one that is merely out of date, and the guard is the same
             // one either way. See JsonWrite.
-            JsonWrite.atomically(file, write(lastTable, section, drawerTab));
+            JsonWrite.atomically(file, write(lastTable, section, drawerTab, templateSort));
         }
         catch (IOException e) {
             Constants.LOG.warn("tenet: where you were could not be written to {}", file, e);

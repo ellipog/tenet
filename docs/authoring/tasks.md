@@ -290,3 +290,8 @@ list has not offered yet is still settable.
 
 Manual only, deliberately: experience is not something the engine should take the moment a player
 happens to be carrying enough — the Submit press is the consent, and the press takes it.
+
+## Reusing a setup
+
+A task worth writing twice is worth saving once: the card's ★ keeps the setup — conditions
+included — as a [[tenet:authoring/templates|template]], and the next quest takes it with one press.

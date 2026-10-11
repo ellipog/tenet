@@ -126,6 +126,12 @@ one, and a script can too.
 Nothing else about the party matters — its progress mode, its owner, who is in it — because this asks
 how many people are actually present, which is what a togetherness gate is about.
 
+## Reusing a setup
+
+A condition worth writing twice is worth saving once: the condition row's ★ keeps the setup as a
+[[tenet:authoring/templates|template]], and the next entry takes it from its `+ Condition` row with
+one press.
+
 ## A worked example
 
 `tools/quests/first_light/first_steps/` carries all six condition types in its clockwork arm: a task

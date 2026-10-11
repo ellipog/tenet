@@ -31,6 +31,16 @@ public final class ItemPickerLayout {
     /** One pickable row. */
     public static final int ROW_HEIGHT = 18;
 
+    /** The air between a row's label and its id, so the two never read as one string. */
+    public static final int TEXT_GAP = 6;
+
+    /**
+     * The narrowest an id may be drawn at: below this there is room for an ellipsis and little
+     * else, and a sliver of an id is noise rather than reference. {@link #textRoom} answers zero
+     * instead, and the drawing skips the id entirely.
+     */
+    public static final int MIN_SECONDARY = 12;
+
     /**
      * The width the list gives up on its right edge for the scrollbar.
      *
@@ -269,6 +279,40 @@ public final class ItemPickerLayout {
      */
     public static boolean pickable(Row row) {
         return row.kind() != Kind.HEADING && row.note().isEmpty();
+    }
+
+    /** How wide each half of a row's text may be, in pixels: the label's room, then the id's. */
+    public record TextRoom(int label, int secondary) {
+    }
+
+    /**
+     * How a row shares its text zone between its label and its id.
+     *
+     * <p>The label has priority: it keeps up to its whole width, truncated only by the row itself,
+     * and the id takes what is left, truncated to that. The old drawing reserved a fixed thirty
+     * pixels for the id and drew it whole whatever fit — so a narrow panel wrote the two strings
+     * over each other, and the fix belongs here rather than at the call site because every picker
+     * page draws through the one row renderer.
+     *
+     * @param label     the row's words, or empty
+     * @param secondary the row's id, or empty for a row with nothing at its right end
+     * @param width     the text zone's width, already less the icon and the row's own insets
+     * @param widthOf   how wide a string draws; the drawing passes its own measure, a test passes
+     *                  characters
+     * @return the two budgets, each already clamped to what fits; a secondary under
+     *         {@link #MIN_SECONDARY} is answered as zero, because a sliver of an id is noise
+     */
+    public static TextRoom textRoom(String label, String secondary, int width,
+                                    java.util.function.ToIntFunction<String> widthOf) {
+        int room = Math.max(0, width);
+        String words = label == null ? "" : label;
+        int labelBudget = Math.min(widthOf.applyAsInt(words), room);
+        int rest = room - labelBudget;
+        int secondaryBudget = 0;
+        if (secondary != null && !secondary.isEmpty() && rest >= TEXT_GAP + MIN_SECONDARY) {
+            secondaryBudget = Math.min(widthOf.applyAsInt(secondary), rest - TEXT_GAP);
+        }
+        return new TextRoom(labelBudget, secondaryBudget);
     }
 
     /** The first pickable row, or -1 when there is none. */

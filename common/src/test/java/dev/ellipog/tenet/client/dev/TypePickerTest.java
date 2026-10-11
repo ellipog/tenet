@@ -95,6 +95,29 @@ class TypePickerTest {
     }
 
     @Test
+    @DisplayName("a trailing group keeps its heading last, and a row can spell its own right end")
+    void trailingGroupAndOwnSpelling() {
+        // The shelf the screen appends: templates below the catalogue, showing the type a file
+        // would spell rather than the shelf's own row id.
+        List<TypePicker.Entry> entries = new java.util.ArrayList<>(catalogue());
+        entries.add(new TypePicker.Entry("template:built_in/gather_oak_logs", "Gather oak logs",
+                "Templates", "", "tenet:item"));
+
+        List<Row> rows = TypePicker.compose(entries, "", null);
+        assertEquals("Templates",
+                rows.stream().filter(row -> row.kind() == Kind.HEADING).map(Row::label).toList()
+                        .getLast(),
+                "the appended group closes the page rather than opening it");
+        Row template = rows.stream().filter(row -> row.id().startsWith("template:")).findFirst()
+                .orElseThrow();
+        assertEquals("Gather oak logs", template.label());
+        assertEquals("tenet:item", template.secondary(),
+                "the file's spelling, not the row's own id");
+        assertEquals("tenet:item", rows.stream().filter(row -> "tenet:item".equals(row.id())).findFirst()
+                .orElseThrow().secondary(), "while an ordinary row still shows its own id");
+    }
+
+    @Test
     @DisplayName("a refused type is offered, and cannot be taken")
     void aRefusalIsOfferedAndBlocked() {
         List<TypePicker.Entry> entries = List.of(

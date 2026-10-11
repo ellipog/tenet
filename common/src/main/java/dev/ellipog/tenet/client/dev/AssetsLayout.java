@@ -5,12 +5,12 @@ import dev.ellipog.tenet.client.BookGeometry;
 import java.util.List;
 
 /**
- * Where the Assets panel's pieces are: the title, the section column, the page, the footer.
+ * Where the Assets panel's pieces are: the title, the tab strip, the page, the footer.
  *
  * <h2>Why this is a class rather than the screen's own sums</h2>
  *
  * <p>For the reason {@link TableEditorLayout} and {@link ChapterPanelLayout} are: every question worth
- * being wrong about here is arithmetic on integers — which section a press is on, where a list's rows
+ * being wrong about here is arithmetic on integers — which tab a press is on, where a list's rows
  * start, how tall a page's content is, which row a scroll position shows — and arithmetic on integers is
  * what this project's tests can hold without a client. The screen draws what this says and asks it what a
  * press means, so the rectangle a row is <i>drawn</i> at and the rectangle it is <i>hit-tested</i> at are
@@ -21,18 +21,23 @@ import java.util.List;
  * <pre>
  *   +------------------------------------------+
  *   | Assets                                   |   title
- *   +----------+-------------------------------+
- *   | Tables   |  Items                        |   sections | page
- *   | Quests   |  Glowstone Dust x4            |
- *   | Types    |  ...                          |#
- *   +----------+-------------------------------+
+ *   +------------------------------------------+
+ *   | Tables   | Quests   | Templates           |   tabs
+ *   +------------------------------------------+
+ *   | Items                                    |   page
+ *   | Glowstone Dust x4                        |
+ *   | ...                                      |#
+ *   +------------------------------------------+
  *   |                          New table  Done |   footer
  *   +------------------------------------------+
  * </pre>
  *
- * <p>The section column is a column rather than a row of tabs because it can grow: a fourth section is a
- * fourth row here and nothing else moves. The page's scrollbar is inside the page's right edge, which is
- * the one strip the rows may not be drawn in.
+ * <p>The tabs are a strip rather than a column because the column taxed every page for the sake of
+ * two words: seventy-six pixels plus the gap, off every row's width, so a row's own detail kept
+ * meeting its controls. A strip costs one line of height and gives the page the whole width back.
+ * The tabs divide the strip equally among the sections this depth shows — two halves in Normal,
+ * three thirds at full depth — so a tab never moves when the list under it does. The page's
+ * scrollbar is inside the page's right edge, which is the one strip the rows may not be drawn in.
  */
 public final class AssetsLayout {
 
@@ -53,14 +58,11 @@ public final class AssetsLayout {
     /** The band the footer's buttons sit in: the card's own footer, where the chrome draws its rule. */
     public static final int FOOTER_HEIGHT = BookGeometry.MODAL_FOOTER_HEIGHT;
 
-    /** The section column's width. Wide enough for the longest section word and its air. */
-    public static final int SECTION_WIDTH = 76;
+    /** One clickable tab in the strip: the same sixteen pixels a section row always was. */
+    public static final int TAB_HEIGHT = 16;
 
-    /** The gap between the section column and the page. */
-    public static final int COLUMN_GAP = 6;
-
-    /** One clickable section row. */
-    public static final int SECTION_HEIGHT = 16;
+    /** The air between the tab strip and the page, so the tabs read as controls above a list. */
+    public static final int TAB_PAGE_GAP = 4;
 
     /** One row of a page: an entry, in both pages. */
     public static final int ROW_HEIGHT = 18;
@@ -113,7 +115,9 @@ public final class AssetsLayout {
         /** The pack's reward tables, and the files that did not load. */
         TABLES,
         /** Every quest file, grouped by chapter. */
-        QUESTS
+        QUESTS,
+        /** The component template library: shipped presets and saved setups. */
+        TEMPLATES
     }
 
     /**
@@ -122,8 +126,8 @@ public final class AssetsLayout {
      * <h2>Why the drawing and the hit test both have to come through here</h2>
      *
      * <p>Because {@link #sectionAt} answers a section by <b>index into this list</b>
-     * ({@code frame.section(i)} is where row {@code i} is drawn), so a drawn list and a pressed list that
-     * disagreed would put every press on the section above the one under the pointer -- and the failure
+     * ({@code frame.tab(i)} is where tab {@code i} is drawn), so a drawn list and a pressed list that
+     * disagreed would put every press on the tab left of the one under the pointer -- and the failure
      * reads as a mouse that selects the wrong page rather than as a list that was filtered twice.
      *
      * <p>Normal mode hides the tables, and nothing else; the quest files are the half of this panel every
@@ -181,7 +185,7 @@ public final class AssetsLayout {
     }
 
     /** The frame's bands, all inside the card it was given. */
-    public record Frame(BookGeometry.Rect title, BookGeometry.Rect sections, BookGeometry.Rect page,
+    public record Frame(BookGeometry.Rect title, BookGeometry.Rect tabs, BookGeometry.Rect page,
                         BookGeometry.Rect footer) {
 
         /**
@@ -195,23 +199,32 @@ public final class AssetsLayout {
             BookGeometry.Rect title = BookGeometry.Rect.at(card.x(), card.y(), card.width(),
                     Math.min(TITLE_HEIGHT, card.height()));
             int top = title.bottom() + PAD;
-            int bottom = Math.max(top, card.bottom() - FOOTER_HEIGHT);
-            int height = Math.max(0, bottom - top);
-            BookGeometry.Rect sections = BookGeometry.Rect.at(card.x() + PAD, top,
-                    Math.min(SECTION_WIDTH, Math.max(0, card.width() - 2 * PAD)), height);
-            int pageX = sections.right() + COLUMN_GAP;
-            BookGeometry.Rect page = BookGeometry.Rect.at(pageX, top,
-                    Math.max(0, card.right() - PAD - pageX), height);
+            int width = Math.max(0, card.width() - 2 * PAD);
+            BookGeometry.Rect tabs = BookGeometry.Rect.at(card.x() + PAD, top, width,
+                    Math.max(0, Math.min(TAB_HEIGHT, Math.max(0, card.bottom() - FOOTER_HEIGHT - top))));
+            int pageTop = tabs.bottom() + TAB_PAGE_GAP;
+            int bottom = Math.max(pageTop, card.bottom() - FOOTER_HEIGHT);
+            BookGeometry.Rect page = BookGeometry.Rect.at(card.x() + PAD, pageTop, width,
+                    Math.max(0, bottom - pageTop));
             BookGeometry.Rect footer = BookGeometry.Rect.at(card.x(), card.bottom() - FOOTER_HEIGHT,
                     card.width(), Math.min(FOOTER_HEIGHT, card.height()));
-            return new Frame(title, sections, page, footer);
+            return new Frame(title, tabs, page, footer);
         }
 
-        /** One section row, clamped to the column: the last one is never past its bottom. */
-        public BookGeometry.Rect section(int index) {
-            int y = sections.y() + index * SECTION_HEIGHT;
-            int height = Math.max(0, Math.min(SECTION_HEIGHT, sections.bottom() - y));
-            return BookGeometry.Rect.at(sections.x(), y, sections.width(), height);
+        /**
+         * One tab, an equal share of the strip among the sections this depth shows.
+         *
+         * <p>Equal shares rather than text widths, so a tab never moves when the list under it does
+         * and the drawing and the hit test divide by the same number. The last tab takes the
+         * remainder, so no pixel of the strip belongs to no tab.
+         */
+        public BookGeometry.Rect tab(int index) {
+            int count = Math.max(1, shown().length);
+            int each = tabs.width() / count;
+            int x = tabs.x() + index * each;
+            int width = index == count - 1 ? Math.max(0, tabs.right() - x) : each;
+            int height = Math.max(0, Math.min(TAB_HEIGHT, tabs.height()));
+            return BookGeometry.Rect.at(x, tabs.y(), Math.max(0, width), height);
         }
 
         /** The band a page's lines are drawn in and clipped to: the page, less the scrollbar's strip. */
@@ -227,22 +240,22 @@ public final class AssetsLayout {
     }
 
     /**
-     * Which section a point is on, or null.
+     * Which tab a point is on, or null.
      *
-     * <p>Null rather than a default, because the caller has to distinguish "a press on a section" from "a
+     * <p>Null rather than a default, because the caller has to distinguish "a press on a tab" from "a
      * press on the page" — and a method that answered {@code TABLES} for a point over the page would make
      * every row press change the section.
      */
     public static Section sectionAt(Frame frame, int mouseX, int mouseY) {
-        if (!frame.sections().contains(mouseX, mouseY)) {
+        if (!frame.tabs().contains(mouseX, mouseY)) {
             return null;
         }
-        // `shown()` rather than `values()`, and that is the whole of what the depth needs here: a row the
-        // panel does not draw must not be a row a press can land on. See `shown`.
+        // `shown()` rather than `values()`, and that is the whole of what the depth needs here: a tab the
+        // panel does not draw must not be a tab a press can land on. See `shown`.
         Section[] all = shown();
         for (int i = 0; i < all.length; i++) {
-            BookGeometry.Rect row = frame.section(i);
-            if (row.contains(mouseX, mouseY)) {
+            BookGeometry.Rect tab = frame.tab(i);
+            if (tab.contains(mouseX, mouseY)) {
                 return all[i];
             }
         }
@@ -330,8 +343,15 @@ public final class AssetsLayout {
      */
     public static final int FOOTER_BUTTON_HEIGHT = 14;
 
-    /** "New table" — the page's own action, at the footer's left. */
-    public static final int NEW_TABLE_WIDTH = 72;
+    /**
+     * The page's own action, at the footer's left: "New table" on Tables, the sort order on
+     * Templates.
+     *
+     * <p>Sized for the longest of those — "Sort: Recent" — so no page's action truncates on a
+     * card of any normal width. The cap in {@link Footer#of} still binds first on a squeezed
+     * card, where truncating is the degradation rather than an overlap.
+     */
+    public static final int NEW_TABLE_WIDTH = 84;
 
     /** "Done" — the way out, at the footer's right. */
     public static final int DONE_WIDTH = 64;

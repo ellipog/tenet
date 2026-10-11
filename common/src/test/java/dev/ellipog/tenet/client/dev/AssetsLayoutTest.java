@@ -17,15 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The Assets panel's arithmetic: the bands, the section column, and a page's lines.
+ * The Assets panel's arithmetic: the bands, the tab strip, and a page's lines.
  *
  * <p>What is worth asserting here is what the screen cannot be trusted to remember: that no two bands
- * overlap, that a section row is inside the column, that a press maps to the section it looks like it maps
+ * overlap, that a tab is inside the strip, that a press maps to the tab it looks like it maps
  * to, and that drawing and hit-testing a page agree. The panel's contents are the screen's business.
  *
  * <h2>And why the class starts at full depth</h2>
  *
- * <p>Because the older tests here name both sections, and Normal mode shows one: the tables are the half of
+ * <p>Because the older tests here name all three sections, and Normal mode shows two: the tables are the half of
  * this panel an author meets late, and {@code AdvancedTest} is where that is asserted. What this file adds
  * at Normal depth is the pairing that matters -- a section that is not drawn must not be pressable, so the
  * two lists have to be the same list.
@@ -55,41 +55,59 @@ class AssetsLayoutTest {
         BookGeometry.Rect card = card();
 
         assertTrue(frame.title().y() >= card.y(), "the title is inside the card");
-        assertTrue(frame.title().bottom() <= frame.sections().y(),
-                "the title ends before the section column starts");
+        assertTrue(frame.title().bottom() <= frame.tabs().y(),
+                "the title ends before the tab strip starts");
         assertEquals(card.bottom() - AssetsLayout.FOOTER_HEIGHT, frame.footer().y(),
                 "the footer is the card's own foot");
-        assertTrue(frame.sections().bottom() <= frame.footer().y(),
-                "and the content stops before it");
-        assertTrue(frame.page().x() >= frame.sections().right(),
-                "the page is right of the column, never over it");
-        assertTrue(frame.page().right() <= card.right(), "and inside the card");
-        assertEquals(frame.sections().height(), frame.page().height(),
-                "the column and the page are the same height, so neither looks cut off");
+        assertTrue(frame.tabs().bottom() <= frame.page().y(),
+                "and the strip ends before the page starts");
+        assertTrue(frame.page().bottom() <= frame.footer().y(),
+                "and the page stops before the footer");
+        assertTrue(frame.page().right() <= card.right(), "and the page is inside the card");
+        assertEquals(card.x() + AssetsLayout.PAD, frame.page().x(),
+                "the page takes the whole width the column used to tax");
     }
 
     @Test
-    @DisplayName("every section row is inside the column, and a press maps to the row it is on")
+    @DisplayName("every tab is inside the strip, and a press maps to the tab it is on")
     void sectionsAreHitWhereTheyAreDrawn() {
         AssetsLayout.Frame frame = AssetsLayout.Frame.of(card());
-        AssetsLayout.Section[] all = AssetsLayout.Section.values();
+        AssetsLayout.Section[] all = AssetsLayout.shown();
 
         for (int i = 0; i < all.length; i++) {
-            BookGeometry.Rect row = frame.section(i);
-            assertTrue(row.y() >= frame.sections().y() && row.bottom() <= frame.sections().bottom(),
-                    all[i] + " must be inside the column");
-            assertEquals(all[i], AssetsLayout.sectionAt(frame, row.x() + 2, row.y() + 2),
-                    all[i] + " is what a press on its own row is on");
+            BookGeometry.Rect tab = frame.tab(i);
+            assertTrue(tab.x() >= frame.tabs().x() && tab.right() <= frame.tabs().right(),
+                    all[i] + " must be inside the strip");
+            assertEquals(all[i], AssetsLayout.sectionAt(frame, tab.x() + 2, tab.y() + 2),
+                    all[i] + " is what a press on its own tab is on");
         }
 
-        // And the three things that are not a section row.
+        // And the three things that are not a tab.
         assertNull(AssetsLayout.sectionAt(frame, frame.page().x() + 4, frame.page().y() + 4),
-                "a press on the page is not a press on a section");
+                "a press on the page is not a press on a tab");
         assertNull(AssetsLayout.sectionAt(frame, frame.title().x() + 4, frame.title().y() + 4),
                 "nor is one on the title");
-        BookGeometry.Rect last = frame.section(all.length - 1);
-        assertNull(AssetsLayout.sectionAt(frame, last.x() + 2, frame.sections().bottom() + 1),
-                "nor is one below the last section");
+        BookGeometry.Rect last = frame.tab(all.length - 1);
+        assertNull(AssetsLayout.sectionAt(frame, last.right() + 1, last.y() + 2),
+                "nor is one past the last tab");
+    }
+
+    @Test
+    @DisplayName("the tabs divide the strip equally, so none moves when the list under it does")
+    void tabsDivideTheStrip() {
+        AssetsLayout.Frame frame = AssetsLayout.Frame.of(card());
+        AssetsLayout.Section[] shown = AssetsLayout.shown();
+
+        int total = 0;
+        for (int i = 0; i < shown.length; i++) {
+            BookGeometry.Rect tab = frame.tab(i);
+            assertEquals(AssetsLayout.TAB_HEIGHT, tab.height(), "one line of tabs, whatever the depth");
+            if (i > 0) {
+                assertEquals(frame.tab(i - 1).right(), tab.x(), "no gaps and no overlaps");
+            }
+            total += tab.width();
+        }
+        assertEquals(frame.tabs().width(), total, "together they are exactly the strip");
     }
 
     @Test
@@ -201,7 +219,7 @@ class AssetsLayoutTest {
         // negative width would be a rectangle drawn backwards.
         AssetsLayout.Frame frame = AssetsLayout.Frame.of(BookGeometry.Rect.at(0, 0, 40, 30));
 
-        for (BookGeometry.Rect band : List.of(frame.title(), frame.sections(), frame.page(),
+        for (BookGeometry.Rect band : List.of(frame.title(), frame.tabs(), frame.page(),
                 frame.footer())) {
             assertTrue(band.width() >= 0 && band.height() >= 0, "no band may be inside out: " + band);
         }

@@ -133,6 +133,24 @@ class EntryFormLayoutTest {
     }
 
     @Test
+    @DisplayName("the corner reads Copy, star, fold, cross: the harmless presses first, the removal last")
+    void cornerOrderKeepsRemovalLast() {
+        EntryFormLayout.Form form = form("tasks", itemTask(), 600);
+
+        assertEquals(EntryFormLayout.COPY_WIDTH, form.copy().width());
+        assertEquals(EntryFormLayout.SAVE_WIDTH, form.save().width(), "the template star is a one-glyph chip");
+        assertTrue(form.copy().right() <= form.save().x(), "Copy is left of the star");
+        assertTrue(form.save().right() <= form.fold().x(), "the star is left of the fold");
+        assertTrue(form.fold().right() <= form.remove().x(), "and the cross stays last at the edge");
+        assertTrue(form.remove().right() <= 600, "inside the row");
+
+        EntryFormLayout.ConditionRow row = form("tasks", conditionedTask(), 600).conditions().get(0);
+        assertEquals(EntryFormLayout.SAVE_WIDTH, row.save().width());
+        assertTrue(row.save().right() <= row.remove().x(), "a condition's star is left of its cross too");
+        assertTrue(row.remove().x() >= row.name().right(), "and both sit past the condition's name");
+    }
+
+    @Test
     @DisplayName("a field is a label in the label column and a control beside it, never over it")
     void labelsStayInTheirColumn() {
         for (int width : new int[] {320, 480, 600, 900}) {
@@ -296,8 +314,9 @@ class EntryFormLayoutTest {
         assertEquals(1, folded.lines(), "folding leaves the badge");
         assertTrue(folded.cells().isEmpty(), "and no fields to draw or press");
         assertEquals(24, folded.height(), "which is the one-line height every row has always had");
-        assertTrue(folded.copy().width() > 0 && folded.fold().width() > 0 && folded.remove().width() > 0,
-                "the corner's three controls survive folding: the way back must not go with the fields");
+        assertTrue(folded.copy().width() > 0 && folded.save().width() > 0 && folded.fold().width() > 0
+                        && folded.remove().width() > 0,
+                "the corner's four controls survive folding: the way back must not go with the fields");
         assertTrue(folded.grip().height() > 0, "and the row can still be dragged");
         assertEquals(EntryFormLayout.lines("tasks", itemTask(), 600, true), folded.lines(),
                 "the card's own count and the layout are one derivation, folded or not");
@@ -308,11 +327,13 @@ class EntryFormLayoutTest {
     private static List<BookGeometry.Rect> boxes(EntryFormLayout.Form form) {
         List<BookGeometry.Rect> out = new ArrayList<>();
         out.add(form.copy());
+        out.add(form.save());
         out.add(form.remove());
         out.add(form.grip());
         addCells(out, form.cells());
         for (EntryFormLayout.ConditionRow row : form.conditions()) {
             out.add(row.icon());
+            out.add(row.save());
             out.add(row.remove());
             addCells(out, row.cells());
         }
