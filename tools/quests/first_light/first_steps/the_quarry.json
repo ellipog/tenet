@@ -1,0 +1,39 @@
+{
+  "$schema": "../../_schema/quest.schema.json",
+  "id": "the_quarry",
+  "title": "The Quarry",
+  "subtitle": "A break by block id",
+  "description": [
+    "The plainest break task: a block id and a number. Thirty-two stone,",
+    "counted by the game's own break event, completing the moment the",
+    "thirty-second breaks. What counts is the act, not the drop -- silk",
+    "touch and a voided drop count just the same, because the event fires",
+    "for the break either way.",
+    "",
+    "The two quests below it are the same field filtered two different",
+    "ways -- by a block tag, and by a block state -- so the family reads",
+    "as one mechanism with three lenses, the way the kills above it do."
+  ],
+  "icon": {
+    "item": "minecraft:stone_pickaxe"
+  },
+  "x": 576,
+  "y": 960,
+  "dependsOn": [
+    "the_grey_visitors"
+  ],
+  "tasks": [
+    {
+      "type": "tenet:break",
+      "block": "minecraft:stone",
+      "value": 32
+    }
+  ],
+  "rewards": [
+    {
+      "type": "tenet:item",
+      "item": "minecraft:cobblestone",
+      "count": 16
+    }
+  ]
+}

@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.QuestTask;
 /**
  * A kind of task, as a registered type.
  *
- * <p>Public, and public on purpose: this is how another mod adds a task type. Tenet registers fifteen
+ * <p>Public, and public on purpose: this is how another mod adds a task type. Tenet registers eighteen
  * and would like there to be twenty more.
  *
  * <p>The behaviour is part of the type rather than a field on each task, because how a task is

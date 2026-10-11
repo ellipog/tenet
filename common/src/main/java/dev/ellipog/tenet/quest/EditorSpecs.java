@@ -69,6 +69,12 @@ public final class EditorSpecs {
         if (path.equals("entity") || path.equals("entityType")) {
             return EditorField.search(path, label, EditorField.Source.ENTITY);
         }
+        if (path.equals("block")) {
+            return EditorField.search(path, label, EditorField.Source.BLOCK);
+        }
+        if (path.equals("blockTag")) {
+            return EditorField.tag(path, label, EditorField.Source.BLOCK_TAG);
+        }
         if (path.equals("toObserve")) {
             return EditorField.search(path, label, EditorField.Source.OBSERVATION_TARGET);
         }

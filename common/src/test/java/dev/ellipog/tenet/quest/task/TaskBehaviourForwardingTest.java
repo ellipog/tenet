@@ -1,11 +1,13 @@
 package dev.ellipog.tenet.quest.task;
 
 import dev.ellipog.tenet.quest.ItemRef;
+import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
 import net.minecraft.resources.ResourceLocation;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -32,6 +34,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @DisplayName("the task registry's behaviour wrapper")
 class TaskBehaviourForwardingTest {
+
+    @BeforeAll
+    static void bootVanilla() {
+        // The break case below reads real block states; everything else here never leaves records.
+        MinecraftTestBootstrap.boot();
+    }
 
     private static ItemTask itemTask(Optional<Boolean> consume) {
         return new ItemTask(TaskCommon.DEFAULT,
@@ -90,6 +98,26 @@ class TaskBehaviourForwardingTest {
 
         EnergyTask manualEnergy = new EnergyTask(TaskCommon.DEFAULT, 1000, 0, true);
         assertTrue(TaskTypes.behaviourOf(manualEnergy).orElseThrow().manualOnly(manualEnergy));
+    }
+
+    @Test
+    @DisplayName("a break is heard through the registry, like a death")
+    void blockBrokenSurvivesTheWrapper() {
+        // The engine's break path reads this through behaviourOf — the same door the take, the
+        // submit gate and the inventory floor go through — so a wrapper that dropped it would
+        // record nothing while the event fired. The item-consumption incident is why this is
+        // pinned rather than trusted: the wrapper forwarded "most" methods once already.
+        BreakTask task = new BreakTask(TaskCommon.DEFAULT,
+                Optional.of(ResourceLocation.withDefaultNamespace("stone")),
+                Optional.empty(), Optional.empty(), 10);
+        TaskBehaviour<QuestTask> through = TaskTypes.behaviourOf(task).orElseThrow();
+
+        assertEquals(1, through.onBlockBroken(task, null,
+                        net.minecraft.world.level.block.Blocks.STONE.defaultBlockState()),
+                "the wrapper dropped onBlockBroken, and breaks would silently count nothing");
+        assertEquals(0, through.onBlockBroken(task, null,
+                net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState()));
+        assertEquals(10, through.required(task));
     }
 
     @Test

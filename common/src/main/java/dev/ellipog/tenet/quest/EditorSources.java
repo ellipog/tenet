@@ -61,6 +61,10 @@ public final class EditorSources {
             case ENTITY -> Registries.ENTITY_TYPE;
             case ITEM_TAG -> Registries.ITEM;
             case ENTITY_TAG -> Registries.ENTITY_TYPE;
+            // A block, and a tag of them: the break task's two spellings, read from the
+            // static block registry the client builds at startup — the same registry the
+            // engine compares against, so the picker cannot offer what the task cannot match.
+            case BLOCK, BLOCK_TAG -> Registries.BLOCK;
             case OBSERVATION_TARGET -> observationRegistry(observeType);
         };
     }

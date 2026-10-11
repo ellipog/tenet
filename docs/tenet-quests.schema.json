@@ -1113,7 +1113,7 @@
         },
         "value": {
           "type": "integer",
-          "description": "tenet:stat, tenet:xp, tenet:kill, tenet:energy and tenet:custom (tasks) — the number that counts as enough: the statistic's value, experience or energy handed over, kills, or the handler's count."
+          "description": "tenet:stat, tenet:xp, tenet:kill, tenet:break, tenet:energy and tenet:custom (tasks) — the number that counts as enough: the statistic's value, experience or energy handed over, kills, breaks, or the handler's count."
         },
         "ignoreDimension": {
           "type": "boolean",
@@ -1183,6 +1183,18 @@
         "nbtFilter": {
           "type": "string",
           "description": "tenet:kill (task) — an SNBT filter, for the mobs an id cannot pick out."
+        },
+        "block": {
+          "$ref": "#/definitions/namespacedId",
+          "description": "tenet:break (task) — the block to break."
+        },
+        "blockTag": {
+          "type": "string",
+          "description": "tenet:break (task) — or a block tag, to count any block in it. Its own field rather than a # in `block`, so a tag where an id is expected is an error here as it is everywhere else."
+        },
+        "blockState": {
+          "type": "string",
+          "description": "tenet:break (task) — only count this block state, e.g. minecraft:wheat[age=7], for what an id cannot pick out. Narrows `block` or `blockTag`, or stands alone."
         },
         "id": {
           "type": "string",

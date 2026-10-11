@@ -15,6 +15,7 @@ import dev.ellipog.tenet.quest.QuestIndex;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -275,7 +276,8 @@ class QuestViewerContentTest {
     void aTagTaskCarriesItsTagAndExpandsIt() {
         accept(ONE_QUEST);
         QuestViewerContent content = new QuestViewerContent();
-        content.rebuild(ClientQuestCache.treeRevision(), QuestViewerContentTest::expanded);
+        content.rebuild(ClientQuestCache.treeRevision(), QuestViewerContentTest::expanded,
+                tag -> List.of());
 
         QuestRow tagRow = content.pages().get(0).tasks().get(1);
         assertTrue(tagRow.hasTag(), "the row must say which tag it is about");
@@ -299,6 +301,114 @@ class QuestViewerContentTest {
                 ResourceLocation.parse("minecraft:birch_log"));
     }
 
+    private static final String BREAK_QUEST = """
+            {"id": "quarry", "title": "Quarry", "tasks": [
+              {"type": "tenet:break", "block": "minecraft:stone", "value": 4}]}
+            """;
+
+    private static final String BREAK_TAG_QUEST = """
+            {"id": "timber", "title": "Timber", "tasks": [
+              {"type": "tenet:break", "blockTag": "minecraft:logs", "value": 4}]}
+            """;
+
+    @Test
+    @DisplayName("a break task keeps its sentence and is found from its block's item")
+    void breakTaskIsIndexedByItsBlock() {
+        accept(BREAK_QUEST);
+        QuestViewerContent content = new QuestViewerContent();
+        content.rebuild(ClientQuestCache.treeRevision(), QuestViewerContentTest::expanded,
+                tag -> List.of());
+
+        assertEquals(1, content.pages().size(), "a break quest has a page: stone names an item");
+        QuestRow row = content.pages().get(0).tasks().get(0);
+        assertEquals(0, row.sourceIndex());
+        assertEquals(4, row.need());
+        assertFalse(row.hasTag(), "a block is not a tag, and no adapter may read it as one");
+        assertFalse(row.icon().isEmpty(), "the row wears the block's own item");
+
+        assertEquals(List.of("quarry"),
+                ids(content.index().questsUsing(ResourceLocation.parse("minecraft:stone"))));
+        assertTrue(content.index().questsUsing(ResourceLocation.parse("minecraft:dirt")).isEmpty(),
+                "another block leads nowhere");
+    }
+
+    @Test
+    @DisplayName("a break by block tag finds its members through the block resolver")
+    void breakTagExpandsToMemberItems() {
+        accept(BREAK_TAG_QUEST);
+        QuestViewerContent content = new QuestViewerContent();
+        content.rebuild(ClientQuestCache.treeRevision(), QuestViewerContentTest::expanded,
+                QuestViewerContentTest::blockExpanded);
+
+        assertEquals(1, content.pages().size());
+        QuestRow row = content.pages().get(0).tasks().get(0);
+        assertFalse(row.hasTag(), "a block tag is not an item tag, so the row carries none");
+
+        assertEquals(List.of("timber"),
+                ids(content.index().questsUsing(ResourceLocation.parse("minecraft:oak_log"))),
+                "a member's item finds the quest");
+        assertTrue(content.index().questsUsing(ResourceLocation.parse("minecraft:stone")).isEmpty(),
+                "an item outside the tag does not");
+    }
+
+    /** The fake datapack's block side: {@code #minecraft:logs} holds two blocks. */
+    private static List<ResourceLocation> blockExpanded(TagKey<Block> tag) {
+        if (!tag.location().toString().equals("minecraft:logs")) {
+            return List.of();
+        }
+        return List.of(ResourceLocation.parse("minecraft:oak_log"),
+                ResourceLocation.parse("minecraft:birch_log"));
+    }
+
+    @Test
+    @DisplayName("a block-tag change the tree does not carry rebuilds the snapshot")
+    void movedBlockTagRebuildsTheSnapshot() {
+        // The input the tree revision does not carry, on the block side: a /reload that changes
+        // block-tag membership moves no quest revision either, so the watch item tags have gets a
+        // block-tag sibling. Same shape as the item-tag test above, against the block registry.
+        accept(BREAK_TAG_QUEST);
+        QuestViewerContent content = new QuestViewerContent();
+        TagKey<Block> logs = TagKey.create(net.minecraft.core.registries.Registries.BLOCK,
+                ResourceLocation.parse("minecraft:logs"));
+
+        var oak = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getHolderOrThrow(
+                net.minecraft.resources.ResourceKey.create(
+                        net.minecraft.core.registries.Registries.BLOCK,
+                        ResourceLocation.parse("minecraft:oak_log")));
+        Optional<net.minecraft.core.HolderSet<Block>> stable =
+                Optional.of(net.minecraft.core.HolderSet.direct(List.of(oak)));
+        Optional<net.minecraft.core.HolderSet<Block>> replaced =
+                Optional.of(net.minecraft.core.HolderSet.direct(List.of(oak)));
+        assertNotSame(stable.get(), replaced.get(),
+                "the fixture's two sets must be different objects, or this test proves nothing");
+
+        content.setBlockTagHolders(tag -> stable);
+        content.tick();
+        assertEquals(1, content.pages().size(), "the break quest has a page");
+        assertTrue(content.watchedBlockTags().containsKey(logs),
+                "and the block tag the walk expanded is the one being watched");
+        assertFalse(content.blockTagsMoved(), "and the snapshot was built from the set in force");
+
+        content.tick();
+        assertFalse(content.blockTagsMoved(), "a tick with the same set has nothing to rebuild for");
+
+        content.setBlockTagHolders(tag -> replaced);
+        assertTrue(content.blockTagsMoved(),
+                "a block tag now read from a different holder set has moved, with the tree untouched");
+        content.tick();
+        assertFalse(content.blockTagsMoved(),
+                "and the snapshot was rebuilt for it, so the new set is now the baseline");
+        assertEquals(replaced.get(), content.watchedBlockTags().get(logs),
+                "the watch holds the set the snapshot was actually built from");
+
+        content.setBlockTagHolders(tag -> Optional.empty());
+        assertTrue(content.blockTagsMoved(), "a block tag that is no longer declared has moved");
+        content.tick();
+        assertFalse(content.blockTagsMoved(), "and the rebuild settled that too");
+        assertFalse(content.watchedBlockTags().containsKey(logs),
+                "a block tag that is no longer declared is no longer watched");
+    }
+
     /** Two tasks gated on one tag, which is what makes the expansion worth doing once. */
     private static final String TWO_TAG_TASKS = """
             {"id": "paired", "title": "Two of a kind", "tasks": [
@@ -317,7 +427,7 @@ class QuestViewerContentTest {
         content.rebuild(ClientQuestCache.treeRevision(), tag -> {
             asks.merge(tag.location().toString(), 1, Integer::sum);
             return expanded(tag);
-        });
+        }, tag -> List.of());
 
         assertEquals(1, asks.get("minecraft:logs"),
                 "two tasks name the same tag, and the answer cannot differ inside one walk");

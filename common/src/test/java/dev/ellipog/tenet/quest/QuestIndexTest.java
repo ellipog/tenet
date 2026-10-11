@@ -20,6 +20,7 @@ import dev.ellipog.tenet.quest.reward.TableReward;
 import dev.ellipog.tenet.quest.reward.XpReward;
 import dev.ellipog.tenet.quest.task.AdvancementTask;
 import dev.ellipog.tenet.quest.task.BiomeTask;
+import dev.ellipog.tenet.quest.task.BreakTask;
 import dev.ellipog.tenet.quest.task.CheckmarkTask;
 import dev.ellipog.tenet.quest.task.ComponentMatch;
 import dev.ellipog.tenet.quest.task.CustomTask;
@@ -1361,10 +1362,12 @@ class QuestIndexTest {
         // mechanism nobody can see how to write; this is the version a compiler reads.
         // ------------------------------------------------------------------
 
-        // Every task type, all fifteen.
+        // Every task type with a worked example. Energy and filter have registered types but no
+        // example yet (see tools/README.md's stated gap); everything else here must appear in
+        // the orrery, or nothing exercises it.
         Class<?>[] taskTypes = {
                 ItemTask.class, ItemTagTask.class, CheckmarkTask.class, CustomTask.class,
-                DimensionTask.class, FluidTask.class, KillTask.class, LocationTask.class,
+                DimensionTask.class, FluidTask.class, KillTask.class, BreakTask.class, LocationTask.class,
                 ObservationTask.class, StageTask.class, StatTask.class, StructureTask.class,
                 AdvancementTask.class, BiomeTask.class, XpTask.class };
         for (Class<?> type : taskTypes) {
@@ -1434,6 +1437,17 @@ class QuestIndexTest {
         assertTrue(all.stream().flatMap(quest -> quest.tasks().stream())
                         .anyMatch(task -> task instanceof KillTask kill && kill.entityTypeTag().isPresent()),
                 "no example kills by entity tag");
+
+        // The break filters, one each: an id, a tag, and a state.
+        assertTrue(all.stream().flatMap(quest -> quest.tasks().stream())
+                        .anyMatch(task -> task instanceof BreakTask broken && broken.block().isPresent()),
+                "no example breaks by block id");
+        assertTrue(all.stream().flatMap(quest -> quest.tasks().stream())
+                        .anyMatch(task -> task instanceof BreakTask broken && broken.blockTag().isPresent()),
+                "no example breaks by block tag");
+        assertTrue(all.stream().flatMap(quest -> quest.tasks().stream())
+                        .anyMatch(task -> task instanceof BreakTask broken && broken.blockState().isPresent()),
+                "no example breaks by block state");
 
         // A location box that ignores its dimension, and an observation with intent.
         assertTrue(all.stream().flatMap(quest -> quest.tasks().stream())

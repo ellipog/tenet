@@ -307,6 +307,23 @@ public final class TaskTypes {
                     Optional.of(ResourceLocation.withDefaultNamespace("zombie")), Optional.empty(), 1,
                     Optional.empty(), Optional.empty()));
 
+    /** {@code tenet:break} — break blocks, by id, tag or state, optionally filtered. */
+    public static final QuestTaskType<BreakTask> BREAK = register(
+            "break", BreakTask.MAP_CODEC, BreakTask.FIELDS, java.util.List.of(
+                    EditorField.search("block", "Block", EditorField.Source.BLOCK)
+                            .hint("the block to break"),
+                    EditorField.tag("blockTag", "Block tag", EditorField.Source.BLOCK_TAG)
+                            .hint("or a tag, to count any block in it"),
+                    EditorField.text("blockState", "State", "e.g. minecraft:wheat[age=7]")
+                            .hint("only count this block state, for what an id cannot pick out"),
+                    EditorField.number("value", "Breaks", "blocks")
+                            .hint("how many to break")),
+            BreakTask.BEHAVIOUR,
+            new ItemRef(ResourceLocation.withDefaultNamespace("iron_pickaxe"), 1), BreakTask.DISPLAY,
+            () -> new BreakTask(new TaskCommon(false, 20),
+                    Optional.of(ResourceLocation.withDefaultNamespace("stone")), Optional.empty(),
+                    Optional.empty(), 1));
+
     /**
      * {@code tenet:custom} — progress measured by somebody else's code.
      *
@@ -694,6 +711,12 @@ public final class TaskTypes {
             public int onEntityDeath(QuestTask task, net.minecraft.server.level.ServerPlayer killer,
                                      net.minecraft.world.entity.LivingEntity killed) {
                 return behaviour.onEntityDeath((T) task, killer, killed);
+            }
+
+            @Override
+            public int onBlockBroken(QuestTask task, net.minecraft.server.level.ServerPlayer player,
+                                     net.minecraft.world.level.block.state.BlockState state) {
+                return behaviour.onBlockBroken((T) task, player, state);
             }
 
             @Override

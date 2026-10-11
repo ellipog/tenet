@@ -1099,6 +1099,35 @@ class QuestSyncTest {
     }
 
     @Test
+    @DisplayName("a break task carries its block and tag, and reads its sentence")
+    void breakTaskCarriesItsBlock() {
+        // The block fields ride the existing tree payload beside the tag task's tag: they are what
+        // let a recipe viewer answer "which quests want this stone broken", and display text is
+        // not data. The row itself draws the sentence with the block's own picture.
+        QuestIndex index = Fixtures.indexOf(Fixtures.file(
+                "{\"id\": \"a\", \"title\": \"a\", \"tasks\": ["
+                        + "{\"type\": \"tenet:break\", \"block\": \"minecraft:stone\", \"value\": 4},"
+                        + "{\"type\": \"tenet:break\", \"blockTag\": \"minecraft:logs\", \"value\": 4}]}"));
+
+        ClientQuestCache.acceptTree(index.questCount(), index.chapterCount(), QuestSync.treeAsJson(index));
+
+        ClientQuestCache.TaskEntry single = entryFor("a").tasks().get(0);
+        assertEquals("minecraft:stone", single.block());
+        assertEquals("", single.blockTag(), "a block task names a block, not a tag");
+        assertFalse(single.hasItem(), "a break task draws its sentence, not an item");
+        assertEquals("Break minecraft:stone", single.text().getString(),
+                "the fallback reads, because the key has no translation in this JVM");
+        assertFalse(single.picture().isEmpty(), "the block's own item travels as the picture");
+
+        ClientQuestCache.TaskEntry tagged = entryFor("a").tasks().get(1);
+        assertEquals("", tagged.block());
+        assertEquals("minecraft:logs", tagged.blockTag());
+        assertTrue(tagged.picture().isEmpty(),
+                "a tag names no one block, so there is no picture to travel");
+        assertFalse(tagged.icon().isEmpty(), "and the row falls back to the type's own pickaxe");
+    }
+
+    @Test
     @DisplayName("a checkmark arrives as text, with the author's own words as the fallback")
     void checkmarkArrives() {
         QuestIndex index = Fixtures.indexOf(Fixtures.file(

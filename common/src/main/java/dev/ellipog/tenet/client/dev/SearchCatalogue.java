@@ -81,8 +81,8 @@ public final class SearchCatalogue {
             case STRUCTURE -> rows(ClientServerLists.structures());
             case ADVANCEMENT -> advancements(minecraft);
             case OBSERVATION_TARGET -> observation(observeType);
-            case ITEM_TAG, ENTITY_TAG -> tags(EditorSources.registryFor(source, observeType), false);
-            case EFFECT, ATTRIBUTE, FLUID, ENTITY, STAT ->
+            case ITEM_TAG, ENTITY_TAG, BLOCK_TAG -> tags(EditorSources.registryFor(source, observeType), false);
+            case EFFECT, ATTRIBUTE, FLUID, ENTITY, STAT, BLOCK ->
                     builtIn(EditorSources.registryFor(source, observeType));
             // The two datapack registries a real server does send, and the tags the tag packet binds to
             // them: read from the connection's own access, and a `#` because both fields are RegistryRefs.

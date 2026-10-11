@@ -33,13 +33,13 @@ class CheckmarkArtTest {
     private static ClientQuestCache.TaskEntry checkmark(String texture, String sprite, ItemStack picture) {
         return new ClientQuestCache.TaskEntry(ItemStack.EMPTY, ItemStack.EMPTY, 1,
                 false, false, false, false, "tenet:checkmark", "", "", "", "", "", "", 0, "",
-                List.of(), false, texture, sprite, picture, "");
+                List.of(), false, texture, sprite, picture, "", "", "");
     }
 
     private static ClientQuestCache.TaskEntry itemTask() {
         return new ClientQuestCache.TaskEntry(ItemStack.EMPTY, ItemStack.EMPTY, 1,
                 false, false, false, false, "tenet:item", "", "", "", "minecraft:stone", "", "", 0,
-                "", List.of(), false, "", "", ItemStack.EMPTY, "");
+                "", List.of(), false, "", "", ItemStack.EMPTY, "", "", "");
     }
 
     @Test

@@ -24,6 +24,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,9 +52,11 @@ import java.util.function.Function;
  *
  * <h2>What a viewer page shows, and what only the book shows</h2>
  *
- * <p>A page carries the rows that reference an item — item tasks, tag tasks, item rewards — because
- * those are what the viewer is for: a lookup answers "what wants this, and what gives it". A text
- * task (xp, checkmark, advancement, stat, …) or a non-item reward has no item to look up and is left
+ * <p>A page carries the rows that reference an item — item tasks, tag tasks, break tasks, item
+ * rewards — because those are what the viewer is for: a lookup answers "what wants this, and
+ * what gives it". A break task references its block's item form (or every member's, for a tag),
+ * resolved from the block fields the tree carries beside the sentence. A text task (xp,
+ * checkmark, advancement, stat, …) or a non-item reward has no item to look up and is left
  * to the book, and the sections are labelled so a reward is never read as something to hand in. A
  * quest with no item rows at all has no page: nothing could ever lead a player to it, and a blank
  * page is worse than none.
@@ -157,6 +160,52 @@ public final class QuestViewerContent implements QuestContent {
         this.tagHolders = holders;
     }
 
+    /**
+     * The block tags the last rebuild expanded, and the holder set it read each one from.
+     *
+     * <p>The break task's half of the watch above: a {@code tenet:break} task naming a block tag
+     * is indexed under every member's item, and block tags are datapack-synced exactly like item
+     * tags — so a {@code /reload} that changes membership moves no quest revision either, and the
+     * same staleness would follow without the same watch. Parallel maps rather than one shared
+     * one, because an item tag and a block tag are different registries' answers with different
+     * holder types, and one map cannot hold both.
+     */
+    private volatile java.util.Map<TagKey<Block>, HolderSet<Block>> watchedBlockTags = java.util.Map.of();
+
+    /**
+     * How a block tag's holder set is looked up. Production reads the client's block registry.
+     *
+     * <p>A field rather than a direct call, for the same test reason as {@link #tagHolders}: a
+     * test JVM loads no datapack, so the registry answers empty there.
+     */
+    private java.util.function.Function<TagKey<Block>, Optional<HolderSet<Block>>> blockTagHolders =
+            tag -> BuiltInRegistries.BLOCK.getTag(tag).map(set -> (HolderSet<Block>) set);
+
+    /** Points the block-tag lookup somewhere else. For a test; see {@link #blockTagHolders}. */
+    void setBlockTagHolders(java.util.function.Function<TagKey<Block>, Optional<HolderSet<Block>>> holders) {
+        this.blockTagHolders = holders;
+    }
+
+    /** The block tags the last rebuild expanded, and the set it read each from. For a test. */
+    java.util.Map<TagKey<Block>, HolderSet<Block>> watchedBlockTags() {
+        return watchedBlockTags;
+    }
+
+    /**
+     * Whether any watched block tag now reads from a different holder set than the snapshot was
+     * built against. The same question {@link #tagsMoved} asks of item tags, kept separate so a
+     * test can ask each one directly.
+     */
+    boolean blockTagsMoved() {
+        for (java.util.Map.Entry<TagKey<Block>, HolderSet<Block>> watched : watchedBlockTags.entrySet()) {
+            Optional<HolderSet<Block>> now = blockTagHolders.apply(watched.getKey());
+            if (now.isEmpty() || now.get() != watched.getValue()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The tags the last rebuild expanded, and the set it read each from. For a test. */
     java.util.Map<TagKey<Item>, HolderSet<Item>> watchedTags() {
         return watchedTags;
@@ -188,7 +237,7 @@ public final class QuestViewerContent implements QuestContent {
     public void tick() {
         long revision = ClientQuestCache.treeRevision();
         long text = ClientQuestCache.textRevision();
-        if (revision == builtRevision && text == builtText && !tagsMoved()) {
+        if (revision == builtRevision && text == builtText && !tagsMoved() && !blockTagsMoved()) {
             return;
         }
         // Whether the pages' words could have changed, as opposed to only the item index behind them.
@@ -198,12 +247,18 @@ public final class QuestViewerContent implements QuestContent {
         // The tags the walk expands, collected as it goes, so the watch list is exactly what the snapshot
         // was built from rather than a second walk deciding what it might have read.
         java.util.Map<TagKey<Item>, HolderSet<Item>> seen = new java.util.HashMap<>();
+        java.util.Map<TagKey<Block>, HolderSet<Block>> seenBlocks = new java.util.HashMap<>();
         rebuild(revision, tag -> {
             Optional<HolderSet<Item>> holders = tagHolders.apply(tag);
             holders.ifPresent(set -> seen.put(tag, set));
             return itemsOf(holders);
+        }, blockTag -> {
+            Optional<HolderSet<Block>> holders = blockTagHolders.apply(blockTag);
+            holders.ifPresent(set -> seenBlocks.put(blockTag, set));
+            return blockItemsOf(holders);
         });
         watchedTags = java.util.Map.copyOf(seen);
+        watchedBlockTags = java.util.Map.copyOf(seenBlocks);
         builtText = text;
         if (words) {
             token++;
@@ -249,7 +304,7 @@ public final class QuestViewerContent implements QuestContent {
         // `taskDone` rather than `have >= task.count()` written here: the claim menu's progression
         // column asks the same question about the same task, and one rule with two spellings is how a
         // page and a column come to disagree about whether a task is finished.
-        return new QuestRow(taskIcon(task), taskLabel(task), have, task.count(),
+        return new QuestRow(liveIcon(task), taskLabel(task), have, task.count(),
                 ClientQuestCache.taskDone(questId, index), locked, task.tagId(), index);
     }
 
@@ -340,7 +395,8 @@ public final class QuestViewerContent implements QuestContent {
      * expansion — the part that turns {@code #minecraft:logs} into the items a viewer can find — would
      * otherwise be untestable. Production passes {@link #registryTagItems}.
      */
-    void rebuild(long revision, Function<TagKey<Item>, List<ResourceLocation>> tagItems) {
+    void rebuild(long revision, Function<TagKey<Item>, List<ResourceLocation>> tagItems,
+                 Function<TagKey<Block>, List<ResourceLocation>> blockTagItems) {
         ItemQuestIndex.Builder index = ItemQuestIndex.builder();
         List<QuestPage> built = new ArrayList<>();
         // One expansion per tag per rebuild. A pack that gates several quests behind `#c:ingots/iron`
@@ -351,6 +407,11 @@ public final class QuestViewerContent implements QuestContent {
         java.util.Map<TagKey<Item>, List<ResourceLocation>> expansions = new java.util.HashMap<>();
         Function<TagKey<Item>, List<ResourceLocation>> once =
                 tag -> expansions.computeIfAbsent(tag, tagItems::apply);
+        // The same, for the block tags break tasks name: one expansion per tag per rebuild, for the
+        // same reason. A separate map because the keys are a different registry's tags.
+        java.util.Map<TagKey<Block>, List<ResourceLocation>> blockExpansions = new java.util.HashMap<>();
+        Function<TagKey<Block>, List<ResourceLocation>> onceBlocks =
+                tag -> blockExpansions.computeIfAbsent(tag, blockTagItems::apply);
         // The id index, built here because this is the only walk of the pages that has to happen at all
         // — see QuestContent.page for why an adapter must not write its own.
         java.util.Map<String, QuestPage> byQuest = new java.util.HashMap<>();
@@ -364,7 +425,7 @@ public final class QuestViewerContent implements QuestContent {
             }
             QuestRef ref = new QuestRef(entry.id(), entry.titleText(), entry.chapterTitleText(),
                     entry.icon(), entry.iconId(), entry.textureIcon(), entry.spriteIcon());
-            List<QuestRow> tasks = taskRows(entry, ref, index, once);
+            List<QuestRow> tasks = taskRows(entry, ref, index, once, onceBlocks);
             List<QuestRow> rewards = rewardRows(entry, ref, index);
             if (!tasks.isEmpty() || !rewards.isEmpty()) {
                 // A page with nothing to show is one a player could never be led to by an item, and a
@@ -382,10 +443,21 @@ public final class QuestViewerContent implements QuestContent {
 
     private static List<QuestRow> taskRows(ClientQuestCache.Entry entry, QuestRef ref,
                                            ItemQuestIndex.Builder index,
-                                           Function<TagKey<Item>, List<ResourceLocation>> tagItems) {
+                                           Function<TagKey<Item>, List<ResourceLocation>> tagItems,
+                                           Function<TagKey<Block>, List<ResourceLocation>> blockTagItems) {
         List<QuestRow> rows = new ArrayList<>(entry.tasks().size());
         for (int source = 0; source < entry.tasks().size(); source++) {
             ClientQuestCache.TaskEntry task = entry.tasks().get(source);
+            if (!task.block().isEmpty() || !task.blockTag().isEmpty()) {
+                // A break task: the row draws the sentence with the block's own picture, and the
+                // index learns the block's item form — or every member's, for a tag — so the
+                // quest is findable from what it wants broken. Never the block tag as the row's
+                // tag: adapters read a row tag as an *item* tag, and a block tag is not one.
+                rows.add(new QuestRow(task.shown(), taskLabel(task), 0, task.count(),
+                        false, false, "", source));
+                indexBreak(index, task, ref, blockTagItems);
+                continue;
+            }
             if (!referencesAnItem(task.hasItem(), task.itemId(), task.tagId())) {
                 continue;
             }
@@ -482,6 +554,69 @@ public final class QuestViewerContent implements QuestContent {
         return items;
     }
 
+    /**
+     * A break task's index entries: the block's item form, or every member's, for a tag.
+     *
+     * <p>A tag wins when both are named, which is the engine's own precedence — see
+     * {@code BreakTask#matches} — so the index answers the effective filter rather than
+     * both spellings. A block with no item form contributes nothing: there is no item a
+     * lookup could name for it, and the page still shows the sentence.
+     */
+    private static void indexBreak(ItemQuestIndex.Builder index, ClientQuestCache.TaskEntry task,
+                                   QuestRef ref,
+                                   Function<TagKey<Block>, List<ResourceLocation>> blockTagItems) {
+        if (!task.blockTag().isEmpty()) {
+            ResourceLocation tag = ResourceLocation.tryParse(task.blockTag());
+            if (tag == null) {
+                return;
+            }
+            for (ResourceLocation item : blockTagItems.apply(TagKey.create(Registries.BLOCK, tag))) {
+                index.add(item, ref, true, false);
+            }
+            return;
+        }
+        if (!task.block().isEmpty()) {
+            ResourceLocation block = ResourceLocation.tryParse(task.block());
+            if (block == null || !BuiltInRegistries.ITEM.containsKey(block)) {
+                return;
+            }
+            index.add(block, ref, true, false);
+        }
+    }
+
+    /**
+     * A block tag's members, as the item ids a lookup can name.
+     *
+     * <p>Client-side block tags are synced on join, like item tags — reading data the client
+     * already has. Members with no item form (air, fluids, piston heads) are skipped: no item
+     * names them, and indexing them would be entries no lookup can ever hit.
+     */
+    private static List<ResourceLocation> registryBlockTagItems(TagKey<Block> tag) {
+        return blockItemsOf(BuiltInRegistries.BLOCK.getTag(tag));
+    }
+
+    /**
+     * The members of a block holder set, as item ids.
+     *
+     * <p>Split from {@link #registryBlockTagItems} for the same reason {@link #itemsOf} is
+     * split from {@link #registryTagItems}: {@link #tick} reads each tag's holder set once
+     * and takes the members and the watched object from that one read.
+     */
+    private static List<ResourceLocation> blockItemsOf(Optional<? extends HolderSet<Block>> holders) {
+        if (holders.isEmpty()) {
+            return List.of();
+        }
+        List<ResourceLocation> items = new ArrayList<>();
+        for (Holder<Block> holder : holders.get()) {
+            holder.unwrapKey().map(ResourceKey::location).ifPresent(block -> {
+                if (BuiltInRegistries.ITEM.containsKey(block)) {
+                    items.add(block);
+                }
+            });
+        }
+        return items;
+    }
+
     // ------------------------------------------------------------------
     // Small conversions
     // ------------------------------------------------------------------
@@ -520,6 +655,20 @@ public final class QuestViewerContent implements QuestContent {
             return reward.itemId();
         }
         return reward.text().getString();
+    }
+
+    /**
+     * A live row's icon: what its snapshot row draws.
+     *
+     * <p>A break task's snapshot row draws the block's own picture rather than the empty item
+     * a text display carries, so the live row must too — otherwise the icon flickers between
+     * the block and nothing whenever progress moves. Every other type draws its item.
+     */
+    static ItemStack liveIcon(ClientQuestCache.TaskEntry task) {
+        if (!task.block().isEmpty() || !task.blockTag().isEmpty()) {
+            return task.shown();
+        }
+        return taskIcon(task);
     }
 
     private static QuestRow blankRow() {

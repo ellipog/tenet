@@ -979,6 +979,16 @@ public final class QuestSync {
         if (task instanceof dev.ellipog.tenet.quest.task.ItemTagTask tag) {
             json.addProperty("tag", tag.tag().toString());
         }
+        // A break task's block and block tag, as fields rather than scraped out of its sentence.
+        // The row reads "Break stone" either way, but a recipe viewer has to know *which block*
+        // that is to answer "which quests want this stone broken", and display text is not data.
+        // Same message, two more fields, only for the type that has them; absent means every
+        // task an older tree sent, which none of them are — sparse and unversioned, like the
+        // quest flags, without moving TREE_VERSION.
+        if (task instanceof dev.ellipog.tenet.quest.task.BreakTask broken) {
+            broken.block().ifPresent(block -> json.addProperty("block", block.toString()));
+            broken.blockTag().ifPresent(tag -> json.addProperty("blockTag", tag.toString()));
+        }
         // A filter task's expression, as a field rather than scraped out of its sentence. The row
         // cycles through what it names and previews the matches on click, and both need the
         // expression itself: display text is not data. It travels on the existing tree payload:

@@ -13,7 +13,7 @@ not content.
 
 - **The server decides what counts.** The client draws what it is told and nothing more, so editing your own game completes nothing.
 - **[Validator points at file and line](https://ellipog.dev/docs/tenet/authoring/validation).** A bad file is reported with its path and skipped — one broken quest never takes the server down.
-- **[Seventeen task, twelve reward, six condition types](https://ellipog.dev/docs/tenet/authoring/tasks).** Tasks ask, rewards pay, conditions gate either — see the [task](https://ellipog.dev/docs/tenet/authoring/tasks), [reward](https://ellipog.dev/docs/tenet/authoring/rewards), and [condition](https://ellipog.dev/docs/tenet/authoring/conditions) guides.
+- **[Eighteen task, twelve reward, six condition types](https://ellipog.dev/docs/tenet/authoring/tasks).** Tasks ask, rewards pay, conditions gate either — see the [task](https://ellipog.dev/docs/tenet/authoring/tasks), [reward](https://ellipog.dev/docs/tenet/authoring/rewards), and [condition](https://ellipog.dev/docs/tenet/authoring/conditions) guides.
 - **[Editor with undo, and nothing really deletes](https://ellipog.dev/docs/tenet#removing-something-and-getting-it-back).** Bulk-select nodes, edit as one batch per chapter with one undo, and every delete is a `.deleted` tombstone that `/tenet restore` brings back.
 - **[Parties share progress](https://ellipog.dev/docs/tenet/commands#parties).** Built on Armature teams — `ONE_MEMBER`, `POOLED`, or `OWNER_ONLY` counting, server-authoritative throughout.
 

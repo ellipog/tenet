@@ -239,6 +239,21 @@ public final class Tenet {
             }
         });
 
+        // The break task's hook. Quiet in the log for the same reason as the kill hook's — a
+        // quarry would otherwise fill it — and the same push shape: the tick would find the
+        // recorded count already satisfied and say nothing, so the event answers which teams
+        // moved and they are told here.
+        ArmatureEvents.BLOCK_BROKEN.register((player, state) -> {
+            var server = player.getServer();
+            if (server == null) {
+                return;
+            }
+            Set<UUID> changed = ProgressService.onBlockBroken(server, player, state);
+            if (!changed.isEmpty()) {
+                TenetNetworking.sendProgressToOwners(server, changed, ProgressSyncPayload.REASON_CHANGED);
+            }
+        });
+
         ArmatureEvents.COMMANDS_REGISTER.register((dispatcher, context, selection) -> {
             TenetCommand.register(dispatcher);
             Constants.LOG.info("Tenet: /tenet registered");

@@ -158,4 +158,17 @@ public interface TaskBehaviour<T> {
     default int onEntityDeath(T task, ServerPlayer killer, LivingEntity killed) {
         return 0;
     }
+
+    /**
+     * A block broke at this player's hand: how many steps of progress that is worth, zero for a
+     * type that does not listen.
+     *
+     * <p>The break half of the event contract, beside the death half above. A break task is the
+     * reason it exists: counting breaks by polling a player's lifetime mining statistics can say
+     * how much stone they have ever broken, but not whether the wheat that just broke was fully
+     * grown. The state is the state as broken — the only moment it is real.
+     */
+    default int onBlockBroken(T task, ServerPlayer player, net.minecraft.world.level.block.state.BlockState state) {
+        return 0;
+    }
 }

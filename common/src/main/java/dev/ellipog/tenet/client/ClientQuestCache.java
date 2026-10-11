@@ -127,7 +127,18 @@ public final class ClientQuestCache {
                               * this field existed, which none of them are. The row cycles through
                               * what it names and previews the matches on click.
                               */
-                             String filter) {
+                             String filter,
+                             /**
+                              * A {@code tenet:break} task's block and block tag, as the file spells
+                              * them. Empty for every other type — and for every task a tree sent
+                              * before these fields existed. The row draws its sentence either way;
+                              * these are what the viewer index and the recipe lookup read, because
+                              * display text is not data. A block tag never reaches an adapter as a
+                              * tag: the index expands it to items first, since adapters read tags
+                              * as item tags.
+                              */
+                             String block,
+                             String blockTag) {
 
         /** Whether this row draws an item at all, as opposed to text. */
         public boolean hasItem() {
@@ -2810,7 +2821,9 @@ public final class ClientQuestCache {
                 str(json, "textureIcon"),
                 str(json, "spriteIcon"),
                 stack(str(json, "picture"), 1, json.get("pictureComponents")),
-                str(json, "filter"));
+                str(json, "filter"),
+                str(json, "block"),
+                str(json, "blockTag"));
     }
 
     private static RewardEntry rewardEntry(JsonObject json) {

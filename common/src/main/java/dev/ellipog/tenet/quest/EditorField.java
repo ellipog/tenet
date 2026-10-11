@@ -93,6 +93,8 @@ public record EditorField(String path, String label, Kind kind, String unit, Str
         OBSERVATION_TARGET,
         ITEM_TAG,
         ENTITY_TAG,
+        BLOCK,
+        BLOCK_TAG,
         ENCHANTMENT,
         EFFECT,
         ATTRIBUTE

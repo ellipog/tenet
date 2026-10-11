@@ -359,6 +359,55 @@ class QuestValidatorTest {
         assertFalse(problems.hasErrors(), "minecraft:oak_log exists, so there is nothing to report");
     }
 
+    @Test
+    @DisplayName("a block that does not exist warns, names it, and keeps the quest loadable")
+    void unknownBlock() {
+        String json = Fixtures.file(
+                "{\"id\": \"a\", \"title\": \"a\", \"tasks\": "
+                        + "[ {\"type\": \"tenet:break\", \"block\": \"minecraft:not_a_real_block\","
+                        + " \"value\": 4} ]}");
+
+        Problems problems = validate(json);
+        DataProblem problem = containing(problems, "there is no block");
+
+        assertTrue(problem.message().contains("minecraft:not_a_real_block"), "should name it");
+        assertTrue(problem.message().contains("check the spelling"),
+                "a minecraft: block missing is a typo, and the message should say so: "
+                        + problem.message());
+        assertPointsAtValue(problem, json, "\"minecraft:not_a_real_block\"");
+        assertTrue(problem.severity() == DataProblem.Severity.WARNING,
+                "a missing block is kept, not fatal — the same reversal as a missing item");
+        assertFalse(problems.hasErrors(), "so the file still loads");
+    }
+
+    @Test
+    @DisplayName("a real block and a real state predicate are accepted")
+    void knownBlockAndStateAreFine() {
+        Problems problems = validate(Fixtures.file(
+                "{\"id\": \"a\", \"title\": \"a\", \"tasks\": "
+                        + "[ {\"type\": \"tenet:break\", \"block\": \"minecraft:stone\", \"value\": 4},"
+                        + " {\"type\": \"tenet:break\","
+                        + " \"blockState\": \"minecraft:wheat[age=7]\", \"value\": 4} ]}"));
+        assertFalse(problems.hasErrors(), "stone exists and the predicate parses");
+    }
+
+    @Test
+    @DisplayName("a block state predicate that does not parse is refused at its line")
+    void unparsableBlockState() {
+        String json = Fixtures.file(
+                "{\"id\": \"a\", \"title\": \"a\", \"tasks\": "
+                        + "[ {\"type\": \"tenet:break\", \"block\": \"minecraft:wheat\","
+                        + " \"blockState\": \"minecraft:wheat[age=sideways]\", \"value\": 4} ]}");
+
+        Problems problems = validate(json);
+        DataProblem problem = containing(problems, "is not a block state predicate");
+
+        // An error rather than a warning: the engine fail-closes on an unparsable predicate,
+        // so the task would sit at zero forever with nothing on screen saying why.
+        assertTrue(problem.severity() == DataProblem.Severity.ERROR, messages(problems));
+        assertPointsAtValue(problem, json, "\"minecraft:wheat[age=sideways]\"");
+    }
+
     // ------------------------------------------------------------------
     // Ids and enums
     // ------------------------------------------------------------------

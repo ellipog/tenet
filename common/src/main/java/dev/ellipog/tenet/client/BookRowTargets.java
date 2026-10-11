@@ -2,10 +2,12 @@ package dev.ellipog.tenet.client;
 
 import dev.ellipog.tenet.client.viewer.RecipeLookups;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * Which task and reward rows can send the player to a recipe viewer, and with what.
@@ -13,8 +15,8 @@ import net.minecraft.world.item.Item;
  * <h2>Why this is not decided in the screen</h2>
  *
  * <p>The rule is the feature: an item task and an item reward have something to look up, a tag task
- * has a tag, and every other row — xp, stage, command, checkmark, or an item the client cannot
- * resolve — has nothing. A screen cannot be instantiated by a test, so a rule that lives only inside
+ * has a tag, a break task has its block's item form, and every other row — xp, stage, command,
+ * checkmark, a break by block tag, or an item the client cannot resolve — has nothing. A screen cannot be instantiated by a test, so a rule that lives only inside
  * one is a rule that is verified by playing; this is the same split {@code SidebarLayout},
  * {@code ItemPicker} and {@code BookGeometry} already make, and for the same reason.
  */
@@ -42,6 +44,21 @@ public final class BookRowTargets {
             if (id != null) {
                 return RecipeLookups.Target.ofTag(TagKey.create(Registries.ITEM, id));
             }
+            return null;
+        }
+        if (!task.block().isEmpty()) {
+            // A break task names a block, not an item: the row draws its sentence, and the
+            // lookup opens recipes for the block's item form where one exists. A block with
+            // no item form opens nothing, like a text row with nothing to look up.
+            ResourceLocation id = ResourceLocation.tryParse(task.block());
+            Item item = id == null ? null : BuiltInRegistries.ITEM.getOptional(id).orElse(null);
+            return item == null ? null : RecipeLookups.Target.of(new ItemStack(item));
+        }
+        // A break task's block tag opens nothing: a block tag is not an item tag, so there
+        // is no tag target that means it, and opening one member's recipes would claim the
+        // quest is about that member. The forward direction still finds the quest from any
+        // member's item — see the viewer index — like a kill row, which is looked up never.
+        if (!task.blockTag().isEmpty()) {
             return null;
         }
         if (task.hasItem()) {

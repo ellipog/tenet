@@ -144,8 +144,9 @@ class LegacyPayloadCompatibilityTest {
      * file could carry for that type, so a field that quietly became required shows up here as a
      * failure naming the type rather than as a pack that stopped loading after an upgrade.
      *
-     * <p>{@code tenet:kill} is present with no fields at all beyond its type, which is the floor: a
-     * type whose every setting defaults is a type a legacy file can name and nothing else.
+     * <p>{@code tenet:kill} and {@code tenet:break} are present with no fields at all beyond
+     * their type, which is the floor: a type whose every setting defaults is a type a legacy
+     * file can name and nothing else.
      */
     private static final List<String> MINIMAL_TASKS = List.of(
             "{\"type\": \"tenet:item\", \"item\": \"minecraft:oak_log\"}",
@@ -161,6 +162,7 @@ class LegacyPayloadCompatibilityTest {
             "{\"type\": \"tenet:fluid\", \"fluid\": \"minecraft:water\", \"amount\": 1000}",
             "{\"type\": \"tenet:observation\", \"toObserve\": \"minecraft:beacon\"}",
             "{\"type\": \"tenet:kill\"}",
+            "{\"type\": \"tenet:break\"}",
             "{\"type\": \"tenet:custom\", \"id\": \"example:thing\", \"value\": 1}",
             "{\"type\": \"tenet:filter\", \"filter\": \"item(minecraft:stone)\"}",
             "{\"type\": \"tenet:energy\", \"value\": 1000}",

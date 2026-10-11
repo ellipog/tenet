@@ -892,6 +892,59 @@ QUEST_DEFS: list[dict] = [
         "tasks": [task("observation", observeType="entity_type_tag", toObserve="minecraft:illagers")],
         "rewards": [reward("item", item="minecraft:emerald", count=2)],
     },
+    {
+        "id": "the_quarry",
+        "title": "The Quarry",
+        "subtitle": "A break by block id",
+        "icon": "minecraft:stone_pickaxe",
+        "arm": "hunt", "slot": 5, "offset": -14,
+        "deps": ["the_grey_visitors"],
+        "desc": describe(
+            "The plainest break task: a block id and a number. Thirty-two stone, counted"
+            " by the game's own break event, completing the moment the thirty-second breaks."
+            " What counts is the act, not the drop -- silk touch and a voided drop count"
+            " just the same, because the event fires for the break either way.",
+            "The two quests below it are the same field filtered two different ways -- by"
+            " a block tag, and by a block state -- so the family reads as one mechanism"
+            " with three lenses, the way the kills above it do."),
+        "tasks": [task("break", block="minecraft:stone", value=32)],
+        "rewards": [reward("item", item="minecraft:cobblestone", count=16)],
+    },
+    {
+        "id": "the_timber_rights",
+        "title": "The Timber Rights",
+        "subtitle": "A break by block tag",
+        "icon": "minecraft:oak_log",
+        "arm": "hunt", "slot": 5, "offset": 0,
+        "deps": ["the_quarry"],
+        "desc": describe(
+            "`blockTag` counts any block in a tag, so thirty-two logs is thirty-two of"
+            " whatever the tag holds -- oak, birch, spruce, or the stems of the nether."
+            " It is its own field rather than a `#` in `block`, so a tag where an id is"
+            " expected is an error here as it is everywhere else.",
+            "A tag task keeps the pickaxe on its row rather than wearing one member's"
+            " item: a picture naming oak would be a promise the quest does not make."),
+        "tasks": [task("break", blockTag="minecraft:logs", value=32)],
+        "rewards": [reward("item", item="minecraft:oak_planks", count=16)],
+    },
+    {
+        "id": "the_ripe_harvest",
+        "title": "The Ripe Harvest",
+        "subtitle": "A break by block state",
+        "icon": "minecraft:wheat",
+        "arm": "hunt", "slot": 5, "offset": 14,
+        "deps": ["the_timber_rights"],
+        "desc": describe(
+            "`blockState` narrows a break to one state, spelled the way the block-state"
+            " parser spells it: `minecraft:wheat[age=7]` is a fully grown crop, and"
+            " breaking a green one does not answer it. It narrows `block` or `blockTag`,"
+            " or stands alone implying its own block, as it does here.",
+            "This is the field a lifetime mining statistic could never answer -- how much"
+            " stone you have ever broken says nothing about whether the wheat was ripe --"
+            " which is why break tasks are counted by the break event rather than polled."),
+        "tasks": [task("break", blockState="minecraft:wheat[age=7]", value=16)],
+        "rewards": [reward("item", item="minecraft:bread", count=4)],
+    },
 
     # ------------------------------------------------------------------
     # Arm: the treasury (rewards, tables, payout flags)
@@ -1657,7 +1710,7 @@ def build_chapter() -> dict:
             "A hub at the centre opens seven arms. The instruments arm carries the item tasks;"
             " the measures arm carries experience, fluid, statistics and the custom handler;"
             " the compass carries dimension, biome, structure and location; the hunt carries"
-            " kills and observations; the treasury carries eight of the twelve reward types and"
+            " kills, breaks and observations; the treasury carries eight of the twelve reward types and"
             " every table mode; the clockwork carries the gates, the repeats, the stages and a"
             " translation-key title; the veils carry the hiding family, the aliases and the"
             " custom reward. Every file names the field it demonstrates and says why the field"
@@ -1701,8 +1754,8 @@ def build_chapter() -> dict:
 # ---------------------------------------------------------------------------
 
 TASK_TYPES = [
-    "advancement", "biome", "checkmark", "custom", "dimension", "fluid", "item", "item_tag",
-    "kill", "location", "observation", "stage", "stat", "structure", "xp",
+    "advancement", "biome", "break", "checkmark", "custom", "dimension", "fluid", "item",
+    "item_tag", "kill", "location", "observation", "stage", "stat", "structure", "xp",
 ]
 REWARD_TYPES = [
     "advancement", "choice", "command", "custom", "item", "loot", "random", "all_table",
@@ -1791,6 +1844,10 @@ def check_coverage(quests: list[dict], chapter: dict, group: dict):
     need(any(t.get("customName") for t in kills), "a kill by customName")
     need(any(t.get("nbtFilter") for t in kills), "a kill by nbtFilter")
     need(any(t.get("entityTypeTag") for t in kills), "a kill by entityTypeTag")
+    breaks = [t for t in all_tasks if t["type"] == "tenet:break"]
+    need(any(t.get("block") for t in breaks), "a break by block id")
+    need(any(t.get("blockTag") for t in breaks), "a break by blockTag")
+    need(any(t.get("blockState") for t in breaks), "a break by blockState")
     observations = [t for t in all_tasks if t["type"] == "tenet:observation"]
     for observe in OBSERVE_TYPES:
         need(any(t.get("observeType") == observe for t in observations),

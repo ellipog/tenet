@@ -40,12 +40,13 @@ press is the consent to take it — an item task with `consumeItems`, an `xp` ta
 A `checkmark` is nothing but the button.
 
 Task ids are namespaced, so the built-ins live under `tenet:` and a mod's own type is its own id. The
-types below are the seventeen this build ships.
+types below are the eighteen this build ships.
 
 | Type | Counts |
 |---|---|
 | `tenet:advancement` | An advancement earned, or one criterion of one. |
 | `tenet:biome` | Standing in a biome, or any biome of a tag. |
+| `tenet:break` | Blocks broken, filtered by id, tag or state. |
 | `tenet:checkmark` | Nothing — it is a button the player presses. |
 | `tenet:custom` | Whatever a registered handler answers. |
 | `tenet:dimension` | Being in a dimension. |
@@ -74,6 +75,23 @@ types below are the seventeen this build ships.
 | Field | Meaning |
 |---|---|
 | `biome` | The biome to stand in. A `#` tag counts any biome of it, e.g. `#minecraft:is_forest`. |
+
+## `tenet:break`
+
+| Field | Default | Meaning |
+|---|---|---|
+| `block` | — | The block's namespaced id, e.g. `minecraft:stone`. |
+| `blockTag` | — | Or a block tag, to count any block in it. Its own field rather than a `#` in `block`. The tag wins when both are named. |
+| `blockState` | — | Only count this block state, e.g. `minecraft:wheat[age=7]`. Narrows `block` or `blockTag`, or stands alone. |
+| `value` | `1` | How many breaks count as enough, 1 to 1,000,000. |
+
+With none of `block`, `blockTag` or `blockState`, any broken block counts.
+
+What counts is the act, not the drop: silk touch, fortune and a voided drop all count,
+because the break event fires for the break either way. A break that never happens — a
+protected block, a cancelled event — counts nothing. A predicate that does not parse matches
+nothing, and the validator refuses it at the file's line; like a kill task's SNBT filter, it
+fails closed.
 
 ## `tenet:checkmark`
 

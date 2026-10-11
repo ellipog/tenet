@@ -32,7 +32,7 @@ and the hub opens the sky — seven arms, each a family of mechanisms:
 | instruments | The item tasks: tags, matching, components, crafted-only, the consuming task and the task that declines the chapter default. |
 | measures | Experience in points and levels, both fluids, a vanilla statistic, `sequentialTasks`, the custom task, and the turned gear. |
 | the compass | Dimension, biome (id and tag), structure (id and tag), location boxes (with and without `ignoreDimension`), the curved line with anchors, and the size extremes. |
-| the hunt | Kills by id, custom name, SNBT filter and entity tag; all seven `observeType` values; the advancement task whole and by criterion. |
+| the hunt | Kills by id, custom name, SNBT filter and entity tag; breaks by id, block tag and block state; all seven `observeType` values; the advancement task whole and by criterion. |
 | the treasury | Eight of the twelve reward types — `advancement`, `all_table`, `choice`, `command`, `item`, `loot`, `random` and `xp` — every table mode (named, inline, nested, the empty band), the payout flags, and the command reward's placeholders. Two more live elsewhere: `stage` in the clockwork, `custom` in the veils. Two have no worked example yet: `currency` (needs an economy mod to pay through) and `toast` — both decode and are unit-tested, but no quest here uses one. |
 | the clockwork | The OR-gate, the exclusive pair, the capped branch point, the repeatable round, stages granted, read and removed, a translation-key title, and all six condition types. |
 | the veils | The whole hiding family, an alias with a dependency written against it, and the custom reward. |
@@ -96,6 +96,9 @@ to the file that has it. All paths are under `first_light/first_steps/` unless t
 | a kill by `customName` | `the_pale_stag.json` |
 | a kill by `nbtFilter` | `the_armoured_husk.json` |
 | a kill by `entityTypeTag` | `the_undead_cull.json` |
+| a break by block id | `the_quarry.json` |
+| a break by `blockTag` | `the_timber_rights.json` |
+| a break by `blockState` | `the_ripe_harvest.json` |
 | observation: block and block tag | `the_lantern_watch.json` |
 | observation: block state and block entity (with a long `timer` and `autoSubmitTicks`) | `the_weathervane.json` |
 | observation: block entity type and entity type, plus an optional task | `the_reading_room.json` |

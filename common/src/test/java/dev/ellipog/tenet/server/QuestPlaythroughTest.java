@@ -37,6 +37,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CropBlock;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,6 +57,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
@@ -204,6 +207,7 @@ class QuestPlaythroughTest {
         seeded.addAll(seedLinkChapter(configDir));
         seeded.addAll(seedTeamStageChapter(configDir));
         seeded.addAll(seedJunctionChapter(configDir));
+        seeded.addAll(seedBreakChapter(configDir));
         Collections.sort(seeded);
         examples = List.copyOf(seeded);
 
@@ -3242,6 +3246,70 @@ class QuestPlaythroughTest {
     }
 
     @Test
+    @Order(221)
+    @DisplayName("break events record into ordinary progress and complete the quest")
+    void breakEventsRecordAndComplete() {
+        // Solo, for the reason order 200 gives: a leftover party would count the wrong player's
+        // progress. Fresh slate: whatever earlier orders left behind is not this order's.
+        asOperator("/tenet party leave");
+        assertEquals(player.getUUID(), ownerOf(player), "solo for this test: no party counting");
+        asOperator("/tenet reset break_stone");
+
+        // The event's real entry point but not its real trigger: no loader fires events in a
+        // test JVM, so this calls it directly — the same seam tickUntil uses for the tick.
+        var stone = Blocks.STONE.defaultBlockState();
+        var dirt = Blocks.DIRT.defaultBlockState();
+
+        Set<UUID> untouched = server.callOnServerThread(
+                () -> ProgressService.onBlockBroken(server.server(), player, dirt));
+        assertTrue(untouched.isEmpty(), "a dirt break moves nothing on a stone quest");
+        assertEquals(0, recordedTask("break_stone", 0));
+
+        for (int i = 0; i < 4; i++) {
+            server.callOnServerThread(
+                    () -> ProgressService.onBlockBroken(server.server(), player, stone));
+        }
+        assertEquals(4, recordedTask("break_stone", 0), "four stone breaks are four recorded");
+        assertEquals(QuestState.COMPLETED, stateOf("break_stone"),
+                "and recorded progress completes like any other");
+
+        note("four stone breaks recorded and completed; dirt counted nothing");
+    }
+
+    @Test
+    @Order(222)
+    @DisplayName("breaks count by tag and by state, on a server with a datapack")
+    void breaksCountByTagAndState() {
+        asOperator("/tenet reset break_logs");
+        asOperator("/tenet reset break_wheat");
+
+        var log = Blocks.OAK_LOG.defaultBlockState();
+        var stone = Blocks.STONE.defaultBlockState();
+        var ripe = Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7);
+        var green = Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 0);
+
+        server.callOnServerThread(() -> ProgressService.onBlockBroken(server.server(), player, stone));
+        assertEquals(0, recordedTask("break_logs", 0), "stone is not a log");
+        for (int i = 0; i < 4; i++) {
+            server.callOnServerThread(
+                    () -> ProgressService.onBlockBroken(server.server(), player, log));
+        }
+        assertEquals(QuestState.COMPLETED, stateOf("break_logs"),
+                "four logs against minecraft:logs is a complete quest — the bound-tag positive");
+
+        server.callOnServerThread(() -> ProgressService.onBlockBroken(server.server(), player, green));
+        assertEquals(0, recordedTask("break_wheat", 0), "green wheat is not ripe");
+        for (int i = 0; i < 4; i++) {
+            server.callOnServerThread(
+                    () -> ProgressService.onBlockBroken(server.server(), player, ripe));
+        }
+        assertEquals(QuestState.COMPLETED, stateOf("break_wheat"),
+                "four ripe breaks are a harvest");
+
+        note("logs completed by tag; only ripe wheat counted");
+    }
+
+    @Test
     @DisplayName("a locale is packed once per language, however many players read it")
     void aLocaleIsPackedOncePerLanguage() {
         // The claim the per-locale cache exists for, and it is measured rather than asserted in prose
@@ -3896,6 +3964,51 @@ class QuestPlaythroughTest {
                 "junction_gallery/junction_works/junction_b.json",
                 "junction_gallery/junction_works/junction_gate.json",
                 "junction_gallery/junction_works/junction_after.json");
+    }
+
+    /**
+     * The break gallery: a break by id, by block tag and by block state.
+     *
+     * <p>Written by the test because the break event has no loader in a test JVM: the orders
+     * below call {@code ProgressService.onBlockBroken} directly, which is the event's real entry
+     * point but not its real trigger — the same seam {@code tickUntil} uses for the tick. Stone
+     * and wheat throughout, which no other order spends.
+     */
+    private static List<String> seedBreakChapter(Path configDir) throws IOException {
+        Path quests = configDir.resolve("tenet/quests/break_gallery");
+        Path chapter = quests.resolve("break_works");
+        Files.createDirectories(chapter);
+        Files.writeString(quests.resolve("group.json"), """
+                { "id": "break_gallery", "title": "Break Gallery", "chapters": ["break_works"] }
+                """);
+        Files.writeString(chapter.resolve("chapter.json"), """
+                { "$schema": "../../../_schema/chapter.schema.json",
+                  "id": "break_works", "title": "Break Works",
+                  "quests": ["break_stone.json", "break_logs.json", "break_wheat.json"] }
+                """);
+        Files.writeString(chapter.resolve("break_stone.json"), """
+                { "$schema": "../../../_schema/quest.schema.json", "id": "break_stone",
+                  "title": "Break Stone", "x": 0, "y": 0,
+                  "icon": { "item": "minecraft:stone" },
+                  "tasks": [{ "type": "tenet:break", "block": "minecraft:stone", "value": 4 }] }
+                """);
+        Files.writeString(chapter.resolve("break_logs.json"), """
+                { "$schema": "../../../_schema/quest.schema.json", "id": "break_logs",
+                  "title": "Break Logs", "x": 64, "y": 0,
+                  "icon": { "item": "minecraft:oak_log" },
+                  "tasks": [{ "type": "tenet:break", "blockTag": "minecraft:logs", "value": 4 }] }
+                """);
+        Files.writeString(chapter.resolve("break_wheat.json"), """
+                { "$schema": "../../../_schema/quest.schema.json", "id": "break_wheat",
+                  "title": "Break Wheat", "x": 128, "y": 0,
+                  "icon": { "item": "minecraft:wheat" },
+                  "tasks": [{ "type": "tenet:break",
+                    "blockState": "minecraft:wheat[age=7]", "value": 4 }] }
+                """);
+        return List.of("break_gallery/group.json", "break_gallery/break_works/chapter.json",
+                "break_gallery/break_works/break_stone.json",
+                "break_gallery/break_works/break_logs.json",
+                "break_gallery/break_works/break_wheat.json");
     }
 
     private static List<String> seedRewardInboxChapter(Path configDir) throws IOException {

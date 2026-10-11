@@ -244,6 +244,8 @@ public final class QuestPanelLayout {
                             "tenet.dev.type.task.stage.hint", "tenet.dev.type.task.stage.player"),
                     new TypeChoice("tenet:kill", "tenet.dev.type.task.kill.name",
                             "tenet.dev.type.task.kill.hint", "tenet.dev.type.task.kill.player", true),
+                    new TypeChoice("tenet:break", "tenet.dev.type.task.break.name",
+                            "tenet.dev.type.task.break.hint", "tenet.dev.type.task.break.player", true),
                     new TypeChoice("tenet:observation", "tenet.dev.type.task.observation.name",
                             "tenet.dev.type.task.observation.hint", "tenet.dev.type.task.observation.player", true))),
             new TypeGroup("tenet.dev.type.group.manual", List.of(

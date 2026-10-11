@@ -27,7 +27,7 @@ import java.util.Set;
  * <p>{@code conditions} is the gate: every condition must hold before this task counts for a player,
  * asked per member exactly where the engine asks for their count. Empty is the common case and costs
  * nothing — see {@link dev.ellipog.tenet.quest.condition.Conditions}. The short constructor keeps the
- * seventeen task types from each carrying a list they never fill; the codec still reads and writes the
+ * eighteen task types from each carrying a list they never fill; the codec still reads and writes the
  * field flat, beside {@code optional}:
  *
  * <pre>{@code

@@ -1026,6 +1026,33 @@ public final class QuestValidator {
             checkItem(document, path, problems);
         }
 
+        // A break task names its block under "block" rather than under "item", so the check
+        // above cannot see it. Same words and same tolerance as a missing item: the id is
+        // kept and the quest still loads; it simply never matches. A block tag is not
+        // checked, for the same reason item_tag tasks do not check theirs: tags resolve
+        // per datapack, so this build cannot know which ones exist.
+        if (document.has(path + ".block")) {
+            checkBlock(document, path, problems);
+        }
+
+        // A break task's state predicate, in the datapack's own spelling. Unparseable
+        // predicates are an error rather than a warning: the engine fail-closes on them,
+        // so the task would sit at zero forever with nothing on screen saying why.
+        if (document.has(path + ".blockState")) {
+            Checks.string(document, path + ".blockState", problems).ifPresent(raw -> {
+                try {
+                    net.minecraft.commands.arguments.blocks.BlockStateParser.parseForBlock(
+                            BuiltInRegistries.BLOCK.asLookup(), raw, false);
+                }
+                catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+                    problems.error(document, path + ".blockState", "\"" + raw
+                            + "\" is not a block state predicate;"
+                            + " expected something like \"minecraft:wheat[age=7]\": "
+                            + e.getMessage());
+                }
+            });
+        }
+
         // A filter names its items inside the expression string rather than under "item", so the
         // check above cannot see them. Unparseable expressions are left to the codec check below,
         // which reports the syntax; this warns about the ids a removed mod left behind, in the
@@ -1640,6 +1667,37 @@ public final class QuestValidator {
                         + " - to require nothing, remove the task instead");
             }
         });
+    }
+
+    /**
+     * A break task's block, in the same words and with the same tolerance as {@link #checkItem}.
+     *
+     * <p>A block whose mod is not installed is a warning rather than an error, for the same
+     * reason: a missing mod is often temporary, so the id is kept, the quest loads, and the
+     * task simply never matches until the mod is back.
+     */
+    private static void checkBlock(JsonDocument document, String path, Problems problems) {
+        String blockPath = path + ".block";
+        Optional<String> raw = Checks.string(document, blockPath, problems);
+        if (raw.isEmpty()) {
+            return;
+        }
+
+        ResourceLocation id = ResourceLocation.tryParse(raw.get());
+        if (id == null) {
+            problems.error(document, blockPath, "\"" + raw.get()
+                    + "\" is not a valid block id; expected something like \"minecraft:stone\"");
+            return;
+        }
+
+        if (!BuiltInRegistries.BLOCK.containsKey(id)) {
+            String hint = id.getNamespace().equals("minecraft")
+                    ? " - check the spelling; minecraft: has no such block"
+                    : " - the mod \"" + id.getNamespace()
+                      + "\" is probably not installed, or is installed on one side only";
+            problems.warn(document, blockPath, "there is no block " + id + hint
+                    + ". The id is kept and the quest still loads; it simply never matches");
+        }
     }
 
     private static void checkDependencies(JsonDocument document, String path, String what,

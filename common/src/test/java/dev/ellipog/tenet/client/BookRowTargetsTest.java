@@ -37,19 +37,25 @@ class BookRowTargetsTest {
     private static ClientQuestCache.TaskEntry task(ItemStack item, String itemId, String tagId) {
         return new ClientQuestCache.TaskEntry(ItemStack.EMPTY, item, 1, false, false, false, false,
                 "tenet:item", "", "", "", itemId, "", "", 0, tagId, List.of(), false, "", "", ItemStack.EMPTY,
-                "");
+                "", "", "");
     }
 
     private static ClientQuestCache.TaskEntry picturedTask(ItemStack picture) {
         return new ClientQuestCache.TaskEntry(ItemStack.EMPTY, ItemStack.EMPTY, 1, false, false, false,
                 false, "tenet:checkmark", "", "", "", "", "", "", 0, "", List.of(), false, "", "", picture,
-                "");
+                "", "", "");
     }
 
     private static ClientQuestCache.TaskEntry picturedTagTask(String tagId, ItemStack picture) {
         return new ClientQuestCache.TaskEntry(ItemStack.EMPTY, ItemStack.EMPTY, 1, false, false, false,
                 false, "tenet:item_tag", "", "", "", "", "", "", 0, tagId, List.of(), false, "", "", picture,
-                "");
+                "", "", "");
+    }
+
+    private static ClientQuestCache.TaskEntry breakTask(String block, String blockTag, ItemStack picture) {
+        return new ClientQuestCache.TaskEntry(ItemStack.EMPTY, ItemStack.EMPTY, 1, false, false, false,
+                false, "tenet:break", "", "", "", "", "", "", 0, "", List.of(), false, "", "", picture,
+                "", block, blockTag);
     }
 
     private static ClientQuestCache.RewardEntry reward(ItemStack item, String itemId) {
@@ -117,6 +123,37 @@ class BookRowTargetsTest {
     void textRowsHaveNoTarget() {
         assertNull(BookRowTargets.ofTask(task(ItemStack.EMPTY, "", "")));
         assertNull(BookRowTargets.ofReward(reward(ItemStack.EMPTY, "")));
+    }
+
+    @Test
+    @DisplayName("a break task's target is its block's item, not its picture")
+    void breakTaskIsABlockTarget() {
+        RecipeLookups.Target target = BookRowTargets.ofTask(
+                breakTask("minecraft:stone", "", new ItemStack(Items.DIAMOND)));
+
+        assertFalse(target.isTag());
+        assertEquals(Items.STONE, target.item().getItem(),
+                "the requirement wins over the picture, the way a tag task's tag does");
+    }
+
+    @Test
+    @DisplayName("a break by block tag has no target: a block tag is not an item tag")
+    void breakTagHasNoTarget() {
+        assertNull(BookRowTargets.ofTask(
+                breakTask("", "minecraft:logs", new ItemStack(Items.OAK_LOG))),
+                "opening one member's recipes would claim the quest is about that member");
+    }
+
+    @Test
+    @DisplayName("a break of a block with no item form has no target")
+    void breakWithoutItemFormHasNoTarget() {
+        assertNull(BookRowTargets.ofTask(breakTask("minecraft:water", "", ItemStack.EMPTY)));
+    }
+
+    @Test
+    @DisplayName("a break id that does not parse is no target rather than a throw")
+    void malformedBreakBlockHasNoTarget() {
+        assertNull(BookRowTargets.ofTask(breakTask("Not A Block", "", ItemStack.EMPTY)));
     }
 
     @Test

@@ -25,6 +25,7 @@ import dev.ellipog.tenet.quest.reward.RewardContext;
 import dev.ellipog.tenet.quest.reward.RewardFeedback;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.reward.TableReward;
+import dev.ellipog.tenet.quest.task.BreakTask;
 import dev.ellipog.tenet.quest.task.KillTask;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
@@ -478,6 +479,114 @@ public final class ProgressService {
                     && gateOpenForFlexible(TenetQuests.index(), each.getKey(), quest,
                             resolution.states())) {
                 working = complete(server, owner, killer, each.getKey(), working.put(quest, each.getValue()));
+            }
+            else {
+                working = working.put(quest, each.getValue());
+            }
+        }
+        store.put(owner, working);
+        return Set.of(owner);
+    }
+
+    /** One break-task task, with where it lives: the work list for the break event. */
+    private record BreakSite(QuestIndex.QuestEntry entry, int taskIndex, BreakTask task) {
+    }
+
+    private static QuestIndex breakSiteIndex;
+    private static List<BreakSite> breakSites = List.of();
+
+    /**
+     * The loaded tree's break tasks, rebuilt when the index is replaced.
+     *
+     * <p>Rebuilt lazily against the index's own identity: a reload produces a new index, and nothing
+     * else does. Without this list a break would walk every quest and every task in the book, which a
+     * quarry turns into real work; with it the walk is only the tasks that could care.
+     */
+    private static List<BreakSite> breakSites() {
+        QuestIndex index = TenetQuests.index();
+        if (index != breakSiteIndex) {
+            List<BreakSite> found = new ArrayList<>();
+            for (QuestIndex.QuestEntry entry : index.quests()) {
+                List<QuestTask> tasks = entry.quest().tasks();
+                for (int i = 0; i < tasks.size(); i++) {
+                    if (tasks.get(i) instanceof BreakTask broken) {
+                        found.add(new BreakSite(entry, i, broken));
+                    }
+                }
+            }
+            breakSites = List.copyOf(found);
+            breakSiteIndex = index;
+        }
+        return breakSites;
+    }
+
+    /**
+     * A block broke at a player's hand. Records break-task progress for that player.
+     *
+     * <p>The break half of the event engine, beside {@link #onEntityDeath}: everything else is
+     * polled. Progress lands in the ordinary recorded ints — so it persists, pools across a party
+     * and resets with a repeatable round like everything else — and the caller pushes the change
+     * to the team, because the tick that normally does that would find recorded progress already
+     * satisfied and report nothing.
+     *
+     * @return the owners whose progress moved, for the caller to push
+     */
+    public static Set<UUID> onBlockBroken(MinecraftServer server, ServerPlayer player,
+                                          net.minecraft.world.level.block.state.BlockState state) {
+        List<BreakSite> sites = breakSites();
+        if (sites.isEmpty() || player.isSpectator()) {
+            return Set.of();
+        }
+
+        UUID owner = progressOwner(server, player);
+        ProgressStore store = ProgressStore.of(server);
+        TeamProgress working = store.progressOf(owner);
+        long now = server.overworld().getGameTime();
+        ProgressionEngine.Resolution resolution = ProgressionEngine.resolve(TenetQuests.index(), working, now);
+
+        Map<QuestIndex.QuestEntry, QuestProgress> touched = new LinkedHashMap<>();
+        boolean changed = false;
+        for (BreakSite site : sites) {
+            Quest quest = site.entry().quest();
+            if (!resolution.stateOf(quest).isPlayable()) {
+                continue;
+            }
+            QuestProgress before = touched.getOrDefault(site.entry(), working.progressOf(quest));
+            if (ProgressionEngine.isTaskSatisfied(quest, site.taskIndex(), before)) {
+                continue;
+            }
+            // At event time, which is the only moment the break is real: a condition that was unmet
+            // when the block broke cannot be satisfied afterwards, so this is a gate on the act rather
+            // than on a later tally.
+            if (!Conditions.passes(site.task().common().conditions(),
+                    new ConditionContext(player, server, owner))) {
+                continue;
+            }
+            int delta = BreakTask.BEHAVIOUR.onBlockBroken(site.task(), player, state);
+            if (delta <= 0) {
+                continue;
+            }
+            QuestProgress after = before.addTask(site.taskIndex(), delta);
+            touched.put(site.entry(), after);
+            changed = true;
+
+            if (ProgressionEngine.isTaskSatisfied(quest, site.taskIndex(), after)) {
+                TenetEvents.TASK_COMPLETED.invoker().onTaskCompleted(player, quest, site.taskIndex());
+            }
+            if (!before.anyTaskProgress() && after.anyTaskProgress()) {
+                TenetEvents.QUEST_STARTED.invoker().onQuestStarted(player, quest);
+            }
+        }
+        if (!changed) {
+            return Set.of();
+        }
+
+        for (Map.Entry<QuestIndex.QuestEntry, QuestProgress> each : touched.entrySet()) {
+            Quest quest = each.getKey().quest();
+            if (ProgressionEngine.tasksSatisfied(quest, each.getValue()) && canComplete(quest, working)
+                    && gateOpenForFlexible(TenetQuests.index(), each.getKey(), quest,
+                            resolution.states())) {
+                working = complete(server, owner, player, each.getKey(), working.put(quest, each.getValue()));
             }
             else {
                 working = working.put(quest, each.getValue());
