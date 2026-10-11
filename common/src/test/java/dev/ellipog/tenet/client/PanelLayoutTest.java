@@ -285,6 +285,94 @@ class PanelLayoutTest {
         }
     }
 
+    @Test
+    @DisplayName("the reveal holds its ends and its bounds for every curve, not just the client's")
+    void theRevealHoldsForEveryCurve() {
+        for (dev.ellipog.armature.client.ui.kit.Easing easing
+                : dev.ellipog.armature.client.ui.kit.Easing.values()) {
+            // With room for the curves' own arithmetic: SINE_IN_OUT answers -0.0 at the start, which
+            // is zero in every way that matters and in none of the ways `assertEquals` checks.
+            assertEquals(0F, PanelLayout.revealed(0, 180, easing), 1.0E-6F,
+                    "nothing on the first frame: " + easing);
+            assertEquals(1F, PanelLayout.revealed(180, 180, easing), 1.0E-6F,
+                    "everything at the end: " + easing);
+            assertEquals(1F, PanelLayout.revealed(10_000, 180, easing), "and it stays there: " + easing);
+            assertEquals(1F, PanelLayout.revealed(0, 0, easing), "no motion is simply there: " + easing);
+            float previous = -1F;
+            for (long elapsed = 0; elapsed <= 180; elapsed++) {
+                float now = PanelLayout.revealed(elapsed, 180, easing);
+                // BACK_OUT overshoots past one mid-flight and comes back: outside the ends it must
+                // still arrive exactly, but between them "bounded" is the wrong assertion for it.
+                if (easing != dev.ellipog.armature.client.ui.kit.Easing.BACK_OUT) {
+                    assertTrue(now >= 0F && now <= 1F, "a reveal outside zero to one: " + easing);
+                    assertTrue(now >= previous, "a column that went backwards would flicker: " + easing);
+                }
+                previous = now;
+            }
+        }
+        // A missing curve is the default rather than a crash: the callers that never name one.
+        assertEquals(PanelLayout.revealed(90, 180, dev.ellipog.armature.client.ui.kit.Easing.QUAD_OUT),
+                PanelLayout.revealed(90, 180, null), "null names the default curve");
+    }
+
+    @Test
+    @DisplayName("the slide offset is the rail's width at first, zero at settle, and only ever shrinks")
+    void theSlideOffsetTravelsWithTheReveal() {
+        for (Rect rail : rails()) {
+            assertEquals(rail.width(), PanelLayout.slideOffset(rail, 0, 180),
+                    "on the first frame the sheet stands a whole rail off: " + rail);
+            assertEquals(0, PanelLayout.slideOffset(rail, 180, 180),
+                    "settled means no offset to apply: " + rail);
+            assertEquals(0, PanelLayout.slideOffset(rail, 10_000, 180), "and it stays settled: " + rail);
+            assertEquals(0, PanelLayout.slideOffset(rail, 0, 0), "no motion is no slide: " + rail);
+
+            int previous = Integer.MAX_VALUE;
+            for (long elapsed = 0; elapsed <= 180; elapsed += 6) {
+                int offset = PanelLayout.slideOffset(rail, elapsed, 180);
+                assertTrue(offset >= 0 && offset <= rail.width(),
+                        "the sheet is never past either end: " + rail);
+                assertTrue(offset <= previous, "and it only moves left: " + rail);
+                assertEquals(rail.x() + offset,
+                        PanelLayout.revealRect(rail, elapsed, 180).x(),
+                        "the clip's edge and the sheet agree about where the arrival stands: " + rail);
+                previous = offset;
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("the depart is the enter in reverse: whole rail at close, nothing at settle, only sinking")
+    void theDepartIsTheReverseOfTheEnter() {
+        for (Rect rail : rails()) {
+            assertEquals(0, PanelLayout.departOffset(rail, 0, 150),
+                    "on the frame it closes the sheet has nowhere to go yet: " + rail);
+            assertEquals(rail.width(), PanelLayout.departOffset(rail, 150, 150),
+                    "gone means a whole rail travelled: " + rail);
+            assertEquals(rail.width(), PanelLayout.departOffset(rail, 10_000, 150),
+                    "and it stays gone: " + rail);
+            assertEquals(0, PanelLayout.departOffset(rail, 0, 0), "no motion is no exit: " + rail);
+
+            assertEquals(rail, PanelLayout.departRect(rail, 0, 150),
+                    "the clip is the whole rail on the first frame: " + rail);
+            assertEquals(0, PanelLayout.departRect(rail, 150, 150).width(),
+                    "and nothing once the duration is spent: " + rail);
+            assertEquals(rail.right(), PanelLayout.departRect(rail, 75, 150).right(),
+                    "always anchored to the outer edge: " + rail);
+
+            int previous = -1;
+            for (long elapsed = 0; elapsed <= 150; elapsed += 5) {
+                int offset = PanelLayout.departOffset(rail, elapsed, 150);
+                assertTrue(offset >= 0 && offset <= rail.width(),
+                        "the sheet is never past either end: " + rail);
+                assertTrue(offset >= previous, "and it only sinks right: " + rail);
+                assertEquals(rail.width() - offset,
+                        PanelLayout.departRect(rail, elapsed, 150).width(),
+                        "the clip and the sheet agree about what is left: " + rail);
+                previous = offset;
+            }
+        }
+    }
+
     // ------------------------------------------------------------------
     // The grip
     // ------------------------------------------------------------------

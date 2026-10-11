@@ -1,6 +1,7 @@
 package dev.ellipog.tenet.client;
 
 import dev.ellipog.armature.client.ui.kit.Easing;
+import dev.ellipog.armature.client.ui.kit.Motion;
 import dev.ellipog.tenet.client.BookGeometry.Rect;
 import dev.ellipog.tenet.client.PanelStack.Fold;
 
@@ -265,9 +266,11 @@ public final class PanelLayout {
     /**
      * How much of a column is on screen, {@code elapsed} milliseconds into its arrival.
      *
-     * <p>Eased with the curve the canvas glide already uses, and <b>exact at both ends</b>: a column that
-     * arrived at 99 percent would leave a one-pixel strip of canvas showing down its inner edge for the
-     * rest of the session, and one that started above zero would appear to jump.
+     * <p>Eased with the client's own curve — the theme's, through {@link Motion#defaultEasing()} — so a
+     * theme that moves linearly reveals linearly and the default eases out like every other arrival.
+     * <b>Exact at both ends</b>: a column that arrived at 99 percent would leave a one-pixel strip of
+     * canvas showing down its inner edge for the rest of the session, and one that started above zero
+     * would appear to jump.
      *
      * <p>A duration of zero or less is <b>one</b>, not zero: this is what a theme with no motion asks for,
      * and for the accessibility switch being off — so the column is simply there, on the frame it opens,
@@ -275,11 +278,22 @@ public final class PanelLayout {
      * over a theme, one level down.
      */
     public static float revealed(long elapsedMillis, int durationMillis) {
+        return revealed(elapsedMillis, durationMillis, Motion.defaultEasing());
+    }
+
+    /**
+     * The same, with the curve as the caller's.
+     *
+     * <p>The form the tests pin the ends and the monotonicity on: the client's curve is ambient state and
+     * ambient state is what makes a test order-dependent, so the properties that must hold for <i>any</i>
+     * curve are asserted here, against explicit ones, rather than against whatever the client last set.
+     */
+    public static float revealed(long elapsedMillis, int durationMillis, Easing easing) {
         if (durationMillis <= 0) {
             return 1F;
         }
         float t = Math.max(0F, Math.min(1F, (float) elapsedMillis / durationMillis));
-        return Easing.QUAD_OUT.ease(t);
+        return (easing == null ? Easing.QUAD_OUT : easing).ease(t);
     }
 
     /**
@@ -292,6 +306,47 @@ public final class PanelLayout {
      */
     public static Rect revealRect(Rect rail, long elapsedMillis, int durationMillis) {
         int width = Math.round(rail.width() * revealed(elapsedMillis, durationMillis));
+        return Rect.at(rail.right() - width, rail.y(), width, rail.height());
+    }
+
+    /**
+     * How far the column's contents have still to travel, {@code elapsed} milliseconds in: the distance
+     * between where the column lives and where its revealed edge currently stands.
+     *
+     * <p>The one number the slide shares. The surface drawing shifts right by it (into the clip above,
+     * which stays put) and every widget the column owns shifts right by it from its built position, so
+     * the sheet and its controls arrive as one thing moving left. The rail's own width on the first
+     * frame, zero once settled — and zero with no motion, where there is no slide at all.
+     */
+    public static int slideOffset(Rect rail, long elapsedMillis, int durationMillis) {
+        return revealRect(rail, elapsedMillis, durationMillis).x() - rail.x();
+    }
+
+    /**
+     * The mirror: how far a departing column has travelled back out, {@code elapsed} milliseconds in.
+     *
+     * <p>Zero on the frame it closes, the rail's whole width once gone — the enter slide played
+     * backwards, over its own (shorter) duration. The drawing clips to what is left and shifts the
+     * surface right by this, so the sheet sinks into the edge it arrived from. Zero with no motion,
+     * where a close is simply gone on the frame it is pressed.
+     */
+    public static int departOffset(Rect rail, long elapsedMillis, int durationMillis) {
+        if (durationMillis <= 0) {
+            // No motion is no travel rather than instant travel: the clip is already nothing (see
+            // `departRect`), so there is no sheet to shift, and a width here would only move one.
+            return 0;
+        }
+        return rail.width() - departRect(rail, elapsedMillis, durationMillis).width();
+    }
+
+    /**
+     * The part of a departing column that is still on screen, as a clip.
+     *
+     * <p>The enter clip in reverse: anchored to the column's outer edge and shrinking into it, exact
+     * at both ends — the whole rail on the first frame, nothing once the duration is spent.
+     */
+    public static Rect departRect(Rect rail, long elapsedMillis, int durationMillis) {
+        int width = Math.round(rail.width() * (1F - revealed(elapsedMillis, durationMillis)));
         return Rect.at(rail.right() - width, rail.y(), width, rail.height());
     }
 

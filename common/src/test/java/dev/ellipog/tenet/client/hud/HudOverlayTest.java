@@ -6,6 +6,7 @@ import dev.ellipog.armature.client.ui.kit.Measure;
 import dev.ellipog.tenet.client.BookGeometry;
 import dev.ellipog.tenet.client.ClientQuestCache;
 import dev.ellipog.tenet.client.ToastArt;
+import dev.ellipog.tenet.client.ToastStack;
 import dev.ellipog.tenet.client.render.RecordingRenderer;
 import dev.ellipog.tenet.net.QuestSync;
 import dev.ellipog.tenet.quest.Fixtures;
@@ -195,13 +196,17 @@ class HudOverlayTest {
         HudOverlay.notice("Task done: Oak Log", false, NOW);
         HudSettings.setDim(HudElement.NOTIFICATIONS, 0.5);
 
+        // Drawn settled rather than on the frame it was said: the arrival's own fade is `ToastStack`'s
+        // arithmetic to assert, and here it would only multiply the wash this test is actually about.
+        long settled = NOW + ToastStack.FADE_IN_MILLIS + 1;
         RecordingRenderer r = RecordingRenderer.create();
-        HudOverlay.render(r, 320, 240, NOW);
+        HudOverlay.render(r, 320, 240, settled);
 
-        // The fade is full at age zero whatever motion says, so the expected wash is the theme's raised
-        // surface at half strength -- computed the way the painter computes it. It sits one pixel inside
-        // the box, because `ToastArt` draws a panel and a panel is a border footprint with its fill inset;
-        // the corner fill is the edge ink, so matching the corner would be asserting the wrong color.
+        // The fade is full once it has landed whatever motion says, so the expected wash is the theme's
+        // raised surface at half strength -- computed the way the painter computes it. It sits one pixel
+        // inside the box, because `ToastArt` draws a panel and a panel is a border footprint with its
+        // fill inset; the corner fill is the edge ink, so matching the corner would be asserting the
+        // wrong color.
         int wash = Colour.alphaOf(ArmatureTheme.raised(), 0.5F);
         BookGeometry.Rect box = boxOf(HudElement.NOTIFICATIONS, 320, 240);
         int centreX = box.x() + box.width() / 2;
@@ -255,8 +260,11 @@ class HudOverlayTest {
         assertFalse(size.empty(), "a sentence is a box");
         assertEquals(ToastArt.height(1), size.height());
 
+        // Settled: on its first frame the notice is still climbing its arrival rise (see `ToastArt`),
+        // so the resting position is what a later frame draws.
+        long settled = NOW + ToastStack.FADE_IN_MILLIS + 1;
         RecordingRenderer r = RecordingRenderer.create();
-        HudOverlay.render(r, 320, 240, NOW);
+        HudOverlay.render(r, 320, 240, settled);
         assertTrue(r.drewText("Task done: Oak Log"), "the sentence is the notice");
 
         BookGeometry.Rect box = boxOf(HudElement.NOTIFICATIONS, 320, 240);

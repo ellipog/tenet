@@ -24,14 +24,16 @@ class ToastStackTest {
     private static final long LIFETIME = ToastStack.LIFETIME_MILLIS;
 
     @Test
-    @DisplayName("a sentence is full strength, then fades, then is gone")
+    @DisplayName("a sentence arrives quickly, is full strength, then fades, then is gone")
     void oneLifetime() {
         ToastStack stack = new ToastStack();
         stack.add("Moved to position 2", false, 0L);
 
         List<ToastStack.Toast> fresh = stack.visible(0L);
-        assertEquals(1, fresh.size());
-        assertEquals(1F, fresh.get(0).alpha(0L), "a message arrives at full strength");
+        assertEquals(1, fresh.size(), "a sentence being said is visible even on its first frame");
+        assertEquals(0F, fresh.get(0).alpha(0L), "arriving faint rather than blinking in");
+        assertEquals(1F, fresh.get(0).alpha(ToastStack.FADE_IN_MILLIS),
+                "and landed a blink later");
         assertEquals(1F, fresh.get(0).alpha((long) (LIFETIME * ToastStack.FADE_FROM)),
                 "and stays there while it is being read");
 
@@ -40,6 +42,21 @@ class ToastStackTest {
         assertEquals(0F, fresh.get(0).alpha(LIFETIME), "and is gone at the end of its life");
         assertTrue(stack.visible(LIFETIME).isEmpty());
         assertTrue(stack.visible(999_999L).isEmpty(), "and stays gone");
+    }
+
+    @Test
+    @DisplayName("the arrival climbs and lands: nothing on the first frame, settled after the fade-in")
+    void arrival() {
+        ToastStack stack = new ToastStack();
+        stack.add("Moved to position 2", false, 0L);
+        ToastStack.Toast toast = stack.visible(0L).get(0);
+
+        assertEquals(0F, toast.arrival(0L, true), "nowhere on the frame it is said");
+        float midway = toast.arrival(ToastStack.FADE_IN_MILLIS / 2, true);
+        assertTrue(midway > 0F && midway < 1F, "climbing through the fade-in: " + midway);
+        assertEquals(1F, toast.arrival(ToastStack.FADE_IN_MILLIS, true), "and landed after it");
+        assertEquals(1F, toast.arrival(0L, false),
+                "while with motion off there is no arrival to wait for");
     }
 
     @Test

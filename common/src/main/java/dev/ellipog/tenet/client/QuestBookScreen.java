@@ -107,6 +107,10 @@ import com.google.gson.JsonPrimitive;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -445,11 +449,11 @@ public final class QuestBookScreen extends ArmatureScreen
      * The longest the panel's arrival may take, whatever the theme's motion asks for.
      *
      * <p>A cap rather than a duration: the theme's own motion decides, and this only stops a long one
-     * from being felt as a wait. It matters because the panel's controls are built on the frame it
-     * settles — eighty milliseconds is the most a press inside a fresh panel can be absorbed for, and
-     * with motion off the window is not there at all.
+     * from being felt as a wait. It matters because a press landing mid-slide is answered by a control
+     * that is still travelling to its spot — so the window in which every panel widget is inert is
+     * exactly this long, and with motion off the window is not there at all.
      */
-    private static final int PANEL_REVEAL_MAX = 80;
+    private static final int PANEL_REVEAL_MAX = 180;
 
     /**
      * How much air the auto-pan leaves between a quest it has just brought into view and the column.
@@ -759,7 +763,7 @@ public final class QuestBookScreen extends ArmatureScreen
      *
      * <p>Captured where the rail is opened — <b>at the action</b> — rather than on the next tick.
      * {@code tick} runs at twenty hertz, so a start timestamp read there would eat up to forty-nine
-     * milliseconds of an eighty-millisecond reveal, which is most of it. {@code startGlide} and the
+     * milliseconds of the reveal, which is a quarter of it. {@code startGlide} and the
      * locate flash already do it this way for the same reason.
      *
      * <p>{@link #applyColumns} drops the entries of anything that left the arrangement, so a kind closed
@@ -770,23 +774,264 @@ public final class QuestBookScreen extends ArmatureScreen
             new java.util.EnumMap<>(PanelKind.class);
 
     /**
-     * Whether a rebuild is owed because a rail's arrival skipped building its controls.
+     * Whether a rebuild is owed because a rail arrived while its controls were travelling.
      *
-     * <p>{@link #buildColumn} returns early for a rail that is still coming in — controls placed against a
-     * surface that is not there yet would be hit-tested against a rail that has not arrived. Setting this
-     * is how the frame the wipe finishes finds out that there is a rebuild to do, and {@code tick} is where
-     * it is done: a widget list changed inside a render is the one thing this screen never does.
+     * <p>Set by the per-frame slide while any rail is still moving: the settle frame leaves every
+     * widget at its built position but inert, and the rebuild in {@code tick} is what hands back
+     * their live state. A widget list changed inside a render is the one thing this screen never
+     * does, so the flag is the whole of the handover between the two.
      */
     private boolean panelBuildPending;
 
     /**
-     * The panel's controls are built only once its arrival is over, and these three carry that state.
+     * Which rail is being built, while it is being built — or null anywhere else.
      *
-     * <p>They are placed from the rail, so building them during the wipe would draw and hit-test controls
-     * against a surface that is not there yet — and the two ways out of that are both worse: hiding them
-     * costs clicks (vanilla's own gate is {@code active && visible}), and hand-drawing them is a second
-     * control mechanism. So the panel arrives as surface and content, and its controls are built on the
-     * frame it settles, in the rebuild that already exists for every other placement change.
+     * <p>The bucket the widget overrides below file into: a control built by {@link #buildColumn} (or
+     * the fold control's, or the choice card's) belongs to the rail it was placed against, and the
+     * per-frame slide moves exactly those widgets. The header, the sidebar and the view cluster build
+     * with this null, so their controls never travel — they are not on a rail that arrives.
+     */
+    private PanelKind slideBucket;
+
+    /**
+     * Every sliding widget by rail, and the X it was placed at.
+     *
+     * <p>Cleared with everything else in {@code init} and filled as the columns build; the bases are
+     * read on the first slide frame rather than at filing (see {@link #slidePanelWidgets}). The slide
+     * never writes a placed position — it writes {@code base + offset} every frame — so a rebuild for
+     * any other reason (a replica arriving mid-slide, a press) cannot strand a widget off its rail: the
+     * next frame re-derives the same answer from the same base.
+     */
+    private final java.util.Map<PanelKind, java.util.List<AbstractWidget>> slideWidgets =
+            new java.util.EnumMap<>(PanelKind.class);
+    private final java.util.Map<AbstractWidget, Integer> slideBaseX =
+            new java.util.IdentityHashMap<>();
+
+    /**
+     * Files a widget under the rail being built, when one is.
+     *
+     * <p>Called by both widget overrides: every panel widget is an {@code AbstractWidget} with a
+     * position to travel from, and anything else (there is nothing else today) is simply not slid.
+     * Only the filing happens here — the base X is read on the first slide frame (see
+     * {@link #slidePanelWidgets}), because a field built for a scrolling list is constructed at
+     * 0,0 and placed by its view afterwards. Filing the construction position would pin every one
+     * of those fields at the window's edge for as long as the panel is open.
+     */
+    private void noteSlideWidget(GuiEventListener added) {
+        if (slideBucket == null || !(added instanceof AbstractWidget widget)) {
+            return;
+        }
+        slideWidgets.computeIfAbsent(slideBucket, kind -> new java.util.ArrayList<>()).add(widget);
+    }
+
+    @Override
+    protected <T extends GuiEventListener & Renderable & NarratableEntry> T addRenderableWidget(
+            T widget) {
+        T added = super.addRenderableWidget(widget);
+        noteSlideWidget(added);
+        return added;
+    }
+
+    @Override
+    protected <T extends GuiEventListener & NarratableEntry> T addWidget(T widget) {
+        T added = super.addWidget(widget);
+        noteSlideWidget(added);
+        return added;
+    }
+
+    /**
+     * When each departed rail started leaving, in {@code Util.getMillis()} terms.
+     *
+     * <p>The exit's answer to {@link #panelRevealStarts}: a rail that left the arrangement keeps
+     * drawing — sinking into the edge it arrived from — until its duration is spent. Recorded in
+     * {@link #applyColumns}, the one writer of the arrangement, beside the arrival stamps; forgotten
+     * in {@code tick} once settled, in {@code init} on any rebuild, and in {@code removed} with the
+     * screen, so a stored rectangle can never outlive the window it was measured in.
+     */
+    private final java.util.Map<PanelKind, Long> panelDepartStarts =
+            new java.util.EnumMap<>(PanelKind.class);
+
+    /**
+     * The rectangle each departed rail is still drawn in.
+     *
+     * <p>Snapshotted at close time — and it is the <i>shown</i> rectangle, not the full rail, so a rail
+     * closed mid-enter leaves from where it stood rather than jumping to whole and sinking. With it,
+     * the exit needs nothing else from the arrangement it just left.
+     */
+    private final java.util.Map<PanelKind, BookGeometry.Rect> departRails =
+            new java.util.EnumMap<>(PanelKind.class);
+
+    /**
+     * The content cleanup each departed rail is still owed, by rail.
+     *
+     * <p>Closing nulls the state a panel was drawn from — its quest, its rows, its armed deletes — and
+     * the exiting surface still reads that state for the length of its slide. So a close schedules its
+     * nullings here instead of running them, stamped with the arrangement they closed under. They run
+     * when the rail has sunk <i>and nothing has moved since</i> — in {@code tick} on settle — or eagerly
+     * in {@link #applyColumns} when the same kind reopens first (teardown before setup, the order a
+     * close-then-open has always had). A settle that finds a newer arrangement leaves them parked: the
+     * reopen they belong to has not happened yet, and running them under it would null state a new
+     * panel just set. {@code init} runs none of them — a rebuild is not a settle — but it keeps its
+     * hands off the draw content of departing rails (see the party guard there), and {@code removed}
+     * runs them all, because a stored cleanup must never be dropped on the floor.
+     */
+    private final java.util.Map<PanelKind, java.util.List<StampedTeardown>> pendingTeardowns =
+            new java.util.EnumMap<>(PanelKind.class);
+
+    /** A cleanup with the arrangement it closed under, so a settle can tell stale from owed. */
+    private record StampedTeardown(long epoch, Runnable teardown) {
+    }
+
+    /**
+     * How many arrangements this screen has written: bumped by {@link #applyColumns} on every call.
+     *
+     * <p>What a scheduled cleanup is stamped with, and what the tick compares before running one. Equal
+     * means the close is still the latest thing that happened — nothing reopened, so nothing fresh
+     * stands where the nullings land. Different means something moved since, and the cleanup waits for
+     * its own kind's reopen (or the screen's end) rather than nulling under a new panel.
+     */
+    private long arrangementEpoch;
+
+    /**
+     * Runs a rail's owed cleanups, if any — whatever arrangement they were stamped under — then
+     * forgets them.
+     *
+     * <p>For reopening (teardown before setup, unconditionally: the cleanup predates this open) and
+     * for {@code removed}. The tick's settle is the selective one; see its own note.
+     */
+    private void runTeardowns(PanelKind kind) {
+        java.util.List<StampedTeardown> owed = pendingTeardowns.remove(kind);
+        if (owed != null) {
+            for (StampedTeardown stamped : owed) {
+                stamped.teardown().run();
+            }
+        }
+    }
+
+    /** Runs every owed cleanup. For {@code removed}: exits end when their world does. */
+    private void runAllTeardowns() {
+        for (PanelKind kind : java.util.List.copyOf(pendingTeardowns.keySet())) {
+            runTeardowns(kind);
+        }
+    }
+
+    /**
+     * The rails the latest {@link #applyColumns} retired, in presented order.
+     *
+     * <p>What a close schedules its deferred nullings under: the call just moved these rails out, so
+     * they are the exits that still need their content. Read immediately — the next arrangement change
+     * overwrites it — which is why every close below snapshots nothing and simply calls
+     * {@link #deferForLastDeparted} before doing anything else that moves rails.
+     */
+    private java.util.List<PanelKind> lastDeparted = java.util.List.of();
+
+    /**
+     * Schedules a cleanup under every rail the latest arrangement change retired, once.
+     *
+     * <p>Under <i>every</i> one rather than the first, because nested closes share the outer call's
+     * departed set: {@code closeOverlay} closes the quest and the picker together, and the picker's own
+     * nullings belong to the same exit. The once-guard makes the sharing exact — reopening any of them
+     * runs the cleanup early (teardown before setup, as ever), the tick's settle runs what is left, and
+     * neither ever runs twice.
+     *
+     * <p>With no retirees it falls back to every rail still sinking, for the closes that move rails in
+     * several steps: a later step that moved nothing must not run at once what an earlier step retired.
+     * Only with no exit anywhere does the cleanup run now — a close that moved nothing has no surface to
+     * draw from, so deferring would only leak it to the next settle.
+     */
+    private void deferForLastDeparted(Runnable teardown) {
+        deferForLastDeparted(teardown, new PanelKind[0]);
+    }
+
+    /** One scheduling of a cleanup under a set of rails, guarded to run once across all of them. */
+    private void deferUnder(java.util.List<PanelKind> kinds, Runnable teardown) {
+        java.util.concurrent.atomic.AtomicBoolean done = new java.util.concurrent.atomic.AtomicBoolean();
+        Runnable once = () -> {
+            if (done.compareAndSet(false, true)) {
+                teardown.run();
+            }
+        };
+        StampedTeardown stamped = new StampedTeardown(arrangementEpoch, once);
+        for (PanelKind kind : kinds) {
+            pendingTeardowns.computeIfAbsent(kind, key -> new java.util.ArrayList<>()).add(stamped);
+        }
+    }
+
+    /**
+     * The same, with extra rails that share the state being cleaned.
+     *
+     * <p>For the table panels: the browser and the editor read one set of fields, so a cleanup owed by
+     * either must run early when <i>either</i> reopens — teardown before setup cannot wait for the same
+     * page. The retirees still carry it for the settle path, and the guard still runs it once.
+     *
+     * <p>With motion off there is no exit to draw from, so the cleanup runs at once: today's exact
+     * behavior, with no tenth-of-a-second of retained state behind it.
+     */
+    private void deferForLastDeparted(Runnable teardown, PanelKind... family) {
+        if (panelExitMillis() <= 0) {
+            teardown.run();
+            return;
+        }
+        java.util.LinkedHashSet<PanelKind> keys = new java.util.LinkedHashSet<>(lastDeparted);
+        for (PanelKind kind : family) {
+            if (kind != null && kind != PanelKind.NONE) {
+                keys.add(kind);
+            }
+        }
+        if (keys.isEmpty()) {
+            teardown.run();
+            return;
+        }
+        deferUnder(java.util.List.copyOf(keys), teardown);
+    }
+
+    /**
+     * How long a departure takes: a touch quicker than the arrival, the standard exit-is-faster rule.
+     *
+     * <p>Short enough that a close-then-open reads as one gesture rather than two queues, long enough
+     * to say where the panel went. Zero with no motion, like the enter path: a close is simply gone.
+     */
+    private static final int PANEL_EXIT_MILLIS = 150;
+
+    private int panelExitMillis() {
+        long asked = Math.min(PANEL_EXIT_MILLIS, Motion.defaultDuration());
+        return (int) Motion.scaledDuration(asked);
+    }
+
+    /**
+     * Milliseconds since one rail started leaving, or a huge number once it is gone.
+     *
+     * <p>The exit's {@link #panelRevealElapsed}: a kind with no entry is not departing, so there is no
+     * "settled means draw it whole" tail — the drawing only ever runs for entries in
+     * {@link #panelDepartStarts}.
+     */
+    private long panelDepartElapsed(PanelKind kind, long now) {
+        Long start = panelDepartStarts.get(kind);
+        return start == null ? Long.MAX_VALUE : now - start;
+    }
+
+    /** Whether one rail is still sinking out, which is when its surface is still drawn. */
+    private boolean panelDeparting(PanelKind kind, long now) {
+        return panelDepartStarts.containsKey(kind)
+                && PanelLayout.revealed(panelDepartElapsed(kind, now), panelExitMillis()) < 1F;
+    }
+
+    /**
+     * The rail a departed draw answers with, while it answers.
+     *
+     * <p>Set around each departed kind's {@link #drawSurface} and cleared after: {@link #panelRail} reads
+     * the live arrangement, which no longer holds the kind, so without this the exiting surface would
+     * draw itself into whichever rail the arrangement now gives that answer. Scoped per draw rather than
+     * per frame, so a throw cannot leak one kind's rectangle into another's.
+     */
+    private PanelKind departDrawKind;
+    private BookGeometry.Rect departDrawRail;
+
+    /**
+     * A resize in flight: the rail as grabbed, the width it had, and where the pointer was.
+     *
+     * <p>Read while the hand is down so the rail's chrome, its content and its travelling widgets all
+     * follow the pointer; written back once, on release, through the same path as any other width.
      */
     private BookGeometry.Rect panelDragRail;
     private int panelDragStartWidth;
@@ -1729,6 +1974,88 @@ public final class QuestBookScreen extends ArmatureScreen
     private String popoverChapter;
 
     /**
+     * When the picker opened, in {@code Util.getMillis()} terms; -1 when it is shut.
+     *
+     * <p>Stamped by both openers beside the filing below. The settle is measured from it, so a picker
+     * reopened onto another chip starts its arrival over rather than continuing the old one.
+     */
+    private long popoverOpenedAt = -1L;
+
+    /**
+     * The picker's four fields as placed, by widget.
+     *
+     * <p>Filed on open, when {@code place} has just run: the per-frame settle writes
+     * {@code base + offset} and never the built position itself, so a rebuild mid-settle — same
+     * widgets, re-registered — cannot strand a field off its surface. Cleared on close with the
+     * widgets it names.
+     */
+    private final java.util.Map<AbstractWidget, Integer> popoverBaseX =
+            new java.util.IdentityHashMap<>();
+
+    /** How far beside its anchor the picker opens before settling into place. Small and quick. */
+    private static final int POPOVER_SETTLE_PX = 12;
+
+    /** How long the settle takes: a nudge, in the same band as the menu's. */
+    private static final int POPOVER_SETTLE_MILLIS = 110;
+
+    /**
+     * How far right of its rest the picker still stands.
+     *
+     * <p>The panel sits left of its chip, so it arrives by moving left: the full nudge on the frame it
+     * opens, nothing once settled, and nothing with motion off. One number for the surface drawing, the
+     * four fields and the pointer, so the three cannot disagree mid-settle.
+     */
+    private int popoverOffset(long now) {
+        if (!colourPopover.isOpen() || popoverOpenedAt < 0) {
+            return 0;
+        }
+        float arrived = PanelLayout.revealed(now - popoverOpenedAt, POPOVER_SETTLE_MILLIS);
+        return Math.round(POPOVER_SETTLE_PX * (1F - arrived));
+    }
+
+    /**
+     * Moves the picker's fields with its surface, for this frame.
+     *
+     * <p>Beside {@link #slidePanelWidgets} in {@code render} and on its terms: absolute writes from
+     * filed bases, inert nothing (a 12-pixel settle is not worth disarming presses for), and the
+     * pointer shifted by the same offset at the surface's hit sites, so a press meets the surface
+     * where it is drawn.
+     */
+    private void slidePopoverWidgets(long now) {
+        if (!colourPopover.isOpen()) {
+            return;
+        }
+        int offset = popoverOffset(now);
+        for (net.minecraft.client.gui.components.AbstractWidget widget : colourPopover.widgets()) {
+            Integer base = popoverBaseX.get(widget);
+            if (base != null) {
+                widget.setX(base + offset);
+            }
+        }
+    }
+
+    /** Files the picker's fields at their placed positions and stamps the settle. Both openers call. */
+    private void filePopoverArrival() {
+        popoverBaseX.clear();
+        for (net.minecraft.client.gui.components.AbstractWidget widget : colourPopover.widgets()) {
+            popoverBaseX.put(widget, widget.getX());
+        }
+        popoverOpenedAt = net.minecraft.Util.getMillis();
+    }
+
+    /**
+     * The pointer as the picker's surface sees it: shifted left by the settle, so a press meets the
+     * tracks and swatches where they are drawn rather than where they rest.
+     *
+     * <p>The fields need none of this: their widgets travelled, so the vanilla pass already aims at
+     * them. Only the hand-tested surface — the panel hit, the press, the drag and the release —
+     * reads through here.
+     */
+    private double pickerPointerX(double mouseX) {
+        return colourPopover.isOpen() ? mouseX - popoverOffset(net.minecraft.Util.getMillis()) : mouseX;
+    }
+
+    /**
      * The colour chip the picker is anchored to: its row, the list that row is drawn in, and how that list
      * composed it.
      *
@@ -2563,6 +2890,14 @@ public final class QuestBookScreen extends ArmatureScreen
     private List<MenuItem> menu = List.of();
     private int menuX;
     private int menuY;
+
+    /**
+     * When the menu opened, in {@code Util.getMillis()} terms; -1 when it is shut.
+     *
+     * <p>Stamped by {@link #openMenu} — the one writer — and read by {@link #menuRise}. Cleared with the
+     * items in {@link #closeMenu}, so a shut menu never owes an arrival.
+     */
+    private long menuOpenedAt = -1L;
 
     /** The chapter a "Move to" submenu would move, or null when the menu has no such row. */
     private String menuChapter;
@@ -3722,6 +4057,19 @@ public final class QuestBookScreen extends ArmatureScreen
         if (!carriesFold(overlay2)) {
             return;
         }
+        // Filed under the child rail it pages: the fold control sits in that rail's header and travels
+        // with it while the rail arrives, like everything else the rail owns.
+        PanelKind outer = slideBucket;
+        slideBucket = overlay2;
+        try {
+            buildFoldControlIn();
+        }
+        finally {
+            slideBucket = outer;
+        }
+    }
+
+    private void buildFoldControlIn() {
         boolean folded = panelFolded();
         BookGeometry.Rect cell = PanelLayout.frame(panelRail(overlay2), true).fold();
         if (cell == null) {
@@ -3810,14 +4158,10 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void pressAuthorPill() {
         boolean open = !dockOpen;
+        // The arrival stamp is `applyColumns`' — every rail's enter and exit is — so opening and
+        // closing alike animate with no stamp at the call site. See `startPanelReveal`.
         applyColumns(PanelStack.withDock(columns(), open));
-        if (open) {
-            // The dock arrives the way a panel does: the same wipe every rail gets, started at the press
-            // that asked for it rather than on the next tick. See `startPanelReveal`, whose per-kind starts
-            // are what stop this wipe from reaching the panel open beside it.
-            startPanelReveal(PanelKind.TOOLS);
-        }
-        else {
+        if (!open) {
             // Its transient state goes with it, the same set `closeOverlay` clears for a panel: a colour
             // picker left anchored to a row that is no longer drawn would float over the canvas, and a
             // picker armed for a chapter would greet the next opening aimed at a file nobody chose.
@@ -3847,6 +4191,10 @@ public final class QuestBookScreen extends ArmatureScreen
     private void setFoldChoice(PanelStack.Fold choice) {
         foldChoice = choice;
         DevMode.setPanelFold(choice);
+        // Through the arrangement writer rather than straight to a rebuild: paging the child in or out
+        // shows and hides rails, so the fold is an arrival and a departure like any other — stamped and
+        // snapshotted here, drawn by the same slides. The rebuild that takes effect follows.
+        applyColumns(columns());
         rebuildWidgets();
     }
 
@@ -3942,17 +4290,73 @@ public final class QuestBookScreen extends ArmatureScreen
      * was, which is right, and one that forgot to read {@code dock()} back would leave the field and the
      * rules disagreeing about whether the dock is open — the state that draws a rail with no controls in it,
      * or controls with no rail.
+     *
+     * <p>It is also the one place arrivals and departures are stamped: every open and every close in the
+     * book routes through here, so no opener — and no Done button — has to remember the animation. Kinds
+     * appearing in the new arrangement get an enter stamp (reopens continue from a mid-exit position);
+     * kinds leaving get their current clip snapshotted and an exit stamp, and draw from those plus the
+     * retained content until the exit sinks.
      */
     private void applyColumns(PanelStack.Columns next) {
+        java.util.List<PanelKind> before = PanelStack.presented(columns(), panelFolded());
+        java.util.List<PanelKind> afterNext = PanelStack.presented(next, panelFoldedFor(next));
+        arrangementEpoch++;
+        long now = net.minecraft.Util.getMillis();
+        int enterMs = panelRevealMillis();
+        // Snapshotted from the rails as they stand — fields still hold the old arrangement, so the rails
+        // are valid — and shown rather than whole: a rail closed mid-enter leaves from where it stood,
+        // its current clip, rather than jumping to whole and sinking.
+        for (PanelKind kind : before) {
+            if (!afterNext.contains(kind)) {
+                BookGeometry.Rect rail = panelRail(kind);
+                departRails.put(kind,
+                        PanelLayout.revealRect(rail, panelRevealElapsed(kind, now), enterMs));
+                panelDepartStarts.put(kind, now);
+            }
+        }
         dockOpen = next.dock() == PanelKind.TOOLS;
         overlay = next.left();
         overlay2 = next.right();
         foldChoice = next.fold();
+        java.util.List<PanelKind> after = PanelStack.presented(columns(), panelFolded());
+        // Retired by this call, for the closes below to schedule under: read promptly, before anything
+        // else moves rails. Empty when the call showed without hiding, which is when a deferred cleanup
+        // would have no exit to belong to and runs at once instead.
+        java.util.List<PanelKind> departed = new java.util.ArrayList<>();
+        for (PanelKind kind : before) {
+            if (!after.contains(kind)) {
+                departed.add(kind);
+            }
+        }
+        lastDeparted = java.util.List.copyOf(departed);
+        for (PanelKind kind : after) {
+            if (before.contains(kind)) {
+                continue;
+            }
+            // A teardown owed to an earlier close of this same kind runs first: close-then-open has
+            // always meant teardown before setup, and the deferred nullings are no exception.
+            runTeardowns(kind);
+            if (panelDepartStarts.containsKey(kind)) {
+                // Reopened mid-exit: the enter continues from where the exit stood rather than jumping
+                // back to a whole rail off screen. Symmetric durations make the velocities roughly
+                // match; exactness lives in the helpers' ends, which both hold.
+                long exitElapsed = now - panelDepartStarts.get(kind);
+                int exitMs = Math.max(1, panelExitMillis());
+                long mapped = enterMs <= 0 ? Long.MAX_VALUE
+                        : enterMs - exitElapsed * enterMs / exitMs;
+                panelRevealStarts.put(kind, now - Math.max(0, mapped));
+                panelDepartStarts.remove(kind);
+                departRails.remove(kind);
+            }
+            else {
+                startPanelReveal(kind);
+            }
+        }
         // **Anything that left the arrangement forgets how far its arrival had got.** Without this, a rail
-        // closed mid-wipe and opened again later would start its second arrival part-way through the first
+        // closed mid-slide and opened again later would start its second arrival part-way through the first
         // — a panel that appears already half-drawn, which reads as a glitch rather than as an opening.
         // Pruned here, at the one writer of the arrangement, so no opener has to remember to.
-        panelRevealStarts.keySet().retainAll(PanelStack.presented(columns(), panelFolded()));
+        panelRevealStarts.keySet().retainAll(after);
     }
 
     /**
@@ -3963,7 +4367,19 @@ public final class QuestBookScreen extends ArmatureScreen
      * those are known.
      */
     private boolean panelFolded() {
-        if (overlay2 == PanelKind.NONE) {
+        return panelFoldedFor(columns());
+    }
+
+    /**
+     * Whether the second column of an arrangement is paged into the first.
+     *
+     * <p>The same question as {@link #panelFolded}, asked of an arrangement rather than of the fields:
+     * {@link #applyColumns} needs the fold of the arrangement it is moving to — which rails the move
+     * shows and hides — before the fields hold it. Geometry and widths are arrangement-independent
+     * reads, so the answers agree wherever both can be asked.
+     */
+    private boolean panelFoldedFor(PanelStack.Columns cols) {
+        if (cols.right() == PanelKind.NONE) {
             // Nothing to fold: a fold with one column is a no-op, so the arrangement is the same either
             // way and asking the layout would be a call for an answer nothing reads.
             return false;
@@ -3974,10 +4390,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // With no dock latched this is the canvas's own width, which is every reader's arrangement and the
         // expression this method has always had.
         int room = geometry().canvas().width();
-        if (dockOpen) {
+        if (cols.dock() == PanelKind.TOOLS) {
             room -= dockRail().width() + BookGeometry.PANEL_GAP * 2;
         }
-        return PanelLayout.folded(room, railWidth(leftKind()), railWidth(overlay2), foldChoice);
+        return PanelLayout.folded(room, railWidth(cols.left()), railWidth(cols.right()), cols.fold());
     }
 
     /**
@@ -4121,6 +4537,9 @@ public final class QuestBookScreen extends ArmatureScreen
      * and the press all agree about which rail a kind is in without any of them deriving it again.
      */
     private BookGeometry.Rect panelRail(PanelKind kind) {
+        if (kind == departDrawKind && departDrawRail != null) {
+            return departDrawRail;
+        }
         if (kind == PanelKind.TOOLS) {
             return dockRail();
         }
@@ -4135,8 +4554,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * How long the arrival takes: the theme's own motion, capped so it cannot be felt as lag.
      *
      * <p>The cap is the one deliberate deviation from "the theme's motion is the motion". A reveal this
-     * one is a surface appearing, not a tween a reader is watching, and the panel's controls are built on
-     * the frame it settles — so eighty milliseconds is the most this may cost before the panel is whole.
+     * long is a surface arriving, not a tween a reader is watching — and a press landing mid-slide is
+     * answered by a control still travelling, so the cap is also the longest any widget stays inert.
      * A theme with no motion, and the accessibility switch, both give zero, which is a panel that is simply
      * there: that path is the one a player who has turned motion off gets, and it has no window at all.
      */
@@ -4156,7 +4575,7 @@ public final class QuestBookScreen extends ArmatureScreen
      *
      * <p>Every presented kind is a rail now, so this list is the rules' own list with rectangles attached.
      * <b>Each rail is measured against its own arrival</b>, which is the difference the dock's own column
-     * makes: a panel opening beside a dock that is already there wipes one rail and leaves the other alone,
+     * makes: a panel opening beside a dock that is already there slides one rail and leaves the other alone,
      * so the author's tools do not slide in again on every click.
      */
     private List<PanelLayout.PanelColumn> panelColumns() {
@@ -4183,11 +4602,11 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * Whether one rail is still arriving, which is when its controls are not built yet.
+     * Whether one rail is still arriving, which is when its controls are travelling and inert.
      *
      * <p>Keyed on the kind rather than on the arrangement: a rail is arriving exactly when a start has been
-     * recorded for <i>it</i> and its wipe has not finished. Asked per rail by {@link #buildColumn}, so a
-     * rail that is already there keeps its controls while the one beside it arrives.
+     * recorded for <i>it</i> and its slide has not finished. Asked per rail by the slide and the settle
+     * rebuild, so a rail that is already there keeps live controls while the one beside it arrives.
      */
     private boolean panelRevealing(PanelKind kind, long now) {
         return panelRevealStarts.containsKey(kind)
@@ -4202,6 +4621,53 @@ public final class QuestBookScreen extends ArmatureScreen
             }
         }
         return false;
+    }
+
+    /**
+     * Moves every presented rail's widgets with its surface, for this frame.
+     *
+     * <p>Called from {@code render} before the widget pass, with the frame's own time: a widget is
+     * written {@code base + offset} — its placed position plus {@link PanelLayout#slideOffset}'s answer
+     * for its rail — so the controls travel left with the sheet they sit on rather than appearing on
+     * it once it has landed. Stateless by design: the placed position is never overwritten, so a
+     * rebuild for any other reason mid-slide simply re-files new bases and the next frame derives the
+     * same answer again.
+     *
+     * <p>The base is read here, on the first frame that slides, rather than where the widget is added:
+     * a field built for a scrolling list is constructed at 0,0 and placed by its view afterwards, and
+     * filing the construction position pinned every one of those fields at the window's edge. By the
+     * first render the build — placement included — is done, so what is read is where the widget lives.
+     *
+     * <p>Travelling widgets are inert ({@code active = false}) but shown: a press landing mid-slide
+     * must not catch a control that has not arrived, while hiding them would be the old pop-in again.
+     * The settle rebuild in {@code tick} hands back their live state; {@link PanelLayout#columnAt}
+     * already routes presses on the unarrived strip to the canvas, so the dead frames have nowhere to
+     * leak through.
+     */
+    private void slidePanelWidgets(long now) {
+        int duration = panelRevealMillis();
+        for (PanelKind kind : PanelStack.presented(columns(), panelFolded())) {
+            java.util.List<AbstractWidget> owned = slideWidgets.get(kind);
+            if (owned == null || owned.isEmpty()) {
+                continue;
+            }
+            int offset = PanelLayout.slideOffset(panelRail(kind), panelRevealElapsed(kind, now),
+                    duration);
+            if (offset != 0) {
+                panelBuildPending = true;
+            }
+            for (AbstractWidget widget : owned) {
+                Integer base = slideBaseX.get(widget);
+                if (base == null) {
+                    base = widget.getX();
+                    slideBaseX.put(widget, base);
+                }
+                widget.setX(base + offset);
+                if (offset != 0) {
+                    widget.active = false;
+                }
+            }
+        }
     }
 
     /**
@@ -5056,13 +5522,61 @@ public final class QuestBookScreen extends ArmatureScreen
     private void zoomAt(double mouseX, double mouseY, float factor) {
         // A zoom is the hand taking the camera: a glide still in flight must not fight it.
         glideQuest = null;
+        zoomGlideStart = -1L;
         viewport().zoomAt(mouseX, mouseY, factor);
     }
 
-    /** Zooms about the view port's centre, for the buttons, which have no pointer position. */
+    /**
+     * Zooms about the view port's centre, for the buttons, which have no pointer position.
+     *
+     * <p>Gliding rather than jumping: the wheel above stays direct — the hand is the animation — but a
+     * button is a 25% step with no gesture behind it, and a step that size reads as a cut. Retargeted
+     * from wherever the scale stands, so hammering the button walks up smoothly instead of queueing
+     * jumps; the hand cancels it like any other glide, and the locate glide goes with it, because two
+     * cameras moving at once is not a thing the view can do.
+     */
     private void zoomCentre(float factor) {
         glideQuest = null;
-        viewport().zoomAboutCentre(factor);
+        zoomGlideFrom = viewport().scale();
+        zoomGlideTo = zoomGlideFrom * factor;
+        zoomGlideStart = net.minecraft.Util.getMillis();
+    }
+
+    /** How long a zoom button's glide takes: felt as a settle rather than watched as a move. */
+    private static final long ZOOM_GLIDE_MILLIS = 140L;
+
+    /** A zoom glide in flight: where it started, where it is headed, and when — or -1 for none. */
+    private float zoomGlideFrom;
+    private float zoomGlideTo;
+    private long zoomGlideStart = -1L;
+
+    /**
+     * Advances the zoom buttons' glide, if one is in flight.
+     *
+     * <p>Beside {@link #advanceGlide} and on its terms: stepped through {@code zoomAboutCentre} because
+     * the limits live in the viewport and the button has no right to jump past them — each frame asks
+     * for the eased scale and the viewport clamps. A frame that moved nothing hit a limit, so the glide
+     * ends there rather than pushing against it for the rest of its time; motion off lands at once,
+     * because the eased answer is the target on the first frame.
+     */
+    private void advanceZoomGlide(long now) {
+        if (zoomGlideStart < 0) {
+            return;
+        }
+        long elapsed = now - zoomGlideStart;
+        float current = viewport().scale();
+        if (elapsed >= ZOOM_GLIDE_MILLIS) {
+            if (zoomGlideTo != current) {
+                viewport().zoomAboutCentre(zoomGlideTo / current);
+            }
+            zoomGlideStart = -1L;
+            return;
+        }
+        float t = Math.max(0F, Math.min(1F, (float) elapsed / ZOOM_GLIDE_MILLIS));
+        float eased = Motion.defaultEasing().between(zoomGlideFrom, zoomGlideTo, t);
+        if (eased != current && !viewport().zoomAboutCentre(eased / current)) {
+            zoomGlideStart = -1L;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -6121,9 +6635,62 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Opens the shared menu under a rectangle: the pill's menu, the drawer's and a chooser's, one path. */
     private void openMenuAt(List<MenuItem> rows, int x, int y) {
-        menu = List.copyOf(rows);
+        openMenu(rows);
         menuX = x;
         menuY = y;
+    }
+
+    /**
+     * Puts a menu up, and stamps when it opened.
+     *
+     * <p>The one writer every opener goes through — the sidebar's, the canvas's, the drawer's — so the
+     * rise has one start to measure from. Rebuilding in place (arming Delete) re-stamps: the menu is
+     * new content, and a 90-millisecond settle replays rather than sticks.
+     */
+    private void openMenu(List<MenuItem> items) {
+        menu = List.copyOf(items);
+        menuOpenedAt = net.minecraft.Util.getMillis();
+    }
+
+    /**
+     * How far below its rest the menu still sits: three pixels on the frame it opens, none once settled.
+     *
+     * <p>Read by {@link #menuRects}, which is the one derivation the drawing, the press and the flyout
+     * placement all share — so the menu, its hover and its submenu arrive as one thing climbing into
+     * place rather than three things disagreeing for a tenth of a second. With motion off the theme's
+     * own duration is zero and this is zero with it: a menu that is simply there.
+     */
+    private int menuRise() {
+        if (menu.isEmpty() || menuOpenedAt < 0) {
+            return 0;
+        }
+        float arrived =
+                PanelLayout.revealed(net.minecraft.Util.getMillis() - menuOpenedAt, MENU_RISE_MILLIS);
+        return Math.round(MENU_RISE_PX * (1F - arrived));
+    }
+
+    /**
+     * When the Import popover opened, in {@code Util.getMillis()} terms; -1 when it never has.
+     *
+     * <p>Stamped at the toggle that opens it — the resets elsewhere only ever shut it. Read by
+     * {@link #importRise}, which is the popover's share of the menus' climb.
+     */
+    private long tableImportOpenedAt = -1L;
+
+    /**
+     * How far below its rest the Import popover still sits.
+     *
+     * <p>The menu's rise with the popover's own stamp: same pixels, same duration, same stillness with
+     * motion off. Applied where the box is drawn — which is also where the press reads it — so the
+     * two agree for the tenth of a second the arrival lasts.
+     */
+    private int importRise() {
+        if (!tableImportOpen || tableImportOpenedAt < 0) {
+            return 0;
+        }
+        float arrived = PanelLayout.revealed(net.minecraft.Util.getMillis() - tableImportOpenedAt,
+                MENU_RISE_MILLIS);
+        return Math.round(MENU_RISE_PX * (1F - arrived));
     }
 
     /**
@@ -6845,6 +7412,7 @@ public final class QuestBookScreen extends ArmatureScreen
                         editedTheme().colour("title"), editedTheme().colour("accent")),
                 value -> previewToken(token, value), value -> writeThemeToken(token, value));
         buildPopoverWidgets();
+        filePopoverArrival();
         // Everything the picker now covers stops answering presses: see `refreshOverlayMute`.
         refreshOverlayMute();
     }
@@ -6996,6 +7564,8 @@ public final class QuestBookScreen extends ArmatureScreen
         for (net.minecraft.client.gui.components.AbstractWidget widget : colourPopover.widgets()) {
             removeWidget(widget);
         }
+        popoverOpenedAt = -1L;
+        popoverBaseX.clear();
         // The controls it was covering are controls again.
         refreshOverlayMute();
     }
@@ -9388,6 +9958,11 @@ public final class QuestBookScreen extends ArmatureScreen
         clearWidgets();
         buttons.clear();
         panelOverlays.clear();
+        // And the slide's filing: the widgets are gone with the clear above, so their bases go too —
+        // a rebuilt rail re-files as it builds, and a base left behind would slide a control that no
+        // longer belongs to the kind it names.
+        slideWidgets.clear();
+        slideBaseX.clear();
         // Nulled with the list it came from. `init` rebuilds Close only on the branch that builds the
         // book, so leaving this set would have `render` draw a control the screen no longer owns — see
         // the guard at the drawing site for what that looks like.
@@ -9398,13 +9973,20 @@ public final class QuestBookScreen extends ArmatureScreen
         // would draw the previous panel's rows over the new one. The card and the layouts go with them,
         // because one pass records them together and a card left behind would draw a box for a panel
         // that no longer exists.
-        partyLeftLines = new ArrayList<>();
-        partyRightLines = new ArrayList<>();
-        partyLeftFace = null;
-        partyRightFace = null;
-        partyCard = null;
-        partyLeftLayout = null;
-        partyRightLayout = null;
+        //
+        // Unless the party is sinking out rather than gone: its exit draws from these same faces for the
+        // length of its slide, and the close rebuild is what would take them. Skipped while departing —
+        // an open panel rebuilds them below, a settled close has no exit reading them, and a reopen
+        // recomputes before anything draws.
+        if (!panelDeparting(PanelKind.PARTY, net.minecraft.Util.getMillis())) {
+            partyLeftLines = new ArrayList<>();
+            partyRightLines = new ArrayList<>();
+            partyLeftFace = null;
+            partyRightFace = null;
+            partyCard = null;
+            partyLeftLayout = null;
+            partyRightLayout = null;
+        }
         // And the scroll views' widgets, for the reason the three above are cleared: they belong to
         // the panel being replaced. `buildPartyWidgets` clears them too, but only on the branch that
         // builds a panel -- a rebuild for a quest would otherwise leave the views holding controls
@@ -9506,7 +10088,14 @@ public final class QuestBookScreen extends ArmatureScreen
         // controls come from `buildColumn`, which is what makes "a column is built from what it holds"
         // true for all of them.
         if (overlay == PanelKind.CHOICE) {
-            buildChoiceWidgets();
+            PanelKind outer = slideBucket;
+            slideBucket = PanelKind.CHOICE;
+            try {
+                buildChoiceWidgets();
+            }
+            finally {
+                slideBucket = outer;
+            }
         }
         return;
     }
@@ -9930,36 +10519,40 @@ public final class QuestBookScreen extends ArmatureScreen
      * from <b>what it holds</b>, never from which column it happens to be. {@link PanelKind#ASSETS} answers
      * with nothing of its own, because its rows are drawn and hit-tested from {@code AssetsLayout} the way
      * the table panels' are.
+     *
+     * <p>Built at once, on the frame the rail opens — not on the frame it settles. The rail arrives as a
+     * slide rather than a wipe with its controls missing: the widgets are placed at their built positions
+     * and the per-frame slide moves them with the surface, inert until they land. The bucket is what files
+     * them under this kind; everything outside a column builds with it null and never travels.
      */
     private void buildColumn(PanelKind kind) {
-        // A rail that is still coming in builds nothing, and says so: controls placed against a surface
-        // that is not there yet would be hit-tested against a rail that has not arrived. The flag is what
-        // makes the frame it settles rebuild, and that rebuild is in `tick` -- a widget list changed inside
-        // a render is the one thing this screen never does.
-        if (panelRevealing(kind, net.minecraft.Util.getMillis())) {
-            panelBuildPending = true;
-            return;
-        }
         // Set first, because everything inside reads it: the four surface accessors, the table bodies, the
         // field's own box. A column built from another column's rectangle is a control drawn in one place
         // and hit in another, which is this file's oldest fault.
         surfaceKind = kind;
-        switch (kind) {
-            case QUEST, PICKER, TEXTURE -> buildOverlayWidgets(kind);
-            case TOOLS -> buildToolsWidgets();
-            case PARTY -> buildPartyWidgets();
-            case REWARDS -> rewardControls = buildRewardWidgets();
-            case NAMING -> buildNamingWidgets();
-            case TABLE_BROWSER -> buildTableBrowserWidgets();
-            case TABLE_EDITOR -> buildTableEditorWidgets();
-            case SETTINGS -> buildSettingsWidgets();
-            case PINNED -> buildPinnedWidgets();
-            case ELEMENT -> buildElementWidgets();
-            case FILTER -> buildFilterWidgets();
-            case ASSETS, NONE, CHOICE -> {
-                // Nothing of its own: the assets list is drawn from its layout, and a choice is a card,
-                // which this method is never asked about.
+        PanelKind outer = slideBucket;
+        slideBucket = kind;
+        try {
+            switch (kind) {
+                case QUEST, PICKER, TEXTURE -> buildOverlayWidgets(kind);
+                case TOOLS -> buildToolsWidgets();
+                case PARTY -> buildPartyWidgets();
+                case REWARDS -> rewardControls = buildRewardWidgets();
+                case NAMING -> buildNamingWidgets();
+                case TABLE_BROWSER -> buildTableBrowserWidgets();
+                case TABLE_EDITOR -> buildTableEditorWidgets();
+                case SETTINGS -> buildSettingsWidgets();
+                case PINNED -> buildPinnedWidgets();
+                case ELEMENT -> buildElementWidgets();
+                case FILTER -> buildFilterWidgets();
+                case ASSETS, NONE, CHOICE -> {
+                    // Nothing of its own: the assets list is drawn from its layout, and a choice is a card,
+                    // which builds beside the columns rather than in one.
+                }
             }
+        }
+        finally {
+            slideBucket = outer;
         }
     }
 
@@ -10213,7 +10806,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // because it is ink no widget owns -- and only while the box is empty, which is the whole of what a
         // placeholder is.
         panelOverlays.add(r -> {
-            if (!itemSearch.value().isEmpty()) {
+            // Null-guarded like the table panels' boxes: the field and its ink are filed together, but
+            // a close between the build and this draw must never be a crash — see `closeItemPicker` for
+            // the window this guards.
+            if (itemSearch == null || !itemSearch.value().isEmpty()) {
                 return;
             }
             try (GuiRenderer.Scoped clip = r.clip(bodyRect.x(), bodyRect.y(), bodyRect.right(),
@@ -10221,6 +10817,9 @@ public final class QuestBookScreen extends ArmatureScreen
                 // The box's own question, per tab: on a picture pick the box filters files, takes a
                 // sprite id, or filters mobs — and "search items" on those tabs would be the box
                 // lying about what it does.
+                //
+                // Read off the box rather than the frame it was built from: the rail slides in with its
+                // widgets, so ink that stayed at the built position would greet the box a rail-width away.
                 String hint = "Search items \u2014 name or id";
                 if (pickerTabsVisible()) {
                     hint = switch (pickerKind) {
@@ -10230,8 +10829,8 @@ public final class QuestBookScreen extends ArmatureScreen
                         case ITEM -> hint;
                     };
                 }
-                r.text(hint, frame.search().x() + 4,
-                        frame.search().y() + (frame.search().height() - 8) / 2,
+                r.text(hint, itemSearch.getX() + 4,
+                        itemSearch.getY() + (itemSearch.getHeight() - 8) / 2,
                         ArmatureTheme.faint());
             }
         });
@@ -10262,12 +10861,13 @@ public final class QuestBookScreen extends ArmatureScreen
         typeSearch.onSubmit(text -> { });
         addRenderableWidget(typeSearch);
         panelOverlays.add(r -> {
-            if (!typeSearch.value().isEmpty()) {
+            if (typeSearch == null || !typeSearch.value().isEmpty()) {
                 return;
             }
             try (GuiRenderer.Scoped clip = r.clip(band.x(), band.y(), band.right(), band.bottom())) {
-                r.text("Search types \u2014 name or id", frame.search().x() + 4,
-                        frame.search().y() + (frame.search().height() - 8) / 2,
+                // Off the box, for the rail's slide: see the item picker's own copy of this note.
+                r.text("Search types \u2014 name or id", typeSearch.getX() + 4,
+                        typeSearch.getY() + (typeSearch.getHeight() - 8) / 2,
                         ArmatureTheme.faint());
             }
         });
@@ -10737,15 +11337,44 @@ public final class QuestBookScreen extends ArmatureScreen
      * {@link #editTargets} while it is open. A helper that decides the destination for its caller made
      * New table, Done and the card's cross unreachable -- drawn as controls, registered in a list the
      * panel that presses them does not walk. See {@code drawAssets} for the other half.
+     *
+     * <p>The box and its text origin arrive shifted for the slide: a press must meet rows where they
+     * are drawn rather than where their layout says, for the tenth of a second a rail is travelling.
+     * See {@link #shiftHit}.
      */
-    private static boolean registerInto(List<EditTarget> into, EditAction action, String path,
-                                        BookGeometry.Rect box, int textX, int textY, String value,
-                                        String member, int index) {
+    private boolean registerInto(List<EditTarget> into, EditAction action, String path,
+                                 BookGeometry.Rect box, int textX, int textY, String value,
+                                 String member, int index) {
         if (box.width() <= 0 || box.height() <= 0) {
             return false;
         }
-        into.add(new EditTarget(action, path, box, textX, textY, value, member, index));
+        BookGeometry.Rect hit = shiftHit(box);
+        into.add(new EditTarget(action, path, hit, textX + hit.x() - box.x(), textY, value, member,
+                index));
         return true;
+    }
+
+    /**
+     * A hit rectangle moved with its rail's slide, for this frame.
+     *
+     * <p>Every press target is registered afresh each frame (the lists are rebuilt by the drawing), so
+     * the frame's own offset is the right one: a press between frames meets positions at most a frame
+     * stale, which is the same staleness every control in the game already has. Zero unless the rail
+     * this draw belongs to is travelling — read off {@link #surfaceKind}, which the surface sets before
+     * anything inside it registers, so a caller outside a surface can never borrow the wrong rail's
+     * motion. Hover washes and scrollbar thumbs are deliberately not shifted: a highlight may lag the
+     * slide by a frame, but a press must not land anywhere but on what is drawn.
+     */
+    private BookGeometry.Rect shiftHit(BookGeometry.Rect box) {
+        if (box == null || surfaceKind == null || surfaceKind == PanelKind.NONE) {
+            return box;
+        }
+        int offset = PanelLayout.slideOffset(panelRail(surfaceKind),
+                panelRevealElapsed(surfaceKind, net.minecraft.Util.getMillis()), panelRevealMillis());
+        if (offset == 0) {
+            return box;
+        }
+        return BookGeometry.Rect.at(box.x() + offset, box.y(), box.width(), box.height());
     }
 
     /**
@@ -10849,8 +11478,8 @@ public final class QuestBookScreen extends ArmatureScreen
             }
             r.text(labels[i], box.x() + (box.width() - r.textWidth(labels[i])) / 2,
                     box.y() + (box.height() - 8) / 2, hot ? ArmatureTheme.title() : ArmatureTheme.body());
-            editTargets.add(new EditTarget(actions[i], null, box, box.x(),
-                    box.y() + (box.height() - 8) / 2, "", member, index));
+            registerInto(editTargets, actions[i], null, box, box.x(),
+                    box.y() + (box.height() - 8) / 2, "", member, index);
         }
 
         // The fold: the triangle between Copy and the cross, pointing down at the fields while they are
@@ -10868,8 +11497,8 @@ public final class QuestBookScreen extends ArmatureScreen
             String word = folded ? "Expand" : "Collapse";
             pendingLabels.add(new PendingLabel(fold, word));
         }
-        editTargets.add(new EditTarget(EditAction.TOGGLE_ENTRY, null, fold, fold.x(),
-                fold.y() + (fold.height() - 8) / 2, "", member, index));
+        registerInto(editTargets, EditAction.TOGGLE_ENTRY, null, fold, fold.x(),
+                fold.y() + (fold.height() - 8) / 2, "", member, index);
 
         // The row's leading strip is the drag's grip -- the type's icon and the gutter beside it, which no
         // field covers, so registering last wins exactly the space nothing else wanted. The whole row is
@@ -10926,8 +11555,8 @@ public final class QuestBookScreen extends ArmatureScreen
         r.text(cross, remove.x() + (remove.width() - r.textWidth(cross)) / 2,
                 remove.y() + (remove.height() - 8) / 2,
                 removeHot ? ArmatureTheme.title() : ArmatureTheme.body());
-        editTargets.add(new EditTarget(EditAction.CONDITION_REMOVE, pathPrefix, remove, remove.x(),
-                remove.y() + (remove.height() - 8) / 2, "", member, index));
+        registerInto(editTargets, EditAction.CONDITION_REMOVE, pathPrefix, remove, remove.x(),
+                remove.y() + (remove.height() - 8) / 2, "", member, index);
 
         if (QuestPanelLayout.conditionEditorFor(condition).isEmpty()) {
             BookGeometry.Rect raw = BookGeometry.Rect.at(row.name().x(), row.name().bottom(),
@@ -10937,8 +11566,8 @@ public final class QuestBookScreen extends ArmatureScreen
                 r.text("edit JSON", raw.x() + 4, raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2,
                         ArmatureTheme.faint());
             }
-            editTargets.add(new EditTarget(EditAction.RAW, pathPrefix, raw, raw.x() + 4,
-                    raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2, "", member, index));
+            registerInto(editTargets, EditAction.RAW, pathPrefix, raw, raw.x() + 4,
+                    raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2, "", member, index);
             return;
         }
         for (EntryFormLayout.Cell cell : row.cells()) {
@@ -11226,8 +11855,8 @@ public final class QuestBookScreen extends ArmatureScreen
             r.text("edit JSON", raw.x() + 4, raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2,
                     ArmatureTheme.faint());
         }
-        editTargets.add(new EditTarget(EditAction.RAW, path, raw, raw.x() + 4,
-                raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2, "", member, index));
+        registerInto(editTargets, EditAction.RAW, path, raw, raw.x() + 4,
+                raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2, "", member, index);
     }
 
     /**
@@ -11702,8 +12331,8 @@ public final class QuestBookScreen extends ArmatureScreen
         drawEditAffordance(r, box, box.contains(mouseX, mouseY));
         r.text(label, box.x() + 6, box.y() + (box.height() - 8) / 2,
                 ArmatureTheme.faint());
-        editTargets.add(new EditTarget(action, null, box, box.x() + 6,
-                box.y() + (box.height() - 8) / 2, "", null, -1));
+        registerInto(editTargets, action, null, box, box.x() + 6,
+                box.y() + (box.height() - 8) / 2, "", null, -1);
     }
 
     /** One prerequisite: its name (a jump to that quest), a locate icon, and a cross to remove it. */
@@ -11725,20 +12354,20 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         r.text(Measure.truncate(name, nameBox.width() - 8, textMeasure(r)), nameBox.x() + 2,
                 y + (height - 8) / 2, ArmatureTheme.body());
-        editTargets.add(new EditTarget(EditAction.NAVIGATE_DEP, name, nameBox, nameBox.x() + 2,
-                y + (height - 8) / 2, "", null, -1));
+        registerInto(editTargets, EditAction.NAVIGATE_DEP, name, nameBox, nameBox.x() + 2,
+                y + (height - 8) / 2, "", null, -1);
 
         drawLocateIcon(r, locate.x() + locate.width() / 2, y + height / 2,
                 locate.contains(mouseX, mouseY) ? ArmatureTheme.body() : ArmatureTheme.faint());
-        editTargets.add(new EditTarget(EditAction.LOCATE_DEP, name, locate, locate.x(), locate.y(),
-                "", null, -1));
+        registerInto(editTargets, EditAction.LOCATE_DEP, name, locate, locate.x(), locate.y(),
+                "", null, -1);
 
         BookGeometry.Rect remove = BookGeometry.Rect.at(slot.right() - 30, y, 26, height);
         drawEditAffordance(r, remove, remove.contains(mouseX, mouseY));
         r.text("\u00d7", remove.x() + (remove.width() - r.textWidth("\u00d7")) / 2,
                 y + (height - 8) / 2, ArmatureTheme.body());
-        editTargets.add(new EditTarget(EditAction.REMOVE_DEP, name, remove, remove.x(),
-                y + (height - 8) / 2, "", null, -1));
+        registerInto(editTargets, EditAction.REMOVE_DEP, name, remove, remove.x(),
+                y + (height - 8) / 2, "", null, -1);
     }
 
     /** The requires section's add row: type an id, or pick the quest on the canvas. */
@@ -11758,15 +12387,15 @@ public final class QuestBookScreen extends ArmatureScreen
             r.text("+ Add by id", type.x() + 6, type.y() + (type.height() - 8) / 2,
                     ArmatureTheme.faint());
         }
-        editTargets.add(new EditTarget(EditAction.ADD_DEP, null, type, type.x() + 6,
-                type.y() + (type.height() - 8) / 2, "", null, -1));
+        registerInto(editTargets, EditAction.ADD_DEP, null, type, type.x() + 6,
+                type.y() + (type.height() - 8) / 2, "", null, -1);
 
         BookGeometry.Rect pick = BookGeometry.Rect.at(type.right() + 4, y, 60, height);
         drawEditAffordance(r, pick, pick.contains(mouseX, mouseY));
         r.text("Pick", pick.x() + 6, pick.y() + (pick.height() - 8) / 2,
                 ArmatureTheme.faint());
-        editTargets.add(new EditTarget(EditAction.PICK_DEP, null, pick, pick.x() + 6,
-                pick.y() + (pick.height() - 8) / 2, "", null, -1));
+        registerInto(editTargets, EditAction.PICK_DEP, null, pick, pick.x() + 6,
+                pick.y() + (pick.height() - 8) / 2, "", null, -1);
     }
 
     /**
@@ -12915,6 +13544,13 @@ public final class QuestBookScreen extends ArmatureScreen
         // reset the picker's own fields, `closePanelColumn` returned early for a picker, and the second
         // column stayed on screen through every way out of it. `overlay` is deliberately untouched by the
         // peel, because the two tests below are about which overlay owns the picker.
+        //
+        // The path goes now rather than with the exit below: `buildItemSearch` reads it to decide whether
+        // the quest card owns a search box, and a rebuild between the close and the settle would resurrect
+        // the box — and its placeholder — from the retained path, then watch the settle null the field out
+        // from under the placeholder. That draw is the crash, not a glitch. Everything the sinking surface
+        // itself reads stays for the slide; the path is the one thing a build also reads.
+        pickingItemPath = null;
         if (overlay2 == PanelKind.PICKER) {
             applyColumns(PanelStack.afterClose(columns(), true));
         }
@@ -12935,23 +13571,27 @@ public final class QuestBookScreen extends ArmatureScreen
             tablePickReturn = false;
             applyColumns(PanelStack.asRoot(columns(), PanelKind.TABLE_EDITOR));
         }
-        forgetPickSubject();
-        pickingItemPath = null;
-        pickingItemCurrent = "";
-        pickingItemClearPath = null;
-        pickerKind = PickerKind.ITEM;
-        pickerEntries = List.of();
-        pickerInventory = List.of();
-        pickerMatches = List.of();
-        pickerRows = List.of();
-        pickerFrame = null;
-        pickerQuery = "";
-        pickerSelected = -1;
-        pickerBody.setScrollY(0);
-        itemSearch = null;
         if (ownOverlay) {
+            // The dock picker's own overlay goes with it: arranged before the teardown is scheduled, so
+            // the exit below is keyed under the rail that actually left rather than a stale set.
             applyColumns(PanelStack.afterClose(columns(), false));
         }
+        // The picker's own state is what its exit draws from — the rows, the frame, the box — so it is
+        // owed to the slide rather than nulled under it. Runs at settle, or early on reopen.
+        deferForLastDeparted(() -> {
+            forgetPickSubject();
+            pickingItemClearPath = null;
+            pickerKind = PickerKind.ITEM;
+            pickerEntries = List.of();
+            pickerInventory = List.of();
+            pickerMatches = List.of();
+            pickerRows = List.of();
+            pickerFrame = null;
+            pickerQuery = "";
+            pickerSelected = -1;
+            pickerBody.setScrollY(0);
+            itemSearch = null;
+        });
     }
 
     /**
@@ -13922,16 +14562,20 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Closes the texture picker without writing: the book comes back, the field keeps its value. */
     private void closeTexturePicker() {
-        textureSearch = null;
-        textureQuery = "";
-        textureSelected = -1;
-        textureBody.setScrollY(0);
-        textureMatches = List.of();
-        textureRows = List.of();
-        textureFrame = null;
-        // Through the rules, so the column it was in goes with it: this picker is a root today -- the
-        // browse button lives in the dock's own panel -- and closing a root closes both columns.
+        // Through the rules first, so the exit is recorded before its content is owed: the arrangement
+        // is what snapshots the rail, and the teardown below is what keeps the rows for the slide.
+        // This picker is a root today -- the browse button lives in the dock's own panel -- and closing
+        // a root closes both columns.
         applyColumns(PanelStack.afterClose(columns(), false));
+        deferForLastDeparted(() -> {
+            textureSearch = null;
+            textureQuery = "";
+            textureSelected = -1;
+            textureBody.setScrollY(0);
+            textureMatches = List.of();
+            textureRows = List.of();
+            textureFrame = null;
+        });
         rebuildWidgets();
     }
 
@@ -13952,13 +14596,14 @@ public final class QuestBookScreen extends ArmatureScreen
         addRenderableWidget(textureSearch);
         // The placeholder after the pass, and nothing else: see the item picker's own copy of this note.
         panelOverlays.add(r -> {
-            if (!textureSearch.value().isEmpty()) {
+            if (textureSearch == null || !textureSearch.value().isEmpty()) {
                 return;
             }
             try (GuiRenderer.Scoped clip = r.clip(bodyRect.x(), bodyRect.y(), bodyRect.right(),
                     bodyRect.bottom())) {
-                r.text(Labels.of("tenet.dev.texture.search"), frame.search().x() + 4,
-                        frame.search().y() + (frame.search().height() - 8) / 2,
+                // Off the box, for the rail's slide: see the item picker's own copy of this note.
+                r.text(Labels.of("tenet.dev.texture.search"), textureSearch.getX() + 4,
+                        textureSearch.getY() + (textureSearch.getHeight() - 8) / 2,
                         ArmatureTheme.faint());
             }
         });
@@ -14918,6 +15563,12 @@ public final class QuestBookScreen extends ArmatureScreen
     private static final int MENU_ROW_HEIGHT = 16;
     private static final int MENU_WIDTH = 150;
 
+    /** How far below its rest a menu opens before climbing into place. A nudge, not a travel. */
+    private static final int MENU_RISE_PX = 3;
+
+    /** How long the climb takes: felt as a settle rather than watched as a transition. */
+    private static final int MENU_RISE_MILLIS = 90;
+
     /** Opens the menu for whatever the pointer is on: a chapter, a group, or the empty list. */
     private boolean openSidebarMenuAt(double mouseX, double mouseY) {
         if (!sidebarViewport().containsScreen(mouseX, mouseY)) {
@@ -14928,18 +15579,18 @@ public final class QuestBookScreen extends ArmatureScreen
             if (rect == null || !rect.contains(mouseX, mouseY)) {
                 continue;
             }
-            menu = row.group() ? groupMenu(row.id()) : chapterMenu(row.id());
+            openMenu(row.group() ? groupMenu(row.id()) : chapterMenu(row.id()));
             // Only a chapter menu has a "Move to" submenu, so only then is there a chapter to move.
             menuChapter = row.group() ? null : row.id();
             menuX = (int) mouseX;
             menuY = (int) mouseY;
             return true;
         }
-        menu = List.of(
+        openMenu(List.of(
                 MenuItem.of("New chapter...", () -> openNaming("chapter", NamingMode.CREATE,
                         "", "", Integer.MAX_VALUE)),
                 MenuItem.of("New group...",
-                        () -> openNaming("group", NamingMode.CREATE, "", "", 0)));
+                        () -> openNaming("group", NamingMode.CREATE, "", "", 0))));
         menuChapter = null;
         menuX = (int) mouseX;
         menuY = (int) mouseY;
@@ -14969,7 +15620,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 armed ? "Really delete?" + chapterDeleteNote(id) : "Delete",
                 armed
                         ? () -> send(new EditorOp.DeleteChapter(id))
-                        : () -> armDelete(() -> menu = chapterMenu(id), id)));
+                        : () -> armDelete(() -> openMenu(chapterMenu(id)), id)));
         return items;
     }
 
@@ -14986,7 +15637,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 armed ? "Really delete?" + groupDeleteNote(id) : "Delete",
                 armed
                         ? () -> send(new EditorOp.DeleteGroup(id))
-                        : () -> armDelete(() -> menu = groupMenu(id), null)));
+                        : () -> armDelete(() -> openMenu(groupMenu(id)), null)));
         return items;
     }
 
@@ -15102,13 +15753,19 @@ public final class QuestBookScreen extends ArmatureScreen
         canvasMenuQuest = null;
         canvasMenuFrom = null;
         canvasMenuTo = null;
+        menuOpenedAt = -1L;
     }
 
-    /** Every item's rectangle, from the one derivation the drawing and the press both read. */
+    /**
+     * Every item's rectangle, from the one derivation the drawing and the press both read.
+     *
+     * <p>The rise included, so a menu climbing into place is hit where it is drawn: a press landing
+     * mid-arrival answers the row under the pointer rather than the row three pixels above it.
+     */
     private List<BookGeometry.Rect> menuRects() {
         List<BookGeometry.Rect> rects = new ArrayList<>();
         int x = menuLeft();
-        int y = menuTop();
+        int y = menuTop() + menuRise();
         for (int i = 0; i < menu.size(); i++) {
             rects.add(BookGeometry.Rect.at(x, y + i * MENU_ROW_HEIGHT, MENU_WIDTH, MENU_ROW_HEIGHT));
         }
@@ -15210,7 +15867,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 // and rebuilding is what keeps the panel showing the line as it now is. The pointer is
                 // still on the same parent row, so `submenuRow` survives -- `closeMenu` is not called.
                 if (canvasMenuFrom != null && canvasMenuTo != null) {
-                    menu = lineMenuItems(canvasMenuFrom, canvasMenuTo);
+                    openMenu(lineMenuItems(canvasMenuFrom, canvasMenuTo));
                 }
                 return true;
             }
@@ -15356,17 +16013,34 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** The menu, drawn after the widget pass so it can overhang the list it describes. */
+    /**
+     * How much ink the menu has: nothing on the frame it opens, full once settled.
+     *
+     * <p>Beside the rise rather than instead of it: the climb says where the menu came from and the
+     * fade says it arrived. One envelope for the main panel and its rows — the flyout beside it keeps
+     * rise-only, because its preview inks cannot take alpha without a second ink path. Motion off is
+     * full ink at once, like every other arrival.
+     */
+    private float menuFade() {
+        if (menu.isEmpty() || menuOpenedAt < 0) {
+            return 1F;
+        }
+        return PanelLayout.revealed(net.minecraft.Util.getMillis() - menuOpenedAt, MENU_RISE_MILLIS);
+    }
+
     private void drawMenu(GuiRenderer r, int mouseX, int mouseY) {
         if (menu.isEmpty()) {
             return;
         }
+        float fade = menuFade();
         List<BookGeometry.Rect> rects = menuRects();
         BookGeometry.Rect first = rects.get(0);
         int bottom = rects.get(rects.size() - 1).bottom();
         ArmatureTheme.panel(r, first.x() - 2, first.y() - 3, MENU_WIDTH + 4,
-                bottom - first.y() + 6, ArmatureTheme.raised(), ArmatureTheme.panelEdge());
+                bottom - first.y() + 6, Colour.alphaOf(ArmatureTheme.raised(), fade),
+                Colour.alphaOf(ArmatureTheme.panelEdge(), fade));
         for (int i = 0; i < rects.size(); i++) {
-            drawMenuItem(r, rects.get(i), menu.get(i), mouseX, mouseY);
+            drawMenuItem(r, rects.get(i), menu.get(i), mouseX, mouseY, fade);
         }
 
         int parent = submenuRow;
@@ -15384,17 +16058,19 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** One row of either panel: its hover wash, and its label in the ink its meaning asks for. */
     private void drawMenuItem(GuiRenderer r, BookGeometry.Rect rect, MenuItem item,
-                              int mouseX, int mouseY) {
+                              int mouseX, int mouseY, float fade) {
         boolean pressable = item.action() != null || item.submenu();
         if (pressable && rect.contains(mouseX, mouseY)) {
-            r.fill(rect.x(), rect.y(), rect.right(), rect.bottom(), ArmatureTheme.rowHover());
+            r.fill(rect.x(), rect.y(), rect.right(), rect.bottom(),
+                    Colour.alphaOf(ArmatureTheme.rowHover(), fade));
         }
         // A submenu parent is a live row, not a disabled one: it opened the panel beside it. Only a row
         // that can do nothing at all -- the "…" that says the rest did not fit -- is drawn faint.
         int colour = item.submenu() ? ArmatureTheme.body()
                 : item.action() == null ? ArmatureTheme.faint()
                 : item.danger() ? ArmatureTheme.blocked() : ArmatureTheme.body();
-        r.text(fitLabel(r, item.label()), rect.x() + 4, rect.y() + (MENU_ROW_HEIGHT - 8) / 2, colour);
+        r.text(fitLabel(r, item.label()), rect.x() + 4, rect.y() + (MENU_ROW_HEIGHT - 8) / 2,
+                Colour.alphaOf(colour, fade));
     }
 
 
@@ -15426,7 +16102,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // The node under the pointer and nothing else: selection is an edit-mode concept, and acting
             // on a set the reader never made would be the menu pinning something they were not pointing
             // at -- the same reason the edit path re-selects first.
-            menu = readerNodeMenuItems(node.id());
+            openMenu(readerNodeMenuItems(node.id()));
             menuX = (int) mouseX;
             menuY = (int) mouseY;
             submenuRow = -1;
@@ -15445,14 +16121,14 @@ public final class QuestBookScreen extends ArmatureScreen
                 multiSelection.clear();
             }
             canvasMenuQuest = node.id();
-            menu = nodeMenuItems(node.id());
+            openMenu(nodeMenuItems(node.id()));
         }
         else {
             List<String> edge = edgeAt(mouseX, mouseY, quests);
             if (edge != null) {
                 canvasMenuFrom = edge.get(0);
                 canvasMenuTo = edge.get(1);
-                menu = lineMenuItems(edge.get(0), edge.get(1));
+                openMenu(lineMenuItems(edge.get(0), edge.get(1)));
             }
             else {
                 // And then an element, before the empty canvas: an element is drawn over the canvas, so a
@@ -15464,10 +16140,10 @@ public final class QuestBookScreen extends ArmatureScreen
                     selectedQuest = null;
                     multiSelection.clear();
                     canvasMenuElement = element;
-                    menu = elementMenuItems(element);
+                    openMenu(elementMenuItems(element));
                 }
                 else {
-                    menu = emptyCanvasItems(mouseX, mouseY);
+                    openMenu(emptyCanvasItems(mouseX, mouseY));
                 }
             }
         }
@@ -15506,7 +16182,7 @@ public final class QuestBookScreen extends ArmatureScreen
                         : () -> {
                             menuDeleteArmed = true;
                             canvasMenuQuest = id;
-                            menu = nodeMenuItems(id);
+                            openMenu(nodeMenuItems(id));
                         }));
         return items;
     }
@@ -15744,7 +16420,7 @@ public final class QuestBookScreen extends ArmatureScreen
                             // undo history is the whole of the recovery -- see `RemoveElement`.
                             menuDeleteArmed = true;
                             canvasMenuElement = id;
-                            menu = elementMenuItems(id);
+                            openMenu(elementMenuItems(id));
                         }));
         return items;
     }
@@ -17123,6 +17799,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     rebuildWidgets();
                 });
         buildPopoverWidgets();
+        filePopoverArrival();
         refreshOverlayMute();
     }
 
@@ -17160,7 +17837,7 @@ public final class QuestBookScreen extends ArmatureScreen
                             menuDeleteArmed = true;
                             canvasMenuFrom = from;
                             canvasMenuTo = to;
-                            menu = lineMenuItems(from, to);
+                            openMenu(lineMenuItems(from, to));
                         }));
         return items;
     }
@@ -18475,18 +19152,15 @@ public final class QuestBookScreen extends ArmatureScreen
      * inside the rail") is what the press dispatch asks with {@link #panelColumnAt} instead.
      */
     private void openOverlay(String questId) {
-        // **Does the panel have to arrive, or is it only changing what it shows?** Asked before the rails
-        // move, because after it the answer is always "already open".
-        //
-        // The reveal is for a panel appearing beside the graph: a wipe that says where it came from. Clicking
-        // a second node is not that — the rail is already there and settled, and re-wiping it puts up to
-        // eighty milliseconds of transition between the click and the quest the reader asked for, on a
-        // gesture they will repeat as they browse. So a swap is instant, and only an arrival is animated.
-        boolean arriving = overlay != PanelKind.QUEST;
         // Through the rules, not by assignment: opening a quest is a node click, and a node click empties
         // the second column -- the child was opened from the quest that is no longer showing. See
         // `PanelStack.afterNodeClick`, where that is asserted. The dock is not the rules' to take: an author
         // clicking through a chapter keeps their tools.
+        //
+        // Whether this arrives or swaps is `applyColumns`' to decide: a rail already showing only changes
+        // what it holds — re-sliding it would put a full arrival between the click and the quest on a
+        // gesture the reader repeats while browsing — while a newly shown one is stamped there. So a swap
+        // is instant, and only an arrival is animated, with no stamp at this call site.
         applyColumns(PanelStack.afterNodeClick(columns()));
         overlayQuest = questId;
         overlayView.scrollTo(0);
@@ -18495,13 +19169,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // folds go with them: an entry folded here is not the entry at that index in the next quest.
         rowHover.clear();
         entryFolded.clear();
-        if (arriving) {
-            startPanelReveal(PanelKind.QUEST);
-        }
-        // A swap keeps whatever the reveal was doing (a click inside the wipe does not restart it) and leaves
-        // a settled rail settled: `panelRevealStarts` drops an entry only when its wipe finishes or its rail
-        // leaves the arrangement, so this neither stalls a wipe nor starts one. And the entry is per kind, so
-        // the dock beside it is not re-wiped by this at all.
+        // A swap keeps whatever the reveal was doing (a click inside the slide does not restart it) and leaves
+        // a settled rail settled: `panelRevealStarts` drops an entry only when its slide finishes or its rail
+        // leaves the arrangement, so this neither stalls a slide nor starts one. And the entry is per kind, so
+        // the dock beside it is not re-slid by this at all.
         panClearOfPanels(questId);
         rebuildWidgets();
     }
@@ -18551,7 +19222,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * Marks the moment one rail started arriving, in the one place a rail is opened.
      *
      * <p>At the action rather than on the next tick: {@code tick} runs at twenty hertz, so a start
-     * timestamp read there would spend up to forty-nine milliseconds of an eighty-millisecond reveal
+     * timestamp read there would spend up to forty-nine milliseconds of the reveal
      * before the animation had begun. {@code startGlide} and the locate flash are the precedent, and the
      * reveal's own duration is read from the theme when it is drawn rather than stored here — so a player
      * who changes Motion mid-arrival changes the arrival.
@@ -19075,34 +19746,41 @@ public final class QuestBookScreen extends ArmatureScreen
         // Read before the address is cleared: the drafts are keyed by it, and a panel that closed
         // leaving its pending values behind would have them answer for the next table opened.
         String draftedOwner = tableAddress == null ? null : tableOwnerKey();
-        tableAddress = null;
-        tableStack.clear();
-        tableOwner = null;
-        tableOwningPath = null;
-        tableSearch = null;
-        tableTitleField = null;
-        tableFolded.clear();
-        tableShowRoll = false;
-        tableImportOpen = false;
-        tableConfirmReplace = false;
+        // The drafts and the roll go now rather than with the exit: they are model state, not drawn
+        // state, and the surface sinking out reads the committed copy either way. The UI nullings below
+        // are what the exit draws from, so only they wait out the slide.
+        tableDraft.forgetOwner(effectiveChapter(), draftedOwner);
+        dev.ellipog.tenet.client.ClientTableRoll.clear();
+        if (open) {
+            // Through the rules first, so the exit is recorded before its content is owed: the teardown
+            // below is keyed under what this call retires. `NONE` is the book: whatever the panel was
+            // opened from takes the arrangement, so a second column a pick left behind cannot outlive
+            // the panel it belonged to.
+            applyColumns(PanelStack.asRoot(columns(), back));
+        }
+        deferForLastDeparted(() -> {
+            tableAddress = null;
+            tableStack.clear();
+            tableOwner = null;
+            tableOwningPath = null;
+            tableSearch = null;
+            tableTitleField = null;
+            tableFolded.clear();
+            tableShowRoll = false;
+            tableImportOpen = false;
+            tableConfirmReplace = false;
+            // And the state that names something outside the panel: a delete armed for a table the next open
+            // would not be showing, the popover's anchor and its drawn box, and the table field an open inline
+            // editor was writing to -- a box that outlived its panel would commit to whatever table came next.
+            tableConfirmDelete = null;
+            tableImportAnchor = null;
+            tableImportBox = null;
+            tableEdit = null;
+        }, PanelKind.TABLE_BROWSER, PanelKind.TABLE_EDITOR);
         // Every picker the panel could have left armed, from the one place that knows them all. Without
         // this the type picker page survived the panel: the card behind it drew the list of reward types
         // and the author's next press added a reward to the wrong thing.
         clearPickers();
-        // And the state that names something outside the panel: a delete armed for a table the next open
-        // would not be showing, the popover's anchor and its drawn box, and the table field an open inline
-        // editor was writing to -- a box that outlived its panel would commit to whatever table came next.
-        tableConfirmDelete = null;
-        tableImportAnchor = null;
-        tableImportBox = null;
-        tableEdit = null;
-        dev.ellipog.tenet.client.ClientTableRoll.clear();
-        tableDraft.forgetOwner(effectiveChapter(), draftedOwner);
-        if (open) {
-            // Through the rules, and `NONE` is the book: whatever the panel was opened from takes the
-            // arrangement, so a second column a pick left behind cannot outlive the panel it belonged to.
-            applyColumns(PanelStack.asRoot(columns(), back));
-        }
     }
 
     /** Escape and `Done`: one table back, or the panel closed when there is nothing behind it. */
@@ -19899,7 +20577,54 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
 
-    private void drawTableEditor(GuiRenderer r, int mouseX, int mouseY) {
+    /**
+     * What the table editor's body is showing: entries, the roll report, or a page of types.
+     *
+     * <p>One string the drawing maintains itself, so no opener has to stamp the swap: switching tables,
+     * rolling, or picking a type for an entry all change what this names, and the drift below starts
+     * from the change rather than from fifteen call sites remembering to.
+     */
+    private String tablePageKey() {
+        String address = tableAddress == null ? "none" : tableAddress.toString();
+        if (tableShowRoll) {
+            return address + "|roll";
+        }
+        if (pickingEntryType != null) {
+            return address + "|type:" + pickingEntryType;
+        }
+        if (pickingConditionFor != null) {
+            return address + "|cond";
+        }
+        return address + "|entries";
+    }
+
+    /** Which page the body showed last frame, and when it changed. See {@link #tablePageKey}. */
+    private String lastTablePageKey = "";
+    private long tablePageOpenedAt = -1L;
+
+    /** How long a body page takes to settle into place: a nudge, in the menus' band. */
+    private static final int TABLE_PAGE_MILLIS = 90;
+
+    /** How far beside its rest a fresh body page starts. Small enough to read as a settle. */
+    private static final int TABLE_PAGE_DRIFT_PX = 6;
+
+    /**
+     * How far right of its rest the table's body still stands.
+     *
+     * <p>Zero while the rail itself is arriving — the rail's own slide carries the body then, and a
+     * second motion inside it would read as the content lagging its panel. Zero with motion off, like
+     * every other arrival.
+     */
+    private int tablePageDrift(long now) {
+        if (panelRevealing(PanelKind.TABLE_EDITOR, now)) {
+            return 0;
+        }
+        float arrived =
+                PanelLayout.revealed(now - tablePageOpenedAt, TABLE_PAGE_MILLIS);
+        return Math.round(TABLE_PAGE_DRIFT_PX * (1F - arrived));
+    }
+
+    private void drawTableEditor(GuiRenderer r, PoseStack pose, int mouseX, int mouseY) {
         claimTableData();
         reconcileTableDrafts();
         tableHint = null;
@@ -20125,6 +20850,43 @@ public final class QuestBookScreen extends ArmatureScreen
 
         drawTableEditorToolbar(r, mouseX, mouseY, true);
 
+        // The page arriving, when it just changed: entries, the roll report, or a page of types slide
+        // a few pixels left into place under a toolbar that never moves. Tracked here rather than
+        // stamped by the openers, because every swap — rolling, picking, nesting — funnels through this
+        // draw. Presses read the unshifted rows for the tenth of a second this lasts; the pointer just
+        // pressed the toolbar that caused the swap, so no aimed press can land inside the skew.
+        long pageNow = net.minecraft.Util.getMillis();
+        String pageKey = tablePageKey();
+        if (!pageKey.equals(lastTablePageKey)) {
+            lastTablePageKey = pageKey;
+            tablePageOpenedAt = pageNow;
+        }
+        int drift = tablePageDrift(pageNow);
+        boolean drifting = drift != 0;
+        if (drifting) {
+            pose.pushPose();
+            pose.translate(drift, 0F, 0F);
+        }
+        try {
+            drawTableEditorBody(r, table, mouseX, mouseY);
+        }
+        finally {
+            if (drifting) {
+                pose.popPose();
+            }
+        }
+    }
+
+    /**
+     * The table editor's body: the roll report, the entries, or a page of types.
+     *
+     * <p>Split out of {@link #drawTableEditor} so the page drift has one region to wrap: chrome above
+     * (the title, the toolbar) never moves, and everything below arrives. Called inside the drift's
+     * pose scope when one is in flight, and directly otherwise.
+     */
+    private void drawTableEditorBody(GuiRenderer r,
+                                     dev.ellipog.tenet.quest.loot.RewardTable table, int mouseX,
+                                     int mouseY) {
         if (tableShowRoll) {
             drawTableRollPane(r, mouseX, mouseY);
             drawTableHint(r, tableHint);
@@ -20292,11 +21054,15 @@ public final class QuestBookScreen extends ArmatureScreen
         int y = below + height <= body.bottom()
                 ? below
                 : Math.max(body.y(), button.y() - height - 1);
+        // The same climb the menus do, from its own stamp: the box the press reads is drawn risen, so
+        // the two agree for the tenth of a second the arrival lasts.
+        y += importRise();
         ArmatureTheme.panel(r, x - 2, y - 2, width + 4, height + 4, ArmatureTheme.raised(),
                 ArmatureTheme.panelEdge());
         // The rectangle it just drew, for the press: one derivation, so a press inside the popover is a
-        // press on what is on screen rather than on the arithmetic a second time.
-        tableImportBox = BookGeometry.Rect.at(x, y, width, height);
+        // press on what is on screen rather than on the arithmetic a second time. Shifted for the rail's
+        // slide like every other registered box — see `shiftHit`.
+        tableImportBox = shiftHit(BookGeometry.Rect.at(x, y, width, height));
         drawTableImportRow(r, x, y, width, "From inventory", EditAction.TABLE_IMPORT,
                 mouseX, mouseY);
         drawTableImportRow(r, x, y + MENU_ROW_HEIGHT, width, "From target chest",
@@ -21004,7 +21770,9 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** The panel's own pressable list, and its registration: one shape, so the two cannot drift. */
     private void registerAssetTarget(EditAction action, BookGeometry.Rect box, AssetLine line) {
-        assetsTargets.add(new EditTarget(action, line.id(), box, box.x() + 2, box.y() + 3, line.label(),                null, assetsTargets.size()));
+        BookGeometry.Rect hit = shiftHit(box);
+        assetsTargets.add(new EditTarget(action, line.id(), hit, hit.x() + 2, hit.y() + 3, line.label(),
+                null, assetsTargets.size()));
     }
 
     /** Draws the panel: the chrome, the sections, the page, the bar and the footer. */
@@ -21211,7 +21979,13 @@ public final class QuestBookScreen extends ArmatureScreen
                 tableShowRoll = false;
                 rebuildWidgets();
             }
-            case TABLE_IMPORT_MENU -> tableImportOpen = !tableImportOpen;
+            case TABLE_IMPORT_MENU -> {
+                if (!tableImportOpen) {
+                    // Stamped on the way in, like every menu: the popover climbs into place below.
+                    tableImportOpenedAt = net.minecraft.Util.getMillis();
+                }
+                tableImportOpen = !tableImportOpen;
+            }
             case TABLE_PREVIEW -> {
                 tablePreview = dev.ellipog.tenet.client.dev.TableEditorLayout
                         .nextPreview(tablePreview);
@@ -21888,51 +22662,57 @@ public final class QuestBookScreen extends ArmatureScreen
         panelDragRail = null;
         panelDragKind = PanelKind.NONE;
         panelLiveWidth = 0;
-        overlayQuest = null;
-        overlayView.scrollTo(0);
         rowHover.clear();
-        // And the element panel is about nothing once it is closed: its rows were built for one element, and a
-        // subject left behind would be a panel that could be reopened onto whatever that id means later.
-        elementPanelId = null;
-        elementRows = List.of();
-        elementLayout = null;
-        // And a Delete left asking its question goes with it: the next element opened gets one press, like
-        // the quest card's own Delete, which this exit also forgets. See `clearPickers` below.
-        elementConfirmingDelete = null;
+        // The content nullings are deferred, not dropped: the exiting rails draw from this state for the
+        // length of their slide. They run when the exits sink, or early if one of these rails reopens
+        // first — teardown before setup, as ever. The gestures and the commits below stay immediate: a
+        // drag has no surface to follow, and a picker's commit must not wait out an animation.
+        deferForLastDeparted(() -> {
+            overlayQuest = null;
+            overlayView.scrollTo(0);
+            // And the element panel is about nothing once it is closed: its rows were built for one element, and a
+            // subject left behind would be a panel that could be reopened onto whatever that id means later.
+            elementPanelId = null;
+            elementRows = List.of();
+            elementLayout = null;
+            // And a Delete left asking its question goes with it: the next element opened gets one press, like
+            // the quest card's own Delete, which this exit also forgets. See `clearPickers` below.
+            elementConfirmingDelete = null;
+            // The chain of jumps ends with the card: a stale stack would replay a trail from a card the
+            // reader closed, and the next card they open is a fresh session with its own history.
+            overlayHistory.clear();
+            // The folds are the card's too: the next card has its own list, and an index folded here names
+            // nothing there.
+            entryFolded.clear();
+            // The Assets panel's pressable list, which belongs to the frame that drew it: a list left behind
+            // would answer a press on a row that is no longer on screen.
+            assetsTargets.clear();
+            assetsBody.setScrollY(0);
+            // An arm made in the Assets panel is that panel's, so it goes when the panel does: left behind, the
+            // next table of the same name would be removed on one press by a chip nobody had asked about.
+            assetsConfirmRemove = null;
+            entryConfirmRemove = null;
+            confirmingDelete = false;
+            settingsOpen = false;
+            draggingSlider = null;
+            settingsDraft.clear();
+            // The widgets go with the clear; the references and the path must not outlive them.
+            inlineField = null;
+            inlineArea = null;
+            editingPath = null;
+        });
         // And the colour picker when it belongs to this panel: its anchor rows are gone with it, and a
         // picker left standing would commit to an element nobody is looking at. A dock-anchored picker
         // stays -- the dock is not what closed.
         if (popoverChip != null && popoverChip.view() == elementView) {
             closeColourPopover();
         }
-        // The chain of jumps ends with the card: a stale stack would replay a trail from a card the
-        // reader closed, and the next card they open is a fresh session with its own history.
-        overlayHistory.clear();
-        // The folds are the card's too: the next card has its own list, and an index folded here names
-        // nothing there.
-        entryFolded.clear();
         // The editor's transient state goes with the card: a picker left armed would greet the next
         // quest with a list of types, and a Delete left confirmed would delete on one press. One call,
         // so every picker kind is forgotten by every exit rather than by whichever ones were remembered.
         clearPickers();
         // And the table panels', which name a table and a reward the closed card was showing.
         closeTablePanel();
-        // The Assets panel's pressable list, which belongs to the frame that drew it: a list left behind
-        // would answer a press on a row that is no longer on screen.
-        assetsTargets.clear();
-        assetsBody.setScrollY(0);
-        // An arm made in the Assets panel is that panel's, so it goes when the panel does: left behind, the
-        // next table of the same name would be removed on one press by a chip nobody had asked about.
-        assetsConfirmRemove = null;
-        entryConfirmRemove = null;
-        confirmingDelete = false;
-        settingsOpen = false;
-        draggingSlider = null;
-        settingsDraft.clear();
-        // The widgets go with the clear; the references and the path must not outlive them.
-        inlineField = null;
-        inlineArea = null;
-        editingPath = null;
         rebuildWidgets();
     }
 
@@ -22047,6 +22827,9 @@ public final class QuestBookScreen extends ArmatureScreen
         Viewport view = viewport();
         glideQuest = entry.id();
         glideStart = Util.getMillis();
+        // The locate takes the whole camera: a zoom glide still stepping must not fight it, for the same
+        // reason the hand cancels either of them.
+        zoomGlideStart = -1L;
         glideFromX = view.offsetX();
         glideFromY = view.offsetY();
         // Content coordinates for the node's middle, through the drawing's own helpers — so the target
@@ -22283,6 +23066,14 @@ public final class QuestBookScreen extends ArmatureScreen
         // thing and `renderWith` deliberately sees only a `GuiRenderer` -- that is what lets it be
         // driven by a RecordingRenderer with no client. This override is the one place that has the
         // unwrapped context, so it is the one place this can be done.
+        // The rails' widgets travel with their surfaces, before either is drawn or hit: the slide is
+        // placed here rather than in the drawing because the widget pass below reads the positions, and
+        // here rather than in `tick` because the positions belong to this frame's clock, not the last
+        // tick's. See `slidePanelWidgets` for the inert-while-travelling half of the arrangement.
+        long slideNow = net.minecraft.Util.getMillis();
+        slidePanelWidgets(slideNow);
+        slidePopoverWidgets(slideNow);
+
         PoseStack pose = graphics.pose();
         pose.pushPose();
         pose.translate(0F, 0F, CHROME_Z);
@@ -22301,7 +23092,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // The chapter tab draws an item icon of its own, which writes depth CHROME_Z + 150 -- the same
             // band the sidebar's rows already leave behind, and the reason POPOVER_Z and TOOLTIP_Z are stepped
             // above the chrome rather than beside it.
-            drawPanels(renderer, hoverX, hoverY, net.minecraft.Util.getMillis());
+            drawPanels(renderer, pose, hoverX, hoverY, net.minecraft.Util.getMillis());
 
             // The view cluster's backing panel, and it is drawn here rather than in `drawBook` for
             // exactly this reason: it has to be inside the raised Z, and `drawBook` cannot raise it.
@@ -22475,10 +23266,24 @@ public final class QuestBookScreen extends ArmatureScreen
             // are drawn here, and `ScrubField` works its hover out from the coordinates it is given rather
             // than from `isHovered`. See `overlayOwnsPointer`.
             if (colourPopover.isOpen()) {
+                // The settle, shared with the fields and the pointer: the surface shifts inside its scope
+                // while its four fields travel by their own slide, so both land together. Two scopes
+                // rather than one, because the fields are already moved — translating them again here
+                // would double-shift every box they type into.
+                int arrival = popoverOffset(net.minecraft.Util.getMillis());
+                pose.pushPose();
+                pose.translate(arrival, 0F, POPOVER_Z - CHROME_Z);
+                try {
+                    // Aimed where it is drawn: the hover washes and the arrow-key part read the pointer
+                    // through the same shift the presses do.
+                    colourPopover.render(renderer, (int) pickerPointerX(renderMouseX), renderMouseY);
+                }
+                finally {
+                    pose.popPose();
+                }
                 pose.pushPose();
                 pose.translate(0F, 0F, POPOVER_Z - CHROME_Z);
                 try {
-                    colourPopover.render(renderer, renderMouseX, renderMouseY);
                     for (net.minecraft.client.gui.components.AbstractWidget widget
                             : colourPopover.widgets()) {
                         if (widget instanceof dev.ellipog.tenet.client.dev.ScrubField field) {
@@ -23605,6 +24410,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // camera moves in, and this is the only drawing the move can be seen in -- the canvas is not
         // drawn while a card is up.
         advanceGlide(now);
+        // And the zoom buttons' glide beside it: same frame, same camera, no fighting.
+        advanceZoomGlide(now);
         // The frame's canvas — its edges and its on-canvas nodes — rebuilt only if something it is drawn
         // from has moved. Stamped here rather than earlier because the glide above moves the camera, and
         // this is the first point at which the viewport is the one the frame will draw with.
@@ -23677,16 +24484,6 @@ public final class QuestBookScreen extends ArmatureScreen
                 now);
         selectionGlow.update(glowSelection(), now);
 
-        // Dependency lines first, so nodes draw over them.
-        //
-        // Through the edge's own geometry rather than through `drawStyledPath(path, style, ...)`: the
-        // rectangles and the arrowheads were worked out when this edge was built, so a frame re-issues
-        // them and measures nothing. The origin is still added per fill — see `drawStyledPath`'s overload.
-        for (FrameEdge edge : edges) {
-            drawStyledPath(r, edge.geometry(), edge.path().get(0),
-                    lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now));
-        }
-
         // How far out this frame is, once, for everything below it. Zooming out is what puts the most
         // nodes on screen at once, and it is also where the fine detail stops being readable -- so the
         // tier is read here rather than decided per drawing. See CanvasDetail for the tiers and for why
@@ -23698,6 +24495,17 @@ public final class QuestBookScreen extends ArmatureScreen
         CanvasDetail detail = ClientQuestCache.lodDisabledFor(effectiveChapter())
                 ? CanvasDetail.FULL
                 : CanvasDetail.of(viewport().scale());
+
+        // Dependency lines first, so nodes draw over them.
+        //
+        // Through the edge's own geometry rather than through `drawStyledPath(path, style, ...)`: the
+        // rectangles and the arrowheads were worked out when this edge was built, so a frame re-issues
+        // them and measures nothing. The origin is still added per fill — see `drawStyledPath`'s overload.
+        for (FrameEdge edge : edges) {
+            drawStyledPath(r, edge.geometry(), edge.path().get(0),
+                    lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now));
+            drawEdgePulse(r, edge, now, detail);
+        }
 
         // The chapter's markers, in the node layer but beneath the nodes: a shortcut beside the quests
         // it points at, wearing each target's state. Before the nodes so a node keeps the press over a
@@ -25150,11 +25958,61 @@ public final class QuestBookScreen extends ArmatureScreen
      * recognisably completed underneath.
      */
     private int lineInk(int base, String from, String to, long now) {
+        float glow = lineGlow(from, to, now);
+        return glow <= 0F ? base : Colour.shade(base, glow);
+    }
+
+    /**
+     * How much glow reaches one line, before it becomes ink: the direct hover's share or the
+     * brightest neighbour's, whichever is louder.
+     *
+     * <p>Beside {@link #lineInk} because the pulse needs the amount rather than the colour: its
+     * packets fade in and out with the same crossfade the ink does, so a sweep hands the flow over
+     * instead of blinking it.
+     */
+    private float lineGlow(String from, String to, long now) {
         float direct = edgeHover.amount(List.of(from, to), now) * LINE_HOVER_BRIGHTEN;
         float beside = Math.max(adjacency(nodeHover, from, to, now),
                 adjacency(selectionGlow, from, to, now)) * ADJACENT_LINE_BRIGHTEN;
-        float glow = Math.max(direct, beside);
-        return glow <= 0F ? base : Colour.shade(base, glow);
+        return Math.max(direct, beside);
+    }
+
+    /**
+     * The direction cue on a glowing line: bright packets travelling prerequisite to dependent.
+     *
+     * <p>An overlay over the stamped geometry, never a rebuild of it: the route's rectangles stay as
+     * the frame built them and a few dots ride above, only while the line glows, so quiet chapters
+     * pay nothing. The packets ease in with the hover (their ink carries the same glow), stop short
+     * of the arrowhead (which already says the direction, statically), and stay out of the far zoom
+     * (where a shimmer would be noise) and of motion-off (where nothing travels).
+     */
+    private void drawEdgePulse(GuiRenderer r, FrameEdge edge, long now, CanvasDetail detail) {
+        float glow = lineGlow(edge.fromId(), edge.toId(), now);
+        if (glow < 0.05F || !ClientAppearance.LOOK.motion() || !detail.rings()) {
+            return;
+        }
+        List<LineArt.Point> path = edge.path();
+        double length = LineArt.length(path);
+        List<Double> centers = EdgePulse.centers(length, now, edgeSeed(edge));
+        if (centers.isEmpty()) {
+            return;
+        }
+        int ink = Colour.translucent(Colour.shade(edge.baseColour(), Math.min(1F, glow + 0.35F)),
+                Math.min(1F, glow));
+        for (double center : centers) {
+            for (double s = center - EdgePulse.PACKET_LEN; s <= center; s += 2) {
+                if (s < 0 || s > length - EdgePulse.ARROW_KEEP) {
+                    continue;
+                }
+                LineArt.Point p = LineArt.pointAt(path, s);
+                r.fill(p.x() - 1, p.y() - 1, p.x() + 1, p.y() + 1, ink);
+            }
+        }
+    }
+
+    /** Per-edge variety for the pulse loops, so neighbouring lines do not march in lockstep. */
+    private static int edgeSeed(FrameEdge edge) {
+        return (edge.fromId() + '>' + edge.toId()).hashCode();
     }
 
     /**
@@ -25435,7 +26293,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * return.
      */
     /**
-     * Every rail that is presented, each drawn into its own rectangle.
+     * Every rail that is presented, each drawn into its own rectangle — and every rail that just left,
+     * sinking back out.
      *
      * <p>The content is {@link #drawSurface}'s, unchanged — this method decides only <i>where</i>, and that
      * is the whole of what the rail arrangement adds. Three things are its own and none is cosmetic: the
@@ -25449,8 +26308,13 @@ public final class QuestBookScreen extends ArmatureScreen
      * targets accumulated for as long as a panel stayed open while both press handlers scan the list from
      * the front — so the oldest stale box won the click, and a press was either swallowed or acted on the
      * row that used to be under the pointer.
+     *
+     * <p>Departed rails draw after the live ones, from their snapshotted rectangles and retained content,
+     * sinking into the edge they arrived from. Surface only: their widgets rebuilt with the close, so there
+     * is nothing travelling to place — and the live target list is snapshotted around them, because their
+     * listings clear before they fill and a press must never land on a panel that is already gone.
      */
-    private void drawPanels(GuiRenderer r, int mouseX, int mouseY, long now) {
+    private void drawPanels(GuiRenderer r, PoseStack pose, int mouseX, int mouseY, long now) {
         editTargets.clear();
         int duration = panelRevealMillis();
         for (PanelKind kind : PanelStack.presented(columns(), panelFolded())) {
@@ -25459,13 +26323,100 @@ public final class QuestBookScreen extends ArmatureScreen
             // or four ints, and the reveal is arithmetic this class produced -- wrapping it in a kit type
             // to hand it straight back would be a conversion with no reader.
             BookGeometry.Rect shown = PanelLayout.revealRect(rail, panelRevealElapsed(kind, now), duration);
+            // The same offset the widgets travel by, so the sheet and its controls are one thing moving
+            // left rather than a wipe the buttons pop onto afterwards. The clip is opened first and stays
+            // where the rail lives; only the surface shifts inside it, and the grip below stays with the
+            // frame rather than with the arrival.
+            int offset = PanelLayout.slideOffset(rail, panelRevealElapsed(kind, now), duration);
             try (GuiRenderer.Scoped clip = r.clip(shown.x(), shown.y(), shown.right(), shown.bottom())) {
-                drawSurface(r, kind, mouseX, mouseY, now);
+                if (offset != 0) {
+                    pose.pushPose();
+                    pose.translate(offset, 0F, 0F);
+                    try {
+                        drawSurface(r, pose, kind, mouseX, mouseY, now);
+                    }
+                    finally {
+                        pose.popPose();
+                    }
+                }
+                else {
+                    drawSurface(r, pose, kind, mouseX, mouseY, now);
+                }
                 // After the surface, because it belongs to the frame rather than to what the column holds:
                 // the grip on the inner edge is this presentation's one affordance, and the panel's own
                 // drawing knows nothing about it.
                 drawPanelGrip(r, rail, shown, mouseX, mouseY);
             }
+        }
+        drawDepartedPanels(r, pose, mouseX, mouseY, now);
+    }
+
+    /**
+     * The rails that left the arrangement and have not finished sinking.
+     *
+     * <p>The enter in reverse, from the snapshot each close took: the clip shrinks into the rail's outer
+     * edge while the surface shifts right inside it. No grip — the frame's affordance belongs to rails
+     * that answer — and no targets survive: anything the kinds register while drawing is cut back off,
+     * because the panels are gone however drawn they still are. The rail override ({@link #panelRail}
+     * answering the snapshot) is scoped to each draw and cleared after, so a throw cannot leak one
+     * kind's rectangle into another's.
+     */
+    private void drawDepartedPanels(GuiRenderer r, PoseStack pose, int mouseX, int mouseY, long now) {
+        int exitMs = panelExitMillis();
+        if (exitMs <= 0 || panelDepartStarts.isEmpty()) {
+            return;
+        }
+        // Snapshotted, not truncated: a departed draw re-runs its kind's listing, and listings clear
+        // before they fill — the quest editor most of all. Truncating back to a size would keep a clear
+        // that wiped the live rails' targets while leaving the departed ones standing: presses landing
+        // on invisible rows. Restoring the exact list keeps the exit press-dead by construction.
+        java.util.List<EditTarget> keptTargets = java.util.List.copyOf(editTargets);
+        // drawSurface names its kind as it draws; the live loop above leaves whatever it drew last,
+        // and this loop must leave the same rather than a rail that is already gone.
+        PanelKind keptSurface = surfaceKind;
+        try {
+            for (PanelKind kind : java.util.List.copyOf(panelDepartStarts.keySet())) {
+                BookGeometry.Rect rail = departRails.get(kind);
+                if (rail == null) {
+                    continue;
+                }
+                long elapsed = panelDepartElapsed(kind, now);
+                BookGeometry.Rect shown = PanelLayout.departRect(rail, elapsed, exitMs);
+                if (shown.width() <= 0) {
+                    continue;
+                }
+                int offset = PanelLayout.departOffset(rail, elapsed, exitMs);
+                departDrawKind = kind;
+                departDrawRail = rail;
+                try (GuiRenderer.Scoped clip =
+                        r.clip(shown.x(), shown.y(), shown.right(), shown.bottom())) {
+                    if (offset != 0) {
+                        pose.pushPose();
+                        pose.translate(offset, 0F, 0F);
+                        try {
+                            drawSurface(r, pose, kind, mouseX, mouseY, now);
+                        }
+                        finally {
+                            pose.popPose();
+                        }
+                    }
+                    else {
+                        drawSurface(r, pose, kind, mouseX, mouseY, now);
+                    }
+                }
+                finally {
+                    departDrawKind = null;
+                    departDrawRail = null;
+                }
+            }
+        }
+        finally {
+            // Whatever the departed kinds registered while drawing goes — including a clear that wiped
+            // the live rails' targets: the snapshot above puts the live list back whole, so a press
+            // must never land on a panel that is already gone.
+            editTargets.clear();
+            editTargets.addAll(keptTargets);
+            surfaceKind = keptSurface;
         }
     }
 
@@ -25526,7 +26477,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * That is the seam the whole arrangement rests on, and it is why this is a parameter rather than a read
      * of {@code overlay}.
      */
-    private void drawSurface(GuiRenderer r, PanelKind kind, int mouseX, int mouseY, long now) {
+    private void drawSurface(GuiRenderer r, PoseStack pose, PanelKind kind, int mouseX, int mouseY,
+                             long now) {
         // What the four accessors answer for, for the whole of this kind's drawing: its body's clip, its
         // rows, its footer. Set here rather than by the caller, so a second caller cannot forget it.
         surfaceKind = kind;
@@ -25584,7 +26536,7 @@ public final class QuestBookScreen extends ArmatureScreen
             drawFilterPanel(r, mouseX, mouseY);
         }
         else if (kind == PanelKind.TABLE_EDITOR) {
-            drawTableEditor(r, mouseX, mouseY);
+            drawTableEditor(r, pose, mouseX, mouseY);
         }
         else if (kind == PanelKind.ASSETS) {
             // The pack, which is chrome: it belongs to the book rather than to any chapter, so it is drawn
@@ -25861,7 +26813,9 @@ public final class QuestBookScreen extends ArmatureScreen
                 var onScreen = InspectLayout.onScreen(choiceView.viewport(), slot);
                 BookGeometry.Rect rect = BookGeometry.Rect.at(onScreen.x(), onScreen.y(),
                         onScreen.width(), onScreen.height());
-                choiceRowRects.add(rect);
+                // Registered where it is drawn: the rail's slide shifts the drawing, so the press
+                // follows it through the same shift. See `shiftHit`.
+                choiceRowRects.add(shiftHit(rect));
                 if (entries != null && i < entries.entries().size()) {
                     drawChoiceRow(r, entries.entries().get(i), rect, mouseX, mouseY);
                 }
@@ -26107,24 +27061,37 @@ public final class QuestBookScreen extends ArmatureScreen
      * those two: the card's own controls and nothing else, which is what makes a press look like it landed
      * rather than like the screen blinked.
      *
-     * <p>The reveal guard is the one {@code buildColumn} keeps and for its reason: a rail still coming in
-     * has no surface to place controls against, so the build is deferred to the tick that settles it
-     * rather than done against a rectangle that has not arrived.
+     * <p>The reveal guard defers a rebuild while the rail is still sliding in: redoing travelling
+     * widgets for every mark that moves mid-flight would be churn per frame, so the build waits for
+     * the tick that settles it. See the inline note for what is consumed meanwhile.
      */
     private void refreshRewardCard() {
         if (panelRevealing(PanelKind.REWARDS, net.minecraft.Util.getMillis())) {
-            // The build is deferred to the tick that settles the wipe, so the marks are consumed here:
+            // The build is deferred to the tick that settles the slide, so the marks are consumed here:
             // the deferred build will place controls that already know about them. Without this the tick
-            // would see the same change on every frame of the reveal and rebuild for each one.
+            // would see the same change on every frame of the slide and rebuild for each one.
             panelBuildPending = true;
             rewardMarksRevision = pendingClaims.revision();
             return;
         }
+        java.util.List<AbstractWidget> slid =
+                slideWidgets.getOrDefault(PanelKind.REWARDS, java.util.List.of());
         for (ArmatureButton control : rewardControls) {
             removeWidget(control);
             buttons.remove(control);
+            slid.remove(control);
+            slideBaseX.remove(control);
         }
-        rewardControls = buildRewardWidgets();
+        // Filed under the rail like the first build was, so a refresh keeps travelling with a slide that
+        // is still in flight rather than landing its replacements early.
+        PanelKind outer = slideBucket;
+        slideBucket = PanelKind.REWARDS;
+        try {
+            rewardControls = buildRewardWidgets();
+        }
+        finally {
+            slideBucket = outer;
+        }
         rewardMarksRevision = pendingClaims.revision();
         refreshOverlayMute();
     }
@@ -28210,7 +29177,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     r.styledText(List.of(new GuiRenderer.StyledRun(piece.text(), bold, italic,
                             underline, piece.scale())), x, lineY, colour);
                     if (box != null) {
-                        linkRects.add(new LinkRect(box, link == null ? "" : link,
+                        linkRects.add(new LinkRect(shiftHit(box), link == null ? "" : link,
                                 quest == null ? "" : quest));
                     }
                     x += width;
@@ -29447,7 +30414,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // Whether this press is the open colour picker's, wherever it floats. Rails float over the
         // canvas the picker is clamped to, so the picker can slide under one; the grip below and the
         // surface block past the widget pass are what keep that press the picker's.
-        boolean onPicker = colourPopover.isOpen() && colourPopover.panel().contains(mouseX, mouseY);
+        boolean onPicker = colourPopover.isOpen()
+                && colourPopover.panel().contains(pickerPointerX(mouseX), mouseY);
         // **And the grip, before either column's own handling** -- one claim for every column, the author's
         // dock included.
         //
@@ -29564,7 +30532,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // A press anywhere else still falls through to the arms, so switching chips mid-picker and
             // dismissing it with a press outside both work as before.
             if (onPicker) {
-                colourPopover.mouseClicked(mouseX, mouseY, button);
+                colourPopover.mouseClicked(pickerPointerX(mouseX), mouseY, button);
                 return true;
             }
 
@@ -29914,7 +30882,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // left is its tracks and swatches -- and a press outside, which closes it and is consumed, so the
         // click that dismisses the picker never also acts on what was behind it.
         if (colourPopover.isOpen()) {
-            if (colourPopover.mouseClicked(mouseX, mouseY, button)) {
+            if (colourPopover.mouseClicked(pickerPointerX(mouseX), mouseY, button)) {
                 return true;
             }
             closeColourPopover();
@@ -30387,7 +31355,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         // The picker's tracks, before anything behind it: a drag on the hue strip is the picker's, and a
         // drag in one of its fields falls through to the widget pass below.
-        if (colourPopover.mouseDragged(mouseX, mouseY, button)) {
+        if (colourPopover.mouseDragged(pickerPointerX(mouseX), mouseY, button)) {
             return true;
         }
         // The curve handle's follow. The bow is recomputed from the pointer rather than accumulated, so
@@ -30689,7 +31657,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         // A picker track's release writes once, if the drag changed anything; a release in one of the
         // picker's fields falls through to the widget pass.
-        if (colourPopover.mouseReleased(mouseX, mouseY, button)) {
+        if (colourPopover.mouseReleased(pickerPointerX(mouseX), mouseY, button)) {
             return true;
         }
         // A slider's release: the one commit for the whole drag. Read and cleared before anything else
@@ -32512,19 +33480,19 @@ public final class QuestBookScreen extends ArmatureScreen
     public void tick() {
         super.tick();
 
-        // The rails have finished arriving, so their controls can be built. One rebuild, on the frame the
-        // last of them settles, and never on the frame path: a reveal read while drawing would be a state
-        // read and a widget list changed inside a render.
+        // The rails have finished arriving, so their controls stop travelling and go live. One rebuild,
+        // on the frame the last of them settles, and never on the frame path: a reveal read while drawing
+        // would be a state read and a widget list changed inside a render.
         //
         // The two ways this is skipped are both deliberate: with motion off the duration is zero, so a rail
         // is already settled on the frame it opens and `init` built its controls with everything else; and a
-        // rebuild that is not owed is not done. `panelBuildPending` is set by `buildColumn` for exactly the
-        // case this exists for -- a rail that was still coming in when the widgets were built.
+        // rebuild that is not owed is not done. `panelBuildPending` is set by the per-frame slide for exactly
+        // the case this exists for -- a rail whose widgets travelled and are still marked inert.
         //
         // **Per rail, and asked of the arrangement rather than of a field.** One timestamp for the whole
-        // arrangement meant opening a panel re-wiped the dock beside it, which reads as the dock closing and
+        // arrangement meant opening a panel re-slid the dock beside it, which reads as the dock closing and
         // reopening; and "is anything still arriving" has to be asked of every rail that is on screen, or a
-        // rail that settles last would never get its controls.
+        // rail that settles last would never go live.
         long now = Util.getMillis();
         if (panelBuildPending && !anyPanelRevealing(now)) {
             panelBuildPending = false;
@@ -32533,6 +33501,43 @@ public final class QuestBookScreen extends ArmatureScreen
         // Everything settled forgets when it started, so a kind closed and reopened later begins its second
         // arrival at the beginning rather than part-way through the first.
         panelRevealStarts.entrySet().removeIf(entry -> !panelRevealing(entry.getKey(), now));
+        // And everything sunk is owed its cleanup — selectively. A cleanup stamped under the
+        // arrangement still standing runs: the close is the latest thing that happened, so nothing
+        // fresh stands where its nullings land. One stamped under an older arrangement stays parked
+        // for its own kind's reopen (or the screen's end): something moved since, and running it under
+        // the new arrival would null state that arrival just set. The rail is forgotten either way, so
+        // a later close schedules fresh rather than re-running the old.
+        java.util.Iterator<java.util.Map.Entry<PanelKind, Long>> sunk =
+                panelDepartStarts.entrySet().iterator();
+        boolean settledExit = false;
+        while (sunk.hasNext()) {
+            PanelKind kind = sunk.next().getKey();
+            if (!panelDeparting(kind, now)) {
+                java.util.List<StampedTeardown> owed = pendingTeardowns.get(kind);
+                if (owed != null) {
+                    int before = owed.size();
+                    owed.removeIf(stamped -> {
+                        if (stamped.epoch() == arrangementEpoch) {
+                            stamped.teardown().run();
+                            return true;
+                        }
+                        return false;
+                    });
+                    settledExit |= owed.size() != before;
+                    if (owed.isEmpty()) {
+                        pendingTeardowns.remove(kind);
+                    }
+                }
+                sunk.remove();
+                departRails.remove(kind);
+            }
+        }
+        if (settledExit) {
+            // The mute was computed at close time, from state the teardown just took away: a settings
+            // page that covered the body is gone, so recompute who answers rather than leaving the new
+            // arrangement's controls muted behind it. No widget list changes, so tick may do it.
+            refreshOverlayMute();
+        }
 
         // A choice the server is holding comes to the front. It is a question the player asked by
         // claiming, so it is not left waiting behind a panel they opened since -- and it is read here
@@ -32610,7 +33615,12 @@ public final class QuestBookScreen extends ArmatureScreen
         //
         // In tick rather than in the drawing, because scrolling re-places widgets and that is not a thing
         // to do inside a render.
-        if (overlay == PanelKind.QUEST && mayEditNow()) {
+        //
+        // And not while the rail is still sliding in: the caret cannot have moved inside an editor the
+        // player has had for a tenth of a second, while a scroll now would re-place widgets the slide is
+        // about to move again — the two passes fighting over one list for the whole of the arrival.
+        if (overlay == PanelKind.QUEST && mayEditNow()
+                && !panelRevealing(PanelKind.QUEST, now)) {
             followCaret();
         }
 
@@ -32958,6 +33968,11 @@ public final class QuestBookScreen extends ArmatureScreen
     @Override
     public void removed() {
         super.removed();
+        // Exits end with their world: any cleanup a close deferred runs now rather than never — several
+        // free drafts and close commits, and there is no next settle coming.
+        runAllTeardowns();
+        panelDepartStarts.clear();
+        departRails.clear();
         // The pending values die with the screen: reopening reads the server's copy, and a draft from
         // a session that is over must not answer for it.
         fieldDraft.clear();

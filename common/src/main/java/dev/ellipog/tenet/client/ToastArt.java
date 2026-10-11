@@ -75,12 +75,19 @@ public final class ToastArt {
         return Math.min(widest, MAX_WIDTH);
     }
 
+    /** How far a fresh notice climbs while it fades in: enough to read as arriving, not floating. */
+    public static final int RISE = 4;
+
     /**
      * Draws a stack, oldest first, with its first row's own top-left at {@code (x, y)}.
      *
      * <p>Oldest first rather than newest, so a caller that anchors the <i>newest</i> at a fixed edge gets
      * the ones already being read moving away rather than being pushed off: that is the order
      * {@link ToastStack#visible} answers in, and reversing it here would put the decision in two places.
+     *
+     * <p>A fresh row also climbs {@link #RISE} pixels while its alpha ramps: a fade alone brightens in
+     * place, while the climb is what says "this just landed". Both come from the toast's own arrival,
+     * so the book and the HUD cannot disagree about either.
      *
      * @param dim how much of the fill to draw, 0 to 1. The book passes 1: its stack looks as it always has,
      *            and a HUD element passes its own slider. Multiplied into the per-toast fade alpha, so a
@@ -90,7 +97,7 @@ public final class ToastArt {
                             int width, boolean motion, long now, double dim) {
         for (int i = 0; i < visible.size(); i++) {
             ToastStack.Toast toast = visible.get(i);
-            int top = y + i * (LINE + GAP);
+            int top = y + i * (LINE + GAP) + Math.round((1F - toast.arrival(now, motion)) * RISE);
             float alpha = toast.alpha(now, motion) * (float) dim;
             int colour = toast.error() ? ArmatureTheme.blocked() : ArmatureTheme.body();
             ArmatureTheme.panel(r, x, top, width, LINE,

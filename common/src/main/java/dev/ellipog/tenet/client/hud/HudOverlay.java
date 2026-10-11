@@ -425,9 +425,10 @@ public final class HudOverlay {
     /**
      * The notices to draw: what is live, or the editor's stand-in when nothing is.
      *
-     * <p>The stand-in is born at {@code now} rather than at a fixed time, so it never fades while somebody is
+     * <p>The stand-in is born a fade-in ago rather than at a fixed time, so it never fades while somebody is
      * looking at it in the editor -- a preview that vanished every four seconds would read as a fault in the
-     * element rather than as the lifetime it is showing.
+     * element rather than as the lifetime it is showing -- and still draws fully arrived rather than
+     * mid-climb on every frame.
      */
     private static List<ToastStack.Toast> noticeRows(Face face, long now) {
         List<ToastStack.Toast> visible = notices.visible(now);
@@ -435,7 +436,8 @@ public final class HudOverlay {
             return visible;
         }
         return List.of(new ToastStack.Toast(
-                Component.translatable("tenet.hud.notifications_sample").getString(), false, now));
+                Component.translatable("tenet.hud.notifications_sample").getString(), false,
+                now - ToastStack.FADE_IN_MILLIS));
     }
 
     /**
