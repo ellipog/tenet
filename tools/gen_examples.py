@@ -1697,6 +1697,76 @@ def build_group() -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# The canvas elements: decoration the worked example draws under its quests.
+#
+# Thirteen was the plan and eight is what covers it: three pictures, two boxes,
+# one line and two labels, exercising every arm and every leaf field the panel
+# can edit -- position, size, rotation about the corner, tint and its separate
+# alpha, a hover title and all five caption properties, both press actions, the
+# pin, the draw order, the dev-only flag and the quest gate. An element here is
+# a field the form must have a row for: `ElementPanelLayoutTest` walks this
+# list and fails on a field with no row, so adding a field below without a row
+# in the panel breaks that test by design.
+# ---------------------------------------------------------------------------
+
+ELEMENTS: list[dict] = [
+    {
+        "type": "image", "id": "orrery_banner",
+        "x": -1600, "y": -480, "width": 512, "height": 128, "rotation": 0,
+        "image": {"sprite": "minecraft:block/bookshelf"},
+        "tint": "#FFFFFFFF", "alpha": 255,
+        "title": "The Orrery",
+        "label": {"onImage": True, "shadow": True, "inset": 4,
+                  "hAlign": "middle", "vAlign": "middle"},
+        "click": {"type": "open_uri", "data": "https://ellipog.dev"},
+        "locked": False, "order": -10,
+    },
+    {
+        "type": "image", "id": "corner_study",
+        "x": -960, "y": -480, "width": 96, "height": 96, "rotation": 12,
+        "corner": True,
+        "image": {"texture": "first_light:banners/corner.png"},
+        "alpha": 220, "locked": True, "dev": True, "order": -9,
+    },
+    {
+        "type": "rect", "id": "granary_box",
+        "x": -1450, "y": -260, "width": 420, "height": 300,
+        "fillColor": "#1A6FA8DC", "borderColor": "#FF6FA8DC", "borderWidth": 2,
+        "order": -20,
+    },
+    {
+        "type": "line", "id": "comet_tail",
+        "x1": -1312, "y1": -32, "x2": -1600, "y2": 64,
+        "width": 3, "color": "#FF6FA8DC", "arrowhead": "both",
+    },
+    {
+        "type": "text", "id": "chapter_motto",
+        "x": -1600, "y": 340, "text": "Every mechanism, one sky.",
+        "scale": 2.0, "color": "#FFFFFFFF", "shadow": True, "fixed": False,
+    },
+    {
+        "type": "text", "id": "draft_note",
+        "x": -960, "y": 340,
+        "text": "Draft: move the treasury arm ten pixels sunward.",
+        "dev": True,
+    },
+    {
+        "type": "image", "id": "gated_emblem",
+        "x": -320, "y": -480, "width": 128, "height": 128,
+        "image": {"sprite": "minecraft:block/lantern"},
+        "click": {"type": "open_quest", "data": "punch_a_tree"},
+        "requires": "punch_a_tree", "order": -8,
+    },
+    {
+        "type": "text", "id": "veiled_motto",
+        "x": -320, "y": 340,
+        "text": "The veils lift after the first tree falls.",
+        "requires": "punch_a_tree",
+    },
+]
+
+
 def build_chapter() -> dict:
     return {
         "$schema": SCHEMA_CHAPTER,
@@ -1746,6 +1816,7 @@ def build_chapter() -> dict:
             "easing": "CUBIC_OUT",
         },
         "quests": [entry["id"] + ".json" for entry in QUEST_DEFS],
+        "elements": ELEMENTS,
     }
 
 
@@ -1945,6 +2016,21 @@ def check_coverage(quests: list[dict], chapter: dict, group: dict):
     need(chapter.get("themePatch"), "a chapter themePatch")
     need(chapter.get("progressionMode") == "flexible", "the chapter to be flexible")
     need(group.get("collapsedByDefault") is True, "a group collapsed by default")
+
+    elements = chapter.get("elements", [])
+    for arm in ["image", "rect", "line", "text"]:
+        need(any(e.get("type") == arm for e in elements),
+             "a canvas element of type " + arm)
+    need(any(e.get("label", {}).get("inset") for e in elements),
+         "a caption with an inset")
+    need(any(e.get("label", {}).get("shadow") for e in elements),
+         "a caption with a shadow")
+    need(any(e.get("click", {}).get("type") not in (None, "none") for e in elements),
+         "a pressable element")
+    need(any(e.get("requires") for e in elements),
+         "an element gated on a quest")
+    need(any(e.get("dev") for e in elements),
+         "a dev-only element")
 
     default_mode = chapter.get("defaultPrerequisiteMode", "all_completed")
     effective = set()

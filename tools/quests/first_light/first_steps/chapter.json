@@ -134,5 +134,119 @@
     "the_inscription.json",
     "the_farther_star.json",
     "the_earth.json"
+  ],
+  "elements": [
+    {
+      "type": "image",
+      "id": "orrery_banner",
+      "x": -1600,
+      "y": -480,
+      "width": 512,
+      "height": 128,
+      "rotation": 0,
+      "image": {
+        "sprite": "minecraft:block/bookshelf"
+      },
+      "tint": "#FFFFFFFF",
+      "alpha": 255,
+      "title": "The Orrery",
+      "label": {
+        "onImage": true,
+        "shadow": true,
+        "inset": 4,
+        "hAlign": "middle",
+        "vAlign": "middle"
+      },
+      "click": {
+        "type": "open_uri",
+        "data": "https://ellipog.dev"
+      },
+      "locked": false,
+      "order": -10
+    },
+    {
+      "type": "image",
+      "id": "corner_study",
+      "x": -960,
+      "y": -480,
+      "width": 96,
+      "height": 96,
+      "rotation": 12,
+      "corner": true,
+      "image": {
+        "texture": "first_light:banners/corner.png"
+      },
+      "alpha": 220,
+      "locked": true,
+      "dev": true,
+      "order": -9
+    },
+    {
+      "type": "rect",
+      "id": "granary_box",
+      "x": -1450,
+      "y": -260,
+      "width": 420,
+      "height": 300,
+      "fillColor": "#1A6FA8DC",
+      "borderColor": "#FF6FA8DC",
+      "borderWidth": 2,
+      "order": -20
+    },
+    {
+      "type": "line",
+      "id": "comet_tail",
+      "x1": -1312,
+      "y1": -32,
+      "x2": -1600,
+      "y2": 64,
+      "width": 3,
+      "color": "#FF6FA8DC",
+      "arrowhead": "both"
+    },
+    {
+      "type": "text",
+      "id": "chapter_motto",
+      "x": -1600,
+      "y": 340,
+      "text": "Every mechanism, one sky.",
+      "scale": 2.0,
+      "color": "#FFFFFFFF",
+      "shadow": true,
+      "fixed": false
+    },
+    {
+      "type": "text",
+      "id": "draft_note",
+      "x": -960,
+      "y": 340,
+      "text": "Draft: move the treasury arm ten pixels sunward.",
+      "dev": true
+    },
+    {
+      "type": "image",
+      "id": "gated_emblem",
+      "x": -320,
+      "y": -480,
+      "width": 128,
+      "height": 128,
+      "image": {
+        "sprite": "minecraft:block/lantern"
+      },
+      "click": {
+        "type": "open_quest",
+        "data": "punch_a_tree"
+      },
+      "requires": "punch_a_tree",
+      "order": -8
+    },
+    {
+      "type": "text",
+      "id": "veiled_motto",
+      "x": -320,
+      "y": 340,
+      "text": "The veils lift after the first tree falls.",
+      "requires": "punch_a_tree"
+    }
   ]
 }
