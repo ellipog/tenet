@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * becoming a drift: it runs every spelling both accept and both refuse through <i>both</i> readers.
  *
  * <p>The rest is the vocabulary itself, including the half that is easy to get wrong: a number, which is
- * how FTB Quests writes a colour and therefore how a converted pack arrives.
+ * how the legacy format writes a colour and therefore how a converted pack arrives.
  */
 @DisplayName("a colour in a quest file")
 class ArgbTest {
@@ -61,17 +61,17 @@ class ArgbTest {
     @Test
     @DisplayName("a number is the same 32-bit pattern, and both signs mean the same colour")
     void numbers() {
-        // FTB Quests writes `color` as a number, so this is the arm a converted pack arrives in -- and it is
-        // the arm with a trap in it. FTB's own writer puts `color.rgb()` on disk and keeps the alpha in a
+        // the legacy format writes `color` as a number, so this is the arm a converted pack arrives in -- and it is
+        // the arm with a trap in it. the legacy format's own writer puts `color.rgb()` on disk and keeps the alpha in a
         // field of its own, so 16711680 is 0x00FF0000: red with NO alpha, because a number here is ARGB just
         // as it is in a theme's colour map. That is the rule, not a bug, and it is why the migration table
-        // says the converter writes `#FFRRGGBB`: FTB draws the tint with the `alpha` field REPLACING the
+        // says the converter writes `#FFRRGGBB`: the legacy format draws the tint with the `alpha` field REPLACING the
         // colour's own alpha, which an opaque tint reproduces exactly under this format's multiplication.
         assertEquals(0x00FF0000, read("16711680"));
         assertEquals(0x007010A5, read("7344293"));
         assertEquals(0x00000000, read("0"));
         // The high half is the interesting one: a colour that carries alpha is above what an int holds, and
-        // FTB writes one as a negative number. Both are the same colour, and refusing either would lose
+        // the legacy format writes one as a negative number. Both are the same colour, and refusing either would lose
         // exactly the translucent colours.
         assertEquals(0xFFFF0000, read("4294901760"));
         assertEquals(0xFFFF0000, read("-65536"));

@@ -155,7 +155,7 @@ public final class TenetCommand {
                 // command rewards and click actions are rewritten to: `with-dependencies` finishes the
                 // quest and everything it waits on, and `complete-all` finishes the whole book. All three
                 // take an optional player, so an operator (or a command block's script) can move somebody
-                // else's progress; without one they move the invoker's. FTB Quests' names for these are
+                // else's progress; without one they move the invoker's. The legacy names for these are
                 // what the migration tool rewrites from.
                 .then(Commands.literal("complete")
                         .requires(QuestAuthority.mayEdit())
@@ -221,16 +221,31 @@ public final class TenetCommand {
 
                 // Opens the quest book on the invoker's client, on one quest when one is named. No
                 // permission gate: opening a book is a player's own act, like collecting a reward.
-                // FTB Quests' `/ftbquests open_book`, which command rewards and click actions name.
+                // The legacy `/ftbquests open_book`, which command rewards and click actions name.
                 .then(Commands.literal("open_book")
                         .executes(ctx -> openBook(ctx, ""))
                         .then(Commands.argument("quest", StringArgumentType.word())
                                 .executes(ctx -> openBook(ctx,
                                         StringArgumentType.getString(ctx, "quest")))))
 
+                // The player's view, for an operator: the book as a normal player sees it — hidden
+                // chapters and quests filtered out, editing gestures off, the reader's card at the
+                // reader's size. Bare it flips, with an argument it says which way, like `vitals`,
+                // because a script that expects one state should not have to know the last one. The
+                // latch itself lives on the client beside the Preview pill's own, so this sends one
+                // payload there rather than opening anything here; the reply names the ask rather than
+                // the outcome, because the outcome is decided on the client's screen a moment later.
+                .then(Commands.literal("preview")
+                        .requires(QuestAuthority.mayEdit())
+                        .executes(ctx -> preview(ctx, Optional.empty()))
+                        .then(Commands.literal("on")
+                                .executes(ctx -> preview(ctx, Optional.of(true))))
+                        .then(Commands.literal("off")
+                                .executes(ctx -> preview(ctx, Optional.of(false)))))
+
                 // The pack's emergency shelf: what `emergencyItems` names, once per cooldown. No
                 // permission gate, for the same reason `claim` has none — this is a player
-                // collecting what the pack offers, not an operator changing anything. FTB Quests'
+                // collecting what the pack offers, not an operator changing anything. The legacy
                 // `emergency_items` and `emergency_items_cooldown`, under one command rather than a
                 // book button: there is no button, so the shelf is asked for by name.
                 .then(Commands.literal("emergency")
@@ -242,7 +257,7 @@ public final class TenetCommand {
                 // Stages: the flags a pack's quests and scripts ask about. Add and remove are an operator's
                 // business -- they hand out progression -- while listing is something a player may do for
                 // themselves, which is why the gate is on the two subcommands rather than on the subtree.
-                // The `-team` variants are FTB Quests' `/ftbteams teamstage`: one member's induction held
+                // The `-team` variants are the legacy `/ftbteams teamstage`: one member's induction held
                 // by the whole party, read by team-stage tasks and team-gated quests.
                 .then(Commands.literal("stage")
                         .then(Commands.literal("add")
@@ -1111,7 +1126,7 @@ public final class TenetCommand {
      * Opens the quest book on the invoker's client, on one quest when one is named.
      *
      * <p>A command runs on the server and a screen opens on the client, so this sends one payload
-     * to the player it was run for rather than opening anything here. FTB Quests'
+     * to the player it was run for rather than opening anything here. The legacy
      * {@code /ftbquests open_book}, which command rewards and click actions name -- and the reason
      * the payload carries a quest id rather than the command opening the book plainly.
      */
@@ -1151,6 +1166,46 @@ public final class TenetCommand {
     }
 
     /**
+     * Parks a player's-view preview ask on the invoker's client and opens the book on it.
+     *
+     * <p>A command runs on the server and the preview latch lives on the client, so this sends one
+     * payload there rather than flipping anything here — the same shape as {@code openBook}. Bare
+     * means toggle (the server cannot know the client's latch, so the toggle travels); {@code on}
+     * and {@code off} name the answer absolutely. Refused with the pack's sentence when the pack
+     * disabled its book, like the open itself, and refused from the console, because only a player
+     * has a screen to preview on.
+     */
+    private static int preview(CommandContext<CommandSourceStack> context, Optional<Boolean> wanted)
+            throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) {
+            context.getSource().sendFailure(Component.literal(
+                    "Run this as a player. Only a player has a screen to preview on."));
+            return 0;
+        }
+        if (TenetQuests.settings().disableGui()) {
+            context.getSource().sendFailure(
+                    Component.translatable("tenet.screen.book_disabled"));
+            return 0;
+        }
+        boolean toggle = wanted.isEmpty();
+        dev.ellipog.tenet.net.TenetNetworking.sendPreviewTo(player, toggle, wanted.orElse(false));
+        if (toggle) {
+            context.getSource().sendSuccess(
+                    () -> Component.translatable("tenet.command.preview.toggled"), false);
+        }
+        else if (wanted.get()) {
+            context.getSource().sendSuccess(
+                    () -> Component.translatable("tenet.command.preview.on"), false);
+        }
+        else {
+            context.getSource().sendSuccess(
+                    () -> Component.translatable("tenet.command.preview.off"), false);
+        }
+        return 1;
+    }
+
+    /**
      * The last emergency grant, as a server tick per player.
      *
      * <p>In memory rather than in a save, like the push dedupe this file keeps nowhere: a restart
@@ -1169,7 +1224,7 @@ public final class TenetCommand {
      * Hands out the pack's emergency shelf: the file's {@code emergencyItems}, once per
      * {@code emergencyItemsCooldown}.
      *
-     * <p>FTB Quests' {@code emergency_items} and {@code emergency_items_cooldown}, under one
+     * <p>the legacy {@code emergency_items} and {@code emergency_items_cooldown}, under one
      * command rather than a book button — there is no button, so the shelf is asked for by name.
      * The grant is the reward path's lenient one: what fits goes into the inventory through
      * {@code InventoryAccesses}, and the rest drops at the player's feet rather than vanishing.
@@ -1304,7 +1359,7 @@ public final class TenetCommand {
     /**
      * Grants or takes away a team's stage, naming a member to say which team.
      *
-     * <p>The command half of FTB Quests' {@code /ftbteams teamstage}: the team is the named player's,
+     * <p>The command half of the legacy {@code /ftbteams teamstage}: the team is the named player's,
      * so an operator grants the party without listing its members. Every online member is told,
      * because each of them sees the union of their own and their team's.
      */

@@ -52,7 +52,7 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
     public static final MapCodec<KillTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(20).forGetter(KillTask::common),
             ResourceLocation.CODEC.optionalFieldOf("entity").forGetter(KillTask::entity),
-            // Its own field rather than a `#` inside `entity`, as FTB Quests has it: a tag written
+            // Its own field rather than a `#` inside `entity`, as the legacy format has it: a tag written
             // where an id is expected is a validator error in every other Tenet field, and this one
             // being the exception is how a pack author learns the wrong rule.
             ResourceLocation.CODEC.optionalFieldOf("entityTypeTag").forGetter(KillTask::entityTypeTag),

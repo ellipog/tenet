@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The authoring flags: how a quest presents itself, which chapter it centres on, which notices are
  * quiet, and how a reward row draws its table.
  *
- * <p>Batch 3 of the migration work. FTB Quests ships {@code min_width}, {@code autofocus_id},
+ * <p>Batch 3 of the migration work. The legacy format ships {@code min_width}, {@code autofocus_id},
  * {@code hide_dependent_lines}, {@code disable_toast} on every quest object, and {@code use_title}
  * / {@code hide_tooltip} on reward tables; this mod had none of them, so a converted pack's uses
  * had nowhere to land. Each test decodes the JSON the tool would write through the real codec, or
@@ -407,7 +407,7 @@ class AuthoringFlagsTest {
         }
 
         @Test
-        @DisplayName("a minWidth past FTB's own 3000 is an error")
+        @DisplayName("a minWidth past the legacy 3000 is an error")
         void minWidthIsBounded() {
             Problems problems = validateQuest("""
                     {"id": "one", "title": "One", "minWidth": 4000}""");

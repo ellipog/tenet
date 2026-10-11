@@ -305,12 +305,12 @@
         "useTitle": {
           "type": "boolean",
           "default": false,
-          "description": "Draw this table's title on a reward row that rolls it, rather than the generic roll sentence. FTB Quests calls this use_title."
+          "description": "Draw this table's title on a reward row that rolls it, rather than the generic roll sentence. The legacy format calls this use_title."
         },
         "hideTooltip": {
           "type": "boolean",
           "default": false,
-          "description": "Draw no item tooltip on a reward row that rolls this table. FTB Quests calls this hide_tooltip."
+          "description": "Draw no item tooltip on a reward row that rolls this table. The legacy format calls this hide_tooltip."
         },
 "entries": {
           "type": "array",
@@ -426,7 +426,7 @@
         "tags": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Words this group answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. FTB Quests calls this tags, present on every object."
+          "description": "Words this group answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. The legacy format calls this tags, present on every object."
         },
         "icon": {
           "$ref": "#/definitions/icon",
@@ -471,7 +471,7 @@
 
         "x": {
           "type": "integer",
-          "description": "image, text and rect: the left edge in canvas pixels, measured the same way a quest node's `x` is. The migration tool converts FTB's centre-based coordinates to this corner."
+          "description": "image, text and rect: the left edge in canvas pixels, measured the same way a quest node's `x` is. The migration tool converts the legacy centre-based coordinates to this corner."
         },
         "y": {
           "type": "integer",
@@ -497,12 +497,12 @@
         "corner": {
           "type": "boolean",
           "default": false,
-          "description": "image: turn about this element's own top-left corner instead of its centre. FTB Quests calls this alignToCorner, and it is what a logo pinned by its corner needs - the two pivots are visibly different pictures."
+          "description": "image: turn about this element's own top-left corner instead of its centre. The legacy format calls this alignToCorner, and it is what a logo pinned by its corner needs - the two pivots are visibly different pictures."
         },
         "locked": {
           "type": "boolean",
           "default": false,
-          "description": "image: pin the picture against the editor's drag - grips and moves leave it where it is. Readers are unaffected. FTB Quests calls this position_locked, and the migration tool maps it onto this key."
+          "description": "image: pin the picture against the editor's drag - grips and moves leave it where it is. Readers are unaffected. The legacy format calls this position_locked, and the migration tool maps it onto this key."
         },
         "image": { "$ref": "#/definitions/imageSource" },
         "tint": {
@@ -513,7 +513,7 @@
         "alpha": {
           "type": "integer",
           "default": 255,
-          "description": "image: 0 to 255, multiplied with `tint`'s own alpha. FTB carries the two separately, so both are kept and neither is lost in conversion."
+          "description": "image: 0 to 255, multiplied with `tint`'s own alpha. the legacy format carries the two separately, so both are kept and neither is lost in conversion."
         },
         "title": {
           "$ref": "#/definitions/text",
@@ -588,7 +588,7 @@
     },
 
     "elementLabel": {
-      "description": "How a picture's title is painted into it, rather than shown on hover. Each field has an FTB counterpart, so a converted chapter's text_on_image, text_shadow, text_inset, text_h_align and text_v_align all land here.",
+      "description": "How a picture's title is painted into it, rather than shown on hover. Each field has a legacy counterpart, so a converted chapter's text_on_image, text_shadow, text_inset, text_h_align and text_v_align all land here.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -621,7 +621,7 @@
     },
 
     "click": {
-      "description": "What pressing an element does. All seven names FTB Quests can write are readable here, and all seven run: a command through the server's dispatcher, an event through the script bus, a recipe through a viewer, a guide page as a message, a quest or a page straight.",
+      "description": "What pressing an element does. All seven names the legacy format can write are readable here, and all seven run: a command through the server's dispatcher, an event through the script bus, a recipe through a viewer, a guide page as a message, a quest or a page straight.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -649,11 +649,11 @@
         },
         "quest": {
           "type": "string",
-          "description": "The target quest, by id or alias, in any chapter. A name that resolves to nothing is reported at load, because the link would then mirror nothing and its press would do nothing. FTB Quests calls this linked_quest, and the migration tool maps it onto this key."
+          "description": "The target quest, by id or alias, in any chapter. A name that resolves to nothing is reported at load, because the link would then mirror nothing and its press would do nothing. The legacy format calls this linked_quest, and the migration tool maps it onto this key."
         },
         "x": {
           "type": "integer",
-          "description": "The left edge in canvas pixels, measured the same way a quest node's `x` is. The migration tool converts FTB's centre-based doubles to this corner."
+          "description": "The left edge in canvas pixels, measured the same way a quest node's `x` is. The migration tool converts the legacy centre-based doubles to this corner."
         },
         "y": {
           "type": "integer",
@@ -692,7 +692,7 @@
         "tags": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Words this chapter answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. FTB Quests calls this tags, present on every object."
+          "description": "Words this chapter answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. The legacy format calls this tags, present on every object."
         },
 
         "progressionMode": {
@@ -720,16 +720,16 @@
           "minimum": 0,
           "maximum": 3000,
           "default": 0,
-          "description": "What the quests in this chapter use for their detail-panel width unless a quest says otherwise: a quest's own minWidth wins over this, and 0 (unset) means the panel kind decides. FTB Quests calls this default_min_width."
+          "description": "What the quests in this chapter use for their detail-panel width unless a quest says otherwise: a quest's own minWidth wins over this, and 0 (unset) means the panel kind decides. The legacy format calls this default_min_width."
         },
         "autofocus": {
           "type": "string",
-          "description": "The quest this chapter centres on when it is selected, by id or alias, in this chapter. Absent centres on the chapter's bounding box. FTB Quests calls this autofocus_id."
+          "description": "The quest this chapter centres on when it is selected, by id or alias, in this chapter. Absent centres on the chapter's bounding box. The legacy format calls this autofocus_id."
         },
         "autoClaim": {
           "enum": ["default", "disabled", "enabled", "no_toast", "invisible"],
           "default": "default",
-          "description": "Whether this chapter's quests hand their rewards over on completion. `enabled` pays with a notification, `no_toast` silently, and `invisible` the same silence - the two silent names grant alike, the difference being FTB Quests' vocabulary rather than a behaviour; `disabled` waits for a claim, and `default` defers to the pack setting in index.json. A quest overrides this, and a reward's own `auto` overrides that. Rewards that need a decision - a choice reward - are never auto-granted whatever this says."
+          "description": "Whether this chapter's quests hand their rewards over on completion. `enabled` pays with a notification, `no_toast` silently, and `invisible` the same silence - the two silent names grant alike, the difference being the legacy vocabulary rather than a behaviour; `disabled` waits for a claim, and `default` defers to the pack setting in index.json. A quest overrides this, and a reward's own `auto` overrides that. Rewards that need a decision - a choice reward - are never auto-granted whatever this says."
         },
         "dependencyStyle": {
           "$ref": "#/definitions/dependencyStyle",
@@ -765,7 +765,7 @@
         "alwaysInvisible": {
           "type": "boolean",
           "default": false,
-          "description": "Whether this chapter is withheld from every reader, whatever its gate says. Beside hideUntilDependenciesComplete because they are the pair an author will confuse: that one withholds the row until the gate is met, this one withholds it always. The gate itself is unaffected. FTB Quests calls this always_invisible."
+          "description": "Whether this chapter is withheld from every reader, whatever its gate says. Beside hideUntilDependenciesComplete because they are the pair an author will confuse: that one withholds the row until the gate is met, this one withholds it always. The gate itself is unaffected. The legacy format calls this always_invisible."
         },
         "disableCanvasLod": {
           "type": "boolean",
@@ -820,11 +820,11 @@
         "tags": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Words this quest answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. A lookup of `#tag` resolves to the first quest, chapter or group carrying it. FTB Quests calls this tags, present on every object."
+          "description": "Words this quest answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. A lookup of `#tag` resolves to the first quest, chapter or group carrying it. The legacy format calls this tags, present on every object."
         },
         "guidePage": {
           "type": "string",
-          "description": "The guide book page this quest belongs to. A reference the quest card shows; Tenet has no guide integration, so nothing reads it further. Empty means absent. FTB Quests calls this guide_page."
+          "description": "The guide book page this quest belongs to. A reference the quest card shows; Tenet has no guide integration, so nothing reads it further. Empty means absent. The legacy format calls this guide_page."
         },
 
         "dependsOn": {
@@ -950,33 +950,33 @@
         "hideDependentLines": {
           "type": "boolean",
           "default": false,
-          "description": "Draw no dependency lines leaving this quest for its dependants. The outgoing half of hideDependencyLines. FTB Quests calls this hide_dependent_lines."
+          "description": "Draw no dependency lines leaving this quest for its dependants. The outgoing half of hideDependencyLines. The legacy format calls this hide_dependent_lines."
         },
         "minWidth": {
           "type": "integer",
           "minimum": 0,
           "maximum": 3000,
           "default": 0,
-          "description": "Minimum width of this quest's detail panel. 0 is unset: the chapter's defaultMinWidth decides, and then the panel kind's default. FTB Quests calls this min_width."
+          "description": "Minimum width of this quest's detail panel. 0 is unset: the chapter's defaultMinWidth decides, and then the panel kind's default. The legacy format calls this min_width."
         },
         "disableToast": {
           "type": "boolean",
           "default": false,
-          "description": "Completing this quest raises no toast. Combines with the silent auto-claim modes: either silence wins. FTB Quests calls this disable_toast."
+          "description": "Completing this quest raises no toast. Combines with the silent auto-claim modes: either silence wins. The legacy format calls this disable_toast."
         },
         "ignoreRewardBlocking": {
           "type": "boolean",
           "default": false,
-          "description": "This quest's rewards keep flowing while the team's payouts are held. Either the quest's flag or a reward's own flag exempts that reward. FTB Quests calls this ignore_reward_blocking."
+          "description": "This quest's rewards keep flowing while the team's payouts are held. Either the quest's flag or a reward's own flag exempts that reward. The legacy format calls this ignore_reward_blocking."
         },
         "disableRecipeMod": {
           "type": "boolean",
-          "description": "Recipe viewers (JEI, REI, EMI) do not list this quest. Leave the field out and the file's `defaultDisableRecipeMod` decides; write `false` to opt out of a file that hides its quests by default. FTB Quests calls this disable_recipe_mod."
+          "description": "Recipe viewers (JEI, REI, EMI) do not list this quest. Leave the field out and the file's `defaultDisableRecipeMod` decides; write `false` to opt out of a file that hides its quests by default. The legacy format calls this disable_recipe_mod."
         },
         "hideLockIcon": {
           "type": "boolean",
           "default": false,
-          "description": "This quest wears no padlock on the canvas when it is locked: the quest's half of the file's `showLockIcons`. Either silence wins, and absent defers to the file. FTB Quests calls this hide_lock_icon."
+          "description": "This quest wears no padlock on the canvas when it is locked: the quest's half of the file's `showLockIcons`. Either silence wins, and absent defers to the file. The legacy format calls this hide_lock_icon."
         },
         "hideTextUntilComplete": {
           "type": "boolean",
@@ -995,7 +995,7 @@
         "requiresStageTeam": {
           "type": "boolean",
           "default": false,
-          "description": "Read the quest's requiresStage gate from the team's stages rather than the player's own. One member's induction then opens the quest for everybody. FTB Quests calls this team_stage."
+          "description": "Read the quest's requiresStage gate from the team's stages rather than the player's own. One member's induction then opens the quest for everybody. The legacy format calls this team_stage."
         }
       }
     },
@@ -1026,7 +1026,7 @@
         "disableToast": {
           "type": "boolean",
           "default": false,
-          "description": "Tasks and rewards. This task finishing, or this reward collected, raises no toast. FTB Quests calls this disable_toast."
+          "description": "Tasks and rewards. This task finishing, or this reward collected, raises no toast. The legacy format calls this disable_toast."
         },
         "title": {
           "$ref": "#/definitions/text",
@@ -1039,7 +1039,7 @@
         "tags": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Tasks and rewards. Words this row answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. FTB Quests calls this tags, present on every object."
+          "description": "Tasks and rewards. Words this row answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. The legacy format calls this tags, present on every object."
         },
 
         "item": {
@@ -1075,13 +1075,13 @@
         "manualOnly": {
           "type": "boolean",
           "default": false,
-          "description": "tenet:item, tenet:item_tag, tenet:filter, tenet:fluid and tenet:energy (tasks) — never count from the inventory on the tick; only a submit press counts. FTB Quests calls this task_screen_only, filled by piping into a task screen; Tenet has no such block, so the piped path is not ported."
+          "description": "tenet:item, tenet:item_tag, tenet:filter, tenet:fluid and tenet:energy (tasks) — never count from the inventory on the tick; only a submit press counts. The legacy format calls this task_screen_only, filled by piping into a task screen; Tenet has no such block, so the piped path is not ported."
         },
         "maxInput": {
           "type": "integer",
           "minimum": 0,
           "default": 0,
-          "description": "tenet:energy (task) — the most each item may contribute, in Forge Energy units; 0 means unlimited. FTB Quests calls this max_input, capping each insertion into its task screen."
+          "description": "tenet:energy (task) — the most each item may contribute, in Forge Energy units; 0 means unlimited. The legacy format calls this max_input, capping each insertion into its task screen."
         },
         "tag": {
           "type": "string",
@@ -1145,7 +1145,7 @@
         },
         "filter": {
           "type": "string",
-          "description": "tenet:filter (task) — which items count, as an FTB filter expression: item, item_tag, mod and block leaves under and, or and not, e.g. or(item(minecraft:coal)item_tag(minecraft:coals)). Passed through verbatim from an ftbfiltersystem:smart_filter stack."
+          "description": "tenet:filter (task) — which items count, as a legacy filter expression: item, item_tag, mod and block leaves under and, or and not, e.g. or(item(minecraft:coal)item_tag(minecraft:coals)). Passed through verbatim from an ftbfiltersystem:smart_filter stack."
         },
         "amount": {
           "type": "integer",
@@ -1196,7 +1196,7 @@
         "auto": {
           "enum": ["default", "disabled", "enabled", "no_toast", "invisible"],
           "default": "default",
-          "description": "Rewards only. When it is handed over: default follows the tree's own setting, enabled gives it on completion, disabled waits for a claim, no_toast gives it without a toast, and invisible grants the same way - the two silent names are FTB Quests' vocabulary rather than a behaviour."
+          "description": "Rewards only. When it is handed over: default follows the tree's own setting, enabled gives it on completion, disabled waits for a claim, no_toast gives it without a toast, and invisible grants the same way - the two silent names are the legacy vocabulary rather than a behaviour."
         },
         "excludeFromClaimAll": {
           "type": "boolean",
@@ -1251,7 +1251,7 @@
         },
         "feedbackMessage": {
           "$ref": "#/definitions/text",
-          "description": "tenet:command (reward) — a message shown when the command runs; absent shows nothing extra. FTB Quests calls this feedback_message."
+          "description": "tenet:command (reward) — a message shown when the command runs; absent shows nothing extra. The legacy format calls this feedback_message."
         },
         "description": {
           "$ref": "#/definitions/text",
@@ -1269,7 +1269,7 @@
         "teamStage": {
           "type": "boolean",
           "default": false,
-          "description": "tenet:stage (task and reward), and the quest's requiresStage gate via requiresStageTeam — read or grant the team's stages rather than the player's own. FTB Quests calls this team_stage."
+          "description": "tenet:stage (task and reward), and the quest's requiresStage gate via requiresStageTeam — read or grant the team's stages rather than the player's own. The legacy format calls this team_stage."
         }
       }
     }

@@ -39,7 +39,7 @@ public final class TeamProgress {
     /**
      * Whether this team's rewards are blocked. See {@link ProgressService#isBlocked}.
      *
-     * <p>A team-level lock, as in FTB Quests: an operator can hold the whole team's payouts while an
+     * <p>A team-level lock, as in the legacy format: an operator can hold the whole team's payouts while an
      * event is on, and rewards marked to ignore blocking keep flowing. Not per-quest: blocking is a
      * statement about the team, not about one quest's file.
      */

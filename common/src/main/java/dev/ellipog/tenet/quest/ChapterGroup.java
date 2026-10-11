@@ -7,17 +7,17 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * A shelf of chapters — FTB Quests' "chapter group".
+ * A shelf of chapters — the legacy "chapter group".
  *
  * <p>Exists so a large pack can say "Tutorial / Progression / Endgame" and put twenty chapters
  * underneath, rather than scrolling one flat list of twenty. The extra level of nesting costs one
- * record and makes the navigation panel readable at scale, which is why FTB Quests grew the same
+ * record and makes the navigation panel readable at scale, which is why the legacy project grew the same
  * level after not having it.
  *
  * <h2>Its description is a list of paragraphs, and that was found the hard way</h2>
  *
  * <p>Not one string. {@link Chapter}'s description has always been a list, and {@link Quest}'s own
- * javadoc argues the point at length — a single string with {@code \n} in it is what FTB Quests takes,
+ * javadoc argues the point at length — a single string with {@code \n} in it is what the legacy format takes,
  * and it is why its quest descriptions become one undifferentiated wall of text. That argument does
  * not stop applying one level up.
  *
@@ -42,7 +42,7 @@ public record ChapterGroup(
         /**
          * Words this group answers to in lookups by tag.
          *
-         * <p>FTB Quests' {@code tags}, present on every object. Each tag is
+         * <p>the legacy {@code tags}, present on every object. Each tag is
          * {@code ^[a-z0-9_]{1,64}$}, the same rule an id follows, and a lookup of
          * {@code "#tag"} resolves to the first quest, chapter or group carrying it.
          */

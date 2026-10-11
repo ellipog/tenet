@@ -72,7 +72,7 @@ public final class ClientQuestCache {
                              */
                             boolean waits,
                             /**
-                             * Whether the tick never measures this task at all — FTB Quests'
+                             * Whether the tick never measures this task at all — the legacy
                              * {@code task_screen_only} under Tenet's {@code manualOnly} name. Absent
                              * means the tick measures, which is every task a version-18 server ever
                              * sent. The button rule reads this rather than the live count, because the
@@ -92,7 +92,7 @@ public final class ClientQuestCache {
                             /** The gates this task carries, for the locked row's hover. Empty for none. */
                             List<ConditionEntry> conditions,
                             /**
-                             * Whether this task's completion is announced. FTB Quests'
+                             * Whether this task's completion is announced. The legacy
                              * {@code disable_toast} on the task. Absent on the wire means announced,
                              * which is what a version-16 server always says.
                              */
@@ -285,7 +285,7 @@ public final class ClientQuestCache {
 
     /**
      * What a quest draws for its picture when it names none: its first task's with a picture,
-     * cycling when that task is a filter. FTB's {@code IconAnimation} rule, resolved at draw
+     * cycling when that task is a filter. The legacy {@code IconAnimation} rule, resolved at draw
      * time rather than at conversion, so a filter's rotation survives the trip.
      *
      * <p>The priority is deliberate: a cycling filter frame first, then an author or
@@ -325,7 +325,7 @@ public final class ClientQuestCache {
     }
 
     /**
-     * One frame of a filter task's rotation, at FTB's one-picture-a-second cadence: what every
+     * One frame of a filter task's rotation, at the legacy one-picture-a-second cadence: what every
      * surface showing that task draws with.
      *
      * <p>Empty for every non-filter task and for a filter nothing answers to — those draw the
@@ -502,7 +502,7 @@ public final class ClientQuestCache {
                                String autofocus,
                                 /**
                                  * Whether this chapter is withheld from every reader, whatever its
-                                 * gate says. FTB Quests' {@code always_invisible}: a reader never sees
+                                 * gate says. The legacy {@code always_invisible}: a reader never sees
                                  * the row, while an author still does. Sparse on the wire, so absent
                                  * means shown, which is what every older server says.
                                  */
@@ -551,13 +551,13 @@ public final class ClientQuestCache {
     public record TableSummary(String id, String title, ItemStack icon, String iconId, int entries,
                                /**
                                 * Whether a reward row that rolls this table draws the table's title.
-                                * FTB Quests' {@code use_title}. Absent on the wire means the generic
+                                * The legacy {@code use_title}. Absent on the wire means the generic
                                 * roll sentence, which is what a version-16 server always says.
                                 */
                                boolean useTitle,
                                /**
-                                * Whether that row draws no item tooltip. FTB Quests'
-                                * {@code hide_tooltip}. Absent means the tooltip draws.
+                                * Whether that row draws no item tooltip. The legacy {@code hide_tooltip}.
+                                * Absent means the tooltip draws.
                                 */
                                boolean hideTooltip) {
 
@@ -569,7 +569,7 @@ public final class ClientQuestCache {
          * pack's conventional key is the whole of its translation road.
          */
         public String titleText() {
-            return FtbText.plain(ClientLocale.text("rewardTable." + id + ".title", title));
+            return RichText.plain(ClientLocale.text("rewardTable." + id + ".title", title));
         }
     }
 
@@ -811,7 +811,7 @@ public final class ClientQuestCache {
         }
 
         /**
-         * The quest's title with its FTB tokens still in it, for the surfaces that wear colours.
+         * The quest's title with its rich-text tokens still in it, for the surfaces that wear colours.
          *
          * <p>The same resolution as {@link #titleText} — the same words, agreed by construction — and
          * only the ink differs. Measuring still takes the stripped reading, because colours are
@@ -826,7 +826,7 @@ public final class ClientQuestCache {
             return text(subtitle, subtitleFallback, "quest." + id + ".subtitle");
         }
 
-        /** The subtitle with its FTB tokens still in it. See {@link #titleTextRaw}. */
+        /** The subtitle with its rich-text tokens still in it. See {@link #titleTextRaw}. */
         public String subtitleTextRaw() {
             return textRaw(subtitle, subtitleFallback, "quest." + id + ".subtitle");
         }
@@ -843,7 +843,7 @@ public final class ClientQuestCache {
             return text(chapterTitle, chapterTitleFallback, "chapter." + chapterId + ".title");
         }
 
-        /** The chapter title with its FTB tokens still in it. See {@link #titleTextRaw}. */
+        /** The chapter title with its rich-text tokens still in it. See {@link #titleTextRaw}. */
         public String chapterTitleTextRaw() {
             return textRaw(chapterTitle, chapterTitleFallback, "chapter." + chapterId + ".title");
         }
@@ -861,7 +861,7 @@ public final class ClientQuestCache {
             return text(chapterSubtitle, chapterSubtitleFallback, "chapter." + chapterId + ".subtitle");
         }
 
-        /** The chapter subtitle with its FTB tokens still in it. See {@link #titleTextRaw}. */
+        /** The chapter subtitle with its rich-text tokens still in it. See {@link #titleTextRaw}. */
         public String chapterSubtitleTextRaw() {
             return textRaw(chapterSubtitle, chapterSubtitleFallback, "chapter." + chapterId + ".subtitle");
         }
@@ -1416,12 +1416,12 @@ public final class ClientQuestCache {
      * @param fallback the English words, empty when {@code value} is a literal
      */
     private static String text(String value, String fallback, String conventionalKey) {
-        // FTB text tokens read out, because every surface that draws one ink draws through here:
+        // Rich-text tokens read out, because every surface that draws one ink draws through here:
         // titles, subtitles, chapter titles and element words. A title carrying `&a` reads the words
         // without the ink; an escaped `\&` reads as `&`. Descriptions do not pass through here — they
         // keep their structure for the prose renderer, which wears the colours. Titles wear one ink
         // everywhere else, and one ink with the codes still in it is garbage.
-        return FtbText.plain(textRaw(value, fallback, conventionalKey));
+        return RichText.plain(textRaw(value, fallback, conventionalKey));
     }
 
     /**
@@ -1878,7 +1878,7 @@ public final class ClientQuestCache {
             // A task the tick never measures is always offered its button: the live count of such
             // a task is zero by construction, so the held-enough rule below would hide the press
             // forever. A short press is refused by the server with the same "not enough" line any
-            // other short press earns, which is FTB Quests' own "click to submit" contract.
+            // other short press earns, which is the legacy "click to submit" contract.
             if (task.manualOnly()) {
                 return true;
             }

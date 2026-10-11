@@ -180,4 +180,4 @@ client's options follows within a tick, with no reconnect at all.
   a translation to reach. It is the editor's, and the editor shows the file. The chapter's
   `subtitle` does have one — the second line of its sidebar row's hover — so `chapter.<id>.subtitle`
   translates it.
-- An FTB `image` object's title: Tenet has no image object, so the key has no home here.
+- A legacy `image` object's title: Tenet has no image object, so the key has no home here.

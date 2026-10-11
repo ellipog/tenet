@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The currency reward: its provider hook, and what a grant does with one.
  *
- * <p>T28 of the migration work: FTB Quests pays currency through an economy hook rather than
+ * <p>T28 of the migration work: the legacy format pays currency through an economy hook rather than
  * granting an item, and so does this. Each test leaves the hook as it found it — the provider is
  * one global, so a fake left behind would pay every later test's claims.
  */

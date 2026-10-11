@@ -141,7 +141,7 @@ public final class CanvasElementArt {
      *
      * <p>{@code dev} is drawn only while dev mode is on — how an author drafts a layout without shipping it
      * — and {@code requires} is drawn only once the quest it names is completed. Neither is access control:
-     * the element reaches every client either way, and this is the same reading FTB gives its own two flags.
+     * the element reaches every client either way, and this is the same reading the legacy implementation gives its own two flags.
      *
      * <p>An author is shown a hidden element anyway, <b>marked</b> — see {@link Look#marked} — because the
      * alternative is a decoration that silently is not there while its author is looking at the file that
@@ -617,7 +617,7 @@ public final class CanvasElementArt {
      *
      * <p>Because four things have to agree about it — the picture's own turn, the selection frame and its
      * grips, the hit test that decides whether a press is on a grip, and the resize arithmetic — and a pivot
-     * computed twice is a frame that drifts off the picture the second one of them changes. FTB has the same
+     * computed twice is a frame that drifts off the picture the second one of them changes. The legacy format has the same
      * pair, and uses both in one real pack, which is why the corner case is not decoration.
      */
     public static int pivotX(CanvasElement element, Box box) {
@@ -807,7 +807,7 @@ public final class CanvasElementArt {
      * <h2>The turn is about the centre, or about the corner when the element says so</h2>
      *
      * <p>Both pivots are real: a picture turned slightly off square reads as placed, and one pinned by a
-     * corner reads as stuck down. FTB has the same pair, and uses both in one real pack.
+     * corner reads as stuck down. Legacy packs have the same pair, and uses both in one real pack.
      */
     private static void drawImage(GuiRenderer r, CanvasElement.Image image, Frame frame, Box box) {
         int width = box.width();
@@ -843,7 +843,7 @@ public final class CanvasElementArt {
     /**
      * The words an author painted into a picture, placed against the edges its label names.
      *
-     * <p>One line, at the font's own size: the label properties FTB carries for this are an inset and two
+     * <p>One line, at the font's own size: the label properties the legacy format carries for this are an inset and two
      * alignments, and none of them is a size — so a size here would be a field this format does not have and
      * a picture's title drawn at a scale nothing could set.
      */
@@ -864,7 +864,7 @@ public final class CanvasElementArt {
             case MIDDLE -> box.top() + (box.height() - line) / 2;
             case END -> box.bottom() - inset - line;
         };
-        // White, because this is the one piece of element text whose colour is not its own field: FTB has no
+        // White, because this is the one piece of element text whose colour is not its own field: the legacy format has no
         // colour for text on an image, and a title drawn in a colour nobody chose is a colour nobody can
         // change. The shadow is the one property it does carry, and it is exactly what a busy picture wants.
         drawWords(r, words, x, y, Argb.WHITE, label.shadow(), 1F);
@@ -954,7 +954,7 @@ public final class CanvasElementArt {
      *
      * <p>White is the identity, which is the default, and a tint that carries an alpha multiplies with the
      * {@code alpha} field rather than replacing it — so "dim this" has one meaning whichever field an author
-     * reaches for. FTB carries the two separately and draws the tint with the alpha field <i>replacing</i>
+     * reaches for. the legacy format carries the two separately and draws the tint with the alpha field <i>replacing</i>
      * the colour's own; with an opaque tint the two are the same sum, which is why a converted picture is
      * written {@code #FFRRGGBB}. See {@code CanvasElement.Image}.
      */

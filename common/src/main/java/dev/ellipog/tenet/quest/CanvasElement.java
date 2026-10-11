@@ -46,15 +46,15 @@ import java.util.Set;
  * a tier or groups a cluster of quests without opening an image editor or shipping an asset, which is what
  * makes a decorated chapter something a pack author does rather than something they commission.
  *
- * <h2>Images are FTB's chapter images, and the other three are ours</h2>
+ * <h2>Images are the legacy chapter images, and the other three are ours</h2>
  *
- * <p>{@link Image} carries every field FTB Quests writes on a {@code ChapterImage}, so a converted pack
+ * <p>{@link Image} carries every field the legacy format writes on a {@code ChapterImage}, so a converted pack
  * loses nothing: the position, the size, the rotation about the centre (or the corner), the tint and its
  * separate alpha, the draw order, the visibility gate on a quest, the dev-only flag, the hover title and
  * the five properties of text painted on the picture. See {@code Argb}, {@link ImageSource} and
  * {@link ClickAction} for the three fields whose vocabulary needed its own decision.
  *
- * <p>The other three arms have no FTB counterpart at all — FTB quasar has no procedural element — so they
+ * <p>The other three arms have no legacy counterpart at all — the legacy format has no procedural element — so they
  * are new surface with no compatibility question attached, and a converter never emits them.
  *
  * <h2>Decorations, and the one thing they can never do</h2>
@@ -66,7 +66,7 @@ import java.util.Set;
  * adding a fifth one.
  *
  * <p>All of them draw <b>under</b> the dependency lines and the quest nodes, ordered among themselves by
- * {@code order} and then by the order they are declared in. Which is FTB's own arrangement, and the reason
+ * {@code order} and then by the order they are declared in. Which is the legacy format's own arrangement, and the reason
  * a box can be a container for a group of quests rather than a lid over them.
  *
  * <h2>A closed set, and a placeholder for a type this build has never heard of</h2>
@@ -182,43 +182,43 @@ public sealed interface CanvasElement {
      *
      * <p>Only a picture turns, which is what the interface default refuses for every other arm: a rotated box
      * would need its own corner arithmetic everywhere the box is used, and a rotated line is two points that
-     * an author can simply place. FTB agrees — {@code rotation} is on the image and nowhere else.
+     * an author can simply place. The legacy format agrees — {@code rotation} is on the image and nowhere else.
      */
     default CanvasElement withRotation(int degrees) {
         return this;
     }
 
     /**
-     * A picture: FTB's chapter image, in every field it carries.
+     * A picture: the legacy chapter image, in every field it carries.
      *
      * <p>{@code x} and {@code y} are the <b>top-left</b> of the image in canvas pixels, which is the
      * convention a quest node uses — so a grid position means the same thing for both, and a converter has
      * one centre-to-corner rule rather than two. {@code width} and {@code height} stretch the picture to
-     * fill that box; nothing preserves its aspect ratio, which is also what FTB does.
+     * fill that box; nothing preserves its aspect ratio, which is also what legacy packs do.
      *
      * @param rotation degrees clockwise, wrapped into 0..359 — so {@code -90}, {@code 270} and {@code 630}
      *                 all read as one quarter turn. Wrapping rather than clamping is {@code wrappedInt}'s
      *                 argument, and it matters here more than anywhere: a clamped {@code -90} is <i>no</i>
      *                 turn, which is the opposite of what the file says.
      * @param corner   whether the turn is about this element's own top-left corner instead of its centre.
-     *                 FTB's {@code alignToCorner}, kept under its own reading rather than dropped as
+     *                 the legacy {@code alignToCorner}, kept under its own reading rather than dropped as
      *                 cosmetic: a real pack uses it on a logo turned slightly off square, and the two
      *                 pivots are visibly different pictures.
-     * @param locked   whether the editor's drag leaves this picture where it is. FTB's
+     * @param locked   whether the editor's drag leaves this picture where it is. The legacy
      *                 {@code position_locked}: a pinned logo survives a marquee drag and a stray grip grab.
      *                 Readers are unaffected — this gates gestures, not visibility — and a deliberate edit
      *                 still writes, because a lock that could never be opened on purpose would be a picture
-     *                 nobody could move. The migration tool maps FTB's spelling onto this key.
+     *                 nobody could move. The migration tool maps the legacy spelling onto this key.
      * @param tint     multiplied into the picture, RGB and alpha alike. <b>White is the identity</b>, which
      *                 is its default, and a tint that carries an alpha <i>multiplies</i> with {@code alpha}
      *                 rather than replacing it — so "fade this" has one meaning whichever of the two fields
-     *                 an author reaches for. FTB's own writer is narrower than that and the difference is a
+     *                 an author reaches for. the legacy format's own writer is narrower than that and the difference is a
      *                 converter's problem rather than a reader's: it writes {@code Color4I.rgb()} — no alpha
      *                 in the number at all — and draws the tint with the {@code alpha} field <i>replacing</i>
      *                 the colour's own alpha. So a converted picture is written {@code #FFRRGGBB}, and with
-     *                 an opaque tint this format's multiplication and FTB's replacement are the same sum.
-     * @param alpha    0..255, multiplied with {@code tint}'s own alpha. Carried separately because FTB
-     *                 carries it separately, and because a pack that dims a picture should not have to
+     *                 an opaque tint this format's multiplication and the legacy replacement are the same sum.
+     * @param alpha    0..255, multiplied with {@code tint}'s own alpha. Carried separately because the
+     *                 legacy format carries it separately, and because a pack that dims a picture should not have to
      *                 rewrite its colour to say so
      * @param title    a hover tooltip, or text painted on the picture when {@code label} says so
      * @param label    how that text is painted, when it is
@@ -244,7 +244,7 @@ public sealed interface CanvasElement {
         public static final int MIN_EDGE = 1;
         public static final int MAX_EDGE = 4096;
 
-        /** FTB's alpha range, and the reason both ends are inclusive. */
+        /** the legacy alpha range, and the reason both ends are inclusive. */
         public static final int MIN_ALPHA = 0;
         public static final int MAX_ALPHA = 255;
 

@@ -317,7 +317,7 @@ class QuestNotificationsTest {
         @DisplayName("a quest quieted by its author announces no completion")
         void aQuietQuestAnnouncesNoCompletion() {
             // The quest-level disableToast: the same silence as a silent auto-claim mode, asked by name
-            // rather than by ladder. FTB Quests' disable_toast on the quest.
+            // rather than by ladder. the legacy disable_toast on the quest.
             diff.sample(List.of(new Snapshot("a", QuestState.STARTED, false, false)));
 
             assertEquals(List.of(), diff.sample(List.of(

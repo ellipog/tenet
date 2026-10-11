@@ -97,7 +97,7 @@ public final class TenetScripts {
     /**
      * Whether the player's team holds the stage. False for an id that is not one.
      *
-     * <p>FTB Quests' {@code team_stage}: the flag one member's induction grants to everybody.
+     * <p>the legacy {@code team_stage}: the flag one member's induction grants to everybody.
      */
     public static boolean hasTeamStage(ServerPlayer player, String stage) {
         ResourceLocation id = ResourceLocation.tryParse(stage == null ? "" : stage);

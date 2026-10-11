@@ -12,13 +12,13 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * FTB Filter System expressions, parsed for quest tasks.
+ * Legacy filter System expressions, parsed for quest tasks.
  *
  * <p>A filter arrives as the string the author's {@code ftbfiltersystem:smart_filter} stack carries
  * in its {@code ftbfiltersystem:filter} component — {@code or(item(a)item(b))},
  * {@code and(item_tag(minecraft:logs)mod(farmersdelight))} — and the migration tool passes it
  * through verbatim, so Tenet reads the same vocabulary rather than a translation of it. The
- * grammar mirrors {@code FilterParser} on the FTB side: a juxtaposition of {@code TYPE(ARG)}
+ * grammar mirrors {@code FilterParser} on the legacy side: a juxtaposition of {@code TYPE(ARG)}
  * forms, nested to any depth, with the top level acting as an implicit {@code and} and backslash
  * escapes inside arguments.
  *
@@ -323,7 +323,7 @@ public final class FilterParser {
     }
 
     /**
-     * Parses an expression, whose top level is an implicit {@code and} — the same reading FTB's
+     * Parses an expression, whose top level is an implicit {@code and} — the same reading the legacy
      * own {@code RootFilter} gives {@code item(X)or(...)}.
      *
      * @throws FilterException naming what is wrong and where, for the codec to report
@@ -380,7 +380,7 @@ public final class FilterParser {
         throw new FilterException("missing close parenthesis in: " + tail.strip());
     }
 
-    /** Backslash quotes the next character, exactly as the FTB parser reads it. */
+    /** Backslash quotes the next character, exactly as the legacy parser reads it. */
     static String unescape(String arg) {
         if (arg.indexOf('\\') < 0) {
             return arg;

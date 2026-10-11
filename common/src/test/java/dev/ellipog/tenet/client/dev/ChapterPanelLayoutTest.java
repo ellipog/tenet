@@ -632,4 +632,32 @@ class ChapterPanelLayoutTest {
                 "group.collapsedByDefault").buttonLabel(),
                 "an inherited group that starts open says so on the button");
     }
+
+    @Test
+    @DisplayName("the icon row names whichever arm the chapter wears, not just items")
+    void iconRowNamesEveryArm() {
+        assertEquals("minecraft:crafting_table",
+                row(ChapterPanelLayout.rows(chapter(), Set.of()), ChapterPanelLayout.ICON).value(),
+                "the item arm, as before");
+        assertEquals("my_pack:textures/gui/emblem.png",
+                row(ChapterPanelLayout.rows(withIcon("\"texture\": \"my_pack:textures/gui/emblem.png\""),
+                        Set.of()), ChapterPanelLayout.ICON).value(),
+                "a texture chapter no longer reads as icon-less");
+        assertEquals("my_pack:block/glyph",
+                row(ChapterPanelLayout.rows(withIcon("\"sprite\": \"my_pack:block/glyph\""),
+                        Set.of()), ChapterPanelLayout.ICON).value(),
+                "and neither does a sprite one");
+        assertEquals("minecraft:creeper",
+                row(ChapterPanelLayout.rows(withIcon("\"entity\": \"minecraft:creeper\""),
+                        Set.of()), ChapterPanelLayout.ICON).value(),
+                "an entity chapter names the mob, drawn as its egg elsewhere");
+    }
+
+    /** The fixture chapter wearing one raw icon arm instead of its item. */
+    private static JsonObject withIcon(String arm) {
+        JsonObject icon = JsonParser.parseString("{ " + arm + " }").getAsJsonObject();
+        JsonObject copy = chapter().deepCopy();
+        copy.add("icon", icon);
+        return copy;
+    }
 }

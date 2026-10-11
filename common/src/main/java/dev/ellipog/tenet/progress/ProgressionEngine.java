@@ -85,7 +85,7 @@ public final class ProgressionEngine {
     /**
      * Whether a quest's tasks may be worked on before its dependencies are satisfied.
      *
-     * <p>FTB Quests' {@code flexible} progression mode: the quest's own flag, or its chapter's
+     * <p>the legacy {@code flexible} progression mode: the quest's own flag, or its chapter's
      * default — either true makes it flexible, and there is no opt-out. The chapter default keeps
      * hand-authoring pleasant; a migration tool inlines the resolved value onto each quest and
      * leaves the default off, so the two can never disagree about one quest.
@@ -99,7 +99,7 @@ public final class ProgressionEngine {
      *
      * <p>The completion half of flexible progress: a flexible quest's tasks may accumulate while
      * its gate is shut, but it completes only once the gate opens. Every dependency counts,
-     * optional ones included — FTB Quests gates on an optional quest exactly like any other,
+     * optional ones included — legacy packs gate on an optional quest exactly like any other,
      * so skipping one here would open gates the pack keeps shut.
      *
      * @param states the resolution to judge against: the pass's own map from the resolver, or a
@@ -260,7 +260,7 @@ public final class ProgressionEngine {
             }
 
             // Dependencies. Resolve each first, so this is a depth-first walk of the graph.
-            // Every dependency gates, optional ones included: FTB Quests' optional only excuses
+            // Every dependency gates, optional ones included: the legacy `optional` only excuses
             // a quest from chapter completion, never from a gate — a pack gating on a side
             // quest means it, and skipping the edge would unlock what the pack keeps locked.
             // Dependency lines are still drawn for every edge.
@@ -472,7 +472,7 @@ public final class ProgressionEngine {
     }
 
     /**
-     * The quests an exclusive choice has shut out for good: FTB Quests' "excluded by another
+     * The quests an exclusive choice has shut out for good: the legacy "excluded by another
      * questline", as ids.
      *
      * <p>The same first pass {@link #resolve} reads — a taken exclusive group, or a reached

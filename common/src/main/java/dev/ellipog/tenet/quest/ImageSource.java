@@ -20,7 +20,7 @@ import java.util.Set;
  * and an id the sheet does not hold draws the game's missing-texture marker. Neither can stand in for the
  * other: a sprite has no path to give, and a file has no place in an atlas.
  *
- * <p>This is the shape FTB Quests uses under one string, decided by whether the value ends in
+ * <p>This is the shape the legacy format uses under one string, decided by whether the value ends in
  * {@code .png} — a rule that lives in its parser rather than in its files. Here the two are separate keys,
  * so which lookup an element asks for is written down rather than inferred, and the migration tool applies
  * the suffix rule once, in the open, where its report can name what it did.

@@ -31,7 +31,7 @@ import java.util.Optional;
  * <p>The icon is an {@link Icon}: an item, a texture file, an atlas region, or an entity drawn as its egg. A bare
  * item object is the item arm, so every file written before the union reads unchanged.
  *
- * <h2>Three things here that FTB Quests does not have</h2>
+ * <h2>Three things here that the legacy format does not have</h2>
  *
  * <p><b>{@code aliases}.</b> Progress is stored against a quest's id. Change the id — which every
  * author does, once, after realising {@code stoneage_quest_2} was a bad name — and every player
@@ -41,12 +41,12 @@ import java.util.Optional;
  * actually wants, except one: "any three of these five". A count covers it, and setting it makes the
  * mode irrelevant.
  *
- * <p><b>{@code exclusiveGroup}.</b> FTB Quests has this too, so it is not a novelty — but it is
+ * <p><b>{@code exclusiveGroup}.</b> The legacy format has this too, so it is not a novelty — but it is
  * grouped into {@link QuestRules} here rather than being another top-level field competing for
  * attention with the quest's actual content.
  *
  * <p>Note {@code description} is a <i>list</i> of paragraphs. A single string with {@code \n} in it
- * is what FTB Quests takes, and it is the reason its quest descriptions end up as one
+ * is what the legacy format takes, and it is the reason its quest descriptions end up as one
  * undifferentiated wall of text.
  *
  * <h2>Where the fields live</h2>
@@ -78,7 +78,7 @@ public record Quest(
         /**
          * Whether this quest's tasks may be worked on before its dependencies are satisfied.
          *
-         * <p>FTB Quests' {@code flexible} progression mode, as a flag rather than a mode: tasks
+         * <p>the legacy {@code flexible} progression mode, as a flag rather than a mode: tasks
          * accumulate while the gate is shut, completion waits for it to open, and already-maxed
          * tasks finish on the first tick after it does. A quest that says nothing defers to its
          * chapter's {@code defaultFlexibleProgress} — either true makes the quest flexible, which
@@ -139,7 +139,7 @@ public record Quest(
      * that says nothing.
      *
      * <p>Either true makes the quest sequential — there is no opt-out, which is why a migration
-     * tool inlines the resolved value when the chapter default is absent. FTB Quests'
+     * tool inlines the resolved value when the chapter default is absent. The legacy
      * {@code require_sequential_tasks} on the chapter.
      */
     public boolean sequentialTasks(boolean chapterDefault) {
@@ -150,7 +150,7 @@ public record Quest(
      * Whether this quest is marked a side quest.
      *
      * <p>A marker, not a gate: an optional quest gates the quests that depend on it exactly
-     * like any other quest — FTB Quests' optional only excuses a quest from chapter
+     * like any other quest — the legacy `optional` only excuses a quest from chapter
      * completion, never from a prerequisite rule. See {@link QuestRules#optional} and
      * {@link dev.ellipog.tenet.progress.ProgressionEngine}.
      */
@@ -220,7 +220,7 @@ public record Quest(
     /**
      * Whether completing this quest raises no toast.
      *
-     * <p>FTB Quests' {@code disable_toast} on the quest. ORed with the silent auto-claim modes
+     * <p>the legacy {@code disable_toast} on the quest. ORed with the silent auto-claim modes
      * where notices are decided; see {@link QuestPresentation}.
      */
     public boolean disableToast() {
@@ -230,7 +230,7 @@ public record Quest(
     /**
      * Whether this quest's rewards keep flowing while the team's payouts are held.
      *
-     * <p>FTB Quests' {@code ignore_reward_blocking} on the quest. Either this or a reward's own
+     * <p>the legacy {@code ignore_reward_blocking} on the quest. Either this or a reward's own
      * flag exempts that reward; see {@link QuestPresentation} and
      * {@link dev.ellipog.tenet.progress.ProgressService#isBlocked}.
      */
@@ -251,7 +251,7 @@ public record Quest(
     /**
      * Whether this quest hides itself from recipe viewers, if it has an opinion.
      *
-     * <p>FTB Quests' {@code disable_recipe_mod} on the quest. A tristate: absent defers to the
+     * <p>the legacy {@code disable_recipe_mod} on the quest. A tristate: absent defers to the
      * file's {@code defaultDisableRecipeMod} — which is what every file written before this field
      * existed says — so callers that need an answer take {@link #showInRecipeMod}. See
      * {@link QuestPresentation}.
@@ -275,7 +275,7 @@ public record Quest(
     /**
      * Whether recipe viewers (JEI, REI, EMI) list this quest.
      *
-     * <p>FTB Quests' {@code showInRecipeMod}: the negation of the effective flag above. The viewer
+     * <p>the legacy {@code showInRecipeMod}: the negation of the effective flag above. The viewer
      * content is built from this answer rather than from the tristate, because the client holds no
      * file record to resolve one from — the server resolves it onto the wire.
      */
@@ -286,7 +286,7 @@ public record Quest(
     /**
      * Whether this quest wears no lock mark of its own on the canvas.
      *
-     * <p>FTB Quests' {@code hide_lock_icon} on the quest: the quest's half of the file's
+     * <p>the legacy {@code hide_lock_icon} on the quest: the quest's half of the file's
      * {@code showLockIcons}. Either silence wins — see {@link QuestVisibility#drawsLockMark} for
      * the answer the canvas actually draws with. Absent defers to the file, which is what every
      * file written before this field existed says.
@@ -298,7 +298,7 @@ public record Quest(
     /**
      * Words this quest answers to in lookups by tag.
      *
-     * <p>FTB Quests' {@code tags}, present on every object. A lookup of {@code "#tag"} resolves
+     * <p>the legacy {@code tags}, present on every object. A lookup of {@code "#tag"} resolves
      * to the first quest, chapter or group carrying it -- see {@link QuestIndex}. Each tag is
      * {@code ^[a-z0-9_]{1,64}$}, the same rule an id follows.
      */
@@ -309,7 +309,7 @@ public record Quest(
     /**
      * The guide book page this quest belongs to, or empty when it names none.
      *
-     * <p>FTB Quests' {@code guide_page}, as a plain string. Tenet has no guide integration: the
+     * <p>the legacy {@code guide_page}, as a plain string. Tenet has no guide integration: the
      * quest card shows this as a reference and nothing reads it further. Empty means absent,
      * which is what every file written before this field existed says.
      */

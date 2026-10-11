@@ -21,7 +21,7 @@ import java.util.Set;
  *
  * <h2>The four original fields, and where their defaults live</h2>
  *
- * <p>{@code team}, {@code auto} and the tree's file both follow FTB Quests' resolution: an explicit
+ * <p>{@code team}, {@code auto} and the tree's file both follow the legacy resolution: an explicit
  * value wins, and silence defers to the quest tree's own settings — which is why the tristate is an
  * {@code Optional<Boolean>} and not a boolean. The two flags are plain booleans whose absence is
  * simply false, because that is what they mean.
@@ -41,7 +41,7 @@ import java.util.Set;
  * the moment they hold. The short constructor keeps every existing default and test from carrying a
  * list they never fill.
  *
- * <p>{@code disableToast} is FTB Quests' {@code disable_toast} on the reward: collecting this
+ * <p>{@code disableToast} is the legacy {@code disable_toast} on the reward: collecting this
  * reward raises no toast. Rewards have no toast of their own today — only quest and task notices
  * exist — so this is recorded on the model, the wire and the editor now, and honoured the moment a
  * reward-level notice does. An announced reward in a quieted quest stays quiet; the quest's flag

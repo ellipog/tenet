@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * FTB Quests' text tokens, read at render time into segments.
+ * Rich-text tokens in pack prose, read at render time into segments.
  *
  * <h2>Why a parser, and why here rather than in the file format</h2>
  *
@@ -33,9 +33,9 @@ import java.util.Objects;
  * spelling here — both markers, either letter case. A marker at the end of the string, or before a
  * character that is no code, is literal text: dropping it would eat words.
  */
-public final class FtbText {
+public final class RichText {
 
-    private FtbText() {
+    private RichText() {
     }
 
     /** One piece of a parsed string, in order. */
@@ -76,10 +76,10 @@ public final class FtbText {
     /**
      * A link the author wrote by hand.
      *
-     * <p>Approximate by admission: FTB applies this to the text around it in ways this parser does
-     * not reconstruct. What is pinned is the safe half — the URL is captured whole, and the consumer
-     * draws it through the same http/https-only opener every other link uses. A label the token
-     * carries travels beside it; without one the address is its own words.
+     * <p>Approximate by admission: the legacy reader applies this to the text around it in ways
+     * this parser does not reconstruct. What is pinned is the safe half — the URL is captured
+     * whole, and the consumer draws it through the same http/https-only opener every other link
+     * uses. A label the token carries travels beside it; without one the address is its own words.
      */
     public record OpenUrl(String url, String label) implements Segment {
     }
@@ -97,9 +97,9 @@ public final class FtbText {
      * something the book can press: {@code open_url} travels as {@code link} and opens through the
      * same http/https-only opener every other link uses ({@code docs:} addresses have no guide to
      * open with and arrive with nowhere to press, the prose half of the image click's shelf
-     * message), and FTB's {@code change_page} — whose value FTB's own reader treats as a quest to
-     * open rather than a book page — travels as {@code quest} for the client to resolve by id or
-     * alias. Any other action arrives as words with nowhere to press.
+     * message), and the legacy {@code change_page} — whose value the legacy reader treats as a
+     * quest to open rather than a book page — travels as {@code quest} for the client to resolve
+     * by id or alias. Any other action arrives as words with nowhere to press.
      *
      * @param raw      the whole component source, so a richer reader can do better later;
      *                 unparseable JSON never arrives here — it stays prose
@@ -129,8 +129,8 @@ public final class FtbText {
     }
 
     /**
-     * One page of a paragraph: the visible words for the markdown pass, the FTB look over them, and
-     * the pictures standing among them.
+     * One page of a paragraph: the visible words for the markdown pass, the rich-text look over
+     * them, and the pictures standing among them.
      *
      * <p>The spans tile the residual in order and cover every character of it: a lookup by index
      * always answers, so the drawing never has to ask what an unstyled character is. The pictures
@@ -258,7 +258,7 @@ public final class FtbText {
     }
 
     /**
-     * Words with their FTB ink, drawn and truncated in one pass.
+     * Words with their rich-text ink, drawn and truncated in one pass.
      *
      * <p>For the surfaces that draw one line in one ink but read strings that carry codes: quest titles
      * on the canvas, the card's header, and anywhere else a title is drawn from the entry in scope.
@@ -291,7 +291,7 @@ public final class FtbText {
     }
 
     /**
-     * Words with their FTB ink, drawn whole.
+     * Words with their rich-text ink, drawn whole.
      *
      * <p>The untruncated half of {@link #drawTruncated}: same runs, same inks, no ellipsis. For the
      * lines nothing truncates — the card's header, where the state tag that follows is placed off
@@ -493,7 +493,7 @@ public final class FtbText {
      * that is what the author meant; a link reads its label; anything with no words reads as
      * nothing. An ampersand before no code is literal, so {@code Fish & Chips} survives — but
      * {@code R&B} does not, and that is documented where titles are: {@code &} starts a colour
-     * code, FTB-style, and a literal one is written {@code \&}.
+     * code, legacy-style, and a literal one is written {@code \&}.
      */
     public static String plain(String text) {
         Objects.requireNonNull(text, "text");
@@ -974,7 +974,7 @@ public final class FtbText {
                 ownQuest = "";
             }
             else if (action.equals("change_page") && !value.isEmpty()) {
-                // FTB's repurposing: the value is a quest to open (`HEXID` or `HEXID/page`),
+                // The legacy repurposing: the value is a quest to open (`HEXID` or `HEXID/page`),
                 // never a book page — see the record note.
                 ownLink = "";
                 ownQuest = value;

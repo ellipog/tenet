@@ -368,7 +368,7 @@ class ServerEditorsTest {
     @Test
     @DisplayName("a replica of a pack whose files are named differently from their ids carries them anyway")
     void theReplicaSpeaksBothVocabularies(@TempDir Path dir) throws IOException {
-        // **The converted pack.** A pack from FTB Quests keeps FTB's hex ids in the files while the converter
+        // **The converted pack.** A pack from the legacy format keeps the legacy hex ids in the files while the converter
         // names the files after the quests' titles, so the manifest's vocabulary and the tree's are different
         // strings for the same quest. Building the replica by walking the manifest and looking each name up in
         // an editor keyed by declared ids returned **nothing**, and the panel -- which asks by the tree's id --

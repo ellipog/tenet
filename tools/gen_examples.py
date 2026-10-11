@@ -238,8 +238,7 @@ QUEST_DEFS: list[dict] = [
             "Wood is a loan from the greenwood. Stone is the first thing that is actually yours,"
             " taken from the hillside and shaped on the table you just made.",
             "Eight cobblestone carried is enough to make the whole kit. The quest pays back the"
-            " pickaxe and some experience, and -- like the two quests before it -- it declines"
-            " both chapter defaults so the playthrough's inventory assertions hold."),
+            " pickaxe and some experience, so the rest of the orrery starts with you properly equipped."),
         "tasks": [task("item", item="minecraft:cobblestone", count=8, consumeItems=False)],
         "rewards": [
             reward("item", item="minecraft:stone_pickaxe"),
@@ -1049,7 +1048,7 @@ QUEST_DEFS: list[dict] = [
             "A command reward runs through the server's own dispatcher with the player as the"
             " source, at `permissionLevel` 2 by default -- a command block's level. The command"
             " is written without its leading slash.",
-            "The brace-words are FTB Quests' own placeholders, kept whole: `{p}` is the player's"
+            "The brace-words are the legacy format's own placeholders, kept whole: `{p}` is the player's"
             " scoreboard name, `{quest}` the quest's id, `{chapter}` the chapter's, and `{x}`"
             " `{y}` `{z}` the block they stand on. An unknown brace-word is left as written"
             " rather than blanked, so a typo is visible in the log."),

@@ -50,9 +50,10 @@ public final class RewardInboxLayout {
      *
      * <p>Taller than the action it carries, deliberately — see {@link #ACTION_HEIGHT}. At 22 it was the
      * same height as the button, so the button filled the row edge to edge and the banner read as a
-     * button with a title beside it rather than as a section heading with a button in it.
+     * button with a title beside it rather than as a section heading with a button in it. At 26 it was
+     * still one row with a button in it; at 30 with a raised wash it reads as a banner.
      */
-    public static final int CHAPTER_HEIGHT = 26;
+    public static final int CHAPTER_HEIGHT = 30;
 
     /** A quest's header row: chevron, icon, title, and the strip's Claim Quest. */
     public static final int HEADER_HEIGHT = 18;
@@ -61,7 +62,7 @@ public final class RewardInboxLayout {
     public static final int REWARD_HEIGHT = 18;
 
     /** Air before a chapter's banner. Wider than a section gap: a banner starts a new group. */
-    public static final int CHAPTER_GAP = 10;
+    public static final int CHAPTER_GAP = 14;
 
     /** Air between one quest's block and the next. */
     public static final int SECTION_GAP = 7;
@@ -72,8 +73,14 @@ public final class RewardInboxLayout {
     /** How far a reward row is indented under the header it belongs to. */
     public static final int REWARD_INDENT = 14;
 
-    /** How wide the action column is, and its inset from the column's right edge. */
-    public static final int ACTION_WIDTH = 96;
+    /**
+     * How wide the action column is, and its inset from the column's right edge.
+     *
+     * <p>Wide enough for a container's count — "Claim Chapter (1116)" — so the scope a bulk press
+     * states is drawn rather than truncated. Single rows keep the short "Claim"/"Choose" in the same
+     * column, left-aligned room to spare rather than a narrower column that clips the banner.
+     */
+    public static final int ACTION_WIDTH = 124;
     public static final int STRIP_INSET = 2;
 
     /**
@@ -96,15 +103,19 @@ public final class RewardInboxLayout {
     public static final int COLUMN_GAP = 6;
 
     /**
-     * How wide the reward-details column is: three icons with their counts, then a "+N".
+     * How wide the reward-details column is: quest preview icons with their counts, then a "+N".
      *
      * <p>It was widened to 200 for a chapter badge that stated a fraction — "52/1116 ready to claim" —
-     * and the badge is a bare count now, so the width went back to what the reward cells need. The fifty
-     * pixels it gave up went to the context column, which is where a reader spends them: they are the
-     * difference between a truncated quest title and a whole one, and the difference between a reward
-     * group that floats in the middle of the row and one that sits near the button claiming it.
+     * and the badge is a bare count now, then moved inline after the chapter title, so the width went
+     * back to what the quest previews need. At 110 it holds two icons with counts and the overflow;
+     * a third collapses to "+N", which is what the fold is for. The forty pixels it gave up went to
+     * the context column, which is where a reader spends them: they are the difference between a
+     * truncated chapter title and a whole one.
+     *
+     * <p>Chapter banners do not draw in this cell: their badge rides inline after the title in
+     * {@link Column#CONTEXT}, so the cell stands empty on that kind.
      */
-    public static final int REWARDS_WIDTH = 150;
+    public static final int REWARDS_WIDTH = 110;
 
     /** The key a chapter's banner is placed and found by. */
     public static String chapterKey(String chapterId) {

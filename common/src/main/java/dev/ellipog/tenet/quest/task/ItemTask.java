@@ -28,7 +28,7 @@ import java.util.Set;
  * diamond and gives you a sword in return is a trade, and a trade takes the diamond.
  *
  * <p>It is an {@link Optional} so the chapter's {@code defaultConsumeItems} can fill it in — the
- * inheritance the plan borrowed from FTB Quests. An author of a resource-hungry pack sets it once on
+ * inheritance the plan borrowed from the legacy format. An author of a resource-hungry pack sets it once on
  * the chapter; an author who wants the friendlier behaviour sets nothing.
  */
 public record ItemTask(TaskCommon common, ItemRef item, Optional<Boolean> consumeItems,
@@ -93,7 +93,7 @@ public record ItemTask(TaskCommon common, ItemRef item, Optional<Boolean> consum
             }
             if (task.onlyFromCrafting()) {
                 // Counted from the player's own statistics rather than from the inventory, which is
-                // the closest this build gets to FTBQ's "only what you crafted": the stat is lifetime
+                // the closest this build gets to the legacy "only what you crafted": the stat is lifetime
                 // and monotonic, so handing the stack away does not un-count it. Documented in the
                 // schema as the difference.
                 int crafted = context.player().getStats().getValue(Stats.ITEM_CRAFTED.get(template.getItem()));

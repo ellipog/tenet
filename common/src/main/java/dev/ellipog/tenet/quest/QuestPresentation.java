@@ -19,25 +19,25 @@ import java.util.Set;
  * {@link MapCodec}, exactly as a quest's rules and layout are flat on the quest. An author writes
  * {@code "minWidth": 250}, not a nested object.
  *
- * <p>{@code minWidth} is FTB Quests' {@code min_width}: the minimum width of the quest's detail
+ * <p>{@code minWidth} is the legacy {@code min_width}: the minimum width of the quest's detail
  * panel. Zero means unset — the panel takes its kind's default — because every file written before
  * this field existed says nothing, and nothing must read as the old behaviour. The chapter's
  * {@code defaultMinWidth} decides for a quest that says nothing; a quest's own value wins.
  *
  * <p>{@code hideDependentLines} is the outgoing half of {@code hideDependencyLines}. That flag
  * hides the lines <i>arriving</i> at a quest; this one hides the lines <i>leaving</i> it for its
- * dependants. FTB Quests ships both halves ({@code hide_dependency_lines} and
+ * dependants. The legacy format ships both halves ({@code hide_dependency_lines} and
  * {@code hide_dependent_lines}); this mod had only the incoming side, so a converted pack's 375
  * uses of the outgoing half had nowhere to land.
  *
- * <p>{@code disableToast} is FTB Quests' {@code disable_toast} on the quest: completing this quest
+ * <p>{@code disableToast} is the legacy {@code disable_toast} on the quest: completing this quest
  * raises no toast. It ORs with the silent auto-claim modes rather than replacing them — an author
  * who turned auto-claim on for fifty starter quests and an author who quieted one quest by name are
  * answering the same question from opposite ends. Tasks and rewards carry their own flag beside
  * their own common settings; see {@link TaskCommon} and
  * {@link dev.ellipog.tenet.quest.reward.RewardCommon}.
  *
- * <p>{@code ignoreRewardBlocking} is FTB Quests' {@code ignore_reward_blocking} on the quest: when
+ * <p>{@code ignoreRewardBlocking} is the legacy {@code ignore_reward_blocking} on the quest: when
  * the team's payouts are held, this quest's rewards keep flowing. Either the quest's flag or a
  * reward's own flag exempts that reward — the quest's covers every reward on it, the reward's
  * covers just itself. See {@link dev.ellipog.tenet.progress.ProgressService#isBlocked}.
@@ -47,7 +47,7 @@ import java.util.Set;
  * player's own. One member's induction then opens the quest for everybody. It sits here for the
  * mundane codec reason above, flat on the quest like everything else in this record.
  *
- * <p>{@code disableRecipeMod} is FTB Quests' {@code disable_recipe_mod} on the quest (shown in its
+ * <p>{@code disableRecipeMod} is the legacy {@code disable_recipe_mod} on the quest (shown in its
  * editor as {@code disable_jei}): this quest stays out of recipe viewers (JEI, REI, EMI). A
  * tristate — absent defers to the file's {@code defaultDisableRecipeMod}, which is what every file
  * written before this field existed says. See {@link Quest#showInRecipeMod}.
@@ -56,11 +56,11 @@ import java.util.Set;
  * wears no lock mark on the canvas. Either silence wins — the file hiding every mark, or this
  * quest hiding its own — and absent defers to the file.
  *
- * <p>{@code tags} is FTB Quests' {@code tags}, present on every object: words this quest answers
+ * <p>{@code tags} is the legacy {@code tags}, present on every object: words this quest answers
  * to in lookups by tag. Each tag is {@code ^[a-z0-9_]{1,64}$}, the same rule a quest id follows,
  * and a lookup of {@code "#tag"} resolves to the first quest, chapter or group carrying it.
  *
- * <p>{@code guidePage} is FTB Quests' {@code guide_page}: the guide book page this quest belongs
+ * <p>{@code guidePage} is the legacy {@code guide_page}: the guide book page this quest belongs
  * to, as a plain string. Tenet has no guide integration, so this is carried as a reference the
  * quest card shows and nothing more; empty means the quest names none.
  */
@@ -69,7 +69,7 @@ public record QuestPresentation(int minWidth, boolean hideDependentLines, boolea
                                 Optional<Boolean> disableRecipeMod, boolean hideLockIcon,
                                 List<String> tags, String guidePage) {
 
-    /** The bounds of {@code minWidth}, taken from FTB Quests' own editor (0 to 3000). */
+    /** The bounds of {@code minWidth}, taken from the legacy format's own editor (0 to 3000). */
     public static final int MIN_WIDTH_MIN = 0;
     public static final int MIN_WIDTH_MAX = 3000;
 

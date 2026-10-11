@@ -19,7 +19,7 @@ import java.util.Map;
  * <h2>Why this is the client's job, and the only one</h2>
  *
  * <p>A server never sees where a player is looking, so an observation task can only be judged where
- * the eyes are. FTB Quests does the same thing, and the trust is deliberate and bounded: the worst a
+ * the eyes are. Legacy packs do the same thing, and the trust is deliberate and bounded: the worst a
  * modified client can do is finish an observation without watching, which grants nothing by itself.
  * Everything a payout depends on is still decided server-side.
  *

@@ -30,11 +30,11 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The FTB Quests rows that need no Tenet change, pinned as tests.
+ * The legacy rows that need no Tenet change, pinned as tests.
  *
  * <p>Batch 0 of the migration work verified that every row here already has a Tenet home, so the
- * migration tool may emit the middle column today: the FTB snake_case becomes Tenet's camelCase,
- * and an absent FTB field keeps Tenet's default. Each test decodes the JSON the tool would write
+ * migration tool may emit the middle column today: the legacy snake_case becomes Tenet's camelCase,
+ * and an absent legacy field keeps Tenet's default. Each test decodes the JSON the tool would write
  * through the real codec, which is what makes this page fail first if a field quietly becomes
  * required or changes meaning. The human-readable contract is {@code docs/authoring/ftb-mapping.md};
  * this class is the same contract in a form the build checks.
@@ -44,8 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * tokens, energy and currency rewards, file settings, presets). Those belong
  * to later batches, and adding them here early would pin JSON nothing reads.
  */
-@DisplayName("FTB Quests mappings that need no Tenet change")
-class FtbMappingTest {
+@DisplayName("the legacy mappings that need no Tenet change")
+class LegacyMappingTest {
 
     private static JsonElement json(String text) {
         return JsonParser.parseString(text);
@@ -93,7 +93,7 @@ class FtbMappingTest {
     @Test
     @DisplayName("advancement without a criterion watches the whole advancement")
     void advancementWithoutCriterion() {
-        // The tool turns FTB's empty-string criterion into an absent field rather than an empty
+        // The tool turns the legacy empty-string criterion into an absent field rather than an empty
         // one: absent is "the whole advancement" and an empty string would name a criterion that
         // does not exist.
         var parsed = assertInstanceOf(AdvancementTask.class,
@@ -145,9 +145,9 @@ class FtbMappingTest {
     }
 
     @Test
-    @DisplayName("item match speaks FTB's three words")
+    @DisplayName("item match speaks the legacy three words")
     void itemMatchSpeaksThreeWords() {
-        // FTB's match_components vocabulary, identical on both sides; strict stays the default.
+        // the legacy `match_components` vocabulary, identical on both sides; strict stays the default.
         for (var row : List.of(
                 new String[]{"none", "NONE"}, new String[]{"fuzzy", "FUZZY"}, new String[]{"strict", "STRICT"})) {
             var parsed = assertInstanceOf(ItemTask.class,
@@ -223,7 +223,7 @@ class FtbMappingTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("reward auto speaks FTB's five words")
+    @DisplayName("reward auto speaks the legacy five words")
     void rewardAutoSpeaksFiveWords() {
         for (var row : List.of(
                 new String[]{"default", "DEFAULT"}, new String[]{"disabled", "DISABLED"},
@@ -465,7 +465,7 @@ class FtbMappingTest {
     @Test
     @DisplayName("chapter subtitle and the book title decode (G16)")
     void chapterSubtitleAndBookTitleDecode() {
-        // FTB's `chapter_subtitle` (a single-element lang array in ATM10) becomes the chapter's
+        // the legacy `chapter_subtitle` (a single-element lang array in ATM10) becomes the chapter's
         // `subtitle`: the one line under the chapter's name, drawn as the second line of its
         // sidebar row's hover. Absent stays absent, which is every chapter that never had one.
         var subtitled = chapter("{\"id\": \"c\", \"title\": \"C\","
@@ -473,7 +473,7 @@ class FtbMappingTest {
         assertEquals("Five quests, no tricks", subtitled.subtitle().orElseThrow().value());
         assertTrue(chapter("{\"id\": \"c\", \"title\": \"C\"}").subtitle().isEmpty(),
                 "a chapter with no subtitle sends nothing on the wire");
-        // And FTB's file `title` (lang `file.<id>.title`, "All The Mods 10" in ATM10) becomes the
+        // And the legacy file `title` (lang `file.<id>.title`, "All The Mods 10" in ATM10) becomes the
         // index settings' `bookTitle`: what the header draws. Already a plain string, so the
         // tool's value decodes as written and translates through `book.title` instead.
         assertEquals("All The Mods 10",
@@ -517,7 +517,7 @@ class FtbMappingTest {
     void fileBehaviourFlags() {
         // Absent is the default on every one, and the defaults are quiet: marks hidden unless
         // asked for, nothing hidden, the world unpaused, the book opening, no custom locked word.
-        // (FTB draws an absent mark, so the tool writes an explicit true for packs that never
+        // (the legacy format draws an absent mark, so the tool writes an explicit true for packs that never
         // heard of the field — see the mapping page.)
         var absent = settings("{}");
         assertFalse(absent.showLockIcons(), "absent hides");

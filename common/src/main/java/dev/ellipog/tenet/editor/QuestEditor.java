@@ -393,7 +393,7 @@ public final class QuestEditor {
      * <p>The edit side keys by the declared id — that is what the tree, the canvas and the client's own
      * `editTarget()` use — while the manifest lists <i>file names</i>, and the format puts no rule on the two
      * agreeing. Every fixture in this repository names its file after its id, so for a long time they were
-     * the same string and one lookup answered both. A pack converted from FTB Quests keeps FTB's hex ids
+     * the same string and one lookup answered both. A pack converted from the legacy format keeps the legacy hex ids
      * while naming files after titles, and there the two part company: keying by the declared id alone left
      * the replica's own iteration — which reads the manifest — asking for `first_tree` and getting null, so
      * the panel received an <b>empty</b> copy and said the copy had not arrived.

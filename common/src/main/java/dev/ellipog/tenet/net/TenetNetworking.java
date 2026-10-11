@@ -361,6 +361,19 @@ public final class TenetNetworking {
                 TenetNetworking::handleOpenBook,
                 null));
 
+        // --- a command asked for the player's view: preview it, there ---
+        //
+        // The same shape as the book open above: the command runs on the server and the latch
+        // lives on the client, so the server forwards the ask and the client's handler both parks
+        // it and opens the book. See `PreviewPayload` for why the toggle travels rather than an
+        // absolute the server cannot know.
+        ArmatureNetwork.register(new ArmatureNetwork.Registration<>(
+                PreviewPayload.TYPE,
+                PreviewPayload.CODEC,
+                ArmatureNetwork.Direction.TO_CLIENT,
+                TenetNetworking::handlePreview,
+                null));
+
         // --- one edit, client to server, and the server's answer ---
         //
         // The op path. A client asks; the server checks permission, applies the operation to its own model
@@ -794,7 +807,7 @@ public final class TenetNetworking {
      * <p>An unknown brace-word is left as written rather than blanked: a command that says
      * {@code {player}} to an operator reading the log is a one-second fix, and a command that
      * silently loses the word is a mystery. That is the command reward's own rule, and a click
-     * shares its vocabulary on purpose: a pack moved from FTB Quests should not have to learn a
+     * shares its vocabulary on purpose: a pack moved from the legacy format should not have to learn a
      * second one for the same sentence.
      */
     static String substituteClick(String command, String playerName, int x, int y, int z,
@@ -1417,6 +1430,11 @@ public final class TenetNetworking {
         ArmatureNetwork.sendToPlayer(player, new OpenBookPayload(questId == null ? "" : questId));
     }
 
+    /** Asks one player's client to preview the book as a player sees it. See {@link PreviewPayload}. */
+    public static void sendPreviewTo(ServerPlayer player, boolean toggle, boolean on) {
+        ArmatureNetwork.sendToPlayer(player, new PreviewPayload(toggle, on));
+    }
+
     private static void handlePartySync(PartySyncPayload payload) {
         ClientPartyCache.accept(payload.packed());
         // Info rather than debug, paired with the sender's line: "the server sent it" and "the client
@@ -1655,6 +1673,15 @@ public final class TenetNetworking {
         else {
             dev.ellipog.tenet.client.QuestBookScreen.openOn(payload.questId());
         }
+    }
+
+    /** A command asked for the player's view: park the preview ask and open the book on it. */
+    private static void handlePreview(PreviewPayload payload) {
+        if (!dev.ellipog.tenet.client.QuestBookScreen.checkOpenAllowed()) {
+            return;
+        }
+        dev.ellipog.tenet.client.QuestBookScreen.requestPreview(payload.toggle(), payload.on());
+        dev.ellipog.armature.api.client.ArmatureClient.openScreen(dev.ellipog.tenet.Tenet.QUEST_BOOK_SCREEN);
     }
 
     /** A command asked for a table's editor: park the request and make sure the book is on screen. */

@@ -91,7 +91,7 @@ cannot declare the root is read as if it were not there, and the tree loads by f
 
 A quest with no tasks and no rewards is only a warning when **nothing depends on it** — a ghost,
 almost always a quest someone started and did not finish writing. A taskless quest with a dependant
-is a junction, a milestone or a chapter gate, and it loads quietly: FTB authors use empty quests
+is a junction, a milestone or a chapter gate, and it loads quietly: legacy authors use empty quests
 that way, and warning about them would be noise on every converted pack. Quest links and image
 gates pointing at the quest do not count — only `dependsOn` makes a dependant — and a taskless
 quest completes on the tick its gate opens, with no press on it.

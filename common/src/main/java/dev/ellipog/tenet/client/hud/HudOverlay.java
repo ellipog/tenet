@@ -9,6 +9,7 @@ import dev.ellipog.tenet.client.ClientAppearance;
 import dev.ellipog.tenet.client.ClientQuestCache;
 import dev.ellipog.tenet.client.ToastArt;
 import dev.ellipog.tenet.client.ToastStack;
+import dev.ellipog.tenet.client.dev.QuestPanelLayout;
 import dev.ellipog.tenet.progress.QuestState;
 
 import net.minecraft.Util;
@@ -321,11 +322,14 @@ public final class HudOverlay {
     }
 
     /**
-     * One pinned quest's name, with its chapter fading after it.
+     * One pinned quest's name, with its chapter right-aligned to the box's own edge.
      *
-     * <p>The chapter starts where the <i>drawn</i> title ends, which is what the layout cut it against: a
-     * shortened title and a note placed from the authored one would overlap, which is the fault that rule
-     * exists for. Shadowed, like every glyph on this element, because there is no backdrop behind it --
+     * <p>The title stays left and the chapter rides the content's right edge, so chapters across
+     * boxes in one column share one vertical line rather than starting where each title happens
+     * to end. The layout already cut the two against each other (the note never more than half
+     * the row, and the pair fitting the content), so a left title and a right note cannot overlap:
+     * the separator's width stays reserved in the measurement, making the guarantee conservative.
+     * Shadowed, like every glyph on this element, because there is no backdrop behind it --
      * which is what {@code GuiRenderer.shadowedText} is for.
      */
     private static void paintTitle(GuiRenderer r, Measure measure, PinnedPanelLayout.Row row, int left,
@@ -333,7 +337,7 @@ public final class HudOverlay {
         int textY = top + (row.height() - 8) / 2;
         r.shadowedText(row.text(), left, textY, ArmatureTheme.title(), 1F);
         if (!row.note().isEmpty()) {
-            int x = left + measure.width(row.text()) + measure.width(PinnedPanelLayout.NOTE_SEPARATOR);
+            int x = left + row.width() - measure.width(row.note());
             r.shadowedText(row.note(), x, textY, ArmatureTheme.faint(), 1F);
         }
     }
@@ -350,8 +354,8 @@ public final class HudOverlay {
      * thicker than content, but the remainder has to read as <i>remaining</i> rather than as nothing --
      * over the live world an unfilled stretch is transparent, so a half-done task read as a shorter bar
      * floating beside its count. The track is the viewers' own unfilled ink, so a bar means the same
-     * thing here as on a recipe page, and it starts with the bar: an untouched task keeps no groove at
-     * all, because the bar appearing is itself the news that it started. The ink follows the row -- complete when done, available while
+     * thing here as on a recipe page, and it is always drawn for a countable task: an untouched task
+     * reads as an empty grey groove rather than as no bar at all. The ink follows the row -- complete when done, available while
      * going -- so a finished task's bar and its tick cannot disagree about what happened. The width
      * glides rather than jumps: the number stays the cache's own, and only the drawing eases toward it.
      */
@@ -385,10 +389,10 @@ public final class HudOverlay {
             double target = Math.min(1.0, row.progress() / (double) row.count());
             int filled = (int) Math.round(barWidth
                     * easedFraction(content.questId(row.pinIndex()), row.taskIndex(), target));
-            if (barWidth > 0 && row.progress() > 0) {
+            if (barWidth > 0) {
                 // The grey remainder first, so an underway task reads as a bar rather than as a shorter
-                // fill floating beside its count. An untouched task keeps no groove at all: the bar
-                // appearing is itself the news that it started.
+                // fill floating beside its count. An untouched task draws the track alone: empty reads
+                // as empty rather than as no bar at all.
                 r.fill(barX, barY, barX + barWidth, barY + PinnedPanelLayout.BAR_HEIGHT,
                         dev.ellipog.tenet.client.viewer.PagePalette.BAR_TRACK);
             }
@@ -496,6 +500,31 @@ public final class HudOverlay {
     }
 
     /**
+     * One pinned task's sentence, with registry ids prettified as the book reads them.
+     *
+     * <p>The same rule as {@code QuestBookScreen.rowText}: the sentence is the server's and stays
+     * the server's, and the one word in it the client can say better -- a registry id with a
+     * friendlier spelling -- is replaced before the key is formatted. Without this a kill task
+     * reads {@code Kill minecraft:cow} here while the book reads {@code Kill Cow}.
+     *
+     * <p>Deliberately the three-argument prettifier, without the book's advancement-title lookup:
+     * that lookup needs {@code net.minecraft.client}, which this class must not name so it stays
+     * safe to load on a server. Advancements fall back to their prettified id here.
+     */
+    private static String pinnedTaskText(ClientQuestCache.TaskEntry task) {
+        // A title-less checkmark pins a bare button, like the book's own rows: legacy packs show
+        // no sentence, so the pin does not invent one either.
+        if (task.type().equals("tenet:checkmark") && task.label().isEmpty()
+                && task.labelArg().isEmpty()) {
+            return "";
+        }
+        String arg = task.labelArg();
+        return arg.isEmpty()
+                ? task.text().getString()
+                : task.text(QuestPanelLayout.prettiedArgument("tasks", task.type(), arg)).getString();
+    }
+
+    /**
      * The pins, resolved against the tree.
      *
      * <p>A pin the tree does not hold is skipped <b>and spends no drawn slot</b>: the file is per client and
@@ -525,11 +554,7 @@ public final class HudOverlay {
             List<ItemStack> stacks = new ArrayList<>(entry.tasks().size());
             for (int i = 0; i < entry.tasks().size(); i++) {
                 ClientQuestCache.TaskEntry task = entry.tasks().get(i);
-                // A title-less checkmark pins a bare button, like the book's own rows: FTB shows
-                // no sentence, so the pin does not invent one either.
-                String words = task.type().equals("tenet:checkmark") && task.label().isEmpty()
-                        && task.labelArg().isEmpty() ? "" : task.text().getString();
-                tasks.add(new PinnedPanelLayout.Task(words,
+                tasks.add(new PinnedPanelLayout.Task(pinnedTaskText(task),
                         ClientQuestCache.taskProgressOf(id, i), task.count(),
                         ClientQuestCache.taskDone(id, i),
                         dev.ellipog.tenet.client.CheckmarkArt.wearsBox(task)));

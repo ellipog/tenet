@@ -53,7 +53,7 @@ Each tag is lowercase letters, digits and underscores (`^[a-z0-9_]{1,64}$`), the
 follows; anything else is an [error](validation.md). Quests, chapters, tasks and rewards edit tags
 as a comma list in the editor; a group's tags are file-only, like its aliases. There is no
 quest-book text search over tags yet: they are stored, validated, resolved for `#tag` lookups,
-and search integration is future work. FTB Quests calls this `tags`, present on every object — its one
+and search integration is future work. the legacy mod calls this `tags`, present on every object — its one
 use in the reference pack is `["village"]` on a quest.
 
 ### Icons
@@ -102,9 +102,9 @@ files are written a line per paragraph and joining them would re-wrap prose an a
 wrapped. The file keeps the raw markdown — the editor shows it as written, and only the reader's card
 renders it.
 
-## FTB text codes
+## Rich-text codes
 
-A description converted from FTB Quests keeps its text tokens, and the reader's card reads them —
+A description converted from the legacy mod keeps its text tokens, and the reader's card reads them —
 the converter passes pack text through verbatim, and the tokens are a render-time reading:
 
 - `&` and `§` colour and style codes (`&a` green, `&l` bold, `&o` italic, `&n` underline, `&r`
@@ -119,13 +119,13 @@ the converter passes pack text through verbatim, and the tokens are a render-tim
 - `{open_url:...}` opens through the same http/https-only rule a markdown link uses, and
   `{substitute:key}` resolves against the locale overlay.
 - A whole paragraph that is a raw JSON text component reads its clickable runs: `open_url`
-  opens through the same http/https-only rule, and FTB's `change_page` — whose value FTB's own
+  opens through the same http/https-only rule, and the legacy mod's `change_page` — whose value the legacy mod's own
   reader treats as a quest to open rather than a book page — opens that quest by id or alias. Any
   other click action reads as words with nowhere to press, and `docs:` addresses read the same
   way: there is no guide shelf here. Colours and emphasis inherit down the component the way
   vanilla reads them.
 - `\&` is a literal ampersand — which is also the rule for Tenet-native packs: `&` starts a colour
-  code, FTB-style, so `R&B` reads as `R` and a literal one is written `\&`.
+  code, legacy-style, so `R&B` reads as `R` and a literal one is written `\&`.
 
 Titles, subtitles, chapter titles and element words read the words without the ink: those surfaces
 draw one ink, so `&aChapter 2` reads as `Chapter 2` in white. Descriptions wear the colours,
@@ -178,7 +178,7 @@ open. They may live in other files, and a reference that resolves to nothing is 
 
 A quest with `"optional": true` is marked a side quest — a branch the player may do, drawn
 with its dependency lines. The flag is a marker, not a gate: an optional quest gates the
-quests that depend on it exactly like any other quest (that is FTB Quests' `optional`,
+quests that depend on it exactly like any other quest (that is the legacy mod's `optional`,
 whose only other effect is excusing the quest from chapter completion). `minRequired`
 counts every dependency, and the card's "2 of 3 met" counts the same denominator the
 engine enforces.
@@ -198,7 +198,7 @@ team rather than once per node.
 
 While the gate is shut the quest still draws gated — padlock, dimmed node, `REQUIRES x of y`
 — although its state stays measurable rather than locked. An UNLOCKED reading is what made
-whole flexible chapters look open; FTB shows such quests locked, and the padlock is what
+whole flexible chapters look open; the legacy mod shows such quests locked, and the padlock is what
 tells a player measuring from a player who may claim.
 
 Do not confuse this with the chapter's `progressionMode`: that one chains a chapter's quest list
@@ -230,8 +230,8 @@ A chapter can wait on other chapters, the same way a quest waits on quests. Unti
 | `completesWhen` | — | The quests, in any chapter, that finish this one. The chapter reports **completed** once every one of them is; a repeatable quest counts from its first completion. Empty means the chapter never reports completed. |
 | `autofocus` | — | The quest, by id or alias **in this chapter**, the canvas centres on when the chapter is selected. Absent centres on the chapter's bounding box. A name that resolves to nothing, or to a quest on another canvas, is an error. |
 | `hideUntilDependenciesComplete` | `false` | Leave the chapter out of the book entirely until its gate is met. Off, it is listed dimmed. Authors always see it, or the flag could not be authored. |
-| `alwaysInvisible` | `false` | Leave the chapter out of every reader's book, whatever its gate says. Beside the row above because they are the pair an author mixes up: that one withholds the row until the gate is met, this one withholds it always. The gate itself is unaffected — the chapter still opens, completes and gates its quests — its progress reads 100%, and authors still see the row. FTB Quests calls this `always_invisible`. |
-| `disableCanvasLod` | defer | Whether this chapter's canvas draws without the zoom tiers: icons, rings, titles and badges at any zoom. Absent defers to the book's own flag (see [[tenet:authoring/quest-files]]); present `true` draws everything always, present `false` keeps the tiers even under a tierless book. FTB Quests has no tiers, so migrated packs arrive tierless through the book half. |
+| `alwaysInvisible` | `false` | Leave the chapter out of every reader's book, whatever its gate says. Beside the row above because they are the pair an author mixes up: that one withholds the row until the gate is met, this one withholds it always. The gate itself is unaffected — the chapter still opens, completes and gates its quests — its progress reads 100%, and authors still see the row. the legacy mod calls this `always_invisible`. |
+| `disableCanvasLod` | defer | Whether this chapter's canvas draws without the zoom tiers: icons, rings, titles and badges at any zoom. Absent defers to the book's own flag (see [[tenet:authoring/quest-files]]); present `true` draws everything always, present `false` keeps the tiers even under a tierless book. the legacy mod has no tiers, so migrated packs arrive tierless through the book half. |
 | `tags` | — | Words this chapter answers to in lookups by tag — see below. Each tag is lowercase letters, digits and underscores, the same rule an id follows. |
 | `defaultHideUntilDependenciesComplete` | `false` | What **the quests in this chapter** do about their own prerequisites unless a quest says otherwise: on, a quest here is hidden until its own rule is met. A quest writes `false` to opt out. |
 | `defaultHideUntilDependenciesVisible` | `false` | The same default for the reveal that waits on a prerequisite being *visible*. |
@@ -342,8 +342,8 @@ loads, still counts for progress, and is always shown to the editor.
 | `hideDependentLines` | `false` | The lines leaving this quest for its dependants. The outgoing half of the row above: a quest that fans out to twenty dependants draws twenty lines across the chapter, and the author may want the quest without the clutter. Either silence wins. |
 | `hideTextUntilComplete` | `false` | The description, until the quest is completed — for a quest whose text would give away what it asks for. |
 | `hideDetailsUntilStartable` | `false` | Task and reward details, until the quest can be started. The prerequisites stay: they are what tells the reader how to unlock it. |
-| `disableRecipeMod` | the file's | The quest in recipe viewers (JEI, REI, EMI): with it set, no viewer lists this quest. Three states like the two chapter-defaulted rows above — leave it out and the file's `defaultDisableRecipeMod` decides (see [[tenet:authoring/quest-files]]), `true` hides it, and `false` opts out of a file that hides its quests by default. FTB Quests calls this `disable_recipe_mod`. |
-| `hideLockIcon` | `false` | The quest's own padlock: with it set, this locked quest wears no padlock on the canvas. The quest's half of the file's `showLockIcons` (see [[tenet:authoring/quest-files]]) — either silence wins, and the node still reads locked through its edge and wash. FTB Quests calls this `hide_lock_icon`. |
+| `disableRecipeMod` | the file's | The quest in recipe viewers (JEI, REI, EMI): with it set, no viewer lists this quest. Three states like the two chapter-defaulted rows above — leave it out and the file's `defaultDisableRecipeMod` decides (see [[tenet:authoring/quest-files]]), `true` hides it, and `false` opts out of a file that hides its quests by default. the legacy mod calls this `disable_recipe_mod`. |
+| `hideLockIcon` | `false` | The quest's own padlock: with it set, this locked quest wears no padlock on the canvas. The quest's half of the file's `showLockIcons` (see [[tenet:authoring/quest-files]]) — either silence wins, and the node still reads locked through its edge and wash. the legacy mod calls this `hide_lock_icon`. |
 
 ## Recipe viewers
 
@@ -362,7 +362,7 @@ it onto the wire and the client holds no file record to second-guess.
 ## Announcements
 
 `disableToast` quiets a completion. It lives on the quest, on every task, and on every reward —
-FTB Quests' `disable_toast` on every quest object — and either silence wins over the auto-claim
+the legacy mod's `disable_toast` on every quest object — and either silence wins over the auto-claim
 ladder: a quest that asked for no toast gets none, whatever its `auto` says.
 
 | Where | Quiets |
@@ -374,7 +374,7 @@ ladder: a quest that asked for no toast gets none, whatever its `auto` says.
 ## Held payouts
 
 `/tenet rewards block` holds a team's payouts, and a held reward stays outstanding until it is
-released. Two flags exempt a payout from the hold — FTB Quests' `ignore_reward_blocking` on both
+released. Two flags exempt a payout from the hold — the legacy mod's `ignore_reward_blocking` on both
 quest objects:
 
 | Where | Exempts |
@@ -400,7 +400,7 @@ scripts — see [[tenet:authoring/kubejs]].
 
 `requiresStageTeam: true` reads the gate from the team's stages instead: one member's induction opens
 the quest for everybody. The team half is granted by a stage reward with `teamStage: true`, asked about
-by a stage task with `teamStage: true`, and handed out by hand with `/tenet stage add-team`. FTB Quests
+by a stage task with `teamStage: true`, and handed out by hand with `/tenet stage add-team`. the legacy mod
 calls the flag `team_stage`.
 
 > [!WARNING]

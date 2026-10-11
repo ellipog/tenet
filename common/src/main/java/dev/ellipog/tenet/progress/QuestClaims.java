@@ -18,7 +18,7 @@ import java.util.UUID;
  * author reaches for when the reward is a one-per-party thing (a shared key, a claim block) rather
  * than a payout.
  *
- * <p>That is FTB Quests' model, and getting it wrong in the obvious direction — one claim per team
+ * <p>That is the legacy model, and getting it wrong in the obvious direction — one claim per team
  * for everything — is the difference between a party of four each getting a diamond, and only the
  * first one to open the book getting one.
  *

@@ -17,7 +17,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:toast", "description": "The vault is open." } }</pre>
  *
- * <p>FTB Quests' {@code toast} reward: claiming it pops a toast with the reward's description
+ * <p>the legacy {@code toast} reward: claiming it pops a toast with the reward's description
  * (ATM10: 1 use, with an empty description). The description is a {@link QuestText} so a pack
  * shipping translations gets them; an empty description shows the generic toast sentence rather
  * than nothing, because a reward that grants silence reads as broken.

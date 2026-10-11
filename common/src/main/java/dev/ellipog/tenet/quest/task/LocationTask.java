@@ -21,7 +21,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:location", "position": [100, 64, -20], "size": [8, 8, 8] } }</pre>
  *
- * <p>The box is inclusive at its minimum corner and exclusive at its maximum, as FTB Quests' is, so
+ * <p>The box is inclusive at its minimum corner and exclusive at its maximum, as the legacy is, so
  * a size of one is exactly one block and two adjacent boxes cannot both claim the same block. The
  * dimension is optional and can be ignored, for a box that is meaningful in any world.
  */

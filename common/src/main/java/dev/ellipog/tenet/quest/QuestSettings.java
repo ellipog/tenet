@@ -26,10 +26,10 @@ import java.util.Set;
  * <p>These are the answers that belong to the whole book rather than to any chapter: how rewards
  * default to being handed over, whether they go to the team, whether all automatic claiming is
  * suppressed, how long after joining the first task check waits — and what the book calls itself and
- * the item it wears in its header. FTB Quests keeps the same set on its quest file, and pack authors
+ * the item it wears in its header. The legacy format keeps the same set on its quest file, and pack authors
  * expect to find them in one place.
  *
- * <p>The keys are camelCase like every other Tenet field, not FTBQ's snake_case: Tenet's files are
+ * <p>The keys are camelCase like every other Tenet field, not the legacy snake_case: Tenet's files are
  * Tenet's, and a format that mixes two spellings is a format nobody can remember.
  *
  * <p>Loading is deliberately lenient: a missing file, a missing block, or a value this build does not
@@ -60,7 +60,7 @@ public record QuestSettings(RewardAutoClaim defaultAutoClaim, boolean defaultTea
     /**
      * What a tree that says nothing gets.
      *
-     * <p>Automatic claiming is <b>off</b>, as in FTB Quests: a finished quest announcing a payout and
+     * <p>Automatic claiming is <b>off</b>, as in the legacy format: a finished quest announcing a payout and
      * handing it over in the same breath is a choice an author makes, not one the mod makes for them.
      * An empty title and no icon mean "draw the client's own title and no icon", which is what every
      * pack that predates these fields gets.
@@ -148,13 +148,13 @@ public record QuestSettings(RewardAutoClaim defaultAutoClaim, boolean defaultTea
             Codec.intRange(0, 2).optionalFieldOf("clickCommandLevel", 0)
                     .forGetter(QuestSettings::clickCommandLevel),
             // Whether item tasks take what they ask for when neither the task nor its chapter says.
-            // FTB Quests' file-level `default_consume_items`: the bottom rung of the consume ladder
+            // the legacy file-level `default_consume_items`: the bottom rung of the consume ladder
             // (task wins over chapter, chapter wins over this, this wins over false). False by
             // default, because silently taking a player's items is the more surprising behaviour.
             Codec.BOOL.optionalFieldOf("defaultConsumeItems", false)
                     .forGetter(QuestSettings::defaultConsumeItems),
             // Whether quests stay out of recipe viewers when they say nothing themselves.
-            // FTB Quests' file-level `default_quest_disable_jei`: the fallback a quest's own
+            // the legacy file-level `default_quest_disable_jei`: the fallback a quest's own
             // tristate defers to (see `Quest#showInRecipeMod`). False by default, because a file
             // that hides every quest from every viewer is the surprising behaviour — ATM10 leaves
             // it off and hides a single quest by name instead.
@@ -192,7 +192,7 @@ public record QuestSettings(RewardAutoClaim defaultAutoClaim, boolean defaultTea
     /**
      * Whether the canvas draws without its zoom tiers unless a chapter says otherwise: the
      * book-level half of {@code disableCanvasLod}, with a chapter's own flag winning per
-     * chapter. See {@link QuestSettingsExtra} for the FTB-Quests reason this defaults off.
+     * chapter. See {@link QuestSettingsExtra} for the legacy reason this defaults off.
      */
     public boolean disableCanvasLod() {
         return extra.disableCanvasLod();

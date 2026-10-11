@@ -13,13 +13,13 @@ import java.util.Set;
  * <h2>Two jobs for one piece of text</h2>
  *
  * <p>{@link CanvasElement.Image#title} is either a tooltip — what an author expects from a title — or words
- * painted into the picture, and this record is the switch between them plus the five things FTB lets an
+ * painted into the picture, and this record is the switch between them plus the five things the legacy format lets an
  * author say about the second. So an image with no {@code label} has a hover title and nothing drawn on it,
  * which is the reading that needs no explanation.
  *
  * <h2>Why the alignment is a three-value vocabulary</h2>
  *
- * <p>Because that is what FTB has and what fits the job: {@code start}, {@code middle}, {@code end} against
+ * <p>Because that is what the legacy format has and what fits the job: {@code start}, {@code middle}, {@code end} against
  * the image's own box, with {@code inset} as the distance from the edge the alignment names. A nine-value
  * grid would be a superset nobody asked for, and a converter would have to decide what to do with the six
  * extra cells.

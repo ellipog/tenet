@@ -12,7 +12,7 @@ import java.util.Objects;
 /**
  * How exactly an item task's filter has to match a carried stack.
  *
- * <p>FTB Quests' three modes, by their own names: {@code none} compares the item alone, {@code fuzzy}
+ * <p>the legacy three modes, by their own names: {@code none} compares the item alone, {@code fuzzy}
  * requires every component the filter names to be present and equal while the stack may carry more,
  * and {@code strict} is the whole stack. Strict is the default because it is what Tenet has always
  * done — an enchanted pickaxe is not a plain one — and a default that changed under existing files

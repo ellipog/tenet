@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  *
  * <h2>Why the text lives beside the book rather than in it</h2>
  *
- * <p>FTB Quests stores <b>all</b> quest text in {@code lang/<locale>.snbt} and none of it in the
+ * <p>The legacy format stores <b>all</b> quest text in {@code lang/<locale>.snbt} and none of it in the
  * chapter files, and ATM10 ships fifteen locales. A Tenet tree that could only hold one language
  * would force every such pack to be flattened on import, so the translations need a home of their
  * own — and it must be a home the tree does not have to be rebuilt around.
@@ -417,7 +417,7 @@ public final class QuestLanguages {
      * Why an id in a quest, chapter or group key names nothing.
      *
      * <p>Three different mistakes, told apart because the fixes differ: another case (keys use the
-     * lowercase id — the spelling a hand-merged FTB file most often gets wrong), an alias or tag
+     * lowercase id — the spelling a hand-merged legacy file most often gets wrong), an alias or tag
      * (keys use the object's own id, which the readers build their lookups from), or nothing at
      * all (the object is gone and the key stayed behind).
      */

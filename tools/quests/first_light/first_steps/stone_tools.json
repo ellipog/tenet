@@ -9,9 +9,8 @@
     "just made.",
     "",
     "Eight cobblestone carried is enough to make the whole kit. The quest",
-    "pays back the pickaxe and some experience, and -- like the two",
-    "quests before it -- it declines both chapter defaults so the",
-    "playthrough's inventory assertions hold."
+    "pays back the pickaxe and some experience, so the rest of the orrery",
+    "starts with you properly equipped."
   ],
   "icon": {
     "item": "minecraft:stone_pickaxe"

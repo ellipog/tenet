@@ -373,7 +373,7 @@ public final class ChapterPanelLayout {
                         "tenet.dev.chapter.always_invisible",
                         flagOn(chapter, "alwaysInvisible") ? ToolsLayout.ON : ToolsLayout.OFF));
                 // Whether this chapter's canvas draws without the zoom tiers: icons, rings,
-                // titles and badges at every zoom, as FTB Quests drew them. Absent defers to
+                // titles and badges at every zoom, as legacy packs drew them. Absent defers to
                 // the book's own flag, which an explicit `false` here overrides — the toggle
                 // writes what it is moved to, so touching it ends the deference either way.
                 rows.add(ToolsLayout.Action.toggle("disableCanvasLod",
@@ -1057,11 +1057,15 @@ public final class ChapterPanelLayout {
                 ? String.valueOf(found.getAsInt()) : "";
     }
 
-    /** The icon's item id, or "" when the chapter declares none. */
+    /** The icon's id in whichever arm the chapter declares it, or "" when it declares none. */
     private static String iconId(JsonObject chapter) {
         JsonObject icon = icon(chapter);
-        return icon.has("item") && icon.get("item").isJsonPrimitive()
-                ? icon.get("item").getAsString() : "";
+        for (String arm : new String[] {"item", "texture", "sprite", "entity"}) {
+            if (icon.has(arm) && icon.get(arm).isJsonPrimitive()) {
+                return icon.get(arm).getAsString();
+            }
+        }
+        return "";
     }
 
     /**

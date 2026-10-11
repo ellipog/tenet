@@ -21,7 +21,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:filter", "filter": "or(item(minecraft:coal)item_tag(minecraft:coals))", "count": 4 } }</pre>
  *
- * <p>FTB Quests has no tag field of its own: tags — and the {@code mod}, {@code and}, {@code or}
+ * <p>The legacy format has no tag field of its own: tags — and the {@code mod}, {@code and}, {@code or}
  * and {@code not} combinators — arrive through filter stacks, an {@code ftbfiltersystem:smart_filter}
  * item carrying the expression in its {@code ftbfiltersystem:filter} component. The migration tool
  * passes that string through verbatim into {@code filter}; see {@link FilterParser} for the grammar

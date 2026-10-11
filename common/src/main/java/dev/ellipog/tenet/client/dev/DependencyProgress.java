@@ -26,7 +26,7 @@ import java.util.function.Function;
  *
  * <h2>Every dependency counts</h2>
  *
- * <p>Optional quests gate exactly like any other — FTB Quests' optional only excuses a quest
+ * <p>Optional quests gate exactly like any other — the legacy `optional` only excuses a quest
  * from chapter completion, never from a gate — so the counts here name every edge, exactly
  * as the engine does. A second spelling of the denominator is how the card's "2 of 3 met"
  * would come to disagree with the unlock.

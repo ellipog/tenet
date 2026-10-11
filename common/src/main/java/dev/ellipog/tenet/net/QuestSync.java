@@ -257,8 +257,8 @@ public final class QuestSync {
      * An author item or egg travelled in the display's own item until version 21, which carries it
      * beside the requirement instead — see the version-21 note.
      *
-     * <p>Version 19 added each item, item-tag and fluid task's <b>{@code manualOnly}</b> — FTB
-     * Quests' {@code task_screen_only} under Tenet's name. Only when true: absence means the tick
+     * <p>Version 19 added each item, item-tag and fluid task's <b>{@code manualOnly}</b> — the legacy
+     * {@code task_screen_only} under Tenet's name. Only when true: absence means the tick
      * measures, which is every task a version-18 tree ever sent. A version-18 reader draws the row
      * and withholds the button the way it withholds any press it cannot see coming, while the
      * server still accepts the press — the same direction every other additive key leans.

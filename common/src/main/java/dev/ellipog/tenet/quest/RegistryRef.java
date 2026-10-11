@@ -9,7 +9,7 @@ import net.minecraft.resources.ResourceLocation;
  * A reference to a registry entry, or to a tag of them: {@code minecraft:plains} or
  * {@code #minecraft:is_forest}.
  *
- * <p>FTB Quests writes the tag form into the same field with a leading {@code #} — a shape a
+ * <p>the legacy format writes the tag form into the same field with a leading {@code #} — a shape a
  * {@link ResourceLocation} cannot hold, which is why this exists rather than a second field. The
  * codec round-trips the same spelling, so a file that says {@code "#minecraft:is_forest"} keeps
  * saying it.

@@ -23,7 +23,7 @@ import dev.ellipog.tenet.progress.QuestState;
  * author may withhold the row instead.
  *
  * <p><b>A chapter flagged always-invisible is a row for nobody but an author.</b> That flag is
- * {@code alwaysInvisible} on the chapter -- FTB Quests' {@code always_invisible} -- and it holds
+ * {@code alwaysInvisible} on the chapter -- the legacy {@code always_invisible} -- and it holds
  * whatever the gate says: a reader never sees the row, while an author still does, or the flag
  * could not be authored. The gate itself is unaffected, and so is the chapter's progress, which
  * reads 100%.
@@ -82,7 +82,7 @@ public final class ChapterVisibility {
             return true;
         }
         if (lookup.alwaysInvisible(chapterId)) {
-            // Withheld from every reader, whatever the gate says: FTB Quests' always_invisible.
+            // Withheld from every reader, whatever the gate says: the legacy always_invisible.
             // The gate itself is unaffected -- this decides what a screen draws and nothing else.
             return false;
         }

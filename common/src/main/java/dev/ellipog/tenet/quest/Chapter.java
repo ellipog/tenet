@@ -25,7 +25,7 @@ import java.util.Optional;
  *
  * <h2>The chapter-level defaults, and why they earn their place</h2>
  *
- * <p>{@code defaultPrerequisiteMode} is FTB Quests' {@code default_quest_prerequisite_mode}. A
+ * <p>{@code defaultPrerequisiteMode} is the legacy {@code default_quest_prerequisite_mode}. A
  * chapter of thirty quests in a chain would otherwise repeat {@code "prerequisiteMode":
  * "all_completed"} thirty times, and the one place it differed would be easy to miss.
  *
@@ -33,7 +33,7 @@ import java.util.Optional;
  * the progression, so a chain needs no {@code dependsOn} at all. Those two together mean a
  * straightforward chapter is a list of quests and nothing else.
  *
- * <p>{@code defaultConsumeItems} is the inheritance the plan called out from FTB Quests' model: a
+ * <p>{@code defaultConsumeItems} is the inheritance the plan called out from the legacy model: a
  * task can decide for itself whether taking the items is required, and a chapter can set the
  * default so that "this pack takes your resources" is one word rather than a decision made
  * thirty times. Defaults to false, because silently taking a player's items is the more surprising

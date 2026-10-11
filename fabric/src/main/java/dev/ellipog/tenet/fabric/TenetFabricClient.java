@@ -213,6 +213,10 @@ public final class TenetFabricClient implements ClientModInitializer {
             // screen, so neither needs a window to be open.
             PinnedQuests.tick();
             HudOverlay.tick();
+            // A command-entered player's-view preview hides vanilla chat (the command and its
+            // reply are history no player would have) and restores it on the way out. See
+            // QuestBookScreen.tickPreviewChat for why this is reconciled rather than toggled.
+            QuestBookScreen.tickPreviewChat();
             // The language half: a player who changed language in the options is told to the server, so
             // the book follows them without a reconnect. Guarded on being in a world, because there is
             // no connection to send on before one and the server answers a join on its own.

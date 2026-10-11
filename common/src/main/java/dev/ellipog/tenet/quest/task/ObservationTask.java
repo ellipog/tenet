@@ -40,7 +40,7 @@ import java.util.function.Function;
  * player is looking at — the server never sees the crosshair — so the client ray-traces each tick,
  * counts how long the target has been held, and submits when the timer is done; the server accepts
  * that submission because the task says {@link #BEHAVIOUR}'s {@code acceptsClientSubmit} is true.
- * FTB Quests does exactly this, and the trust is bounded: the worst a modified client can do is
+ * Legacy packs do exactly this, and the trust is bounded: the worst a modified client can do is
  * complete an observation task without looking, which is worth no items on its own.
  *
  * <p>{@code current} is zero and {@code canSubmitByHand} is false — there is no button to press,
@@ -53,7 +53,7 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
 
     public static final Set<String> FIELDS = Set.of("observeType", "toObserve", "timer");
 
-    /** What kind of thing {@code toObserve} names. The wire names are FTBQ's. */
+    /** What kind of thing {@code toObserve} names. The wire names are the legacy ones. */
     public enum ObserveType {
         BLOCK,
         BLOCK_TAG,

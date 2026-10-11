@@ -246,7 +246,7 @@ class QuestViewerContentTest {
     @Test
     @DisplayName("a quest hidden from recipe viewers has no page, and no lookup")
     void aHiddenQuestHasNoPage() {
-        // FTB Quests' `disable_recipe_mod`, resolved server-side against the file's default and
+        // the legacy `disable_recipe_mod`, resolved server-side against the file's default and
         // carried as `hideFromViewers` — the client holds no file record, so the wire carries the
         // answer rather than the question.
         accept("""

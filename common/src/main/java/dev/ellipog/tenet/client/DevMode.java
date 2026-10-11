@@ -24,7 +24,7 @@ import java.util.Map;
  * <p>Because the quest book is content, and a theme picker is a tool. The two rows that used to sit at
  * the foot of the book's sidebar were removed in the theme round for exactly that reason, and this is
  * where they went: a pack author needs a mode, not a permanent set of controls on somebody else's
- * screen. FTB Quests has the same shape for the same reason.
+ * screen. The legacy screen has the same shape for the same reason.
  *
  * <h2>Why the flag is Tenet's rather than Armature's</h2>
  *

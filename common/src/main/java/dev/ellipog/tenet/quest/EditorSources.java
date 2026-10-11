@@ -88,7 +88,7 @@ public final class EditorSources {
     /**
      * Whether the mode's target is a tag of the things rather than one of them.
      *
-     * <p>A named question rather than a suffix test, because the spelling is FTB's rather than this mod's
+     * <p>A named question rather than a suffix test, because the spelling is the legacy format's rather than this mod's
      * and a renamed mode should be a compile-time argument here rather than a silently false suffix.
      */
     public static boolean isTagMode(String observeType) {

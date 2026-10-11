@@ -79,7 +79,7 @@ public final class StageService {
     }
 
     // ------------------------------------------------------------------
-    // Team stages: FTB Quests' `team_stage`, for the pack where one member's
+    // Team stages: the legacy `team_stage`, for the pack where one member's
     // induction opens the chapter for everybody
     // ------------------------------------------------------------------
 

@@ -10,9 +10,9 @@ import java.util.Set;
 /**
  * What pressing an element does.
  *
- * <h2>The seven names are FTB's</h2>
+ * <h2>The seven names are the legacy set</h2>
  *
- * <p>{@code click_action} in FTB Quests is one string, {@code "<type>:<data>"}, whose type is one of seven.
+ * <p>{@code click_action} in the legacy format is one string, {@code "<type>:<data>"}, whose type is one of seven.
  * All seven are readable here, and all seven can be run: {@link Type#NONE}, {@link Type#OPEN_QUEST},
  * {@link Type#OPEN_URI}, {@link Type#SHOW_RECIPE}, {@link Type#SHOW_DOCS}, {@link Type#RUN_COMMAND} and
  * {@link Type#CUSTOM_EVENT}. The last two run on the server — a command through its dispatcher, an event

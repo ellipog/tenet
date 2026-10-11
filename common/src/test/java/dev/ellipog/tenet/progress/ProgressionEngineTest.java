@@ -256,7 +256,7 @@ class ProgressionEngineTest {
         @Test
         @DisplayName("an unmet optional dependency locks, under ALL_COMPLETED")
         void unmetOptionalLocks() {
-            // FTB parity: optional only excuses a quest from chapter completion, never from a
+            // legacy parity: optional only excuses a quest from chapter completion, never from a
             // gate. A pack gating on a side quest means it, so the edge gates like any other.
             QuestIndex index = indexOf(q("side").optional(true).build(),
                     q("d").dependsOn("side").build());

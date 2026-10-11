@@ -63,67 +63,67 @@
         "defaultConsumeItems": {
           "type": "boolean",
           "default": false,
-          "description": "Whether item tasks take the items when neither the task nor its chapter says: the bottom rung of the consume ladder (task wins over chapter, chapter over this). FTB Quests calls this default_consume_items."
+          "description": "Whether item tasks take the items when neither the task nor its chapter says: the bottom rung of the consume ladder (task wins over chapter, chapter over this). The legacy format calls this default_consume_items."
         },
         "defaultDisableRecipeMod": {
           "type": "boolean",
           "default": false,
-          "description": "Whether quests stay out of recipe viewers (JEI, REI, EMI) when they say nothing themselves: the fallback a quest's own `disableRecipeMod` defers to. A quest may write `false` to opt out. FTB Quests calls this default_quest_disable_jei."
+          "description": "Whether quests stay out of recipe viewers (JEI, REI, EMI) when they say nothing themselves: the fallback a quest's own `disableRecipeMod` defers to. A quest may write `false` to opt out. The legacy format calls this default_quest_disable_jei."
         },
         "showLockIcons": {
           "type": "boolean",
           "default": false,
-          "description": "Whether a locked quest wears its padlock on the canvas. No marks unless the file asks for them; write `true` for FTB's old always-drawn marks. A quest opts out for itself with `hideLockIcon`; either silence wins. FTB Quests calls this show_lock_icons."
+          "description": "Whether a locked quest wears its padlock on the canvas. No marks unless the file asks for them; write `true` for the legacy always-drawn marks. A quest opts out for itself with `hideLockIcon`; either silence wins. The legacy format calls this show_lock_icons."
         },
         "disableCanvasLod": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the book's chapters draw without the zoom tiers unless a chapter says otherwise: icons, rings, titles and badges at any zoom. A chapter opts out for itself with its own `disableCanvasLod` (absent defers here; present `false` keeps the tiers). FTB Quests has no tiers, so the migration tool writes `true`; Tenet's own absent is tiered."
+          "description": "Whether the book's chapters draw without the zoom tiers unless a chapter says otherwise: icons, rings, titles and badges at any zoom. A chapter opts out for itself with its own `disableCanvasLod` (absent defers here; present `false` keeps the tiers). The legacy format has no tiers, so the migration tool writes `true`; Tenet's own absent is tiered."
         },
         "hideExcludedQuests": {
           "type": "boolean",
           "default": false,
-          "description": "Whether quests shut out for good by an exclusive choice (a taken exclusive group, or a reached dependent cap) vanish from the reader's book instead of drawing locked. FTB Quests calls this hide_excluded_quests."
+          "description": "Whether quests shut out for good by an exclusive choice (a taken exclusive group, or a reached dependent cap) vanish from the reader's book instead of drawing locked. The legacy format calls this hide_excluded_quests."
         },
         "pauseGame": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the book pauses the world in single player while it is open. FTB Quests calls this pause_game."
+          "description": "Whether the book pauses the world in single player while it is open. The legacy format calls this pause_game."
         },
         "disableGui": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the book refuses to open: every open path answers with one sentence instead of a screen. FTB Quests calls this disable_gui, whose own semantics are unclear; Tenet reads it as a pack-level switch."
+          "description": "Whether the book refuses to open: every open path answers with one sentence instead of a screen. The legacy format calls this disable_gui, whose own semantics are unclear; Tenet reads it as a pack-level switch."
         },
         "dropBookOnDeath": {
           "type": "boolean",
           "default": false,
-          "description": "Whether a dying player drops a quest book where they fell, so death cannot take the pack away with it. FTB Quests calls this drop_book_on_death."
+          "description": "Whether a dying player drops a quest book where they fell, so death cannot take the pack away with it. The legacy format calls this drop_book_on_death."
         },
         "gridScale": {
           "type": "number",
           "minimum": 0.03125,
           "maximum": 8,
           "default": 0.5,
-          "description": "The editor canvas's grid step, from FTB Quests' grid_scale (whose editor snaps to 1/scale). File-only for now: validated and stored, while the editor keeps its 8-unit step."
+          "description": "The editor canvas's grid step, from the legacy `grid_scale` (whose editor snaps to 1/scale). File-only for now: validated and stored, while the editor keeps its 8-unit step."
         },
         "lockMessage": {
           "type": "string",
           "default": "",
-          "description": "What a locked quest is called when the pack has a better word than \"Locked\": the author's own sentence, drawn on the quest card. Empty means the client's own word. FTB Quests calls this lock_message."
+          "description": "What a locked quest is called when the pack has a better word than \"Locked\": the author's own sentence, drawn on the quest card. Empty means the client's own word. The legacy format calls this lock_message."
         },
         "emergencyItemsCooldown": {
           "type": "integer",
           "minimum": 0,
           "maximum": 86400,
           "default": 300,
-          "description": "How long a player waits between `/tenet emergency` grants, in seconds (FTB documents no unit; Tenet reads seconds, so 300 is five minutes). FTB Quests calls this emergency_items_cooldown."
+          "description": "How long a player waits between `/tenet emergency` grants, in seconds (the legacy format documents no unit; Tenet reads seconds, so 300 is five minutes). The legacy format calls this emergency_items_cooldown."
         },
         "emergencyItems": {
           "type": "array",
           "items": { "$ref": "#/definitions/itemRef" },
           "default": [],
-          "description": "What `/tenet emergency` hands out: item references with counts and components, exactly as a task writes them. Empty means the command answers that there is nothing to grant. FTB Quests calls this emergency_items."
+          "description": "What `/tenet emergency` hands out: item references with counts and components, exactly as a task writes them. Empty means the command answers that there is nothing to grant. The legacy format calls this emergency_items."
         }
       }
     },

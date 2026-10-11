@@ -34,9 +34,9 @@ class QuestLinkCodecTest {
     }
 
     @Test
-    @DisplayName("a link carries every field FTB writes on a quest link, plus the two it leaves to the quest")
+    @DisplayName("a link carries every field the legacy format writes on a quest link, plus the two it leaves to the quest")
     void theLinkArm() {
-        // The shape a converted link arrives in, with the two fields FTB never writes spelled out:
+        // The shape a converted link arrives in, with the two fields the legacy format never writes spelled out:
         // each is a key a converted chapter has to land in, and a missing one is a marker that
         // arrives somewhere else, at some other size, or shaped like nothing its target is.
         QuestLink link = read("""

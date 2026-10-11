@@ -7,7 +7,7 @@ import dev.ellipog.armature.api.data.Codecs;
 /**
  * Whether, and how loudly, a reward is handed over the moment its quest is completed.
  *
- * <p>Borrowed whole from FTB Quests, including the names, because pack authors have these five words
+ * <p>Borrowed whole from the legacy format, including the names, because pack authors have these five words
  * in their fingers and a synonym would only be a translation table in somebody's head. The default
  * is not "on": a finished quest announcing a payout and handing it over in the same breath is a
  * choice an author makes, not one the mod makes for them.
@@ -27,7 +27,7 @@ public enum RewardAutoClaim {
     NO_TOAST,
 
     /** Granted on completion as silently as {@link #NO_TOAST}: the second name for that silence,
-     * borrowed from FTB Quests. */
+     * borrowed from the legacy format. */
     INVISIBLE;
 
     public static final Codec<RewardAutoClaim> CODEC = Codecs.enumByName(RewardAutoClaim.class);

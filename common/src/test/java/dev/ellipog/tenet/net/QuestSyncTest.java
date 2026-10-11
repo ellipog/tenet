@@ -1165,7 +1165,7 @@ class QuestSyncTest {
     }
 
     @Test
-    @DisplayName("a title carrying FTB colour codes reads the words without the ink")
+    @DisplayName("a title carrying legacy colour codes reads the words without the ink")
     void codedTitleReadsStripped() {
         // The shape every converted chapter title arrives in. The one-ink surfaces draw through the
         // same resolver, so stripping here is stripping everywhere: the sidebar, the canvas, the card

@@ -322,7 +322,7 @@ class QuestIndexTest {
         @Test
         @DisplayName("an id, an alias and every case mix of either resolve the same quest")
         void everyCaseMixResolvesTheSameQuest() {
-            // FTB Quests ids are uppercase hexadecimal and FTB never cared about case, so neither
+            // legacy ids are uppercase hexadecimal and legacy packs never cared about case, so neither
             // does the lookup: the table is keyed by the lowercased name, and each entry keeps its
             // own id for display, storage and progress.
             Problems problems = new Problems();
@@ -741,7 +741,7 @@ class QuestIndexTest {
         @Test
         @DisplayName("a taskless quest with a dependant is a junction, not a ghost")
         void junctionWithADependantDoesNotWarn() {
-            // FTB authors use empty quests as visual junctions, milestones and chapter gates, and a
+            // legacy authors use empty quests as visual junctions, milestones and chapter gates, and a
             // branch behind one has to open. Warning about those would be noise on every converted
             // pack, so only a taskless quest with nothing behind it warns. Apart on the canvas, so
             // the position checks have nothing to say: this test is about the ghost rule.

@@ -140,7 +140,7 @@ public final class TaskTypes {
     public static final QuestTaskType<FilterTask> FILTER = register(
             "filter", FilterTask.MAP_CODEC, FilterTask.FIELDS, java.util.List.of(
                     EditorField.text("filter", "Filter",
-                                    "an FTB filter expression, e.g. or(item(minecraft:coal)item_tag(minecraft:coals))")
+                                    "a filter expression, e.g. or(item(minecraft:coal)item_tag(minecraft:coals))")
                             .hint("which items count, as a filter expression: item, item_tag, mod and "
                                     + "block leaves under and, or and not"),
                     EditorField.number("count", "Count", "\u00d7")

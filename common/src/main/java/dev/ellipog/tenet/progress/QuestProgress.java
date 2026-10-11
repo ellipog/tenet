@@ -136,7 +136,7 @@ public record QuestProgress(QuestState state,
     /**
      * Ends a repeatable round whose payout is now fully collected.
      *
-     * <p>FTB Quests' rule: the repeat timer starts when the last unclaimed reward is claimed, the
+     * <p>the legacy rule: the repeat timer starts when the last unclaimed reward is claimed, the
      * quest's progress resets at that moment, and the completion count moves then. Task progress
      * is cleared and the clock restarts — but the claims stay marked, because "collected" is still
      * true and wiping it would offer the same payout again. The next completion starts its round

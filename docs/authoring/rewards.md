@@ -3,14 +3,21 @@
 Rewards are what a quest gives when it completes. They are separate from [[task]]s, evaluated once,
 and by default they wait for the player to claim them — the claim button on a finished quest's card,
 or the **Rewards** menu, which groups the whole book by chapter and collects at three levels: a
-**Claim** on one reward's row, **Claim Chapter** on a chapter's banner, and **Claim all** in the
-footer for everything the server is holding. Three toggles decide what the menu is showing — *Ready
-to claim*, *Choices pending* and *Claimed* — and the footer's sweep follows whichever is active, so a
-view of choices claims choices and a view of what you have already collected offers no sweep at all.
+**Claim** on one reward's row, **Claim Chapter (N)** on a chapter's banner, and **Claim all** in the
+footer for everything the server is holding. Two toggles decide what the menu is showing — *Ready
+to claim* and *Choices pending* — and the footer's sweep follows whichever is active, so a
+view of choices collects choices and each choice still opens its own picker. There is no history
+view: a list of everything already collected is unbounded in a large pack, so the menu shows only
+what the server still owes.
 
-Each row reads across four columns: what the quest is, how far along it is, what it gives, and the
+Each row reads across three columns: what the quest is, what it gives, and the
 button that takes it. A quest's rewards are listed in the details column whether or not its row is
 folded open, so a chapter can be read at a glance and unfolded only where something needs deciding.
+A chapter's banner wears the chapter's title with its ready count inline ("The Engine · 1 ready");
+a quest holding exactly one reward draws one row naming quest and payout together
+("Make a Table · x8 Stick") under the payout's own icon.
+Locked rewards are never listed here — the menu is about what is owed — while the viewer still
+shows a locked reward with what it waits for.
 
 ```json
 { "type": "tenet:item", "item": "minecraft:diamond", "count": 4 }
@@ -70,7 +77,7 @@ Two things a mode can never override:
 
 `no_toast` and `invisible` are the same silence under two names: both grant without a toast and both
 suppress the completion notice for that quest, so a chapter of starter quests does not announce
-itself fifty times. The words are borrowed from FTB Quests, which is why there are two of them.
+itself fifty times. The words are borrowed from the legacy mod, which is why there are two of them.
 
 While anything is still waiting, the player sees it in two places: a small badge on the quest's node
 with the number of rewards, and a count beside the chapter's row in the sidebar — `The Shop (3)` —
@@ -128,9 +135,9 @@ runs through the server's own dispatcher with the player as the source.
 | `command` | — | The command, without the leading slash. |
 | `permissionLevel` | `2` | The level it runs at, 0 to 4; 2 is a command block's. |
 | `silent` | `false` | Do not say in chat that it ran. |
-| `feedbackMessage` | — | A message shown when the command runs; absent shows nothing extra. FTB Quests calls this `feedback_message`. |
+| `feedbackMessage` | — | A message shown when the command runs; absent shows nothing extra. the legacy mod calls this `feedback_message`. |
 
-The placeholders are FTB Quests' own, kept whole so a pack moved from it does not have to learn a
+The placeholders are the legacy mod's own, kept whole so a pack moved from it does not have to learn a
 second vocabulary for the same sentence:
 
 | Placeholder | Becomes |

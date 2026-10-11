@@ -110,14 +110,15 @@ handler mod as an optional dependency wants to see.
 | Field | Default | Meaning |
 |---|---|---|
 | `value` | — | How much stored energy counts as enough, in Forge Energy units. |
-| `maxInput` | `0` | The most each item may contribute; `0` means unlimited. FTB Quests calls this `max_input`, capping each insertion into its task screen. |
+| `maxInput` | `0` | The most each item may contribute; `0` means unlimited. the legacy mod calls this `max_input`, capping each insertion into its task screen. |
 | `manualOnly` | `false` | Never count from the inventory on the tick; only a submit press counts. |
 
 Hand over energy stored in carried items — batteries, capacitors, charged tools — read through the
-loader's energy access, which is also what a submit drains. FTB Quests fills this task by piping
+loader's energy access, which is also what a submit drains. the legacy mod fills this task by piping
 energy into a task screen block; Tenet has no such block, so this is the carried-container path.
-Fabric has no energy library to read through, so this task reads zero there until a TR-Energy
-integration ships.
+On Fabric the library is Team Reborn Energy, and it is optional: an instance without it reads
+zero here. The integration lives in Armature's energy seam, installed by its entry points;
+Tenet only reads it.
 
 ## `tenet:fluid`
 
@@ -128,12 +129,12 @@ integration ships.
 
 Carried in the buckets the player holds — a submit empties them and hands the empties back —
 and in anything else that holds fluid: tanks, capsules and canisters count through the loader's
-fluid access, which is also what a submit drains. FTB Quests fills this task at a task screen
+fluid access, which is also what a submit drains. the legacy mod fills this task at a task screen
 block; Tenet has no such block, so this is the carried-container path.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `manualOnly` | `false` | Never count from the inventory on the tick; only a submit press counts. FTB Quests calls this `task_screen_only`. |
+| `manualOnly` | `false` | Never count from the inventory on the tick; only a submit press counts. the legacy mod calls this `task_screen_only`. |
 
 ## `tenet:item`
 
@@ -145,7 +146,7 @@ block; Tenet has no such block, so this is the carried-container path.
 | `match` | `strict` | How closely a carried stack must match: `none` ignores its data, `fuzzy` needs the data this task names, `strict` needs the whole stack. |
 | `consumeItems` | the chapter's `defaultConsumeItems` | Whether handing it in takes the items. |
 | `onlyFromCrafting` | `false` | Only items the player crafted themselves count. Counted from lifetime crafting statistics, so handing the stack away does not un-count it. |
-| `manualOnly` | `false` | Never count from the inventory on the tick; only a submit press counts. FTB Quests calls this `task_screen_only`, filled by piping into a task screen; Tenet has no such block, so the piped path is not ported and this flag keeps the manual half. |
+| `manualOnly` | `false` | Never count from the inventory on the tick; only a submit press counts. the legacy mod calls this `task_screen_only`, filled by piping into a task screen; Tenet has no such block, so the piped path is not ported and this flag keeps the manual half. |
 
 `components` is how a task asks for a *renamed* sword rather than a plain one: a text component's
 value is a string holding JSON, as the codec writes it, and the editor writes that form when you pick
@@ -170,7 +171,7 @@ and says the item is missing, so a removed mod can come back.
 | `count` | `1` | How many, 1 to 6400. |
 | `consumeItems` | the chapter's default | Whether handing it in takes the items. |
 | `onlyFromCrafting` | `false` | Only items the player crafted themselves count, summed across the tag from lifetime crafting statistics. |
-| `manualOnly` | `false` | Never count from the inventory on the tick; only a submit press counts. FTB Quests calls this `task_screen_only`. |
+| `manualOnly` | `false` | Never count from the inventory on the tick; only a submit press counts. the legacy mod calls this `task_screen_only`. |
 
 A sibling of `tenet:item` rather than a field on it, so a tag where an id is expected is an error
 here as it is everywhere else.
@@ -179,12 +180,12 @@ here as it is everywhere else.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `filter` | — | Which items count, as an FTB filter expression (below). |
+| `filter` | — | Which items count, as a legacy filter expression (below). |
 | `count` | `1` | How many matching items, 1 to 6400. |
 | `consumeItems` | the chapter's default | Whether handing it in takes the items. |
 | `manualOnly` | `false` | Never count from the inventory on the tick; only a submit press counts. |
 
-FTB Quests has no tag field of its own: tags — and the `mod`, `and`, `or` and `not` combinators —
+the legacy mod has no tag field of its own: tags — and the `mod`, `and`, `or` and `not` combinators —
 arrive through filter stacks, an `ftbfiltersystem:smart_filter` item carrying the expression in its
 `ftbfiltersystem:filter` component. The migration tool passes that string through verbatim, so a
 converted pack reads the same vocabulary it was written in:
@@ -197,7 +198,7 @@ converted pack reads the same vocabulary it was written in:
 }
 ```
 
-A juxtaposition of forms at the top level reads as an implicit `and`, the same reading FTB's own
+A juxtaposition of forms at the top level reads as an implicit `and`, the same reading the legacy mod's own
 parser gives it. Any function a "hand in N" task cannot answer (`component`, `durability` and
 friends) is refused with its name in the message, and the migration tool reports such tasks as
 manual work rather than emitting them. An `item()` id whose mod is not installed warns like any
@@ -237,7 +238,7 @@ With neither `entity` nor `entityTypeTag`, any mob counts.
 | Field | Meaning |
 |---|---|
 | `stage` | The stage the player has to have, e.g. `my_pack:left_the_village`. |
-| `teamStage` | `false` | Ask about the team's stages rather than the player's own. One member's induction then satisfies the task for everybody. FTB Quests calls this `team_stage`. |
+| `teamStage` | `false` | Ask about the team's stages rather than the player's own. One member's induction then satisfies the task for everybody. the legacy mod calls this `team_stage`. |
 
 The read half of the same feature whose write half is a stage [[tenet:authoring/rewards|reward]], a command, or
 a script: a pack grants a stage somewhere and asks about it here. Nothing is required of the id — a

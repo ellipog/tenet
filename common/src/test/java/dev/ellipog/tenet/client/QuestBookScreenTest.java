@@ -1,8 +1,10 @@
 package dev.ellipog.tenet.client;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -37,5 +39,40 @@ class QuestBookScreenTest {
             assertFalse(QuestBookScreen.editEffective(true, false, preview),
                     "no permission: edit mode without the level the server checks is a reader");
         }
+    }
+
+    @AfterEach
+    void forgetPreviewAsk() {
+        // A parked static: a test that leaves one set changes the next book to open.
+        QuestBookScreen.clearPreviewRequest();
+    }
+
+    @Test
+    @DisplayName("a preview ask parks absolutely, and a toggle flips the parked ask")
+    void previewAskParks() {
+        QuestBookScreen.requestPreview(false, true);
+        assertEquals(true, QuestBookScreen.consumePreviewRequest().orElse(null),
+                "an absolute ask parks as-is");
+        assertTrue(QuestBookScreen.consumePreviewRequest().isEmpty(),
+                "consumed once: the second call answers empty");
+
+        QuestBookScreen.requestPreview(false, false);
+        assertEquals(false, QuestBookScreen.consumePreviewRequest().orElse(null),
+                "an ask for the editor parks too, so the command can leave the preview");
+
+        // Toggles, with the book closed: no ask and an ask for the editor both flip to the
+        // player's view, because a toggle outside the book is an operator asking to see it.
+        QuestBookScreen.requestPreview(true, false);
+        assertEquals(true, QuestBookScreen.consumePreviewRequest().orElse(null),
+                "a toggle with nothing parked opens the player's view");
+        QuestBookScreen.requestPreview(false, false);
+        QuestBookScreen.requestPreview(true, false);
+        assertEquals(true, QuestBookScreen.consumePreviewRequest().orElse(null),
+                "and so does a toggle over an ask for the editor");
+
+        QuestBookScreen.requestPreview(false, true);
+        QuestBookScreen.requestPreview(true, false);
+        assertEquals(false, QuestBookScreen.consumePreviewRequest().orElse(null),
+                "while a toggle over a preview ask leaves it");
     }
 }

@@ -31,7 +31,7 @@
     "tags": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Words this group answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. FTB Quests calls this tags, present on every object."
+      "description": "Words this group answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. The legacy format calls this tags, present on every object."
     },
     "icon": {
       "$ref": "#/definitions/icon",

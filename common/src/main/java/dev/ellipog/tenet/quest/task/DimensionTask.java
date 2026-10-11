@@ -19,7 +19,7 @@ import java.util.function.Function;
  * <pre>{@code { "type": "tenet:dimension", "dimension": "minecraft:the_nether" } }</pre>
  *
  * <p>Check on the type's own slow cadence: a player does not change dimension between two ticks, and
- * FTB Quests polls this one every hundred ticks for the same reason.
+ * Legacy packs poll this one every hundred ticks for the same reason.
  */
 public record DimensionTask(TaskCommon common, ResourceLocation dimension) implements QuestTask {
 

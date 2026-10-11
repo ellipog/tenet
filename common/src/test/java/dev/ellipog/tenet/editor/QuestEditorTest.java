@@ -141,8 +141,8 @@ class QuestEditorTest {
      *
      * <p>Every fixture in this repository but these names its file after its id, which is why the two
      * vocabularies went unnoticed for so long: the manifest's entry and the tree's key were the same
-     * string, so code that used the wrong one still found the right file. A pack converted from FTB Quests
-     * keeps FTB's hex ids in the files while the converter names the files after the quests' titles, and
+     * string, so code that used the wrong one still found the right file. A pack converted from the legacy format
+     * keeps the legacy hex ids in the files while the converter names the files after the quests' titles, and
      * there the two part company for every quest in the pack.
      *
      * @param dir    the config directory the fixture is built under

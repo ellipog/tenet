@@ -27,7 +27,7 @@ import java.util.Set;
  *
  * <p>The first flags are about what a quest <i>is</i>: repeatable, sequential, invisible, named,
  * exclusive — and now <i>optional</i>: a side quest, marked for authors and readers. The rest are about
- * what a player may <b>see and when</b> — a family FTB Quests ships and
+ * what a player may <b>see and when</b> — a family the legacy format ships and
  * this mod did not, and the reason they are worth having is that a questline with a surprise in it
  * cannot be written without them. A locked quest is normally <i>shown</i> as locked, which is the
  * point of a map; hiding one until its prerequisites are met, or hiding its text until it is done, is
@@ -46,7 +46,7 @@ public record QuestRules(boolean repeatable,
                           * Whether this quest is marked a side quest.
                           *
                           * <p>A marker, not a gate: an optional quest gates the quests that depend
-                          * on it exactly like any other quest. That is FTB Quests' {@code
+                          * on it exactly like any other quest. That is the legacy {@code
                           * optional}, whose only other effect is excusing the quest from chapter
                           * completion — and a branch the player may do, drawn with its dependency
                           * lines, is exactly what the flag is for. Lines from an optional quest
@@ -83,7 +83,7 @@ public record QuestRules(boolean repeatable,
                           *
                           * <p>The one gate here that is <b>per player</b> rather than per team, because a
                           * stage is: a quest gated on {@code my_pack:chapter_one} is open to a player who has
-                          * it and locked to one who does not, even in the same party. FTB Quests' stage
+                          * it and locked to one who does not, even in the same party. The legacy stage
                           * integration is the shape being matched -- it is how a pack writes "this chapter
                           * follows that one" when the thing linking them is not a dependency edge.
                           */
@@ -179,7 +179,7 @@ public record QuestRules(boolean repeatable,
             // unavailable. Zero is no cap, which is the default because a cap is a strong statement
             // about a branch and should be written deliberately.
             //
-            // This is FTB Quests' "max completable dependents", and it answers the same question as
+            // This is the legacy "max completable dependents", and it answers the same question as
             // `exclusiveGroup` from the other end: a named group says "these quests exclude each other"
             // across siblings, and a cap says "at most N of the things I unlock". A tree with a shared
             // parent but no natural group name wants the cap; two quests anywhere in the chapter that
@@ -188,7 +188,7 @@ public record QuestRules(boolean repeatable,
                     .forGetter(QuestRules::maxCompletableDependents),
             // Whether the quest is marked a side quest. False is the rule; true marks the
             // branch nothing has to take. It still gates its dependants exactly like any other
-            // quest — FTB parity — and is sent on the wire for the client's card, so the two
+            // quest — legacy parity — and is sent on the wire for the client's card, so the two
             // cannot disagree.
             Codec.BOOL.optionalFieldOf("optional", false).forGetter(QuestRules::optional),
             // The reveal family. Each is a presentation decision, and each is checked by the client

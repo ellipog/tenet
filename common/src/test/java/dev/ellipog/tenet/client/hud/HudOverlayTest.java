@@ -71,6 +71,10 @@ class HudOverlayTest {
              "rewards": [
               {"type": "tenet:item", "item": "minecraft:wooden_axe", "count": 1}]}
             """;
+    private static final String KILL = """
+            {"id": "k", "title": "The Hunt", "tasks": [
+              {"type": "tenet:kill", "entity": "minecraft:cow", "value": 8}]}
+            """;
 
     /** The player these hide assertions collect as. Fixed, so a claim names somebody. */
     private static final UUID ME = UUID.fromString("12345678-1234-1234-1234-1234567890ab");
@@ -335,8 +339,8 @@ class HudOverlayTest {
     }
 
     @Test
-    @DisplayName("an untouched task draws no bar at all: the bar appearing is the news it started")
-    void untouchedTasksDrawNoBar() {
+    @DisplayName("an untouched task draws an empty grey track and no fill")
+    void untouchedTasksDrawAnEmptyTrack() {
         accept(A);
         PinnedQuests.pin("a");
 
@@ -345,10 +349,54 @@ class HudOverlayTest {
 
         assertTrue(r.shadowedTexts().stream().anyMatch(call -> call.text().equals("0 / 8")),
                 "the count is there: " + drawn(r));
-        assertTrue(r.calls().stream().noneMatch(call -> call.op() == RecordingRenderer.Op.FILL
-                        && call.y2() - call.y() == PinnedPanelLayout.BAR_HEIGHT),
-                "but no 2px fill anywhere: a groove along every untouched task would be decoration on rows "
-                        + "with nothing to say: " + drawn(r));
+        List<RecordingRenderer.Call> bars = r.calls().stream()
+                .filter(call -> call.op() == RecordingRenderer.Op.FILL
+                        && call.y2() - call.y() == PinnedPanelLayout.BAR_HEIGHT)
+                .toList();
+        assertEquals(1, bars.size(), "track alone, no fill: empty reads as empty: " + drawn(r));
+        assertEquals(dev.ellipog.tenet.client.viewer.PagePalette.BAR_TRACK, bars.get(0).argb(),
+                "the empty groove is the grey remainder, not the world showing through: " + drawn(r));
+    }
+
+    @Test
+    @DisplayName("a kill task names the mob prettified, like the book does")
+    void killTaskPrettifiesItsEntity() {
+        accept(KILL);
+        PinnedQuests.pin("k");
+
+        RecordingRenderer r = RecordingRenderer.create();
+        HudOverlay.render(r, 640, 480, NOW);
+
+        assertTrue(r.shadowedTexts().stream().anyMatch(call -> call.text().equals("Kill Cow")),
+                "minecraft:cow reads Cow: " + drawn(r));
+        assertTrue(r.shadowedTexts().stream().noneMatch(call -> call.text().contains("minecraft:cow")),
+                "and no raw id survives on the stack: " + drawn(r));
+    }
+
+    @Test
+    @DisplayName("chapters share one right edge, whatever their titles' lengths")
+    void chaptersAreRightAligned() {
+        accept(A, B);
+        PinnedQuests.pin("a");
+        PinnedQuests.pin("b");
+
+        HudOverlay.Size size = HudOverlay.size(HudElement.PINNED_QUESTS, FONT, HudOverlay.Face.LIVE, NOW);
+        BookGeometry.Rect stack = boxOf(HudElement.PINNED_QUESTS, 640, 480);
+
+        RecordingRenderer r = RecordingRenderer.create();
+        HudOverlay.render(r, 640, 480, NOW);
+
+        // The fixture chapter is "Chapter" for both pins: two chapter labels, one x.
+        List<RecordingRenderer.Call> notes = r.shadowedTexts().stream()
+                .filter(call -> call.text().equals("Chapter")).toList();
+        assertEquals(2, notes.size(), "one chapter per box: " + drawn(r));
+        assertEquals(notes.get(0).x(), notes.get(1).x(),
+                "different-length titles still line their chapters up: " + drawn(r));
+        int right = stack.x() + size.width() - PinnedPanelLayout.PAD;
+        for (RecordingRenderer.Call note : notes) {
+            assertEquals(right - FONT.width("Chapter"), note.x(),
+                    "the chapter ends on the content's right edge: " + drawn(r));
+        }
     }
 
     @Test

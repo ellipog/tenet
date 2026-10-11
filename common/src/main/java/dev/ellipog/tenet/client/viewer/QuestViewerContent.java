@@ -356,7 +356,7 @@ public final class QuestViewerContent implements QuestContent {
         java.util.Map<String, QuestPage> byQuest = new java.util.HashMap<>();
         for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
             // A quest the author kept out of recipe viewers never becomes a page, an index row, or
-            // an id lookup: FTB Quests' `disable_recipe_mod`, resolved server-side against the
+            // an id lookup: the legacy `disable_recipe_mod`, resolved server-side against the
             // file's default and carried as `hideFromViewers`. Skipped before the ref is built, so
             // nothing downstream can disagree about whether it is listed.
             if (entry.hideFromViewers()) {

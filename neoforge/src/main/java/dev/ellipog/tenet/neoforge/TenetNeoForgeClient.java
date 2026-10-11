@@ -188,6 +188,9 @@ public final class TenetNeoForgeClient {
             // And the HUD's two halves of the same bookkeeping -- see the Fabric side.
             PinnedQuests.tick();
             HudOverlay.tick();
+            // A command-entered preview hides vanilla chat and restores it after -- see the
+            // Fabric side and QuestBookScreen.tickPreviewChat.
+            QuestBookScreen.tickPreviewChat();
             // The language half: a player who changed language in the options is told to the server, so
             // the book follows them without a reconnect. Guarded on being in a world, because there is
             // no connection to send on before one and the server answers a join on its own.

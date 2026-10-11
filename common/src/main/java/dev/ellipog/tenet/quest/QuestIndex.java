@@ -33,7 +33,7 @@ import java.util.Set;
  * <p>A quest is looked up by id <b>or alias</b>, everywhere: in {@code dependsOn}, in commands, in the
  * editor. That is what makes renaming a quest safe. Progress is stored against whatever id the quest
  * had when a player completed it, so without aliases a rename silently discards every player's
- * progress through that quest — a mistake FTB Quests lets you make.
+ * progress through that quest — a mistake the legacy format lets you make.
  *
  * <p>So there is one table keyed by both, and a clash between them is an error: if one quest's id
  * collides with another's alias, a lookup is ambiguous, and ambiguity here means somebody's progress
@@ -42,10 +42,10 @@ import java.util.Set;
  * <h2>Lookups are case-insensitive; files stay lowercase</h2>
  *
  * <p>Every key in the three tables is stored lowercased, and every lookup lowercases first — so an
- * id, an alias and any case mix of either resolve to the same entry. That is for FTB Quests, whose
+ * id, an alias and any case mix of either resolve to the same entry. That is for the legacy format, whose
  * ids are uppercase hexadecimal and whose own reads never cared about case: a string an author, a
  * command or a script wrote down may be in either case, and "the case is wrong" is not a failure
- * FTB has ever had. Each entry keeps its own id, so nothing displayed or stored changes — player
+ * the legacy format has ever had. Each entry keeps its own id, so nothing displayed or stored changes — player
  * progress is keyed by canonical id and is untouched.
  *
  * <p>The validator still requires lowercase ids and dependency strings, and aliases may use
@@ -56,7 +56,7 @@ import java.util.Set;
  *
  * <h2>A {@code #tag} resolves to the first object carrying it</h2>
  *
- * <p>FTB Quests' tag lookup: quests, chapters and groups each carry {@code tags}, and a lookup
+ * <p>the legacy tag lookup: quests, chapters and groups each carry {@code tags}, and a lookup
  * string of {@code "#village"} resolves to the first object of the asked kind with that tag, in
  * declaration order. The three kinds resolve separately -- see {@link #questWithTag} -- so a tag
  * shared by a quest and a chapter answers whichever the caller asked for. Dependency edges keep
@@ -814,7 +814,7 @@ public final class QuestIndex {
      *
      * <h2>Why a junction is fine and a ghost is not</h2>
      *
-     * <p>FTB authors use taskless quests as visual junctions, milestones and chapter gates, and a
+     * <p>legacy authors use taskless quests as visual junctions, milestones and chapter gates, and a
      * branch behind one has to open — so a quest with no tasks and no rewards that <i>does</i> gate
      * something is a legitimate node, and warning about it would be noise on every converted pack.
      * What is left is the ghost: nothing to do in it, nothing to give from it, and nothing gated
@@ -1108,7 +1108,7 @@ public final class QuestIndex {
     /**
      * The first quest carrying {@code tag}, in declaration order, if any.
      *
-     * <p>FTB Quests' {@code #tag} lookup: a string naming a tag resolves to the first object with
+     * <p>the legacy {@code #tag} lookup: a string naming a tag resolves to the first object with
      * it. Matched without regard to letter case, like every other lookup here, though tags
      * themselves are lowercase by the validator's rule. Quests, chapters and groups each resolve
      * within their own kind -- a {@code "#village"} asked of {@link #quest} finds the first

@@ -551,7 +551,7 @@ public final class ProgressService {
         Map<String, Map<UUID, Integer>> contributions =
                 CONTRIBUTIONS.computeIfAbsent(owner, key -> new LinkedHashMap<>());
 
-        // FTB Quests' detection_delay, read once per pass: the minimum ticks between inventory
+        // the legacy `detection_delay`, read once per pass: the minimum ticks between inventory
         // checks. A pack that polls inventory every sixty ticks must not pay for a task that asked
         // every twenty — and a task that never reads an inventory keeps its own cadence whatever
         // the pack says, because a stat lookup is not an inventory walk. The default is twenty,
@@ -804,8 +804,8 @@ public final class ProgressService {
      * <p>This used to grant the rewards itself, in the same call, which is what made a finished quest
      * and an empty inventory the same event. They are not the same event. A quest is finished when its
      * tasks are done; it is <i>paid</i> when the player decides to collect, which may be a minute
-     * later, may be after they have sorted their inventory out, and may be after a relog. FTB Quests
-     * separates them for the same reason, and so does every quest book a player has used.
+     * later, may be after they have sorted their inventory out, and may be after a relog. Legacy packs
+     * separate them for the same reason, and so does every quest book a player has used.
      *
      * <p>So completion records {@code rewardsClaimed = false} and stops there. {@link #claim} is what
      * hands anything over, and it is the only thing that grants.
@@ -1213,7 +1213,7 @@ public final class ProgressService {
      * Everything outstanding on one quest, or everything a press is allowed to take.
      *
      * <p>{@code claimAllMode} separates the two presses: a reward marked {@code excludeFromClaimAll}
-     * waits for its own button, exactly as in FTB Quests. Blocked rewards are skipped in both modes and
+     * waits for its own button, exactly as in legacy packs. Blocked rewards are skipped in both modes and
      * named when nothing at all could be taken, because a press that silently does nothing is the thing
      * a blocked team would report as broken.
      *
@@ -1737,7 +1737,7 @@ public final class ProgressService {
      *
      * <p>The offline half of auto-claiming: a quest that completes while a member is away marks the
      * team-mode rewards and the online members' own, and this is where the absent member collects
-     * theirs — on the next join, as FTB Quests does on login.
+     * theirs — on the next join, as legacy packs do on login.
      *
      * @return whether anything was granted
      */
@@ -1927,8 +1927,8 @@ public final class ProgressService {
     /**
      * Hands the chosen rewards to one player.
      *
-     * <p>Any reward — team-mode or not — is granted to the player who claimed it, which is what FTB
-     * Quests' own reward code does: {@code team: true} changes whose claim settles the reward (the
+     * <p>Any reward — team-mode or not — is granted to the player who claimed it, which is what the
+     * legacy reward code does: {@code team: true} changes whose claim settles the reward (the
      * team's), not who receives the effect. What each member gets for themselves is the default, and
      * what an auto-claim hands out per member; this method is the single payout step both use.
      */

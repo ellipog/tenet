@@ -1,7 +1,7 @@
 package dev.ellipog.tenet.quest.task;
 
-import dev.ellipog.tenet.inventory.EnergyAccess;
-import dev.ellipog.tenet.inventory.EnergyAccesses;
+import dev.ellipog.armature.api.energy.EnergyAccess;
+import dev.ellipog.armature.api.energy.EnergyAccesses;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The energy task: what it asks for, and what it forwards to the loader.
  *
- * <p>T20 of the migration work: FTB Quests' {@code forge_energy} counted from a task screen the
+ * <p>T20 of the migration work: the legacy {@code forge_energy} counted from a task screen the
  * pack pipes energy into; Tenet counts carried items' storage through {@link EnergyAccess}. The
  * per-item cap ({@code maxInput}) is applied by the loader, so what this pins is that the task
  * forwards it — and its requirement — faithfully, and that the row names its subject.

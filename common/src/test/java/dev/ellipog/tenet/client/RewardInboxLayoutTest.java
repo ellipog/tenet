@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The claim menu's arithmetic: which rows exist, how tall they are, where each of the four columns
+ * The claim menu's arithmetic: which rows exist, how tall they are, where each of the three columns
  * lands, and what a state toggle admits.
  *
  * <h2>Why this is asserted and not eyeballed</h2>
@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <h2>The one invariant the redesign exists for</h2>
  *
- * <p>A reward row is indented under its quest, and the reward, progression and action columns have to
+ * <p>A reward row is indented under its quest, and the reward and action columns have to
  * stay on <b>one vertical axis</b> anyway — that is what makes a column a column rather than a
  * per-row arrangement. {@link Columns} is the test of that, and it is the reason the columns are
  * measured back from the row's right edge rather than forward from its left.
@@ -187,14 +187,14 @@ class RewardInboxLayoutTest {
         }
 
         /**
-         * The cell the badge is drawn in must be wide enough for the longest badge this menu can state,
-         * which is what stops the collision the screenshots showed.
+         * The cell quest previews are drawn in must hold a count with its icons, which is what stops
+         * the collision the screenshots showed.
          *
-         * <p>It is a real invariant rather than a nicety: the badge is right-aligned in this cell, and a
-         * string wider than its cell starts at the cell's left edge and runs into whatever is beside it.
-         * The figure that did that was "%s/%s ready to claim" over a chapter's whole reward count — four
-         * digits and fifteen words in a 150-pixel column. The badge is now a bare count, and this is the
-         * assertion that it fits.
+         * <p>It is a real invariant rather than a nicety: cells are packed left to right with an
+         * overflow "+N", and a cell narrower than an icon plus its count forces everything into the
+         * overflow. The chapter badge used to live here too — "%s/%s ready to claim" over a chapter's
+         * whole reward count — and now rides inline after the chapter title, so this guards the quest
+         * previews that remain.
          */
         @Test
         @DisplayName("hold the longest badge the banner can state")

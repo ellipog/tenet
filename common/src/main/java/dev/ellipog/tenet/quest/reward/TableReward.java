@@ -26,7 +26,7 @@ import java.util.Set;
  * <pre>{@code { "type": "tenet:loot", "table": "dungeon" } }</pre>
  *
  * <p>One record with four modes rather than four records, because they share every field and differ
- * only in what they do with the roll — and FTB Quests' four types differ the same way. The mode is
+ * only in what they do with the roll — and the legacy four types differ the same way. The mode is
  * fixed at registration, so a file cannot turn a {@code random} into a {@code choice} by adding a
  * field; the type id <i>is</i> the mode.
  *

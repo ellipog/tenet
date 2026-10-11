@@ -34,7 +34,7 @@ import java.util.Set;
  *
  * <h2>Where the defaults come from</h2>
  *
- * <p>FTB's links carry only an id, a target and a position; shape and size are the <i>quest's</i>
+ * <p>Legacy links carry only an id, a target and a position; shape and size are the <i>quest's</i>
  * own, read from the target at draw time. Here they are link-local with the quest's own defaults
  * standing in — {@code rounded} and 48 pixels, clamped to the same 16..512 a quest node allows —
  * so a link that says nothing draws exactly as its target does, and one that says something is a
@@ -47,7 +47,7 @@ import java.util.Set;
  * canvas addresses nodes by id, and a link sharing its target's name — the shape every converted
  * pack's hex ids take — would be a node that can never be addressed. Element ids are a separate
  * namespace the link does not join: elements are addressed by edit operations, links by the canvas,
- * and neither reaches through the other. The migration tool lowercases FTB's ids and maps
+ * and neither reaches through the other. The migration tool lowercases the legacy ids and maps
  * {@code linked_quest} onto {@code quest}; coordinates arrive as integers, scaled and
  * corner-based by the tool exactly as quest positions are.
  */

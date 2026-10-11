@@ -33,7 +33,7 @@ import java.util.function.Function;
  * <p>Measured, never handed in: whether the flag is set is not something the player can attest to, and a
  * Submit button for it would be a button that either does nothing or lets a player grant their own stages.
  *
- * <p>{@code teamStage} is FTB Quests' {@code team_stage}: ask about the team's stages rather than the
+ * <p>{@code teamStage} is the legacy {@code team_stage}: ask about the team's stages rather than the
  * player's own. One member's induction then satisfies the task for everybody, which is the multiplayer
  * pack's version of "you were there".
  */

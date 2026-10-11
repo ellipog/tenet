@@ -39,7 +39,7 @@ authoring material for a pack's first chapter.
 | [[tenet:authoring/conditions]] | The six condition types — gating a task or a reward on an item, a tag, a score, an advancement, a stage or a party's size |
 | [[tenet:authoring/languages]] | Shipping a questline in more than one language: `lang/<locale>.json`, which file a player gets, and the keys |
 | [[tenet:authoring/validation]] | What the validator checks, and what a mistake reads like |
-| [[tenet:authoring/ftb-mapping]] | Which FTB Quests fields already have a Tenet home: the migration tool's contract for the mapped half |
+| [[tenet:authoring/ftb-mapping]] | Which legacy fields already have a Tenet home: the migration tool's contract for the mapped half |
 | [[tenet:commands]] | The `/tenet` commands, for players and operators |
 | [[tenet:authoring/kubejs]] | Driving a questline from a KubeJS script |
 

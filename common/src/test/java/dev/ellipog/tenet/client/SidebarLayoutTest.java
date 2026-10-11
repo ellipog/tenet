@@ -243,7 +243,7 @@ class SidebarLayoutTest {
         @DisplayName("a half-converted pack draws its groups and its loose chapters, both in order")
         void groupsAndLooseChaptersCoexist() {
             // Not a hypothetical: the folder layout is read beside the flat one forever, so a pack
-            // partway through converting has both. The loose chapters come first, like FTB Quests'
+            // partway through converting has both. The loose chapters come first, like the legacy format's
             // default group -- which always sorts before the named ones -- so a converted pack's
             // welcome chapter reads as first rather than last.
             SidebarLayout sidebar = SidebarLayout.of(

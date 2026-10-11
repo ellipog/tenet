@@ -22,7 +22,7 @@ import java.util.OptionalInt;
  *
  * <p><b>A number is read as a long and truncated, and both signs mean the same colour.</b>
  * {@code 16711680} is {@code #00FF0000}; {@code 4294901760} and {@code -65536} are both {@code #FFFF0000}.
- * That is not laxity for its own sake — the theme's own reader does the same, and FTB Quests writes a
+ * That is not laxity for its own sake — the theme's own reader does the same, and the legacy format writes a
  * colour with its high bit set as a <i>negative</i> number, so a converter that refused the negative half
  * would lose exactly the colours that carry an alpha.
  *

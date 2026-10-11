@@ -8,9 +8,9 @@
     "player as the source, at `permissionLevel` 2 by default -- a command",
     "block's level. The command is written without its leading slash.",
     "",
-    "The brace-words are FTB Quests' own placeholders, kept whole: `{p}`",
-    "is the player's scoreboard name, `{quest}` the quest's id,",
-    "`{chapter}` the chapter's, and `{x}` `{y}` `{z}` the block they",
+    "The brace-words are the legacy format's own placeholders, kept",
+    "whole: `{p}` is the player's scoreboard name, `{quest}` the quest's",
+    "id, `{chapter}` the chapter's, and `{x}` `{y}` `{z}` the block they",
     "stand on. An unknown brace-word is left as written rather than",
     "blanked, so a typo is visible in the log."
   ],

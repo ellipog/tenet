@@ -688,7 +688,7 @@ class QuestPlaythroughTest {
                 "the member who asked receives the reward");
 
         // And the other member collects their own copy: progress is the team's, a payout is each
-        // player's. This is FTB Quests' model -- one reward each, not one per team -- and the half
+        // player's. This is the legacy model -- one reward each, not one per team -- and the half
         // that a single team-wide "claimed" flag could never express.
         HeadlessServer.Outcome friendClaim = asOperator(friend, "/tenet claim punch_a_tree");
         assertEquals(1, friendClaim.result(),
@@ -2499,7 +2499,7 @@ class QuestPlaythroughTest {
     @Order(200)
     @DisplayName("flexible progress accumulates early but neither completes nor pays")
     void flexibleProgressWaitsForItsGate() {
-        // FTB's flexible mode as played: the item task maxes out before the gate quest is done,
+        // the legacy flexible mode as played: the item task maxes out before the gate quest is done,
         // and nothing happens — no completion, no payout — until the gate opens, when the
         // already-maxed quest finishes and its automatic reward is handed over.
         //
@@ -2593,7 +2593,7 @@ class QuestPlaythroughTest {
     @Order(203)
     @DisplayName("a repeatable round ends at its final claim, not at its completion")
     void repeatableRoundEndsAtFinalClaim() {
-        // FTB's rule: the timer starts when the last unclaimed reward is claimed, the quest's
+        // the legacy rule: the timer starts when the last unclaimed reward is claimed, the quest's
         // progress resets then, and the count moves then. So a completed-but-unclaimed repeatable
         // reads STARTED with its tasks still maxed and its count unmoved — past the point where a
         // completion-timed cooldown would already have run out — and the claim ends the round.
@@ -2865,8 +2865,8 @@ class QuestPlaythroughTest {
     }
 
     /** Coal holding a thousand Forge Energy units a piece, honouring the per-item cap. */
-    private static dev.ellipog.tenet.inventory.EnergyAccess coalCharge() {
-        return new dev.ellipog.tenet.inventory.EnergyAccess() {
+    private static dev.ellipog.armature.api.energy.EnergyAccess coalCharge() {
+        return new dev.ellipog.armature.api.energy.EnergyAccess() {
             @Override
             public int storedOf(ServerPlayer player, int maxPerItem) {
                 int perItem = maxPerItem > 0 ? Math.min(1000, maxPerItem) : 1000;
@@ -2945,7 +2945,7 @@ class QuestPlaythroughTest {
     @Order(212)
     @DisplayName("stored energy is drained by the press")
     void energyDrainsByPress() {
-        dev.ellipog.tenet.inventory.EnergyAccesses.install(coalCharge());
+        dev.ellipog.armature.api.energy.EnergyAccesses.install(coalCharge());
         try {
             clearInventories();
             assertEquals(1, asOperator("/give @s minecraft:coal 2").result(),
@@ -2960,7 +2960,7 @@ class QuestPlaythroughTest {
             note("an energy press drained its two coal and completed");
         }
         finally {
-            dev.ellipog.tenet.inventory.EnergyAccesses.reset();
+            dev.ellipog.armature.api.energy.EnergyAccesses.reset();
         }
     }
 
@@ -2971,7 +2971,7 @@ class QuestPlaythroughTest {
         // Two coal at five hundred apiece are one thousand against two thousand asked: the press
         // measures under the cap and is refused. Two more coal make two thousand, and the same
         // press completes and spends all four.
-        dev.ellipog.tenet.inventory.EnergyAccesses.install(coalCharge());
+        dev.ellipog.armature.api.energy.EnergyAccesses.install(coalCharge());
         try {
             clearInventories();
             assertEquals(1, asOperator("/give @s minecraft:coal 2").result(),
@@ -2994,7 +2994,7 @@ class QuestPlaythroughTest {
             note("a capped energy press refused two coal and completed on four");
         }
         finally {
-            dev.ellipog.tenet.inventory.EnergyAccesses.reset();
+            dev.ellipog.armature.api.energy.EnergyAccesses.reset();
         }
     }
 
@@ -3068,7 +3068,7 @@ class QuestPlaythroughTest {
         assertFalse(hasStage(friend, TEAM_OATH),
                 "and still holds nothing personally -- the team holds it");
 
-        // The team commands, which are FTB Quests' /ftbteams teamstage under Tenet's name: take the
+        // The team commands, which are the legacy format's /ftbteams teamstage under Tenet's name: take the
         // oath away and the gate shuts for both members; grant it back and it opens.
         UUID team = ownerOf(player);
         HeadlessServer.Outcome listed = asOperator("/tenet stage team-list tenet-tester");
@@ -3209,7 +3209,7 @@ class QuestPlaythroughTest {
     @Order(220)
     @DisplayName("a taskless junction completes on the tick its last dependency does")
     void tasklessJunctionCompletesWithItsGate() {
-        // FTB's junction nodes: a quest with no tasks auto-completes once its dependencies are
+        // the legacy junction nodes: a quest with no tasks auto-completes once its dependencies are
         // met, with no press on it, and its own dependant unlocks behind it. Solo, for the reason
         // order 200 gives: a leftover party would count the wrong player's progress.
         asOperator("/tenet party leave");

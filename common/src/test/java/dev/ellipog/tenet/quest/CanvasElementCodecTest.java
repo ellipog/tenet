@@ -101,7 +101,7 @@ class CanvasElementCodecTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("a picture carries every field FTB writes on a chapter image")
+    @DisplayName("a picture carries every field the legacy format writes on a chapter image")
     void theImageArm() {
         // The one arm with a compatibility obligation, so this is the field list rather than a sample: each
         // of these is a key a converted chapter has to land in, and a missing one is a picture that arrives
@@ -247,7 +247,7 @@ class CanvasElementCodecTest {
     void rotationWrapsRatherThanClamping() {
         // The difference between wrapping and clamping is the whole of this test, and it is a picture rather
         // than a number: a clamped -90 reads as NO turn, which is the opposite of what the file says, and
-        // FTB writes exactly -90 for a picture turned anticlockwise.
+        // the legacy format writes exactly -90 for a picture turned anticlockwise.
         assertEquals(270, image("-90").rotation());
         assertEquals(270, image("630").rotation());
         assertEquals(270, image("270").rotation());
@@ -310,7 +310,7 @@ class CanvasElementCodecTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("all seven actions FTB can write are readable, and all seven can run")
+    @DisplayName("all seven actions the legacy format can write are readable, and all seven can run")
     void theClickVocabulary() {
         // Reading every name is what makes the validator's per-type checks possible: a codec that
         // dropped one would leave a converted pack with a dead button and nothing said about it --

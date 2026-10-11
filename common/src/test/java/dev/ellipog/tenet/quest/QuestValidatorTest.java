@@ -378,7 +378,7 @@ class QuestValidatorTest {
     @DisplayName("an alias may use uppercase, because converted packs arrive with it")
     void uppercaseAliasIsAccepted() {
         // Ids stay lowercase — the lookup normalises, but the files do not, so a mixed-case id is
-        // still an authoring error. Aliases accept uppercase because FTB Quests ids are uppercase
+        // still an authoring error. Aliases accept uppercase because legacy ids are uppercase
         // hexadecimal, and refusing them would refuse the converted pack.
         String json = Fixtures.file(
                 "{\"id\": \"a\", \"title\": \"a\", \"aliases\": [\"OldName\"], \"tasks\": []}");
@@ -395,7 +395,7 @@ class QuestValidatorTest {
     void uppercaseDependencyIsRejected() {
         // The split the plan asks for: the validator keeps files uniform (lowercase), the lookup
         // resolves anyway. A reference somebody wrote correctly in another case is not a failure
-        // FTB has ever had — but this file is still asked to spell it the uniform way.
+        // the legacy format has ever had — but this file is still asked to spell it the uniform way.
         String json = Fixtures.file(
                 "{\"id\": \"a\", \"title\": \"a\", \"tasks\": []},"
                         + "{\"id\": \"b\", \"title\": \"b\", \"dependsOn\": [\"A\"], \"tasks\": []}");
@@ -1041,7 +1041,7 @@ class QuestValidatorTest {
         @Test
         @DisplayName("a table id warns and names the file, not another field")
         void tableIdWarnsAndNamesTheFile() {
-            // An FTB reward table carries its hex id at the root; Tenet tables are named by their
+            // A legacy reward table carries its hex id at the root; Tenet tables are named by their
             // file. The id is not read, but the table still loads — and the warning must not point
             // at "uid": a table file's root uid is ignored too, so that rename would trade one
             // dead field for another.
@@ -1096,7 +1096,7 @@ class QuestValidatorTest {
         @Test
         @DisplayName("anything else unknown is still an error: the retired list is closed")
         void otherUnknownTableFieldsAreStillErrors() {
-            // The tolerance is three names, not a direction. An FTB snake_case leftover like
+            // The tolerance is three names, not a direction. A legacy snake_case leftover like
             // "loot_size" is a file that was never converted, and loading it as if it were
             // would pay the default loot size while wearing the author's number.
             Problems problems = validateTable("""
@@ -1757,7 +1757,7 @@ class QuestValidatorTest {
             assertTrue(messages(chapterWithLinks(
                             "[ { \"id\": \"l\", \"quest\": \"a\", \"linked_quest\": \"b\" } ]"))
                             .contains("unknown field \"linked_quest\""),
-                    "FTB's spelling is the tool's to map, not the file's to carry");
+                    "the legacy spelling is the tool's to map, not the file's to carry");
         }
 
         @Test

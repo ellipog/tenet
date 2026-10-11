@@ -6,7 +6,7 @@ import com.mojang.serialization.Codec;
 /**
  * How a chapter hands out its quests.
  *
- * <p>FTB Quests calls these the same thing, and they exist because of a real authoring problem: a
+ * <p>The legacy format calls these the same thing, and they exist because of a real authoring problem: a
  * chapter that is a chain of thirty quests should not need thirty {@code dependsOn} entries, and the
  * one place the chain breaks should be visible rather than buried.
  */

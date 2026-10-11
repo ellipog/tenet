@@ -17,7 +17,7 @@ import java.util.Set;
  * <p>Four arms, and the JSON says which by naming one key:
  *
  * <pre>{@code
- * { "item": "minecraft:oak_log", "count": 1 }   // an item, with FTB's count and components
+ * { "item": "minecraft:oak_log", "count": 1 }   // an item, with the legacy count and components
  * { "texture": "my_pack:textures/gui/emblem.png" } // a texture file, textures/ and .png included
  * { "sprite": "occultism:block/chalk_glyph/0" } // an atlas region, drawn from the atlas
  * { "entity": "minecraft:creeper" }             // an entity, drawn as its spawn egg
@@ -32,7 +32,7 @@ import java.util.Set;
  * region nothing holds draws the missing mark like an unheld file. An entity draws as
  * its spawn egg where one exists, because every surface that draws an icon already knows how to
  * draw a stack; an entity with no egg draws the missing-item mark with the entity's name, which
- * is the honest answer for a picture nobody can draw. The migration tool maps FTB Quests'
+ * is the honest answer for a picture nobody can draw. The migration tool maps the legacy
  * {@code custom_icon} file strings onto texture, atlas-form strings onto sprite, and
  * {@code entity_face} onto entity.
  *

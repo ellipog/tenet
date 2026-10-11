@@ -26,7 +26,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:item_tag", "tag": "minecraft:logs", "count": 16 } }</pre>
  *
- * <p>A sibling of {@code tenet:item} rather than a field on it. FTB Quests has no tag field of its
+ * <p>A sibling of {@code tenet:item} rather than a field on it. The legacy format has no tag field of its
  * own — its tags arrive through filter adapters that store a filter stack in the item field — so
  * there is no file shape to match, and a separate type keeps the most-used task's {@code item}
  * required. The same consumption rules apply: presence checks by default, take the items when
@@ -77,7 +77,7 @@ public record ItemTagTask(TaskCommon common, ResourceLocation tag, int count,
             if (task.onlyFromCrafting()) {
                 // The tag half of the item task's lifetime-stat rule: every member's crafted count
                 // added up, so handing the stack away does not un-count it. Documented beside the
-                // item task's own flag, with the same difference from FTB Quests.
+                // item task's own flag, with the same difference from the legacy format.
                 int crafted = 0;
                 for (var holder : net.minecraft.core.registries.BuiltInRegistries.ITEM
                         .getTagOrEmpty(TagKey.create(Registries.ITEM, task.tag()))) {

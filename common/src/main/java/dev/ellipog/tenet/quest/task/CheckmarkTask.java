@@ -19,7 +19,7 @@ import java.util.Set;
  * record: every task type carries an author title now, and a checkmark's is simply the only one
  * that is ever drawn without an item beside it. The key is unchanged — {@code "title"} sat flat on
  * the task before the shared field existed — so every file written before the move reads the same
- * way. A checkmark that says nothing draws a bare button, which is what FTB shows: a "?" would
+ * way. A checkmark that says nothing draws a bare button, which is what legacy packs show: a "?" would
  * invent a sentence the author never wrote, and the rows below read the same empty.
  *
  * <p>{@link #required} is one and {@link #current} is always zero, which is what makes it

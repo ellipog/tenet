@@ -165,7 +165,7 @@ public final class Tenet {
 
             // Automatic rewards owed from a completion that happened while they were away. A quest
             // finished with the party online hands each member their own copy at completion; this is
-            // the member who was not there, collecting on the next join -- as FTBQ's login check does.
+            // the member who was not there, collecting on the next join -- as the legacy login check does.
             var server = player.getServer();
             if (server != null && ProgressService.autoClaimFor(server, player)) {
                 TenetNetworking.sendProgressToOwners(server,
@@ -228,7 +228,7 @@ public final class Tenet {
             if (!changed.isEmpty()) {
                 TenetNetworking.sendProgressToOwners(server, changed, ProgressSyncPayload.REASON_CHANGED);
             }
-            // The quest book's own afterlife: FTB Quests' `drop_book_on_death`. A player who fell
+            // The quest book's own afterlife: the legacy `drop_book_on_death`. A player who fell
             // with the file's flag on finds a fresh book where they fell, so death cannot take the
             // pack away with it. Beside the kill task's hook rather than in it, because this is
             // about one death (a player's) rather than every death the engine counts.

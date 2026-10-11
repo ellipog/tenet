@@ -23,7 +23,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:biome", "biome": "#minecraft:is_forest" } }</pre>
  *
- * <p>Polled every twenty ticks; FTB Quests skips this one on login because a biome lookup is not
+ * <p>Polled every twenty ticks; legacy packs skip this one on login because a biome lookup is not
  * free, and the same cadence answers that without a special case.
  */
 public record BiomeTask(TaskCommon common, RegistryRef biome) implements QuestTask {

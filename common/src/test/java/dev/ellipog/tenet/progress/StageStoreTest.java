@@ -121,7 +121,7 @@ class StageStoreTest {
     }
 
     // ------------------------------------------------------------------
-    // Team stages (T22): FTB Quests' `team_stage`
+    // Team stages (T22): the legacy `team_stage`
     // ------------------------------------------------------------------
 
     @Test

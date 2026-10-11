@@ -15,7 +15,7 @@ import java.util.Set;
  * <pre>{@code { "type": "tenet:xp", "amount": 3, "levels": true } }</pre>
  *
  * <p>{@code levels} exists because they are genuinely different rewards: thirty points is a small
- * nudge, thirty levels is most of a playthrough. FTB Quests has both as separate reward types, which
+ * nudge, thirty levels is most of a playthrough. The legacy format has both as separate reward types, which
  * is two entries in its type list for one idea.
  */
 public record XpReward(RewardCommon common, int amount, boolean levels) implements QuestReward {

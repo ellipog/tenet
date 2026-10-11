@@ -19,7 +19,7 @@ import java.util.StringJoiner;
  * in either repo with an opinion about oak logs is a quest. Armature's teams are deliberately
  * ignorant of what a team is <i>for</i> — that is the property that makes them reusable by a mod
  * whose teams have nothing to do with quests — and teaching them to combine integers would be the
- * first step in the direction FTB went, where shared progress had to be untangled from the code that
+ * first step in the direction the legacy project went, where shared progress had to be untangled from the code that
  * owned the progress and became a third mod to ship.
  *
  * <p>So the general primitive is where it belongs already, and what is added here is the one piece
@@ -39,7 +39,7 @@ import java.util.StringJoiner;
  * log each would pay for one. It is the mode where <b>paying</b> changes as well as counting, which
  * is what {@link #takesFromEveryone} exists to say.
  *
- * <p>{@link #OWNER_ONLY} counts nobody but the owner. It is the mode FTB Quests offers first, and its
+ * <p>{@link #OWNER_ONLY} counts nobody but the owner. It is the mode the legacy format offers first, and its
  * use is a party where one player is doing the progressing and the others are along for the ride.
  *
  * <h2>Two questions, not one, and the second is the one that bites</h2>
@@ -86,7 +86,7 @@ public enum PartyMode {
      * Satisfied when <b>the owner's</b> count reaches the requirement, whatever anybody else has.
      *
      * <p>The mode for a party where one player is the one making progress — a helper, somebody being
-     * carried, somebody watching. It is FTB Quests' first party option, and it is the reason the
+     * carried, somebody watching. It is the legacy format's first party option, and it is the reason the
      * owner's index has to reach {@link #combine} at all.
      *
      * <p><b>An offline owner counts as zero</b>, and that follows from the rule rather than being an

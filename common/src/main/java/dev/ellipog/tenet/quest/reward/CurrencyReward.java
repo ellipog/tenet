@@ -18,7 +18,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:currency", "amount": 50 } }</pre>
  *
- * <p>FTB Quests' {@code currency} reward, which pays through FTBLibrary's currency hook rather
+ * <p>The legacy {@code currency} reward, which pays through FTBLibrary's currency hook rather
  * than granting an item: the amount is the only field, and the coin it names belongs to whichever
  * currency mod is installed. Tenet does the same through {@link CurrencyProviders}: a currency mod
  * (or a script) registers its paying half, and this reward calls it. With nothing registered the
@@ -84,7 +84,7 @@ public record CurrencyReward(RewardCommon common, int amount) implements QuestRe
     /**
      * The one active currency provider.
      *
-     * <p>One, because FTB Quests pays through one hook too: a quest names an amount, and the coin
+     * <p>One, because the legacy format pays through one hook too: a quest names an amount, and the coin
      * it names belongs to the economy the pack installed. A second registration replaces the
      * first with a warning, for the same reason two economies cannot both own one payout.
      */

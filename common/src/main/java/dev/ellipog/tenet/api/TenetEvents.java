@@ -14,11 +14,11 @@ import net.minecraft.server.level.ServerPlayer;
  * <h2>Why these seven</h2>
  *
  * <p>The first four are the moments a pack author's code has an opinion about: a quest starting, a quest
- * completing, one task of it being satisfied, and a reward being handed over. FTB Quests' KubeJS
+ * completing, one task of it being satisfied, and a reward being handed over. The legacy KubeJS
  * integration exposes the same four, and everything a script does with a quest is built from them. The
  * two stage events came with stages themselves: a stage is granted by a command, a reward or a script,
  * and the thing a script most often wants is to run something <i>when</i> it is granted rather than to
- * poll for it. The click event is FTB's {@code custom_event} click action: a canvas press by id, for
+ * poll for it. The click event is the legacy {@code custom_event} click action: a canvas press by id, for
  * the packs whose buttons do something no quest does.
  *
  * <h2>Fired beside the write, in two places</h2>
@@ -42,7 +42,7 @@ public final class TenetEvents {
     /**
      * A quest was touched for the first time: its first task recorded progress.
      *
-     * <p>Not "became visible": FTB Quests' started event fires when an object starts, which for a
+     * <p>Not "became visible": the legacy `started` event fires when an object starts, which for a
      * quest is the first sign of progress on it. Visibility is the engine's business and changes on
      * every dependency completion; this fires once per round.
      */

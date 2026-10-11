@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The toast reward and the command reward's success line.
  *
- * <p>T18 of the migration work: FTB Quests' {@code toast} reward shows its description when
+ * <p>T18 of the migration work: the legacy {@code toast} reward shows its description when
  * claimed, and {@code feedback_message} on a command reward shows when the command runs. Both
  * travel as a {@link QuestText} so a pack shipping translations gets them.
  */

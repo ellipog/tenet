@@ -154,10 +154,10 @@ class CanvasElementArtTest {
     @Test
     @DisplayName("a tint and an alpha multiply, so neither spelling of dimming is lost")
     void aTintAndAnAlphaCompose() {
-        // FTB carries the two separately and draws the tint with the alpha field REPLACING the colour's own;
+        // the legacy format carries the two separately and draws the tint with the alpha field REPLACING the colour's own;
         // this format multiplies them, and with an opaque tint the two are the same sum -- which is why a
         // converted picture is written #FFRRGGBB. Asserted because getting it the other way round makes every
-        // converted picture invisible: FTB's `color` is an RGB int with no alpha in it at all.
+        // converted picture invisible: the legacy `color` is an RGB int with no alpha in it at all.
         RecordingRenderer half = draw(element("""
                 { "type": "image", "id": "i", "width": 8, "height": 8, "alpha": 128,
                   "image": { "sprite": "minecraft:block/sculk" } }
@@ -175,7 +175,7 @@ class CanvasElementArtTest {
     @DisplayName("a turned picture is wrapped in a turn, about the pivot its corner flag names")
     void aTurnedPictureIsWrapped() {
         // Both pivots are real: a picture turned slightly off square reads as placed, and one pinned by a
-        // corner reads as stuck down -- and FTB's own alignToCorner is used in a real pack. A recorder can
+        // corner reads as stuck down -- and the legacy own alignToCorner is used in a real pack. A recorder can
         // tell the two apart; on screen they are the same angle and a different position.
         RecordingRenderer centred = draw(element("""
                 { "type": "image", "id": "i", "x": 10, "y": 20, "width": 64, "height": 32, "rotation": 90,

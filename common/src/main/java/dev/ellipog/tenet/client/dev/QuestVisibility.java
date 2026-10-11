@@ -81,7 +81,7 @@ public final class QuestVisibility {
     /**
      * The same, with the pack's answer on quests an exclusive choice shut out.
      *
-     * <p>FTB Quests' {@code hide_excluded_quests}: when the file hides the shut-out, an excluded
+     * <p>the legacy {@code hide_excluded_quests}: when the file hides the shut-out, an excluded
      * quest is not drawn — read before every reveal flag, because an excluded quest resolves
      * LOCKED and the flags below would otherwise draw it locked. A completed quest still shows,
      * because nothing can be lost behind a flag, which is the rule the family below keeps.
@@ -166,7 +166,7 @@ public final class QuestVisibility {
      *
      * <p>The engine never resolves such a quest to LOCKED — it stays measurable so tasks
      * accumulate — but drawing it UNLOCKED is what made whole flexible chapters read as open:
-     * FTB shows these quests locked, and an available reading is the one thing the state
+     * Legacy packs show these quests locked, and an available reading is the one thing the state
      * cannot mean while completion still waits. Playability never reads this: submit buttons,
      * accumulation and completion keep judging the engine's own states, so a quest can look
      * gated and still take progress.
@@ -186,7 +186,7 @@ public final class QuestVisibility {
      * Whether this quest's incoming dependency lines are drawn.
      *
      * <p>The one flag in the family that is not about the quest: the quest is visible and the lines into
-     * it are not. FTB Quests has it for the same reason — a hub that twenty quests feed into draws twenty
+     * it are not. Legacy packs have it for the same reason — a hub that twenty quests feed into draws twenty
      * lines across the chapter, and the author may want the hub without the clutter.
      */
     public static boolean drawsDependencyLines(boolean hideDependencyLines) {
@@ -198,7 +198,7 @@ public final class QuestVisibility {
      * that depend on it.
      *
      * <p>The outgoing half of {@link #drawsDependencyLines}: that flag hides the lines arriving at a
-     * quest, this one hides the lines it sends on. FTB Quests ships both halves; a quest that fans out
+     * quest, this one hides the lines it sends on. The legacy format ships both halves; a quest that fans out
      * to twenty dependants draws twenty lines across the chapter, and the author may want the quest
      * without the clutter. Read on the <i>source</i> quest where edges are collected.
      */
@@ -209,7 +209,7 @@ public final class QuestVisibility {
     /**
      * Whether a locked quest wears its lock mark on the canvas.
      *
-     * <p>FTB Quests' {@code show_lock_icons} with the quest's own {@code hide_lock_icon}: the
+     * <p>the legacy {@code show_lock_icons} with the quest's own {@code hide_lock_icon}: the
      * file hides every mark unless it says otherwise, and this quest hides its own — either
      * silence wins. Read where the node is drawn, off the tree's setting and the quest's
      * flag — both travel on the tree, so no reader needs the file.

@@ -5,10 +5,10 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * A checkmark task's two pictures: the empty box it wears while todo, and the checked box once
- * done — FTB Quests' {@code checkmark_task_inactive} and {@code checkmark_task_active} under
+ * done — the legacy {@code checkmark_task_inactive} and {@code checkmark_task_active} under
  * Tenet's own roof.
  *
- * <p>Files rather than fills, for the reason FTB's own pair are files: a check is artwork, and
+ * <p>Files rather than fills, for the reason the legacy own pair are files: a check is artwork, and
  * fills-drawn boxes at twelve pixels read as lint. Both live beside the mod's other pictures
  * under {@code assets/tenet/textures/gui/}, drawn stretched into whatever box the row offers.
  * One draw rule for the book's rows, the HUD's pins and the notices, so the three cannot

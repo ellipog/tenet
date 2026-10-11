@@ -165,7 +165,7 @@ public final class QuestSettingsLayout {
      * The requirement's values, in the order the picker cycles them.
      *
      * <p>The empty string is the chapter's default, and it is first because it is the state a quest
-     * starts in -- FTB Quests has the same three-way choice and calls it "Default". A picker rather than
+     * starts in -- the legacy format has the same three-way choice and calls it "Default". A picker rather than
      * a text box, because the four modes are a closed set and a typo in a text box is only refused by
      * the server.
      */
@@ -436,7 +436,7 @@ public final class QuestSettingsLayout {
                 // Both branches resolve: a label that were a key in one state and a sentence in the
                 // other is the kind of asymmetry that makes the next reader check which one they hold.
                 selected > 0 ? Labels.of(ADD_SELECTED_COUNT, selected) : Labels.of(ADD_SELECTED)));
-        // The rule the list is judged by, then the two counts that qualify it. FTB Quests' three
+        // The rule the list is judged by, then the two counts that qualify it. the legacy three
         // controls, in its order: the requirement, the minimum, and the cap on dependents.
         rows.add(new Row("prerequisiteMode", Row.Kind.CHOICE, "tenet.dev.quest.requirement"));
         rows.add(new Row("minRequired", Row.Kind.NUMBER, "tenet.dev.quest.min_required"));

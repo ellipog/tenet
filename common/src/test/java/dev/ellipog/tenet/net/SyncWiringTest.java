@@ -172,6 +172,10 @@ class SyncWiringTest {
                 // opens a screen. Asked and answered here like the vitals switch below.
                 "tenet:open_book",
                 "tenet:party_sync",
+                // Not a viewer message either: a command's answer to "show me the player's view", which
+                // no existing message carries — the open above opens the editor, and neither the tree
+                // nor progress names a view. Asked and answered here like the vitals switch below.
+                "tenet:preview",
                 "tenet:progress_sync",
                 "tenet:quest_sync",
                 "tenet:replica_request",

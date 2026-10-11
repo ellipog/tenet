@@ -39,12 +39,12 @@
     "useTitle": {
       "type": "boolean",
       "default": false,
-      "description": "Draw this table's title on a reward row that rolls it, rather than the generic roll sentence. FTB Quests calls this use_title."
+      "description": "Draw this table's title on a reward row that rolls it, rather than the generic roll sentence. The legacy format calls this use_title."
     },
     "hideTooltip": {
       "type": "boolean",
       "default": false,
-      "description": "Draw no item tooltip on a reward row that rolls this table. FTB Quests calls this hide_tooltip."
+      "description": "Draw no item tooltip on a reward row that rolls this table. The legacy format calls this hide_tooltip."
     },
     "entries": {
       "type": "array",

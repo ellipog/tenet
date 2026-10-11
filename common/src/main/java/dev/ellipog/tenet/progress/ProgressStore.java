@@ -27,7 +27,7 @@ import java.util.UUID;
  *
  * <p>It also gives the right behaviour for free when somebody joins a party. A player's solo progress
  * sits under their UUID; the team they join has its own id and its own progress. Joining means they
- * now read the team's — and their own is untouched, waiting if they leave. FTB Quests behaves the
+ * now read the team's — and their own is untouched, waiting if they leave. Legacy packs behave the
  * same way, and the alternative (merging, or importing) is a decision nobody can make well
  * automatically: a new member arriving with four hundred completed quests would hand the whole party
  * a finished questline.
@@ -50,16 +50,16 @@ import java.util.UUID;
  *
  * <p>A stage is a named flag a player has, the thing a pack's scripts and quest gates ask about. It is
  * keyed by <b>player</b> UUID rather than by team, unlike everything else in this class, because that is
- * what a stage means everywhere it is used: GameStages, FTB Quests' stage integration and every pack
+ * what a stage means everywhere it is used: GameStages, the legacy stage integration and every pack
  * script written against them ask "does <i>this player</i> have it". A team-mode reward that grants a
- * stage grants it to the player who claimed, which is FTB Quests' behaviour too.
+ * stage grants it to the player who claimed, which is the legacy behaviour too.
  *
  * <p>They share this file rather than getting one of their own so that a grant and the completion that
  * caused it are written, versioned and backed up together -- one world's quest data in one place.
  *
  * <h2>Team stages, beside the player's own</h2>
  *
- * <p>FTB Quests' {@code team_stage}: a flag a <b>team</b> holds, for the multiplayer pack where one
+ * <p>The legacy {@code team_stage}: a flag a <b>team</b> holds, for the multiplayer pack where one
  * member's induction opens the chapter for everybody. Keyed by team id — which is a solo player's
  * own UUID, so a solo grant reads exactly like a personal one — and stored beside the player's own
  * in the same sectioned shape. A stage task or a quest gate that names {@code teamStage} reads the

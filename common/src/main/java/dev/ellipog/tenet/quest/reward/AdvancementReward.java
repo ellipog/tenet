@@ -19,7 +19,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:advancement", "advancement": "minecraft:story/mine_stone" } }</pre>
  *
- * <p>An empty criterion means every criterion, which is FTBQ's reading: the reward grants the whole
+ * <p>An empty criterion means every criterion, which is the legacy reading: the reward grants the whole
  * advancement rather than the first criterion of it.
  */
 public record AdvancementReward(RewardCommon common, ResourceLocation advancement, Optional<String> criterion)

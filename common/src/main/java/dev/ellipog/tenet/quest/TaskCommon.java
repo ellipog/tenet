@@ -19,7 +19,7 @@ import java.util.Set;
  * {@code "common": {"optional": true}}. Each type's codec merges this in and adds its own fields,
  * which keeps a type's own codec down to the fields that make it that type.
  *
- * <p>{@code autoSubmitTicks} is borrowed from FTB Quests, which tries a task on a per-type schedule
+ * <p>{@code autoSubmitTicks} is borrowed from the legacy format, which tries a task on a per-type schedule
  * rather than every tick — a short interval for a checkmark, a long one for an observation. One
  * field, and the alternative is a mod that scans every player's inventory twenty times a second for
  * nothing.
@@ -34,7 +34,7 @@ import java.util.Set;
  * { "type": "tenet:checkmark", "conditions": [ { "type": "tenet:stage", "stage": "pack:marked" } ] }
  * }</pre>
  *
- * <p>{@code disableToast} is FTB Quests' {@code disable_toast} on the task: this task finishing
+ * <p>{@code disableToast} is the legacy {@code disable_toast} on the task: this task finishing
  * raises no task toast. It ORs with the quest's own flag and the silent auto-claim modes where
  * notices are decided — a quieted task in an announced quest stays quiet, and an announced task
  * in a quieted quest stays quiet too.
@@ -44,7 +44,7 @@ import java.util.Set;
  * type decides, which is every file written before these fields existed. See
  * {@link dev.ellipog.tenet.quest.task.TaskTypes#displayOf} for the resolution.
  *
- * <p>{@code tags} is FTB Quests' {@code tags}, present on every object: words this task answers
+ * <p>{@code tags} is the legacy {@code tags}, present on every object: words this task answers
  * to in lookups by tag. Each tag is {@code ^[a-z0-9_]{1,64}$}, the same rule an id follows.
  */
 public record TaskCommon(boolean optional, int autoSubmitTicks, List<QuestCondition> conditions,
@@ -81,7 +81,7 @@ public record TaskCommon(boolean optional, int autoSubmitTicks, List<QuestCondit
     /**
      * The same, with a type's own default interval.
      *
-     * <p>FTB Quests gives each type a cadence rather than one number for everything — a stat task can
+     * <p>legacy packs give each type a cadence rather than one number for everything — a stat task can
      * afford to be asked every three ticks, a structure lookup every twenty, a dimension check every
      * hundred — and an author who says nothing should get the type's cadence rather than the
      * cheapest-to-implement one. The field still overrides it per task.

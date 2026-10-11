@@ -1666,7 +1666,7 @@ public final class QuestValidator {
     }
 
     /**
-     * The lookup words on a group, a chapter, a quest or a task: FTB Quests' {@code tags}, present
+     * The lookup words on a group, a chapter, a quest or a task: the legacy {@code tags}, present
      * on every object.
      *
      * <p>Each tag follows the same rule an id does — lowercase letters, digits and underscores, at
@@ -2601,9 +2601,9 @@ public final class QuestValidator {
     /**
      * Warns for the table roots' retired names.
      *
-     * <p>An FTB reward table carries {@code id}; Tenet tables are named by their file, so the id is
+     * <p>A legacy reward table carries {@code id}; Tenet tables are named by their file, so the id is
      * not read — while an inline table is addressed by its {@code uid} handle, which is the rename
-     * the warning offers there. An FTB table may carry {@code loot_crate}; Tenet has no crate home,
+     * the warning offers there. A legacy table may carry {@code loot_crate}; Tenet has no crate home,
      * so the crate is not read while the table's entries still are. Refusing the file over either
      * would cost every entry in the table, and every quest reward pointing at it, over one
      * sub-object nothing reads.

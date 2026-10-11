@@ -25,7 +25,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:fluid", "fluid": "minecraft:water", "amount": 1000 } }</pre>
  *
- * <p>FTB Quests' fluid task is filled at a task screen block; Tenet has no such block yet, so this
+ * <p>the legacy fluid task is filled at a task screen block; Tenet has no such block yet, so this
  * is the carried-container path: buckets count as a thousand millibuckets each, and anything else
  * that holds fluid — tanks, capsules, canisters — counts through the loader's fluid access, which
  * is also what a submit drains. A fluid with no bucket item at all still works where containers

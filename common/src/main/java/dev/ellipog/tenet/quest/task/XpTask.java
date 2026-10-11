@@ -20,7 +20,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:xp", "value": 30, "points": true } }</pre>
  *
- * <p>Manual only, as FTB Quests' XP task is: experience is not something the engine should take the
+ * <p>Manual only, as the legacy XP task is: experience is not something the engine should take the
  * moment a player happens to be carrying enough. The submit button is the consent, and the press
  * takes it.
  */

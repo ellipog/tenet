@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The icon union: an item, a texture file, an atlas region, or an entity drawn as its egg.
  *
- * <p>Batch 3 of the migration work. FTB Quests' icons can be {@code custom_icon} texture paths or
+ * <p>Batch 3 of the migration work. the legacy icons can be {@code custom_icon} texture paths or
  * {@code entity_face} entity ids; this mod knew only items, so a converted pack's pictures had
  * nowhere to land. Each test decodes the JSON the tool would write through the real codec, or runs
  * the real validator over it, which is what makes this page fail first if an arm quietly becomes

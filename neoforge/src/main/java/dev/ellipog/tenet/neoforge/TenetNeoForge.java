@@ -3,7 +3,6 @@ package dev.ellipog.tenet.neoforge;
 import dev.ellipog.armature.api.net.ArmatureNetwork;
 import dev.ellipog.tenet.Constants;
 import dev.ellipog.tenet.Tenet;
-import dev.ellipog.tenet.inventory.EnergyAccesses;
 import dev.ellipog.tenet.inventory.FluidAccesses;
 import dev.ellipog.tenet.inventory.InventoryAccesses;
 
@@ -32,10 +31,10 @@ public final class TenetNeoForge {
         // machinery that will perform the insert. See NeoForgeInventory for the range it clamps to.
         InventoryAccesses.install(new NeoForgeInventory());
 
-        // The fluid-handler and energy-storage item capabilities, so fluid and energy tasks read
-        // carried containers as well as buckets. See NeoForgeFluids for the bucket it skips.
+        // The fluid-handler item capability, so fluid tasks read carried containers as well as
+        // buckets. See NeoForgeFluids for the bucket it skips. Stored energy is Armature's seam
+        // (api.energy, installed by its entry point) -- Tenet only reads it.
         FluidAccesses.install(new NeoForgeFluids());
-        EnergyAccesses.install(new NeoForgeEnergy());
 
         // The event is on the mod bus, and fires on both sides -- so one registration serves both
         // directions. See NeoForgeNetworking.onRegisterPayloads.

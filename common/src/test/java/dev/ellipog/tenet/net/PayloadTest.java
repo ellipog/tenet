@@ -133,6 +133,7 @@ class PayloadTest {
                 "tenet:locale_sync",
                 "tenet:open_book",
                 "tenet:party_sync",
+                "tenet:preview",
                 "tenet:progress_sync",
                 "tenet:quest_sync",
                 "tenet:replica_request",
@@ -217,6 +218,9 @@ class PayloadTest {
         // A book a command told the client to open, on one quest when one was named: the server
         // decides, the client opens. The other way round a book opens for nobody.
         assertEquals(ArmatureNetwork.Direction.TO_CLIENT, directionOf("tenet:open_book"));
+        // A preview a command told the client to show: the server decides, the client previews.
+        // The other way round a preview shows for nobody.
+        assertEquals(ArmatureNetwork.Direction.TO_CLIENT, directionOf("tenet:preview"));
     }
 
     @Test

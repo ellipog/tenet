@@ -29,7 +29,6 @@ import dev.ellipog.armature.client.ui.kit.Hover;
 import dev.ellipog.armature.client.ui.kit.Layout;
 import dev.ellipog.armature.client.ui.kit.Measure;
 import dev.ellipog.armature.client.ui.kit.Motion;
-import dev.ellipog.armature.client.ui.kit.RichText;
 import dev.ellipog.armature.client.ui.kit.ScrollBar;
 import dev.ellipog.armature.client.ui.kit.ScrollView;
 import dev.ellipog.armature.client.ui.kit.Slot;
@@ -580,14 +579,14 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private boolean fieldDrag;
 
-    /** One block of the reader's description: what it is, the lines it was wrapped to, and the FTB look over it. */
-    private record ProseBlock(RichText.Paragraph paragraph, List<RichText.Line> lines,
-                              List<FtbText.Span> spans, FtbText.PlacedImage image) {
+    /** One block of the reader's description: what it is, the lines it was wrapped to, and the token look over it. */
+    private record ProseBlock(dev.ellipog.armature.client.ui.kit.RichText.Paragraph paragraph, List<dev.ellipog.armature.client.ui.kit.RichText.Line> lines,
+                              List<RichText.Span> spans, RichText.PlacedImage image) {
     }
 
     /**
      * A link as it was drawn: its rectangle on screen, and where it goes — a URL, a quest id,
-     * never both. A quest id is FTB's {@code change_page} repurposing, resolved by id or alias
+     * never both. A quest id is the legacy {@code change_page} repurposing, resolved by id or alias
      * when it is pressed rather than when it is drawn.
      */
     private record LinkRect(BookGeometry.Rect box, String url, String quest) {
@@ -2021,7 +2020,7 @@ public final class QuestBookScreen extends ArmatureScreen
         for (Map.Entry<String, int[]> entry : tally.entrySet()) {
             counts.put(entry.getKey(), new ChapterProgress(entry.getValue()[0], entry.getValue()[1]));
         }
-        // An always-invisible chapter reads complete, whatever its quests say: FTB Quests'
+        // An always-invisible chapter reads complete, whatever its quests say: the legacy
         // getRelativeProgress answers 100 for one. Counted here rather than in the walk above
         // because the walk counts quests and this is a property of the chapter.
         for (ClientQuestCache.ChapterEntry chapter : ClientQuestCache.chapters()) {
@@ -3102,6 +3101,7 @@ public final class QuestBookScreen extends ArmatureScreen
     /** The header's icon box, or zero when the pack declares no icon at all. */
     private static int headerIconSize() {
         return ClientQuestCache.bookIconId().isEmpty() && ClientQuestCache.bookTextureIcon().isEmpty()
+                && ClientQuestCache.bookSpriteIcon().isEmpty()
                 ? 0 : 12;
     }
 
@@ -3761,11 +3761,15 @@ public final class QuestBookScreen extends ArmatureScreen
      * exactly the mode that was left. Turning it on puts the editor's columns away like leaving edit
      * mode does, because a panel whose every field just went inert is not a panel worth standing in.
      * Off is just the latch back: closed panels stay closed, the same way they do when edit mode is
-     * left. The way out while it is on is the floating pill over the canvas, since the band it was
-     * entered from belongs to a geometry this preview does not use.
+     * left. The way out of a pill-entered preview is the floating pill over the canvas, since the
+     * band it was entered from belongs to a geometry this preview does not use (a command-entered
+     * one has no pill, and its way out is the command again).
      */
     private void pressPreviewPill() {
         previewAsPlayer = !previewAsPlayer;
+        // The pill is its own way out, so a preview entered here always shows it — and a
+        // command-entered one keeps hiding it until the command (or closing the book) ends it.
+        previewFromCommand = false;
         if (previewAsPlayer) {
             closeMenu();
             closeColourPopover();
@@ -4823,6 +4827,61 @@ public final class QuestBookScreen extends ArmatureScreen
     private boolean previewAsPlayer;
 
     /**
+     * Whether the showing preview was entered through {@code /tenet preview} rather than the pill.
+     *
+     * <p>A command-entered preview draws no floating exit pill: the pill is operator chrome a
+     * player never sees, so drawing it would make the preview exactly what it exists not to be.
+     * The way out is the command again (or closing the book, which builds an editor next time),
+     * while a pill-entered preview keeps the pill as its way out.
+     *
+     * <p>It also hides vanilla chat — see {@link #tickPreviewChat} — for the same reason: the
+     * command and its reply sit in the history a player would never have.
+     */
+    private boolean previewFromCommand;
+
+    /**
+     * A {@code /tenet preview} ask parked between the payload and the screen's construction.
+     *
+     * <p>Null means no ask: the book opens as it was. Non-null means the command named an answer,
+     * consumed once by {@code init} like {@link viewer.QuestBookFocus}. Tri-state rather than a
+     * boolean because "toggle" cannot be resolved until there is a latch to flip — and the handler
+     * cannot assume this screen exists, so it parks the ask instead of flipping anything itself.
+     * A toggle parked while the book is closed flips "off" (there is no preview to leave), which is
+     * the only reading that opens the player's view rather than re-opening the editor.
+     */
+    private static Boolean previewRequest;
+
+    /**
+     * Parks a {@code /tenet preview} ask for the next time the book is constructed.
+     *
+     * @param toggle whether to flip the current preview rather than set it
+     * @param on     the absolute answer when {@code toggle} is false
+     */
+    public static void requestPreview(boolean toggle, boolean on) {
+        if (toggle) {
+            // Null (no ask) and false (an ask for the editor) both flip to the player's view: a
+            // toggle with the book closed is an operator asking to see the player's view, not an
+            // operator asking to re-open the editor they are already standing outside of.
+            previewRequest = previewRequest == null ? Boolean.TRUE : !previewRequest;
+        }
+        else {
+            previewRequest = on;
+        }
+    }
+
+    /** Takes the parked preview ask, if there is one. The second call always answers empty. */
+    static java.util.Optional<Boolean> consumePreviewRequest() {
+        Boolean ask = previewRequest;
+        previewRequest = null;
+        return java.util.Optional.ofNullable(ask);
+    }
+
+    /** Drops a parked preview ask. Called with the rest of the view state on disconnect. */
+    static void clearPreviewRequest() {
+        previewRequest = null;
+    }
+
+    /**
      * Whether the player's-view preview is actually showing: the latch lit, and still an operator.
      *
      * <p>Both halves, because the latch outlives neither a de-op (cleared in
@@ -4832,6 +4891,53 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private boolean previewing() {
         return mayEdit() && previewAsPlayer;
+    }
+
+    /**
+     * The chat visibility a command-entered preview overrode, or null when it overrode nothing.
+     *
+     * <p>Static because the screen that hid chat may be gone by the time it is restored: the
+     * command-off path rebuilds the book (a new instance with the latch off), and closing the
+     * book drops the instance entirely. Reconciled per tick rather than on transitions, so every
+     * exit — command, close, de-op, disconnect — restores through the same line.
+     */
+    private static net.minecraft.world.entity.player.ChatVisiblity chatHiddenFrom;
+
+    /**
+     * Hides vanilla chat while a command-entered preview is open, restoring it after.
+     *
+     * <p>Called once per client tick by each loader (like every other per-tick bookkeeping in
+     * their tick blocks). The command and its reply sit in the history no player would have, so
+     * a preview that left chat up would not be the player's view. Only the command path hides:
+     * a pill-entered preview keeps chat exactly as it was.
+     *
+     * <p>Restores the stored value rather than a default, so a player who normally runs
+     * commands-only gets commands-only back. If they change the setting mid-preview it is
+     * re-hidden next tick and the original still wins on exit; a crash mid-preview is the one
+     * case the stored value outlives, and that is one row in the options screen to flip back.
+     *
+     * <p>Public because both loaders call it from their tick, like {@link #openOn}.
+     */
+    public static void tickPreviewChat() {
+        Minecraft game = Minecraft.getInstance();
+        if (game == null || game.options == null) {
+            return;
+        }
+        boolean hidden = game.screen instanceof QuestBookScreen book
+                && book.previewing() && book.previewFromCommand;
+        var chat = game.options.chatVisibility();
+        if (hidden) {
+            if (chatHiddenFrom == null) {
+                chatHiddenFrom = chat.get();
+            }
+            if (chat.get() != net.minecraft.world.entity.player.ChatVisiblity.HIDDEN) {
+                chat.set(net.minecraft.world.entity.player.ChatVisiblity.HIDDEN);
+            }
+        }
+        else if (chatHiddenFrom != null) {
+            chat.set(chatHiddenFrom);
+            chatHiddenFrom = null;
+        }
     }
 
     /**
@@ -4857,6 +4963,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private void refreshEditingView() {
         if (!mayEdit()) {
             previewAsPlayer = false;
+            previewFromCommand = false;
         }
         editingView = mayEditNow();
     }
@@ -4878,7 +4985,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
 
         List<ClientQuestCache.Entry> quests = questsIn(chapter);
-        // A chapter that names a quest centres on it rather than on the whole canvas — FTB Quests'
+        // A chapter that names a quest centres on it rather than on the whole canvas — the legacy
         // `autofocus_id`. Resolved by id or alias within this chapter; a name that resolves nowhere
         // (or elsewhere, which the loader already refused) falls through to the bounding box, which
         // is the honest fallback: the chapter still lands in the middle rather than off the edge.
@@ -5786,9 +5893,28 @@ public final class QuestBookScreen extends ArmatureScreen
                         }
                         pick.ink(ArmatureButton.Ink.BODY).alignLeft(true);
                         if (!picture) {
-                            // The two icon rows wear the item they name. A path has no icon to wear, and the
-                            // chapter's own would be a lie about what the button is choosing.
-                            pick.icon(groupIcon ? groupIconStack(group) : chapterIcon);
+                            // The two icon rows wear the icon they name, in any arm. A path has no icon
+                            // to wear, and the chapter's own would be a lie about what the button is
+                            // choosing. An entity arm arrives as its egg stack, so it wears the item
+                            // arm like everywhere else; texture and sprite ride the button's own blit.
+                            ItemStack worn = groupIcon ? groupIconStack(group) : chapterIcon;
+                            String wornTexture = groupIcon ? groupTextureIcon(group)
+                                    : iconString(chapter, "texture");
+                            String wornSprite = groupIcon ? groupSpriteIcon(group)
+                                    : iconString(chapter, "sprite");
+                            if (!worn.isEmpty()) {
+                                pick.icon(worn);
+                            }
+                            else if (!wornTexture.isEmpty()
+                                    && net.minecraft.resources.ResourceLocation.tryParse(wornTexture)
+                                            != null) {
+                                pick.texture(net.minecraft.resources.ResourceLocation.parse(wornTexture));
+                            }
+                            else if (!wornSprite.isEmpty()
+                                    && net.minecraft.resources.ResourceLocation.tryParse(wornSprite)
+                                            != null) {
+                                pick.sprite(net.minecraft.resources.ResourceLocation.parse(wornSprite));
+                            }
                         }
                         toolsView.put(row.key(), pick, InspectLayout::controlBand);
                     }
@@ -7001,7 +7127,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * A quest's title with its FTB tokens still in it, for the surfaces that wear colours.
+     * A quest's title with its legacy tokens still in it, for the surfaces that wear colours.
      *
      * <p>The same rename-winning read as {@link #titleOf} — the same words, agreed by construction —
      * and only the ink differs. Measuring still takes the stripped reading, because colours are
@@ -7016,7 +7142,7 @@ public final class QuestBookScreen extends ArmatureScreen
         return fieldDraft.text(entry.chapterId(), entry.id(), "subtitle", entry.subtitleText());
     }
 
-    /** The subtitle with its FTB tokens still in it. See {@link #titleOfRaw}. */
+    /** The subtitle with its legacy tokens still in it. See {@link #titleOfRaw}. */
     private static String subtitleOfRaw(ClientQuestCache.Entry entry) {
         return fieldDraft.text(entry.chapterId(), entry.id(), "subtitle", entry.subtitleTextRaw());
     }
@@ -7463,7 +7589,14 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         for (ClientQuestCache.GroupEntry group : ClientQuestCache.groups()) {
             if (group.id().equals(groupId)) {
-                return new ChapterPanelLayout.GroupInfo(group.id(), group.title(), group.iconId(),
+                // Whichever arm the group wears, like the chapter's own button: an item id, an
+                // entity id (drawn as its egg), a texture path or a sprite region. The cache keeps
+                // texture and sprite out of `iconId`, so those read from their own fields — otherwise
+                // a group wearing a texture would show "unset" while the sidebar draws its picture.
+                String worn = !group.iconId().isEmpty() ? group.iconId()
+                        : !group.textureIcon().isEmpty() ? group.textureIcon()
+                                : group.spriteIcon();
+                return new ChapterPanelLayout.GroupInfo(group.id(), group.title(), worn,
                         group.collapsedByDefault());
             }
         }
@@ -7487,6 +7620,32 @@ public final class QuestBookScreen extends ArmatureScreen
             }
         }
         return ItemStack.EMPTY;
+    }
+
+    /** The group's own texture path, or "" when it authors an item, a sprite, or nothing. */
+    private static String groupTextureIcon(ChapterPanelLayout.GroupInfo group) {
+        if (group == null) {
+            return "";
+        }
+        for (ClientQuestCache.GroupEntry entry : ClientQuestCache.groups()) {
+            if (entry.id().equals(group.id())) {
+                return entry.textureIcon();
+            }
+        }
+        return "";
+    }
+
+    /** The group's own atlas region, or "" when it authors an item, a texture, or nothing. */
+    private static String groupSpriteIcon(ChapterPanelLayout.GroupInfo group) {
+        if (group == null) {
+            return "";
+        }
+        for (ClientQuestCache.GroupEntry entry : ClientQuestCache.groups()) {
+            if (entry.id().equals(group.id())) {
+                return entry.spriteIcon();
+            }
+        }
+        return "";
     }
 
     /** The chapter's icon, resolved for drawing; empty when absent or unknown to this client. */
@@ -9293,6 +9452,24 @@ public final class QuestBookScreen extends ArmatureScreen
             }
         });
 
+        // A `/tenet preview` ask parked by the payload handler: the command runs on the server and
+        // the latch lives here, so the handler parks and this consumes. Taken before the widgets build,
+        // because the geometry, the band and the editing gate all read the latch. A toggle parked while
+        // the book was closed was already resolved to "on" by `requestPreview`, so this sets absolutely.
+        // A non-operator keeps the editor's answer: the latch is only meaningful with the permission
+        // that `previewing()` already guards, and `refreshEditingView` clears it on de-op.
+        consumePreviewRequest().ifPresent(ask -> {
+            previewAsPlayer = ask;
+            // A command-entered preview shows no exit pill (see the field): the ask carries
+            // the way in, so the pill would be operator chrome over a player's view.
+            previewFromCommand = ask;
+            if (ask) {
+                closeMenu();
+                closeColourPopover();
+                applyColumns(PanelStack.afterClose(columns(), false));
+            }
+        });
+
         // **One path, because there is one presentation.** This was a ladder of eleven branches -- one per
         // kind, plus the book's own -- and every one of them built the same three things in the same order
         // and then returned, with the differences being exactly the faults that had accumulated: the
@@ -9351,11 +9528,14 @@ public final class QuestBookScreen extends ArmatureScreen
                         Component.translatable("tenet.screen.or_scroll_up_over_the_canvas")))
                 .ink(ArmatureButton.Ink.BODY);
 
-        // The way back out of the player's-view preview: a pill over the canvas's top-right corner,
-        // opposite the cluster. Nulled here rather than with the band's fields, because this is where
+        // The way back out of a pill-entered player's-view preview: a pill over the canvas's
+        // top-right corner, opposite the cluster (a command-entered one draws none — see the
+        // branch below). Nulled here rather than with the band's fields, because this is where
         // it is built — a field nulled in another builder is a control a reorder silently drops.
         previewExitButton = null;
-        if (previewing()) {
+        // The pill is the pill-entered preview's way out; a command-entered one draws none, so
+        // the canvas reads exactly as a player's. See `previewFromCommand`.
+        if (previewing() && !previewFromCommand) {
             BookGeometry.Rect canvas = geometry().canvas();
             int pillWidth = BookGeometry.PREVIEW_WIDTH;
             previewExitButton = control(
@@ -9642,6 +9822,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // The preview goes with the mode: it is only built while the mode is on, and a latch kept
             // past it would greet the mode's return already lit — a preview nobody asked to resume.
             previewAsPlayer = false;
+            previewFromCommand = false;
             // **And turning edit mode off puts the arrangement away.** Not because a child could outlive its
             // parent -- `overlay`/`overlay2` make that impossible by themselves now that the dock is not the
             // fallback occupant -- but because the panels are the mode's surfaces: leaving the mode with a
@@ -11218,7 +11399,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * kinds that do.
      */
     private static String rowText(String member, ClientQuestCache.TaskEntry task) {
-        // A title-less checkmark draws its bare button: FTB shows no sentence, so neither does
+        // A title-less checkmark draws its bare button: legacy packs show no sentence, so neither does
         // this, and the "?" for genuinely-missing labels stays where it belongs — everywhere else.
         if (task.type().equals("tenet:checkmark") && task.label().isEmpty()
                 && task.labelArg().isEmpty()) {
@@ -11232,7 +11413,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** A reward row's sentence; the task row's rule, one member over. */
     private static String rowText(String member, ClientQuestCache.RewardEntry reward) {
-        // A table that asks for its title names the row: FTB Quests' `use_title`. The reward's own
+        // A table that asks for its title names the row: the legacy `use_title`. The reward's own
         // sentence is the generic roll ("Roll the X table"); the table's title is what the author
         // wants read instead. Only for a named table whose summary says so — an inline table has no
         // summary, and a table that says nothing keeps the generic sentence a version-16 client drew.
@@ -19803,8 +19984,8 @@ public final class QuestBookScreen extends ArmatureScreen
         }
 
         // How a reward row draws this table, as two toggles on the title's line: whether the row wears
-        // the table's title (FTB `use_title`) and whether it draws an item tooltip (FTB `hide_tooltip`
-        // suppresses it). Beside the title box because that is what the first toggle draws, and drawn
+        // the table's title (legacy `use_title`) and whether it draws an item tooltip (legacy
+        // `hide_tooltip` suppresses it). Beside the title box because that is what the first toggle draws, and drawn
         // from the drafted model so a press reads back on the next frame without waiting for the server.
         if (model.isPresent() && tableTitleBox != null) {
             int chipY = header.y() + 1;
@@ -23437,7 +23618,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
         // The canvas's decoration, under everything else on it: a box behind a cluster of quests, a label over
         // the backdrop, a rule between two tiers. After the chapter's own background and **before** the
-        // dependency lines, which is FTB's own arrangement and the reason a box is a container rather than a
+        // dependency lines, which is the legacy format's own arrangement and the reason a box is a container rather than a
         // lid over what it names. Culled and gated by stampCanvas, so a frame re-issues what it was given; the
         // look is read per frame, because hover eases and a selection changes on a press.
         CanvasElementArt.Frame elementFrame = elementFrame(r);
@@ -23516,7 +23697,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // a large icon reaches the corner the lock would sit inside, and vanilla's item pipeline
         // draws over fills whatever order they are issued in — a lock drawn with its node ends up
         // under the item. Half outside the panel the icon cannot reach it, and the half that stays
-        // reads as pinned to the node rather than floating beside it. FTB Quests' `show_lock_icons`
+        // reads as pinned to the node rather than floating beside it. the legacy `show_lock_icons`
         // with the quest's own `hide_lock_icon`, either silence winning; a locked node without one
         // still reads locked — the blocked edge and the dim wash stay — because the mark is the
         // announcement, not the state.
@@ -23556,9 +23737,13 @@ public final class QuestBookScreen extends ArmatureScreen
                             + " \u00b7 escape cancels";
             int hintX = canvasLeft() + 10;
             int hintY = canvasTop() + 10;
+            // A tooltip's tokens rather than a label's: this is a floating sentence over the canvas,
+            // not a node label, and only the tooltip pair stays readable on a light theme — a label
+            // backdrop is dark on every shipped theme (it carries white node ink) while body ink
+            // is dark on paper, so that pairing is dark-on-dark there.
             r.fill(hintX - 3, hintY - 2, hintX + r.textWidth(hint) + 3, hintY + 10,
-                    ArmatureTheme.labelBackdrop());
-            r.text(hint, hintX, hintY, ArmatureTheme.body());
+                    ArmatureTheme.tooltipFill());
+            r.text(hint, hintX, hintY, ArmatureTheme.tooltipText());
         }
 
         if (quests.isEmpty()) {
@@ -23650,7 +23835,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 // The icon was offered at stamp time, and the node's own box decided whether it
                 // is drawn. See CanvasSettings and QuestNodeArt for why the zoom never did.
                 node.icon(), node.texture(), node.sprite(), node.iconScale(),
-                // A chapter or book that disabled the LOD draws every icon at every zoom — FTB
+                // A chapter or book that disabled the LOD draws every icon at every zoom — legacy
                 // parity, resolved per chapter so one tierless chapter does not tierless the rest.
                 // One map lookup per node per frame, which is what the chapter index is for.
                 ClientQuestCache.lodDisabledFor(node.chapterId()),
@@ -23777,7 +23962,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // than shadowed: a shadow does not help against a line of similar brightness.
             r.fill(label.x() - 2, label.y() - 1, label.x() + label.cut().advance() + 2, label.y() + 9,
                     ArmatureTheme.labelBackdrop());
-            FtbText.draw(r, label.cut(), label.x(), label.y(), textColour);
+            RichText.draw(r, label.cut(), label.x(), label.y(), textColour);
         }
     }
 
@@ -24036,11 +24221,11 @@ public final class QuestBookScreen extends ArmatureScreen
      *
      * <p>The cut carries the runs the draw would have decided on, so the frame draws
      * fills and runs and measures nothing — not the title's locale resolution, not the
-     * truncation walk, not the FTB token parse. The colour stays per frame: selection
+     * truncation walk, not the legacy token parse. The colour stays per frame: selection
      * is a press rather than a revision, and a selected label must answer it on the
      * press rather than on the next stamp.
      */
-    private record FrameLabel(String id, QuestState state, int x, int y, FtbText.Cut cut) {
+    private record FrameLabel(String id, QuestState state, int x, int y, RichText.Cut cut) {
     }
 
     /** The chapter's nodes as the frame draws them, in draw order. Rebuilt by the stamp. */
@@ -24440,7 +24625,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     int owner = boxOf.get(entry.id());
                     LabelOverlap.Box box = boxes.get(owner);
                     int size = box.size();
-                    FtbText.Cut cut = FtbText.truncate(titleOfRaw(entry), room, measure);
+                    RichText.Cut cut = RichText.truncate(titleOfRaw(entry), room, measure);
                     int width = cut.advance();
                     // Clamped inward so a label on the edge node is not half off the canvas,
                     // but never so far that it slides away from the node it belongs to. The
@@ -24485,7 +24670,7 @@ public final class QuestBookScreen extends ArmatureScreen
      *
      * <h2>Why this is a switch over a closed set rather than a lookup</h2>
      *
-     * <p>Because the set is FTB's seven names and this build runs all seven: the two the client cannot
+     * <p>Because the set is the legacy seven names and this build runs all seven: the two the client cannot
      * run itself cross the wire as identity, and the server reads what the press does from its own
      * index. The default arm is a no-op rather than a message because a message here could only be
      * reached by a client that had resynced against a server whose validator said nothing — which is
@@ -24528,7 +24713,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * A press naming a quest, by id or alias in any letter case: the book opens it, or says so.
      *
      * <p>One rule for a picture's {@code open_quest} click and a sentence's {@code change_page}:
-     * FTB's own reader treats the latter as the former, so this build does too. A press naming
+     * the legacy own reader treats the latter as the former, so this build does too. A press naming
      * nothing is the validator's miss reaching the reader — a stale client, or a pack edited
      * under one — and it is answered rather than silent, the second line of defence.
      */
@@ -24545,7 +24730,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         // Through the entry's own id rather than the string in the file: the press may name an
         // alias, and opening by an alias works only as long as every lookup resolves one.
-        // A `change_page` value may carry FTB's `/page` suffix after its quest id; the card
+        // A `change_page` value may carry the legacy `/page` suffix after its quest id; the card
         // scrolls rather than pages, so the suffix is read and left behind.
         selectedQuest = target.id();
         selectedElement = null;
@@ -25992,20 +26177,17 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * A chapter's banner title: its ordinal, its title, and the group it belongs to.
+     * A chapter's banner title: the chapter's own title, and nothing else.
      *
-     * <p>The ordinal is the chapter's position in the book's declared order, and it earns its place for
-     * the reason the menu groups by chapter at all: two chapters can hold a quest of the same name —
-     * "Craft a Crafting Table" is the obvious one — and the number is what tells a reader which section
-     * they are in when a banner has scrolled to the top of the list.
-     *
-     * <p>The group is a faint prefix rather than a fourth accordion level: it is context, not a thing to
-     * fold, and a book with no groups draws exactly the same banner without it.
+     * <p>It used to be the group, the ordinal and the title — "First Light › 1 · The Engine" — and the
+     * row read "First Light › 1 · Th..." on any card that mattered: eighteen characters of navigation
+     * metadata before the one word the reader came for, truncated mid-word. The ordinal told a reader
+     * which section they were in when a banner scrolled to the top, and the group told them which group
+     * it hung under — both context, both now in the row's hover, where context belongs. The row owns
+     * the title; the hover owns the rest.
      */
     private String chapterLabel(int ordinal, String chapterId, String title) {
-        String numbered = ordinal + " \u00b7 " + title;
-        String group = groupTitleOf(chapterId);
-        return group.isEmpty() ? numbered : group + " \u203a " + numbered;
+        return title;
     }
 
     /** The title of the group a chapter hangs under, or empty for a chapter that belongs to none. */
@@ -26049,6 +26231,20 @@ public final class QuestBookScreen extends ArmatureScreen
                 Math.max(0, card.height() - REWARDS_BODY_TOP - BookGeometry.MODAL_CHROME));
     }
 
+    /** Whether the card is too narrow to hold its title and its toggles side by side. */
+    private boolean isRewardChipsNarrow() {
+        if (rewardCard == null) {
+            return false;
+        }
+        int chipWidth = stateChipWidth();
+        int gap = 4;
+        int states = RewardInboxLayout.State.values().length;
+        int right = rewardCard.right() - BookGeometry.MODAL_INSET;
+        int titleRoom = 90;
+        return right - (states * chipWidth + (states - 1) * gap)
+                < rewardCard.x() + BookGeometry.MODAL_INSET + titleRoom;
+    }
+
     /** The filter chips, right-aligned in the card's header band. Answers the chips it made. */
     private List<ArmatureButton> buildRewardStateChips() {
         List<ArmatureButton> built = new ArrayList<>();
@@ -26059,14 +26255,9 @@ public final class QuestBookScreen extends ArmatureScreen
         // Under the two lines of title and above the rule, from the same number the rule is drawn at.
         int y = rewardCard.y() + REWARDS_BODY_TOP - STATE_CHIP_HEIGHT - STATE_CHIP_GAP;
         int right = rewardCard.right() - BookGeometry.MODAL_INSET;
-        int titleRoom = 90;
-        if (right - (states.length * chipWidth + (states.length - 1) * gap)
-                < rewardCard.x() + BookGeometry.MODAL_INSET + titleRoom) {
-            // A card too narrow to hold the title and the toggles: the toggles go rather than the title,
-            // because a row of chips squeezed against a truncated word is a row nobody can read. The
-            // list still works in whichever state it is in; the chips come back when the window does.
-            return built;
-        }
+        // Chips win over the title when the two collide: dropping the toggles strands the reader in
+        // one view with no way out, while dropping the title loses decoration. The overlay skips the
+        // title text when narrow (see drawRewardsOverlay) so the two never overwrite each other.
         for (int i = 0; i < states.length; i++) {
             RewardInboxLayout.State state = states[i];
             int x = right - (states.length - i) * chipWidth - (states.length - 1 - i) * gap;
@@ -26285,7 +26476,9 @@ public final class QuestBookScreen extends ArmatureScreen
      *
      * <p>The action is named by the row's kind rather than by whether it folds, which is what the two
      * kinds of accordion need: a banner and a quest header both fold, and a button that said "Claim
-     * Quest" on a chapter would be the card naming the wrong rung of its own ladder.
+     * Quest" on a chapter would be the card naming the wrong rung of its own ladder. Containers carry
+     * their count — "Claim Chapter (3)" — so a bulk press states its scope and a single press does
+     * not pretend to be one.
      */
     private Component buttonLabel(RewardInboxLayout.Row row) {
         if (!row.pressable()) {
@@ -26293,8 +26486,8 @@ public final class QuestBookScreen extends ArmatureScreen
                     ? "tenet.viewer.locked" : "tenet.viewer.claimed");
         }
         return switch (row.kind()) {
-            case CHAPTER -> Component.translatable("tenet.screen.rewards.claim_chapter");
-            case QUEST -> Component.translatable("tenet.screen.rewards.claim_quest");
+            case CHAPTER -> Component.translatable("tenet.screen.rewards.claim_chapter", row.count());
+            case QUEST -> Component.translatable("tenet.screen.rewards.claim_quest", row.count());
             case SINGLE, REWARD -> Component.translatable(
                     isChoiceReward(row.questId(), row.rewardIndex())
                             ? "tenet.screen.rewards.choose" : "tenet.screen.rewards.claim_row");
@@ -26537,9 +26730,11 @@ public final class QuestBookScreen extends ArmatureScreen
 
         int listed = rewardListed;
         int textX = left + 14;
-        r.text(Component.translatable("tenet.screen.rewards.title").getString(), textX, top + 12,
-                ArmatureTheme.title());
-        r.text(subtitle(listed).getString(), textX, top + 26, ArmatureTheme.faint());
+        if (!isRewardChipsNarrow()) {
+            r.text(Component.translatable("tenet.screen.rewards.title").getString(), textX, top + 12,
+                    ArmatureTheme.title());
+            r.text(subtitle(listed).getString(), textX, top + 26, ArmatureTheme.faint());
+        }
 
         if (rewardLayout == null) {
             return;
@@ -26631,11 +26826,21 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * A chapter's banner: its fold marker, its icon, its ordinal and title, its completion, its badge,
-     * and Claim Chapter.
+     * A chapter's banner: its fold marker, its icon, its title with the ready count inline, and Claim
+     * Chapter.
      *
-     * <p>Every cell is measured before anything is drawn, the rule every row in this file follows: the
-     * hover wash goes behind the icons, so its width has to be known before the row exists.
+     * <p>The title is the chapter's own and nothing else — no group, no ordinal. Those read
+     * "First Light › 1 · Th..." on any card that mattered, so they live in the hover now. The badge
+     * rides inline after the title ("The Engine · 1 ready") rather than right-aligned in the rewards
+     * cell: a count floating 150 pixels from what it counts reads as a second fact, and the rewards
+     * cell stands empty on this kind. When even the compact count does not fit, the title alone is
+     * drawn — the hover still carries the number, and a broken number reads worse than none.
+     *
+     * <p>No fill behind the banner, no rule under it, no hover wash on any row in this menu:
+     * every background that ever lived here ended mid-row — the fill at the action column, the wash
+     * at the words, the rule at the slot — and beside a Claim button any such edge reads as a broken
+     * box. A banner is its height, its gap and its inline count; hover feedback lives on the buttons
+     * and in the tooltips, which have no edges to get wrong.
      */
     private void drawRewardChapterRow(GuiRenderer r, RewardInboxLayout.Row row, Slot slot, float hover,
                                       int mouseX, int mouseY) {
@@ -26645,47 +26850,67 @@ public final class QuestBookScreen extends ArmatureScreen
         int iconY = slot.y() + (slot.height() - ROW_ICON) / 2;
 
         Slot context = RewardInboxLayout.column(slot, RewardInboxLayout.Column.CONTEXT);
-        Slot rewards = RewardInboxLayout.column(slot, RewardInboxLayout.Column.REWARDS);
 
-        // The live badge the banner exists for: how many of this chapter's rewards are ready.
-        //
-        // A count and not a proportion, and that is the fix rather than a preference. The fraction it
-        // used to be was counted over every reward the chapter *defines*, including quests this player
-        // cannot reach, so it read "52/1116" — implying 95% of the chapter was untouched when 1064 of
-        // those were simply locked. There is no denominator to get wrong now, and the number is the rows
-        // the build admitted rather than a second count taken from somewhere else.
-        String badge = Component.translatable("tenet.screen.rewards.chapter_ready", row.count())
+        String fullBadge = Component.translatable("tenet.screen.rewards.chapter_ready", row.count())
                 .getString();
-        // Clamped to its cell, because the first version of this drew it unclamped and a badge wider
-        // than its column ran straight into the figure beside it -- which is what "complete52/1116" on
-        // the banner was. A count that does not fit is dropped rather than truncated: "52 rea…" reads as
-        // a broken number, the row's own hover still carries it, and the button beside it already says
-        // what the press does.
-        String shown = r.textWidth(badge) <= rewards.width() ? badge : "";
-        int badgeX = rewards.x() + Math.max(0, rewards.width() - r.textWidth(shown));
+        String compactBadge = String.valueOf(row.count());
 
-        rowWashFull(r, slot, Math.max(badgeX + r.textWidth(shown), context.x() + 40), hover);
+        int markerWidth = markerRoom(r);
+        boolean hasIcon = !chapterIcon(row.chapterId()).isEmpty()
+                || (!chapterTextureIcon(row.chapterId()).isEmpty()
+                        && net.minecraft.resources.ResourceLocation
+                                .tryParse(chapterTextureIcon(row.chapterId())) != null)
+                || (!chapterSpriteIcon(row.chapterId()).isEmpty()
+                        && net.minecraft.resources.ResourceLocation
+                                .tryParse(chapterSpriteIcon(row.chapterId())) != null);
+        int iconRoom = hasIcon ? ROW_ICON + 5 : 0;
+        int avail = Math.max(0, context.width() - markerWidth - iconRoom);
+
+        String inlineFull = "\u00b7 " + fullBadge;
+        String inlineCompact = "\u00b7 " + compactBadge;
+        String title = row.label();
+        String badgeDraw = inlineFull;
+        int badgeW = r.textWidth(inlineFull);
+        int titleAvail = Math.max(0, avail - badgeW - RewardInboxLayout.COLUMN_GAP);
+        String shownTitle = Measure.truncate(title, titleAvail, textMeasure(r));
+        if (shownTitle.isEmpty() && !title.isEmpty()) {
+            badgeDraw = inlineCompact;
+            badgeW = r.textWidth(inlineCompact);
+            titleAvail = Math.max(0, avail - badgeW - RewardInboxLayout.COLUMN_GAP);
+            shownTitle = Measure.truncate(title, titleAvail, textMeasure(r));
+            if (shownTitle.isEmpty()) {
+                badgeDraw = "";
+                badgeW = 0;
+                shownTitle = Measure.truncate(title, avail, textMeasure(r));
+            }
+        }
 
         int x = context.x();
         r.text(marker, x, textY, ArmatureTheme.faint());
-        x += markerRoom(r);
-        ItemStack icon = chapterIcon(row.chapterId());
-        if (!icon.isEmpty() && r.icon(icon, x, iconY, ROW_ICON)) {
-            x += ROW_ICON + 5;
+        x += markerWidth;
+        if (hasIcon) {
+            drawRewardIcon(r, chapterIcon(row.chapterId()), chapterTextureIcon(row.chapterId()),
+                    chapterSpriteIcon(row.chapterId()), x, iconY, ROW_ICON);
+            x += iconRoom;
         }
-        int room = Math.max(0, rewards.x() - RewardInboxLayout.COLUMN_GAP - x);
-        r.text(Measure.truncate(row.label(), room, textMeasure(r)), x, textY, ArmatureTheme.title());
-        // The "you may take this" colour rather than inProgress(), which this theme also uses as its
-        // danger ink: a badge that counts something the player *can* have should not borrow the colour
-        // the UI reserves for caution.
-        r.text(shown, badgeX, textY, ArmatureTheme.available());
+        r.text(shownTitle, x, textY, ArmatureTheme.title());
+        x += r.textWidth(shownTitle);
+        if (!badgeDraw.isEmpty()) {
+            // The "you may take this" colour rather than inProgress(), which this theme also uses as its
+            // danger ink: a badge that counts something the player *can* have should not borrow the colour
+            // the UI reserves for caution.
+            r.text(badgeDraw, x + RewardInboxLayout.COLUMN_GAP, textY, ArmatureTheme.available());
+        }
 
         if (slot.contains(mouseX, mouseY)) {
-            rowTooltips.add(new RowTooltip(slot, List.of(
-                    Component.translatable(expanded
-                            ? "tenet.screen.rewards.collapse_hint"
-                            : "tenet.screen.rewards.expand_hint").getString(),
-                    countLine(row))));
+            List<String> lines = new ArrayList<>();
+            String group = groupTitleOf(row.chapterId());
+            lines.add(group.isEmpty() ? row.label() : group + " \u203a " + row.label());
+            lines.add(Component.translatable(expanded
+                    ? "tenet.screen.rewards.collapse_hint"
+                    : "tenet.screen.rewards.expand_hint").getString());
+            lines.add(countLine(row));
+            rowTooltips.add(new RowTooltip(slot, lines));
         }
     }
 
@@ -26735,19 +26960,17 @@ public final class QuestBookScreen extends ArmatureScreen
 
         int x = context.x();
         int markerWidth = markerRoom(r);
-        ItemStack icon = entry.icon();
-        int iconRoom = icon.isEmpty() ? 0 : ROW_ICON + 5;
+        boolean hasIcon = !entry.icon().isEmpty() || !entry.textureIcon().isEmpty()
+                || !entry.spriteIcon().isEmpty();
+        int iconRoom = hasIcon ? ROW_ICON + 5 : 0;
         int titleRoom = Math.max(0,
                 rewards.x() - RewardInboxLayout.COLUMN_GAP - (x + markerWidth + iconRoom));
         String title = Measure.truncate(row.label(), titleRoom, textMeasure(r));
-        int contentRight = x + markerWidth + iconRoom + r.textWidth(title);
-
-        rowWashFull(r, slot, contentRight, hover);
 
         r.text(marker, x, textY, ArmatureTheme.faint());
         x += markerWidth;
-        if (iconRoom > 0) {
-            r.icon(icon, x, iconY, ROW_ICON);
+        if (hasIcon) {
+            drawRewardIcon(r, entry.icon(), entry.textureIcon(), entry.spriteIcon(), x, iconY, ROW_ICON);
             x += iconRoom;
         }
         r.text(title, x, textY, ArmatureTheme.title());
@@ -26841,11 +27064,66 @@ public final class QuestBookScreen extends ArmatureScreen
         return ItemStack.EMPTY;
     }
 
+    /** A chapter's texture path, or "" when it wears an item, a sprite, or nothing. */
+    private static String chapterTextureIcon(String chapterId) {
+        for (ClientQuestCache.ChapterEntry chapter : ClientQuestCache.chapters()) {
+            if (chapter.id().equals(chapterId)) {
+                return chapter.textureIcon();
+            }
+        }
+        return "";
+    }
+
+    /** A chapter's atlas region, or "" when it wears an item, a texture, or nothing. */
+    private static String chapterSpriteIcon(String chapterId) {
+        for (ClientQuestCache.ChapterEntry chapter : ClientQuestCache.chapters()) {
+            if (chapter.id().equals(chapterId)) {
+                return chapter.spriteIcon();
+            }
+        }
+        return "";
+    }
+
     /**
-     * A quest whose definition holds one reward: its title, the reward in the details column, one Claim.
+     * One reward-inbox icon in any arm: the stack, the blit, or the atlas region.
      *
-     * <p>The hover carries both halves — the quest it belongs to, and the reward's full tooltip —
-     * because a single row is where an abstract title ("Botanical Wonders") would otherwise say nothing
+     * <p>The same precedence the quest header uses — item, then texture, then sprite — so a quest
+     * or chapter reads the same in the inbox as on its card. An entity arm never reaches here as
+     * such: the cache resolves it to its egg stack (or to empty with the id kept), so it draws
+     * through the item arm like everywhere else.
+     *
+     * @return whether anything was drawn, which is what decides the title's indent
+     */
+    private static boolean drawRewardIcon(GuiRenderer r, ItemStack stack, String texture, String sprite,
+                                          int x, int y, int size) {
+        if (!stack.isEmpty()) {
+            return r.icon(stack, x, y, size);
+        }
+        if (texture != null && !texture.isEmpty()
+                && net.minecraft.resources.ResourceLocation.tryParse(texture) != null) {
+            r.texture(net.minecraft.resources.ResourceLocation.parse(texture), x, y, size, size);
+            return true;
+        }
+        if (sprite != null && !sprite.isEmpty()
+                && net.minecraft.resources.ResourceLocation.tryParse(sprite) != null) {
+            r.sprite(net.minecraft.resources.ResourceLocation.parse(sprite), x, y, size, size, 0xFFFFFFFF);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * A quest whose definition holds one reward: one icon, one line, one Claim.
+     *
+     * <p>It used to be two icons with a moat between them — the quest's icon and title on the left,
+     * the payout's icon and bare count stranded in the details column — so the row read as two facts
+     * that had nothing to do with each other, and "x8" of nothing. Now the context carries both halves
+     * in one line ("Make a Table · x8 Stick") under the payout's own icon: the quest names the row for
+     * finding, the payout names it for collecting, and there is one icon because there is one thing to
+     * take. The details column stands empty on this kind, like the rewards cell on a banner.
+     *
+     * <p>The hover carries both halves in full — the quest it belongs to, and the reward's tooltip —
+     * because a single line is where an abstract title ("Botanical Wonders") would otherwise say nothing
      * about what is being collected.
      */
     private void drawRewardInboxSingle(GuiRenderer r, RewardInboxLayout.Row row, Slot slot, float hover,
@@ -26859,29 +27137,48 @@ public final class QuestBookScreen extends ArmatureScreen
         int iconY = slot.y() + (slot.height() - ROW_ICON) / 2;
 
         Slot context = RewardInboxLayout.column(slot, RewardInboxLayout.Column.CONTEXT);
-        Slot rewards = RewardInboxLayout.column(slot, RewardInboxLayout.Column.REWARDS);
 
-        // The marker's room is reserved even though this row has no marker, so the icon column is
-        // straight: a single row and a quest row are the same kind of row to a reader, and an icon that
-        // sits ten pixels left of its neighbours reads as a misaligned column rather than as a fold
-        // that is not there.
-        int markerWidth = markerRoom(r);
-        ItemStack questIcon = entry.icon();
-        if (questIcon.isEmpty()) {
-            questIcon = ClientQuestCache.adoptedQuestIcon(entry);
+        // The payout, in words: the item's name with its count, the sentence for anything else, and
+        // the word for a reward waiting on a decision.
+        String payout;
+        if (isChoiceType(reward.type())) {
+            payout = Component.translatable("tenet.screen.rewards.choose").getString();
         }
-        int textX = context.x() + markerWidth + (questIcon.isEmpty() ? 0 : ROW_ICON + 5);
-        String title = Measure.truncate(row.label(),
-                Math.max(0, rewards.x() - RewardInboxLayout.COLUMN_GAP - textX), textMeasure(r));
-        int contentRight = textX + r.textWidth(title);
-
-        rowWashFull(r, slot, contentRight, hover);
-
-        if (!questIcon.isEmpty()) {
-            r.icon(questIcon, context.x() + markerWidth, iconY, ROW_ICON);
+        else if (reward.hasItem()) {
+            payout = RewardText.withCount(reward.item().getHoverName().getString(), row.count());
         }
-        r.text(title, textX, textY, ArmatureTheme.title());
-        drawRewardCells(r, rewards, List.of(row), textY, iconY);
+        else {
+            payout = rowText("rewards", reward);
+        }
+        boolean missingItem = !reward.hasItem() && !reward.itemId().isEmpty();
+        boolean shut = !row.pressable();
+
+        // One line, no marker room: this row never folds. The payout is what the press takes, so when
+        // the two halves do not fit it wins and the quest yields — a row reading only its payout still
+        // collects correctly, while a row reading only its quest collects blind.
+        int textX = context.x() + ROW_ICON + 5;
+        int avail = Math.max(0, context.width() - ROW_ICON - 5);
+        String sep = " \u00b7 ";
+        String shownTitle = Measure.truncate(row.label(),
+                Math.max(0, avail - r.textWidth(sep + payout)), textMeasure(r));
+        boolean hasTitle = !shownTitle.isEmpty();
+        String shownPayout = hasTitle ? payout : Measure.truncate(payout, avail, textMeasure(r));
+
+        if (missingItem) {
+            drawItemPlaceholder(r, context.x(), iconY, ROW_ICON);
+        }
+        else {
+            r.icon(reward.shown(), context.x(), iconY, ROW_ICON);
+        }
+        int x = textX;
+        if (hasTitle) {
+            r.text(shownTitle, x, textY, ArmatureTheme.title());
+            x += r.textWidth(shownTitle);
+            r.text(sep, x, textY, ArmatureTheme.faint());
+            x += r.textWidth(sep);
+        }
+        r.text(shownPayout, x, textY,
+                missingItem || shut ? ArmatureTheme.blocked() : ArmatureTheme.body());
 
         if (slot.contains(mouseX, mouseY)) {
             List<String> lines = new ArrayList<>();
@@ -26930,10 +27227,6 @@ public final class QuestBookScreen extends ArmatureScreen
         int room = Math.max(0, action.x() - RewardInboxLayout.COLUMN_GAP - textX
                 - (count.isEmpty() ? 0 : 5 + r.textWidth(count)));
         String shown = Measure.truncate(row.label(), room, textMeasure(r));
-        int contentRight = textX + r.textWidth(shown)
-                + (count.isEmpty() ? 0 : 5 + r.textWidth(count));
-
-        rowWashFull(r, slot, contentRight, hover);
 
         if (missingItem) {
             drawItemPlaceholder(r, context.x(), iconY, ROW_ICON);
@@ -27450,7 +27743,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // title wears them.
         int titleAdvance = r.textWidth(titleOf(entry));
         if (!InlineEdit.replaces("title", editingPath)) {
-            titleAdvance = FtbText.drawColored(r, titleOfRaw(entry), textX, top + 12,
+            titleAdvance = RichText.drawColored(r, titleOfRaw(entry), textX, top + 12,
                     InlineEdit.ink("title"));
         }
         r.text(cardStateLabel(state), textX + titleAdvance + 10, top + 12,
@@ -27461,12 +27754,12 @@ public final class QuestBookScreen extends ArmatureScreen
         // drawing both would print the chapter title through the field's text. Each part wears its
         // own colours, drawn left to right off the running advance.
         if (!InlineEdit.replaces("subtitle", editingPath)) {
-            int atX = FtbText.drawColored(r, entry.chapterTitleTextRaw(), textX, top + 26,
+            int atX = RichText.drawColored(r, entry.chapterTitleTextRaw(), textX, top + 26,
                     InlineEdit.ink("subtitle"));
             if (!whereSub.isEmpty()) {
                 r.text("  \u00b7  ", atX, top + 26, InlineEdit.ink("subtitle"));
                 atX += r.textWidth("  \u00b7  ");
-                atX = FtbText.drawColored(r, subtitleOfRaw(entry), atX, top + 26,
+                atX = RichText.drawColored(r, subtitleOfRaw(entry), atX, top + 26,
                         InlineEdit.ink("subtitle"));
             }
             // The guide book page this quest belongs to, when it names one. A reference in
@@ -27646,7 +27939,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * text with the plain measure instead -- same shape, other producer, and the difference between them is
      * the one the author sees when a marked-up description re-flows as they click out of the field.
      *
-     * <p>FTB tokens are read first, per paragraph: the colour codes become the look the drawing wears,
+     * <p>Legacy tokens are read first, per paragraph: the colour codes become the look the drawing wears,
      * page breaks become paragraph breaks, and links and pictures are consumed into runs the drawing
      * draws. What the markdown pass sees is the residual words, so the two grammars never parse each
      * other's markers -- and the overlay is indexed by the residual, which is the only indexing the
@@ -27657,10 +27950,10 @@ public final class QuestBookScreen extends ArmatureScreen
         linkRects.clear();
         // Measured at the font's own size: a block's scale is the kit's to apply (RichText.scale), so the
         // wrapped widths and the drawn runs come from one rule rather than two.
-        RichText.StyledWidth styled = (text, bold, italic) -> r.styledWidth(text, bold, italic, 1F);
+        dev.ellipog.armature.client.ui.kit.RichText.StyledWidth styled = (text, bold, italic) -> r.styledWidth(text, bold, italic, 1F);
         List<OverlayLayout.Prose> prose = new ArrayList<>();
         for (String element : description) {
-            for (FtbText.Rendered page : FtbText.pages(element, QuestBookScreen::substituteText)) {
+            for (RichText.Rendered page : RichText.pages(element, QuestBookScreen::substituteText)) {
                 emitPage(r, prose, page, column, styled);
             }
         }
@@ -27687,10 +27980,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * still emits one empty block, because consecutive breaks are a wider gap and an empty page
      * that reserved nothing would collapse them into one.
      */
-    private void emitPage(GuiRenderer r, List<OverlayLayout.Prose> prose, FtbText.Rendered page,
-                          int column, RichText.StyledWidth styled) {
+    private void emitPage(GuiRenderer r, List<OverlayLayout.Prose> prose, RichText.Rendered page,
+                          int column, dev.ellipog.armature.client.ui.kit.RichText.StyledWidth styled) {
         int cursor = 0;
-        for (FtbText.PlacedImage placed : page.images()) {
+        for (RichText.PlacedImage placed : page.images()) {
             if (placed.offset() > cursor) {
                 emitWords(r, prose, page, cursor, placed.offset(), column, styled);
             }
@@ -27703,36 +27996,36 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** Words as blocks, with the look rebased onto the chunk. */
-    private void emitWords(GuiRenderer r, List<OverlayLayout.Prose> prose, FtbText.Rendered page,
-                           int from, int to, int column, RichText.StyledWidth styled) {
+    private void emitWords(GuiRenderer r, List<OverlayLayout.Prose> prose, RichText.Rendered page,
+                           int from, int to, int column, dev.ellipog.armature.client.ui.kit.RichText.StyledWidth styled) {
         String chunk = page.residual().substring(from, to);
-        List<FtbText.Span> spans = new ArrayList<>();
-        for (FtbText.Span span : page.spans()) {
+        List<RichText.Span> spans = new ArrayList<>();
+        for (RichText.Span span : page.spans()) {
             if (span.start() < to && span.end() > from) {
-                spans.add(new FtbText.Span(Math.max(span.start(), from) - from,
+                spans.add(new RichText.Span(Math.max(span.start(), from) - from,
                         Math.min(span.end(), to) - from, span.argb(), span.link(), span.quest(),
                         span.bold(), span.italic(), span.underline()));
             }
         }
-        for (RichText.Paragraph block : RichText.parse(chunk)) {
-            List<RichText.Line> lines = RichText.wrap(block, column, styled);
+        for (dev.ellipog.armature.client.ui.kit.RichText.Paragraph block : dev.ellipog.armature.client.ui.kit.RichText.parse(chunk)) {
+            List<dev.ellipog.armature.client.ui.kit.RichText.Line> lines = dev.ellipog.armature.client.ui.kit.RichText.wrap(block, column, styled);
             List<String> texts = new ArrayList<>(lines.size());
             int widest = 0;
-            for (RichText.Line line : lines) {
+            for (dev.ellipog.armature.client.ui.kit.RichText.Line line : lines) {
                 texts.add(block.text().substring(line.start(), line.end()));
-                widest = Math.max(widest, RichText.styledWidth(block, line.start(), line.end(), styled));
+                widest = Math.max(widest, dev.ellipog.armature.client.ui.kit.RichText.styledWidth(block, line.start(), line.end(), styled));
             }
             readerProse.add(new ProseBlock(block, lines, List.copyOf(spans), null));
             // The block's own pitch, from the same rule the drawing advances by: a heading's lines are
             // taller, and the space reserved for them has to be the space they take.
             prose.add(new OverlayLayout.Prose(texts, widest,
-                    Math.round(OverlayLayout.LINE_HEIGHT * RichText.scale(block))));
+                    Math.round(OverlayLayout.LINE_HEIGHT * dev.ellipog.armature.client.ui.kit.RichText.scale(block))));
         }
     }
 
     /** One picture as a block the full column wide and the picture tall. */
-    private void emitImage(List<OverlayLayout.Prose> prose, FtbText.PlacedImage placed, int column) {
-        FtbText.ImageBox box = FtbText.fitImage(placed.image(), column);
+    private void emitImage(List<OverlayLayout.Prose> prose, RichText.PlacedImage placed, int column) {
+        RichText.ImageBox box = RichText.fitImage(placed.image(), column);
         readerProse.add(new ProseBlock(null, List.of(), List.of(), placed));
         prose.add(new OverlayLayout.Prose(List.of(""), column, box.height()));
     }
@@ -27789,20 +28082,20 @@ public final class QuestBookScreen extends ArmatureScreen
             }
             // A heading takes the ink the card's own section headings take, so a markdown heading reads as
             // a heading rather than as louder prose.
-            int ink = block.paragraph().kind() == RichText.Kind.HEADING
+            int ink = block.paragraph().kind() == dev.ellipog.armature.client.ui.kit.RichText.Kind.HEADING
                     ? ArmatureTheme.heading() : ArmatureTheme.body();
-            int advance = Math.round(OverlayLayout.LINE_HEIGHT * RichText.scale(block.paragraph()));
+            int advance = Math.round(OverlayLayout.LINE_HEIGHT * dev.ellipog.armature.client.ui.kit.RichText.scale(block.paragraph()));
             int lineY = slot.y();
-            // The FTB look runs alongside the markdown runs, indexed by where the piece starts: the two
+            // The token look runs alongside the markdown runs, indexed by where the piece starts: the two
             // grammars tile the same words, and a piece's start is always inside exactly one span, because
             // the spans tile the residual without gaps. An author interleaving codes with markdown spans
             // gets the look of the span the piece starts in, which is the documented approximation.
             int offset = 0;
-            for (RichText.Line line : block.lines()) {
+            for (dev.ellipog.armature.client.ui.kit.RichText.Line line : block.lines()) {
                 int x = slot.x();
                 offset = line.start();
-                for (RichText.Piece piece : RichText.pieces(block.paragraph(), line)) {
-                    FtbText.Span look = FtbText.spanAt(block.spans(), offset);
+                for (dev.ellipog.armature.client.ui.kit.RichText.Piece piece : dev.ellipog.armature.client.ui.kit.RichText.pieces(block.paragraph(), line)) {
+                    RichText.Span look = RichText.spanAt(block.spans(), offset);
                     boolean bold = piece.bold() || (look != null && look.bold());
                     boolean italic = piece.italic() || (look != null && look.italic());
                     String link = piece.link() != null ? piece.link()
@@ -27818,7 +28111,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     if (hot) {
                         colour = ArmatureTheme.title();
                     }
-                    else if (look != null && look.argb() != FtbText.WHITE) {
+                    else if (look != null && look.argb() != RichText.WHITE) {
                         colour = look.argb();
                     }
                     else {
@@ -27851,8 +28144,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * rule is the same one the chapter-image source uses, applied here rather than converted, because
      * the token is read at render time and there is no conversion pass to own it.
      */
-    private void drawInlineImage(GuiRenderer r, Slot slot, Viewport body, FtbText.PlacedImage placed) {
-        FtbText.ImageBox box = FtbText.fitImage(placed.image(), body.viewWidth());
+    private void drawInlineImage(GuiRenderer r, Slot slot, Viewport body, RichText.PlacedImage placed) {
+        RichText.ImageBox box = RichText.fitImage(placed.image(), body.viewWidth());
         int x = switch (placed.image().align()) {
             case "left" -> slot.x();
             case "right" -> slot.x() + slot.width() - box.width();
@@ -27987,7 +28280,7 @@ public final class QuestBookScreen extends ArmatureScreen
     /**
      * A press on a checkmark row: the task is handed in, exactly as its Submit button would.
      *
-     * <p>FTB lets the row itself be the button, and so does this: the press goes through the same
+     * <p>legacy packs let the row itself be the button, and so does this: the press goes through the same
      * {@code submit} (pending marks and all), so a double press cannot hand in twice and the row
      * stops offering the moment the first press lands.
      */
@@ -28213,7 +28506,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // The *rule's* bar, not completion: under `all_started` and `one_started` a prerequisite
             // with any task progress has done its job, and a cross beside it said otherwise.
             boolean met = progress.satisfies(dependency, ClientQuestCache::stateOf);
-            // The quest's reading, not the file's: titles can carry FTB colour codes, and this row
+            // The quest's reading, not the file's: titles can carry legacy colour codes, and this row
             // draws one ink -- the codes in it would be plaintext. The stripped reading is what the
             // sidebar, the toasts and every other one-ink surface draws.
             String label = other != null ? other.titleText() : dependency;
@@ -28593,7 +28886,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (target != null) {
             rowItems.add(new RowItem(row, target));
         }
-        // A checkmark hands in on press, like FTB's: the row is the button. Only with no
+        // A checkmark hands in on press, like the legacy format's: the row is the button. Only with no
         // recipe target (a checkmark never has one, but the rule is the target's, not the type's)
         // and only while the hand-in is actually offered — a locked or finished row must not
         // swallow the press its tag already explains.
@@ -28656,7 +28949,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 task.spriteIcon().isEmpty() ? null
                         : net.minecraft.resources.ResourceLocation.tryParse(task.spriteIcon());
         if (!task.filter().isEmpty() && taskTexture == null && taskSprite == null) {
-            // A filter task cycles through what it names, one picture a second — FTB's cadence.
+            // A filter task cycles through what it names, one picture a second — the legacy cadence.
             // The author's texture or sprite still wins when set; an empty match list keeps the
             // static picture, which is the honest answer for an expression nothing answers to.
             ItemStack frame = ClientQuestCache.filterFrame(task);
@@ -28875,7 +29168,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // The task row's rule, one member over: the player's explanation, never the author's.
             // A reward is collected rather than handed in, so there is no second line to pick.
             //
-            // A table that hides its tooltip draws no hover here — FTB Quests' `hide_tooltip` — unless
+            // A table that hides its tooltip draws no hover here — the legacy `hide_tooltip` — unless
             // the row is locked: a gate the player does not meet is still explained, because hiding
             // why a reward is shut would read as a broken row rather than a quiet one.
             ClientQuestCache.TableSummary table = tableOf(reward);
@@ -32539,6 +32832,9 @@ public final class QuestBookScreen extends ArmatureScreen
         // The viewer request goes with the selection: it names a quest of the server being left, and a
         // book opened on the next server would look for a quest that is not there.
         QuestBookFocus.clear();
+        // And the preview ask with it: it names a view of the server being left, and a book opened on
+        // the next server must open as its own editor or reader rather than as somebody's preview.
+        clearPreviewRequest();
         // The clipboard goes too: another server's quests are not this one's to paste, and a tree
         // carried across a disconnect is an op the new server would dutifully apply to its own files.
         ClientEditorClipboard.clear();

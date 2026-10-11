@@ -18,16 +18,16 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Run a command as the player, with FTB Quests' placeholders.
+ * Run a command as the player, with the legacy placeholders.
  *
  * <pre>{@code { "type": "tenet:command", "command": "say {p} finished {quest}", "permissionLevel": 2 } }</pre>
  *
  * <p>The escape hatch every pack reaches for, and the one reward whose reach is the whole server — so
  * it runs through the server's own dispatcher with the player as the source, at the permission level
- * the reward names. FTBQ's placeholders are kept whole, because a pack moved from it should not have
+ * the reward names. the legacy placeholders are kept whole, because a pack moved from it should not have
  * to learn a second vocabulary for the same sentence.
  *
- * <p>{@code feedbackMessage} is FTB Quests' {@code feedback_message}: a message shown when the
+ * <p>{@code feedbackMessage} is the legacy {@code feedback_message}: a message shown when the
  * command runs. Absent means nothing extra is shown — the claim flow already says what it took —
  * which is the common case (ATM10 sets it nowhere). A {@code disableToast} reward runs the command
  * silently: the command still runs, only the message is withheld.
@@ -43,7 +43,7 @@ public record CommandReward(RewardCommon common, String command, int permissionL
     public static final MapCodec<CommandReward> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             RewardCommon.MAP_CODEC.forGetter(CommandReward::common),
             Codec.STRING.fieldOf("command").forGetter(CommandReward::command),
-            // FTBQ's legacy field migrated to 2; two is also its default, and it is enough for the
+            // the legacy default migrated to 2; two is also its default, and it is enough for the
             // commands packs actually write ("say", "give", "summon") without opening /op.
             Codec.intRange(0, 4).optionalFieldOf("permissionLevel", 2).forGetter(CommandReward::permissionLevel),
             Codec.BOOL.optionalFieldOf("silent", false).forGetter(CommandReward::silent),

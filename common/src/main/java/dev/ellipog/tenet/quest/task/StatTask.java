@@ -22,8 +22,8 @@ import java.util.function.Function;
  * <pre>{@code { "type": "tenet:stat", "stat": "minecraft:walk_one_cm", "value": 1000 } }</pre>
  *
  * <p>Progress is shown as the stat's own number — "434 / 1000" — and clamped to the requirement, as
- * FTB Quests clamps it, so a stat in the millions does not overflow a row. Polled every three ticks:
- * reading a stat is a map lookup, and it is the cadence FTBQ gives it.
+ * The legacy format clamps it, so a stat in the millions does not overflow a row. Polled every three ticks:
+ * reading a stat is a map lookup, and it is the cadence the legacy format gives it.
  */
 public record StatTask(TaskCommon common, ResourceLocation stat, int value) implements QuestTask {
 

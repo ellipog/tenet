@@ -19,7 +19,7 @@ package dev.ellipog.tenet.quest.reward;
  * entries the way its parent quest does, in whichever order the path that reached it had already taken.
  *
  * <p>The automatic paths chose the loss over the duplication deliberately: duplicating a diamond is an
- * exploit and losing one to a crash is an annoyance, and FTB Quests takes the same direction. The claim
+ * exploit and losing one to a crash is an annoyance, and legacy packs take the same direction. The claim
  * is the one press with the player watching, and it can afford the other trade.
  */
 public interface RewardBehaviour<T> {

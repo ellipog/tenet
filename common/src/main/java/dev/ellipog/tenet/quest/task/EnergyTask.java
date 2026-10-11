@@ -4,7 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.tenet.Tenet;
-import dev.ellipog.tenet.inventory.EnergyAccesses;
+import dev.ellipog.armature.api.energy.EnergyAccesses;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
@@ -19,20 +19,21 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:energy", "value": 1000000 } }</pre>
  *
- * <p>FTB Quests' {@code forge_energy} task, which is filled by piping energy into a task screen
+ * <p>the legacy {@code forge_energy} task, which is filled by piping energy into a task screen
  * block. Tenet has no such block, so this is the carried-container path — batteries, capacitors
  * and charged tools in the inventory — the same divergence the fluid task documents. A submit
  * drains what it counted; the emptied items stay where they are.
  *
  * <p>{@code maxInput} caps what each item may contribute: zero or absent means unlimited. It is
- * the carried-items translation of FTB's per-insertion input limit — a single large battery
- * cannot finish a quest alone when it is set — with one deliberate difference: FTB treats an
+ * the carried-items translation of the legacy per-insertion input limit — a single large battery
+ * cannot finish a quest alone when it is set — with one deliberate difference: the legacy format treats an
  * absent limit as accepting nothing, which would make the migrated ATM10 quest (no
  * {@code max_input} written) unfillable, so here absent means unlimited.
  *
- * <p>Fabric has no energy library to read through, so this task reads zero there until a TR-Energy
- * integration ships; NeoForge reads the energy-storage capability. The validator cannot tell the
- * loaders apart, so this is documented rather than warned.
+ * <p>Fabric reads Team Reborn Energy's item lookup when the library is installed and zero
+ * without it; NeoForge reads the energy-storage capability -- both through Armature's energy
+ * seam, which its entry points install. The validator cannot tell the loaders apart, so this
+ * is documented rather than warned.
  */
 public record EnergyTask(TaskCommon common, int value, int maxInput, boolean manualOnly)
         implements QuestTask {

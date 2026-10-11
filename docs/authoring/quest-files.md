@@ -159,11 +159,11 @@ completion; no `dependsOn`, gate or milestone may name one.
 with the file and line, because the link would then mirror nothing and its press would do nothing.
 A link's `id` must not equal any quest, chapter or group id or alias. `x` and `y` are the top-left
 corner in canvas pixels, exactly as for a quest; `shape` and `size` fall back to the quest defaults
-(`rounded`, 48) rather than copying the target's. FTB Quests calls the target `linked_quest` and writes centre-based doubles, and
+(`rounded`, 48) rather than copying the target's. the legacy mod calls the target `linked_quest` and writes centre-based doubles, and
 the migration tool maps both onto this shape.
 
 **`locked: true` pins a picture against the editor's drag**: grips and moves leave it where it is,
-while readers see no difference. FTB Quests calls this `position_locked`, and the migration tool
+while readers see no difference. the legacy mod calls this `position_locked`, and the migration tool
 maps it onto this key — a deliberate edit still writes, so unlocking is always one switch away.
 
 Elements are translated like everything else: `element.<id>.text` for a label's words and
@@ -215,15 +215,15 @@ thing it affects:
 | `clickCommandLevel` | `0` | What a canvas click's `run_command` runs as: `0` is the pressing player's own level, `2` is elevated enough for `say`, `give` and `summon` without opening op. Never above `2`, and never the presser's own level however high that is. File-only: no client draws it, so the Book panel has no row for it. |
 | `defaultConsumeItems` | `false` | Whether item tasks take the items when neither the task nor its chapter says: the bottom rung of the consume ladder (task wins over chapter, chapter over this). |
 | `defaultDisableRecipeMod` | `false` | Whether quests stay out of recipe viewers (JEI, REI, EMI) when they say nothing themselves: the fallback a quest's own `disableRecipeMod` defers to, and a quest may write `false` to opt out. |
-| `showLockIcons` | `false` | Whether a locked quest wears its padlock on the canvas. No marks unless the file asks for them; a pack that wants FTB's old always-drawn marks writes `true`. A quest opts out for itself with `hideLockIcon` (see [[tenet:authoring/quests]]); either silence wins. Synced to every client with the tree. |
+| `showLockIcons` | `false` | Whether a locked quest wears its padlock on the canvas. No marks unless the file asks for them; a pack that wants the legacy mod's old always-drawn marks writes `true`. A quest opts out for itself with `hideLockIcon` (see [[tenet:authoring/quests]]); either silence wins. Synced to every client with the tree. |
 | `hideExcludedQuests` | `false` | Whether quests shut out for good by an exclusive choice (a taken `exclusiveGroup`, or a reached `maxCompletableDependents` cap) vanish from the reader's book instead of drawing locked. Synced to every client with the tree. |
 | `pauseGame` | `false` | Whether the book pauses the world in single player while it is open. Synced to every client with the tree. |
 | `disableGui` | `false` | Whether the book refuses to open: every open path (command, key, button, book item, viewer) answers "The quest book is disabled in this pack" instead of a screen. Synced to every client with the tree. |
-| `disableCanvasLod` | `false` | Whether the book's chapters draw without the zoom tiers unless a chapter says otherwise: icons, rings, titles and badges at any zoom, as FTB Quests drew them. A chapter opts back into tiers with an explicit `false` of its own. The migration tool writes `true`, so migrated packs read as their source did. Synced to every client with the tree; editable in game from the **Book** section like the name and icon. |
+| `disableCanvasLod` | `false` | Whether the book's chapters draw without the zoom tiers unless a chapter says otherwise: icons, rings, titles and badges at any zoom, as the legacy mod drew them. A chapter opts back into tiers with an explicit `false` of its own. The migration tool writes `true`, so migrated packs read as their source did. Synced to every client with the tree; editable in game from the **Book** section like the name and icon. |
 | `dropBookOnDeath` | `false` | Whether a dying player drops a quest book where they fell, so death cannot take the pack away with it. Server-side: nothing crosses the wire. |
-| `gridScale` | `0.5` | The editor canvas's grid step, from FTB Quests' `grid_scale` (1/32 to 8). File-only for now: validated and stored, while the editor keeps its 8-unit step — see the field's note in the schema. |
+| `gridScale` | `0.5` | The editor canvas's grid step, from the legacy mod's `grid_scale` (1/32 to 8). File-only for now: validated and stored, while the editor keeps its 8-unit step — see the field's note in the schema. |
 | `lockMessage` | `""` | What a locked quest is called when the pack has a better word than "Locked": the author's own sentence, drawn on the quest card. Empty means the client's own word. Synced to every client with the tree. |
-| `emergencyItemsCooldown` | `300` | How long a player waits between `/tenet emergency` grants, in seconds, 0–86400 (FTB documents no unit; Tenet reads seconds, so `300` is five minutes). See [[tenet:commands]]. |
+| `emergencyItemsCooldown` | `300` | How long a player waits between `/tenet emergency` grants, in seconds, 0–86400 (the legacy mod documents no unit; Tenet reads seconds, so `300` is five minutes). See [[tenet:commands]]. |
 | `emergencyItems` | `[]` | What `/tenet emergency` hands out: item references with counts and components, exactly as a task writes them. Empty means the command answers that there is nothing to grant. See [[tenet:commands]]. |
 | `bookTitle` | `""` | What the book calls itself, drawn top-left in its header; empty uses the client's own title. Translatable via `book.title` in `lang/` — see [[tenet:authoring/languages]] |
 | `bookIcon` | `""` | The item id the book wears in its header; an id a client cannot resolve is drawn as a missing-item mark |

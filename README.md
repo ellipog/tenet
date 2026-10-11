@@ -40,7 +40,7 @@ Start here:
 - [Folder format](https://ellipog.dev/docs/tenet/authoring/quest-files)
 - [Quest fields](https://ellipog.dev/docs/tenet/authoring/quests)
 - [Tasks](https://ellipog.dev/docs/tenet/authoring/tasks) · [Rewards](https://ellipog.dev/docs/tenet/authoring/rewards) · [Conditions](https://ellipog.dev/docs/tenet/authoring/conditions)
-- [Validation](https://ellipog.dev/docs/tenet/authoring/validation) · [Languages](https://ellipog.dev/docs/tenet/authoring/languages) · [KubeJS](https://ellipog.dev/docs/tenet/authoring/kubejs) · [FTB mapping](https://ellipog.dev/docs/tenet/authoring/ftb-mapping)
+- [Validation](https://ellipog.dev/docs/tenet/authoring/validation) · [Languages](https://ellipog.dev/docs/tenet/authoring/languages) · [KubeJS](https://ellipog.dev/docs/tenet/authoring/kubejs) · [Legacy mapping](https://ellipog.dev/docs/tenet/authoring/ftb-mapping)
 
 The worked example in `tools/quests/` (see `tools/README.md`) carries every field the
 format has, and the schemas under `tools/quests/_schema/` are the machine-readable

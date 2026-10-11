@@ -188,7 +188,7 @@ public final class SidebarLayout {
      * ordering belongs to the caller and is not touched here: an outline draws what it is given, and a
      * class that sorted would silently reorder somebody's book.
      *
-     * <p>Chapters with no heading come <b>first</b>, before every group: that is FTB Quests' default
+     * <p>Chapters with no heading come <b>first</b>, before every group: that is the legacy default
      * group, which always sorts before the named ones, and a converted pack's welcome chapter only
      * reads as first when it draws first. Their relative order is the server's, like everything
      * else here.

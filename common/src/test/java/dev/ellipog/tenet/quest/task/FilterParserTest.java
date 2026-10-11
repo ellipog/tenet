@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * FTB filter expressions, parsed and matched.
+ * legacy filter expressions, parsed and matched.
  *
  * <p>T23 of the migration work: tags — and the {@code mod}, {@code and}, {@code or} and
  * {@code not} combinators — reach Tenet through filter stacks carrying this vocabulary, and the
@@ -56,7 +56,7 @@ class FilterParserTest {
     }
 
     @Test
-    @DisplayName("a top-level juxtaposition reads as an implicit and, like FTB's own root")
+    @DisplayName("a top-level juxtaposition reads as an implicit and, like the legacy format's own root")
     void topLevelJuxtapositionIsAnImplicitAnd() {
         FilterParser.Expr parsed = parse("item(minecraft:coal)or(item(minecraft:iron_ingot)item(minecraft:gold_ingot))");
         assertInstanceOf(FilterParser.Expr.And.class, parsed);
@@ -85,7 +85,7 @@ class FilterParserTest {
         assertEquals("a(b", FilterParser.unescape("a\\(b"),
                 "an escaped paren is data, not depth");
         assertEquals("a", FilterParser.unescape("a\\"),
-                "a trailing backslash is dropped, the way the FTB parser reads it");
+                "a trailing backslash is dropped, the way the legacy parser reads it");
     }
 
     // ------------------------------------------------------------------

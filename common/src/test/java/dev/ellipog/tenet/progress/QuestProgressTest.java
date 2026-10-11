@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A repeatable round's two halves: what completion records, and what the final claim ends.
  *
- * <p>FTB Quests' rule is that the repeat timer starts when the last unclaimed reward is claimed:
+ * <p>the legacy rule is that the repeat timer starts when the last unclaimed reward is claimed:
  * the quest's progress resets at that moment and the completion count moves then. So completion
  * of a round with a payout still waiting records the state and stops — no cleared tasks, no moved
  * count, no started clock — and the claim that collects the last of it ends the round. A round

@@ -20,7 +20,7 @@ import java.util.function.Function;
  *
  * <pre>{@code { "type": "tenet:advancement", "advancement": "minecraft:story/mine_stone" } }</pre>
  *
- * <p>Polled every five ticks, as FTB Quests does: an advancement task is cheap to ask and the player
+ * <p>Polled every five ticks, as legacy packs do: an advancement task is cheap to ask and the player
  * expects the book to notice the moment the toast appears.
  */
 public record AdvancementTask(TaskCommon common, ResourceLocation advancement, Optional<String> criterion)

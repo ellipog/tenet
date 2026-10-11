@@ -29,10 +29,10 @@ import java.util.function.Function;
  * <h2>Who gets it</h2>
  *
  * <p>The player who claimed, even on a team-mode quest, because a stage is per player everywhere it is
- * used: GameStages, FTB Quests' stage integration, and every pack script written against them. A team-wide
+ * used: GameStages, the legacy stage integration, and every pack script written against them. A team-wide
  * grant is a script's loop over the roster, which is also how a pack does it elsewhere.
  *
- * <p>{@code teamStage} is FTB Quests' {@code team_stage}: grant to the team instead. The whole party
+ * <p>{@code teamStage} is the legacy {@code team_stage}: grant to the team instead. The whole party
  * then holds the flag, which is what a multiplayer pack's induction quest hands over.
  */
 public record StageReward(RewardCommon common, ResourceLocation stage, boolean remove,

@@ -42,10 +42,11 @@ public final class TenetFabric implements ModInitializer {
         // loaders then read the same, and the seam is visible at both entry points.
         InventoryAccesses.install(VanillaInventory.INSTANCE);
 
-        // Fluid containers through the Transfer API. Energy is deliberately not installed: Fabric
-        // has no energy library to read through, so energy tasks read zero here until a TR-Energy
-        // integration ships -- the default's silence, rather than a second seam with one caller.
+        // Fluid containers through the Transfer API.
         FluidAccesses.install(new FabricFluids());
+
+        // Stored energy is Armature's seam (api.energy, installed by its entry points) -- Tenet
+        // only reads it, so there is nothing to install here.
 
         // The server half of Fabric's two-part registration. The client half is in TenetFabricClient.
         TenetFabric.registerServerReceivers();

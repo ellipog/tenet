@@ -68,7 +68,7 @@ public record ItemReward(RewardCommon common, ItemRef item, int randomBonus, boo
             return List.of();
         }
 
-        // `onlyOne`: FTBQ's "don't give me a second one". Checked by item type, not components -- the
+        // `onlyOne`: the legacy "don't give me a second one". Checked by item type, not components -- the
         // question is whether the player already has this thing, not this exact stack.
         if (reward.onlyOne() && carries(player, template)) {
             return List.of();

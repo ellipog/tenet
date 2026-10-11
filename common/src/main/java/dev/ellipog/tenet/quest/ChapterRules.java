@@ -127,13 +127,13 @@ public record ChapterRules(
          *
          * <p>Zero means unset — the panel takes its kind's default — because every file written
          * before this field existed says nothing. A quest's own {@code minWidth} wins over this.
-         * FTB Quests' {@code default_min_width}.
+         * the legacy {@code default_min_width}.
          */
         int defaultMinWidth,
         /**
          * The quest this chapter centres on when it is selected, by id or alias.
          *
-         * <p>FTB Quests' {@code autofocus_id}. Absent means the old behaviour: the canvas centres
+         * <p>the legacy {@code autofocus_id}. Absent means the old behaviour: the canvas centres
          * on the chapter's bounding box. A name that resolves to nothing is reported at load,
          * because the chapter would then centre on nothing; a name that resolves to a quest in
          * another chapter is reported too, for the same reason. Links and image {@code requires}
@@ -144,7 +144,7 @@ public record ChapterRules(
          * The chapter's default for its quests' {@code sequentialTasks}: whether tasks must be
          * done in order unless a quest says otherwise.
          *
-         * <p>FTB Quests' {@code require_sequential_tasks}. Either the quest's own flag or this
+         * <p>the legacy {@code require_sequential_tasks}. Either the quest's own flag or this
          * makes its tasks sequential — there is no opt-out, which is why a migration tool
          * inlines the resolved value onto each quest when this is absent.
          */
@@ -152,7 +152,7 @@ public record ChapterRules(
         /**
          * Whether this chapter is withheld from every reader, whatever its gate says.
          *
-         * <p>FTB Quests' {@code always_invisible}. Unlike {@link #hideUntilDependenciesComplete},
+         * <p>the legacy {@code always_invisible}. Unlike {@link #hideUntilDependenciesComplete},
          * which withholds the row until the gate is met, this withholds it always: a reader never
          * sees the row, its progress reads 100%, and it answers no search. The gate itself is
          * unaffected -- an always-invisible chapter still opens, still completes, and still gates
@@ -174,7 +174,7 @@ public record ChapterRules(
         /**
          * Words this chapter answers to in lookups by tag.
          *
-         * <p>FTB Quests' {@code tags}, present on every object. Each tag is
+         * <p>the legacy {@code tags}, present on every object. Each tag is
          * {@code ^[a-z0-9_]{1,64}$} -- the same rule a quest id follows -- and a lookup of
          * {@code "#tag"} resolves to the first quest, chapter or group carrying it. See
          * {@link QuestIndex} for the resolution and the validator for the refusal.

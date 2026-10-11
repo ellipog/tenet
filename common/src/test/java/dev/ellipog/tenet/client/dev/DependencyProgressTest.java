@@ -149,7 +149,7 @@ class DependencyProgressTest {
     @Test
     @DisplayName("an optional dependency counts like any other")
     void optionalDependenciesCount() {
-        // The client's half of the engine's rule: FTB parity means an optional edge gates
+        // The client's half of the engine's rule: legacy parity means an optional edge gates
         // exactly like a mandatory one, so the card's "2 of 3 met" uses the same denominator
         // the unlock does. The line itself is still drawn, and satisfies still answers per
         // edge.

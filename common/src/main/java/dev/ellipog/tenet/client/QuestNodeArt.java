@@ -133,7 +133,7 @@ public final class QuestNodeArt {
         //
         // It used to be `ArmatureTheme.outline(...)`, a rectangle drawn around a circle. On a round or
         // hexagonal node that is a box drawn round a disc -- which reads as two unrelated things
-        // stacked. Following the shape is also what FTB Quests does, and for the same reason: the ring
+        // stacked. Following the shape is also what legacy packs do, and for the same reason: the ring
         // is the node saying "this one", so it has to be the node's shape saying it.
         // The ring is the panel's own outline one pixel out, not the same shape function sampled at
         // `size + 2`: a second sampling is a second silhouette, and where a size-dependent feature steps
@@ -179,7 +179,7 @@ public final class QuestNodeArt {
         // the honest question and it was already being asked. See CanvasSettings.
         //
         // A chapter or book that disabled the LOD answers the question before it is asked
-        // (`alwaysIcons`): FTB Quests drew every icon at every zoom, and a migrated pack reads
+        // (`alwaysIcons`): legacy packs drew every icon at every zoom, and a migrated pack reads
         // the same way. The stand-in block below is then only for icons the client cannot
         // resolve, never for ones it judged too small.
         boolean iconFits = look.alwaysIcons() || iconBox[2] >= CanvasSettings.iconMinBox();

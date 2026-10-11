@@ -429,7 +429,7 @@ class QuestLanguagesTest {
         @Test
         @DisplayName("another case suggests the lowercase id")
         void wrongCaseSuggestsTheLowercaseId(@TempDir Path configDir) throws IOException {
-            // The spelling a hand-merged FTB file most often gets wrong: FTB ids are uppercase
+            // The spelling a hand-merged legacy file most often gets wrong: legacy ids are uppercase
             // hex, Tenet ids are lowercase, and the reader builds its lookups from the lowercase
             // one — so an uppercase key is dead, and the fix is spelled out rather than implied.
             locale(configDir, "en_us.json",

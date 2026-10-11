@@ -18,7 +18,7 @@ below take the same level, because they read the server's own costs rather than 
 | `/tenet submit <quest> [<index>]` | Hand a task in by hand — the same call the Submit button makes. The optional second argument is the task's index, a bare integer counted from 0; omitted, it is the first task. |
 | `/tenet claim <quest>` | Collect the quest's outstanding rewards. The same call the Claim button makes. |
 | `/tenet emergency` | Collect the pack's emergency shelf: the file's `emergencyItems`, once per `emergencyItemsCooldown` seconds — see [[tenet:authoring/quest-files]]. What fits goes into your inventory; the rest drops at your feet. |
-| `/tenet open_book [quest]` | Open the quest book on your client — on one quest when one is named. FTB Quests' `/ftbquests open_book`, which command rewards and click actions name. |
+| `/tenet open_book [quest]` | Open the quest book on your client — on one quest when one is named. the legacy mod's `/ftbquests open_book`, which command rewards and click actions name. |
 | `/tenet stage list [player]` | The stages a player carries. Without an argument, your own; naming another player asks for permission level 2. |
 | `/tenet stage team-list [player]` | The stages a player's team holds. The same permission rule as `list`. |
 | `/tenet party` | Who is in your party, how it counts, and **which mod the parties come from** — Tenet's answer to "are these the parties I think they are". |
@@ -39,7 +39,7 @@ below take the same level, because they read the server's own costs rather than 
 | `/tenet rewards block` / `unblock` | Hold or release the team's rewards. A held team collects nothing: the automatic payouts stop and every claim is refused, except for rewards marked `ignoreRewardBlocking`. |
 | `/tenet stage add <player> <stage>` | Grant a stage. |
 | `/tenet stage remove <player> <stage>` | Take one away. |
-| `/tenet stage add-team <player> <stage>` | Grant a stage to the player's team — FTB Quests' `/ftbteams teamstage`. Every online member is told, because each of them sees their own stages and their team's together. |
+| `/tenet stage add-team <player> <stage>` | Grant a stage to the player's team — the legacy mod's `/ftbteams teamstage`. Every online member is told, because each of them sees their own stages and their team's together. |
 | `/tenet stage remove-team <player> <stage>` | Take a team's stage away. |
 | `/tenet config` | The server's settings in force — the party cap and a new party's policy, the tree-wide quest defaults — and the files they live in. Edit and `/tenet reload` — both files are re-read. A player's own text size is in the book's Settings card; the palette, the corner radius and the Motion switch are in the tools panel's Quest Book tab, which needs edit permission. |
 
@@ -111,8 +111,7 @@ a party can fill between the two. A server may set `teams.maxMembers` between 2 
 nobody to party with, and the refusal says so rather than failing silently.
 
 **On servers whose parties come from another mod**, the commands refuse with the source's name where
-their API cannot do the operation: Open Parties and Claims has no rename, transfer or policy, and FTB
-Teams is read-only here. `mode` works everywhere, because how a party counts is Tenet's own.
+their API cannot do the operation: Open Parties and Claims has no rename, transfer or policy, and a bridged read-only source stays read-only here. `mode` works everywhere, because how a party counts is Tenet's own.
 
 A party's mode decides what "the party has eight logs" means:
 

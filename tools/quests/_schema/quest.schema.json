@@ -17,18 +17,18 @@
     "description": {
       "type": "array",
       "items": { "$ref": "#/definitions/text" },
-      "description": "One string per paragraph. Separate from a single newline-containing string on purpose: a wall of text is what FTB Quests' one-string descriptions become."
+      "description": "One string per paragraph. Separate from a single newline-containing string on purpose: a wall of text is what the legacy one-string descriptions become."
     },
     "icon": { "$ref": "#/definitions/icon", "description": "Defaults to paper if absent." },
     "aliases": { "type": "array", "items": { "$ref": "#/definitions/alias" } },
     "tags": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Words this quest answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. A lookup of `#tag` resolves to the first quest, chapter or group carrying it. FTB Quests calls this tags, present on every object."
+      "description": "Words this quest answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. A lookup of `#tag` resolves to the first quest, chapter or group carrying it. The legacy format calls this tags, present on every object."
     },
     "guidePage": {
       "type": "string",
-      "description": "The guide book page this quest belongs to. A reference the quest card shows; Tenet has no guide integration, so nothing reads it further. Empty means absent. FTB Quests calls this guide_page."
+      "description": "The guide book page this quest belongs to. A reference the quest card shows; Tenet has no guide integration, so nothing reads it further. Empty means absent. The legacy format calls this guide_page."
     },
 
     "dependsOn": {
@@ -150,33 +150,33 @@
     "hideDependentLines": {
       "type": "boolean",
       "default": false,
-      "description": "Draw no dependency lines leaving this quest for its dependants. The outgoing half of hideDependencyLines: that flag hides the lines arriving at a quest, this one hides the lines it sends on. FTB Quests calls this hide_dependent_lines."
+      "description": "Draw no dependency lines leaving this quest for its dependants. The outgoing half of hideDependencyLines: that flag hides the lines arriving at a quest, this one hides the lines it sends on. The legacy format calls this hide_dependent_lines."
     },
     "minWidth": {
       "type": "integer",
       "minimum": 0,
       "maximum": 3000,
       "default": 0,
-      "description": "Minimum width of this quest's detail panel. 0 is unset: the chapter's defaultMinWidth decides, and then the panel kind's default. FTB Quests calls this min_width."
+      "description": "Minimum width of this quest's detail panel. 0 is unset: the chapter's defaultMinWidth decides, and then the panel kind's default. The legacy format calls this min_width."
     },
     "disableToast": {
       "type": "boolean",
       "default": false,
-      "description": "Completing this quest raises no toast. Combines with the silent auto-claim modes: either silence wins. FTB Quests calls this disable_toast."
+      "description": "Completing this quest raises no toast. Combines with the silent auto-claim modes: either silence wins. The legacy format calls this disable_toast."
     },
     "ignoreRewardBlocking": {
       "type": "boolean",
       "default": false,
-      "description": "This quest's rewards keep flowing while the team's payouts are held. Either the quest's flag or a reward's own flag exempts that reward. FTB Quests calls this ignore_reward_blocking."
+      "description": "This quest's rewards keep flowing while the team's payouts are held. Either the quest's flag or a reward's own flag exempts that reward. The legacy format calls this ignore_reward_blocking."
     },
     "disableRecipeMod": {
       "type": "boolean",
-      "description": "Recipe viewers (JEI, REI, EMI) do not list this quest. Leave the field out and the file's `defaultDisableRecipeMod` decides; write `false` to opt out of a file that hides its quests by default. There is no `default` - absence is the unset state. FTB Quests calls this disable_recipe_mod."
+      "description": "Recipe viewers (JEI, REI, EMI) do not list this quest. Leave the field out and the file's `defaultDisableRecipeMod` decides; write `false` to opt out of a file that hides its quests by default. There is no `default` - absence is the unset state. The legacy format calls this disable_recipe_mod."
     },
     "hideLockIcon": {
       "type": "boolean",
       "default": false,
-      "description": "This quest wears no padlock on the canvas when it is locked: the quest's half of the file's `showLockIcons`. Either silence wins, and absent defers to the file. FTB Quests calls this hide_lock_icon."
+      "description": "This quest wears no padlock on the canvas when it is locked: the quest's half of the file's `showLockIcons`. Either silence wins, and absent defers to the file. The legacy format calls this hide_lock_icon."
     },
     "hideTextUntilComplete": {
       "type": "boolean",
@@ -195,7 +195,7 @@
     "requiresStageTeam": {
       "type": "boolean",
       "default": false,
-      "description": "Read the quest's requiresStage gate from the team's stages rather than the player's own. One member's induction then opens the quest for everybody. FTB Quests calls this team_stage."
+      "description": "Read the quest's requiresStage gate from the team's stages rather than the player's own. One member's induction then opens the quest for everybody. The legacy format calls this team_stage."
     },
 
     "tasks": { "type": "array", "items": { "$ref": "#/definitions/anyType" } },
@@ -395,12 +395,12 @@
         "useTitle": {
           "type": "boolean",
           "default": false,
-          "description": "Draw this table's title on a reward row that rolls it, rather than the generic roll sentence. FTB Quests calls this use_title."
+          "description": "Draw this table's title on a reward row that rolls it, rather than the generic roll sentence. The legacy format calls this use_title."
         },
         "hideTooltip": {
           "type": "boolean",
           "default": false,
-          "description": "Draw no item tooltip on a reward row that rolls this table. FTB Quests calls this hide_tooltip."
+          "description": "Draw no item tooltip on a reward row that rolls this table. The legacy format calls this hide_tooltip."
         },
         "icon": {
           "$ref": "#/definitions/itemRef",
@@ -525,7 +525,7 @@
         "disableToast": {
           "type": "boolean",
           "default": false,
-          "description": "Tasks and rewards. This task finishing, or this reward collected, raises no toast. On a task it quiets the task toast; on a reward it is recorded for the reward-level notice. An announced task in a quieted quest stays quiet either way. FTB Quests calls this disable_toast."
+          "description": "Tasks and rewards. This task finishing, or this reward collected, raises no toast. On a task it quiets the task toast; on a reward it is recorded for the reward-level notice. An announced task in a quieted quest stays quiet either way. The legacy format calls this disable_toast."
         },
         "title": {
           "$ref": "#/definitions/text",
@@ -538,7 +538,7 @@
         "tags": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Tasks and rewards. Words this row answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. FTB Quests calls this tags, present on every object."
+          "description": "Tasks and rewards. Words this row answers to in lookups by tag. Each tag is lowercase letters, digits and underscores, the same rule an id follows. The legacy format calls this tags, present on every object."
         },
 
         "item": {
@@ -573,13 +573,13 @@
         "manualOnly": {
           "type": "boolean",
           "default": false,
-          "description": "tenet:item, tenet:item_tag, tenet:filter, tenet:fluid and tenet:energy (tasks) - never count from the inventory on the tick; only a submit press counts. FTB Quests calls this task_screen_only, filled by piping into a task screen; Tenet has no such block, so the piped path is not ported."
+          "description": "tenet:item, tenet:item_tag, tenet:filter, tenet:fluid and tenet:energy (tasks) - never count from the inventory on the tick; only a submit press counts. The legacy format calls this task_screen_only, filled by piping into a task screen; Tenet has no such block, so the piped path is not ported."
         },
         "maxInput": {
           "type": "integer",
           "minimum": 0,
           "default": 0,
-          "description": "tenet:energy (task) - the most each item may contribute, in Forge Energy units; 0 means unlimited. FTB Quests calls this max_input, capping each insertion into its task screen."
+          "description": "tenet:energy (task) - the most each item may contribute, in Forge Energy units; 0 means unlimited. The legacy format calls this max_input, capping each insertion into its task screen."
         },
         "tag": {
           "type": "string",
@@ -643,7 +643,7 @@
         },
         "filter": {
           "type": "string",
-          "description": "tenet:filter (task) - which items count, as an FTB filter expression: item, item_tag, mod and block leaves under and, or and not, e.g. or(item(minecraft:coal)item_tag(minecraft:coals)). Passed through verbatim from an ftbfiltersystem:smart_filter stack."
+          "description": "tenet:filter (task) - which items count, as a legacy filter expression: item, item_tag, mod and block leaves under and, or and not, e.g. or(item(minecraft:coal)item_tag(minecraft:coals)). Passed through verbatim from an ftbfiltersystem:smart_filter stack."
         },
         "amount": {
           "type": "integer",
@@ -694,7 +694,7 @@
         "auto": {
           "enum": ["default", "disabled", "enabled", "no_toast", "invisible"],
           "default": "default",
-          "description": "Rewards only. When it is handed over: default follows the tree's own setting, enabled gives it on completion, disabled waits for a claim, no_toast gives it without a toast, and invisible grants the same way - the two silent names are FTB Quests' vocabulary rather than a behaviour."
+          "description": "Rewards only. When it is handed over: default follows the tree's own setting, enabled gives it on completion, disabled waits for a claim, no_toast gives it without a toast, and invisible grants the same way - the two silent names are the legacy vocabulary rather than a behaviour."
         },
         "excludeFromClaimAll": {
           "type": "boolean",
@@ -749,7 +749,7 @@
         },
         "feedbackMessage": {
           "$ref": "#/definitions/text",
-          "description": "tenet:command (reward) - a message shown when the command runs; absent shows nothing extra. FTB Quests calls this feedback_message."
+          "description": "tenet:command (reward) - a message shown when the command runs; absent shows nothing extra. The legacy format calls this feedback_message."
         },
         "description": {
           "$ref": "#/definitions/text",
@@ -767,7 +767,7 @@
         "teamStage": {
           "type": "boolean",
           "default": false,
-          "description": "tenet:stage (task and reward), and the quest's requiresStage gate via requiresStageTeam - read or grant the team's stages rather than the player's own. FTB Quests calls this team_stage."
+          "description": "tenet:stage (task and reward), and the quest's requiresStage gate via requiresStageTeam - read or grant the team's stages rather than the player's own. The legacy format calls this team_stage."
         }
       }
     }

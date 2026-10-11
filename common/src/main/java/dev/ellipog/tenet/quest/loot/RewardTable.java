@@ -27,7 +27,7 @@ import java.util.Set;
  *                { "weight": 5, "reward": { "type": "tenet:xp", "amount": 30 } } ] }
  * }</pre>
  *
- * <h2>The roll is FTB Quests', weights and all</h2>
+ * <h2>The roll follows the legacy format, weights and all</h2>
  *
  * <p>A weight-zero entry is <b>always</b> granted, once per roll call — it is how a table says "and
  * everyone also gets this". Every positive weight shares the rest of the probability space, and
@@ -55,9 +55,9 @@ import java.util.Set;
  *       root table has no use for one, and the loader ignores it there; see {@code InlineTables} for
  *       why an inline table is addressed by a handle rather than by its position.</li>
  *   <li>{@code useTitle} — draw the table's title on a reward row that rolls it, rather than the
- *       generic "roll the X table" sentence. FTB Quests' {@code use_title}, which ATM10 sets on its
+ *       generic "roll the X table" sentence. the legacy {@code use_title}, which ATM10 sets on its
  *       tables.</li>
- *   <li>{@code hideTooltip} — draw no item tooltip on that row. FTB Quests' {@code hide_tooltip}.</li>
+ *   <li>{@code hideTooltip} — draw no item tooltip on that row. the legacy {@code hide_tooltip}.</li>
  * </ul>
  */
 public record RewardTable(double emptyWeight, int lootSize, List<Entry> entries,

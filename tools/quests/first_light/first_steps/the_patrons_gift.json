@@ -4,10 +4,10 @@
   "title": "The Patron's Gift",
   "subtitle": "A choice reward, picked by the player",
   "description": [
-    "`tenet:choice` sends the table's entries to the player and waits",
-    "for the pick. The payout *is* the decision, so a choice reward is",
-    "never auto-granted -- whatever the chapter's `autoClaim` says -- and",
-    "a crash between the offer and the pick loses nothing.",
+    "`tenet:choice` sends the table's entries to the player and waits for",
+    "the pick. The payout *is* the decision, so a choice reward is never",
+    "auto-granted -- whatever the chapter's `autoClaim` says -- and a",
+    "crash between the offer and the pick loses nothing.",
     "",
     "The table here is inline, which is the form to use when the choice",
     "belongs to one quest rather than to a pack's loot."

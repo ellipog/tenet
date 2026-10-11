@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The checkmark state box: empty while todo, checked once done.
  *
- * <p>FTB Quests' {@code checkmark_task_inactive} and {@code checkmark_task_active} under Tenet's
+ * <p>the legacy {@code checkmark_task_inactive} and {@code checkmark_task_active} under Tenet's
  * own roof — two files that always resolve, rather than atlas ids that may not. Each test draws
  * through the dev recorder, which keeps whole-file blits apart from items, so a box drawn as an
  * item would fail here rather than on the canvas.
