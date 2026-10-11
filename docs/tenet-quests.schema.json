@@ -120,6 +120,12 @@
       "description": "A namespaced id, e.g. minecraft:oak_log or my_pack:chapter_one. The namespace is required, as it is everywhere this format names something by id."
     },
 
+    "stageId": {
+      "type": "string",
+      "pattern": "^(?:[a-z0-9_.-]+:)?[a-z0-9_/.-]+$",
+      "description": "A stage id: namespaced like my_pack:left_the_village, or a bare GameStages-style word like completed_pyramid. A bare word reads under the minecraft: namespace, the way Minecraft reads every id without one. Prefer an explicit namespace for pack-owned stages; keep the bare spelling for stages migrating over from GameStages."
+    },
+
     "dependencyStyle": {
       "description": "One line's style. Only the axes it names override anything; the axes it omits fall back to the chapter's default, and then to the built-ins (chamfered, chevron at the target, solid, thin).",
       "type": "object",
@@ -394,8 +400,8 @@
           "description": "tenet:advancement (condition) — require one criterion of it instead of the whole advancement."
         },
         "stage": {
-          "$ref": "#/definitions/namespacedId",
-          "description": "tenet:stage (condition) — the stage to have."
+          "$ref": "#/definitions/stageId",
+          "description": "tenet:stage (condition) — the stage to have, bare or namespaced."
         }
       }
     },
@@ -989,8 +995,8 @@
           "description": "The reader's card shows no task or reward details until the quest can be started. REQUIRES stays: a locked quest's prerequisites are what says how to unlock it. The editor always shows everything."
         },
         "requiresStage": {
-          "$ref": "#/definitions/namespacedId",
-          "description": "A stage the player must have for the quest to be open to them, e.g. my_pack:chapter_one. The one gate here that is per player rather than per team: a quest gated on a stage is open to a player who has it and locked to one who does not, even in the same party. Nothing validates that the stage exists -- one exists by being granted -- so a typo shows up as a quest nobody can open."
+          "$ref": "#/definitions/stageId",
+          "description": "A stage the player must have for the quest to be open to them, e.g. my_pack:chapter_one or a bare completed_pyramid. The one gate here that is per player rather than per team: a quest gated on a stage is open to a player who has it and locked to one who does not, even in the same party. Nothing validates that the stage exists -- one exists by being granted -- so a typo shows up as a quest nobody can open."
         },
         "requiresStageTeam": {
           "type": "boolean",
@@ -1270,8 +1276,8 @@
           "description": "tenet:toast (reward) — the message shown when the reward is collected. Empty shows the generic toast sentence."
         },
         "stage": {
-          "$ref": "#/definitions/namespacedId",
-          "description": "tenet:stage (task and reward) — the stage the player has to have, or the one to set. Any id: a stage exists by being granted, so there is no list to pick from and nothing to validate. With teamStage, the team's stages instead."
+          "$ref": "#/definitions/stageId",
+          "description": "tenet:stage (task and reward) — the stage the player has to have, or the one to set. Any id, bare or namespaced: a stage exists by being granted, so there is no list to pick from and nothing to validate. With teamStage, the team's stages instead."
         },
         "remove": {
           "type": "boolean",
