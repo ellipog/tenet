@@ -68,7 +68,7 @@ public final class SettingsLayout {
      */
     public static List<Entry> entries(double textScale) {
         return List.of(
-                new Entry(TEXT_KEY, Component.literal("Text size")),
+                new Entry(TEXT_KEY, Component.translatable("tenet.screen.accessibility_settings")),
                 new Entry(SIDEBAR_KEY, Component.translatable("tenet.screen.sidebar_floating_list")),
                 new Entry(HUD_KEY, Component.translatable("tenet.screen.hud_layout")));
     }
