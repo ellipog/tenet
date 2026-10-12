@@ -29,7 +29,8 @@ import java.util.List;
  * ranged handler cannot express "merge here, never place here". The two loaders can therefore differ
  * in one corner — a full main inventory with a part-filled offhand — where NeoForge refuses a reward
  * that Fabric would merge. Refusing is the safe direction, and both methods here agree with each
- * other, which is what the strict claim path actually needs.
+ * other, which is what the strict claim path actually needs. The merge side is pinned by
+ * {@code VanillaInventoryTest} in {@code :common}; this range is what pins the refusal side.
  */
 public final class NeoForgeInventory implements InventoryAccess {
 

@@ -24,11 +24,34 @@ import java.util.List;
  *   <li>The armor slots are never a target of automatic insertion at all, so they are not passed in.</li>
  * </ul>
  *
- * <p>A stack's key is a single-count copy of itself: {@code ItemStack.equals} compares components and
- * count, so one-copy keys compare exactly the way vanilla's merge test
- * ({@code isSameItemSameComponents}) does, without a wrapper type of our own.
+ * <p>A stack's key is a single-count copy of itself in a wrapper whose equality is vanilla's
+ * merge test ({@code isSameItemSameComponents}): same item and same components, count ignored.
+ * The wrapper exists because {@code ItemStack} defines no {@code equals} of its own, so two
+ * one-count copies of the same stack would otherwise never compare equal and no merge would
+ * ever simulate — every fit that needs a merge refused, while the real insert merges happily.
  */
 final class InventorySpaces {
+
+    /**
+     * What the model compares: the merge question, asked the way vanilla asks it.
+     *
+     * @param stack a single-count copy; the count rides beside the key, never in it
+     */
+    private record Key(ItemStack stack) {
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Key key
+                    && ItemStack.isSameItemSameComponents(stack, key.stack);
+        }
+
+        @Override
+        public int hashCode() {
+            // Consistent with equals as far as these hashes go. Only equals is ever called —
+            // the model walks lists — but a key that lies about its hash is a trap for the
+            // next reader who puts one in a map.
+            return 31 * stack.getItem().hashCode() + stack.getComponentsPatch().hashCode();
+        }
+    }
 
     /** The main inventory and hotbar: the only slots an empty stack may be placed into. */
     static final int MAIN_SLOTS = 36;
@@ -55,7 +78,7 @@ final class InventorySpaces {
 
     /** One stack as a need: a one-copy key, its count, and its own max. */
     static InventorySpace.Stack stack(ItemStack stack) {
-        return new InventorySpace.Stack(stack.copyWithCount(1), stack.getCount(),
+        return new InventorySpace.Stack(new Key(stack.copyWithCount(1)), stack.getCount(),
                 stack.getMaxStackSize());
     }
 
@@ -65,7 +88,7 @@ final class InventorySpaces {
             // that is what vanilla's addResource does when it fills a free slot.
             return new InventorySpace.Slot(EMPTY, 0, 0, insertable);
         }
-        return new InventorySpace.Slot(stack.copyWithCount(1), stack.getCount(),
+        return new InventorySpace.Slot(new Key(stack.copyWithCount(1)), stack.getCount(),
                 stack.getMaxStackSize(), insertable);
     }
 }
