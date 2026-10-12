@@ -40,6 +40,10 @@ import java.util.function.Function;
  * <p>What counts is the <b>act</b>, not the drop: silk touch, fortune and a voided drop all
  * count, because the event fires for the break either way. A cancelled break — a protected
  * block — never reaches the event at all, so it counts nothing.
+ *
+ * <p>Breaks in creative mode count, like every other task type counts there: creative trivializes
+ * all progression equally (a gift completes an item task the same way), so no task filters by game
+ * mode and a per-type filter would be incoherent. Verified live, not assumed.
  */
 public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
                         Optional<ResourceLocation> blockTag, Optional<String> blockState, int value)
