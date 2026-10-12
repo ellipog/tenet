@@ -6,7 +6,8 @@ or the **Rewards** menu, which groups the whole book by chapter and collects at 
 **Claim** on one reward's row, **Claim Chapter (N)** on a chapter's banner, and **Claim all** in the
 footer for everything the server is holding. Two toggles decide what the menu is showing — *Ready
 to claim* and *Choices pending* — and the footer's sweep follows whichever is active, so a
-view of choices collects choices and each choice still opens its own picker. There is no history
+view of choices collects choices and each choice still opens its own picker. Pressing a ready
+reward's row claims it too, exactly as its **Claim** button does. There is no history
 view: a list of everything already collected is unbounded in a large pack, so the menu shows only
 what the server still owes.
 

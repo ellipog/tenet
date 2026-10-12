@@ -1543,6 +1543,7 @@ public final class ClientQuestCache {
     private static volatile boolean pauseGame = false;
     private static volatile boolean guiDisabled = false;
     private static volatile boolean bookLodDisabled = false;
+    private static volatile boolean bookOnFirstJoin = false;
     private static volatile String lockMessage = "";
 
     /**
@@ -2011,6 +2012,17 @@ public final class ClientQuestCache {
      */
     public static boolean bookLodDisabled() {
         return bookLodDisabled;
+    }
+
+    /**
+     * Whether a player joining for the first time finds a quest book in their
+     * inventory: the file's {@code giveBookOnFirstJoin}.
+     *
+     * <p>False for every server that predates the key. Drawn from by the Book tab's
+     * switch, which shows the pending edit first like every other book value.
+     */
+    public static boolean bookOnFirstJoin() {
+        return bookOnFirstJoin;
     }
 
     /**
@@ -2513,6 +2525,7 @@ public final class ClientQuestCache {
             pauseGame = false;
             guiDisabled = false;
             bookLodDisabled = false;
+            bookOnFirstJoin = false;
             lockMessage = "";
             treeReceived = false;
         }
@@ -2636,6 +2649,7 @@ public final class ClientQuestCache {
         pauseGame = false;
         guiDisabled = false;
         bookLodDisabled = false;
+        bookOnFirstJoin = false;
         lockMessage = "";
         treeReceived = false;
         // The sampled outlines go with the trees that asked for them: they are keyed by shape and
@@ -2838,6 +2852,8 @@ public final class ClientQuestCache {
         guiDisabled = root.has("disableGui") && root.get("disableGui").getAsBoolean();
         bookLodDisabled = root.has("disableCanvasLod")
                 && root.get("disableCanvasLod").getAsBoolean();
+        bookOnFirstJoin = root.has("giveBookOnFirstJoin")
+                && root.get("giveBookOnFirstJoin").getAsBoolean();
         lockMessage = str(root, "lockMessage");
 
         List<Entry> parsed = new ArrayList<>(quests.size());

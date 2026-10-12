@@ -387,7 +387,7 @@ class AdvancedTest {
         // And the pack's own name and icon are not gated: they write the questline's `index.json`, which is
         // the book's identity rather than its look, and an author naming their book in Normal mode is the
         // whole point of the shallow view being usable.
-        assertEquals(List.of("section:book", "book:title", "book:icon", "book:lod"),
+        assertEquals(List.of("section:book", "book:title", "book:icon", "book:lod", "book:starter"),
                 ToolsLayout.bookRows(true).stream().map(ToolsLayout.Action::key).toList(),
                 "the pack's rows are not the depth's business");
         assertTrue(deep.size() > shallow.size(), "and the deep one has the appearance block too");

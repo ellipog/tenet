@@ -58,8 +58,9 @@ class QuestSettingsTest {
         QuestSettings defaults = QuestSettings.DEFAULTS;
         assertFalse(defaults.showLockIcons(), "no marks unless the file asks for them");
         assertTrue(!defaults.hideExcludedQuests() && !defaults.pauseGame()
-                        && !defaults.disableGui() && !defaults.dropBookOnDeath(),
-                "nothing hidden, paused, refused or dropped");
+                        && !defaults.disableGui() && !defaults.dropBookOnDeath()
+                        && !defaults.giveBookOnFirstJoin(),
+                "nothing hidden, paused, refused, dropped or granted on join");
         assertEquals(0.5, defaults.gridScale());
         assertEquals("", defaults.lockMessage());
         assertEquals(300, defaults.emergencyItemsCooldown());
@@ -78,7 +79,7 @@ class QuestSettingsTest {
     @DisplayName("the behaviour fields are declared for the schema comparison (T26)")
     void behaviourFieldsAreDeclared() {
         for (String field : new String[] {"showLockIcons", "hideExcludedQuests", "pauseGame",
-                "disableGui", "dropBookOnDeath", "gridScale", "lockMessage",
+                "disableGui", "dropBookOnDeath", "giveBookOnFirstJoin", "gridScale", "lockMessage",
                 "emergencyItemsCooldown", "emergencyItems", "disableCanvasLod"}) {
             assertTrue(QuestSettings.FIELDS.contains(field),
                     "or the schema comparison names " + field + " as undocumented");

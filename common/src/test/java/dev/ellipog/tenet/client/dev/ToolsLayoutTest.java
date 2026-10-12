@@ -544,12 +544,16 @@ class ToolsLayoutTest {
 
         List<ToolsLayout.Action> open = ToolsLayout.bookRows(true);
         assertEquals(List.of(ToolsLayout.BOOK_SECTION, ToolsLayout.BOOK_TITLE, ToolsLayout.BOOK_ICON,
-                        ToolsLayout.BOOK_LOD),
+                        ToolsLayout.BOOK_LOD, ToolsLayout.BOOK_STARTER),
                 open.stream().map(ToolsLayout.Action::key).toList(), "the heading, then the fields");
         assertEquals(ToolsLayout.OFF,
                 open.stream().filter(row -> row.key().equals(ToolsLayout.BOOK_LOD)).findFirst()
                         .orElseThrow().buttonLabel(),
                 "tiered until the pack says otherwise");
+        assertEquals(ToolsLayout.OFF,
+                open.stream().filter(row -> row.key().equals(ToolsLayout.BOOK_STARTER)).findFirst()
+                        .orElseThrow().buttonLabel(),
+                "and no book on join until the pack asks for one");
         assertEquals(ToolsLayout.ON,
                 ToolsLayout.bookRows(true, true).stream()
                         .filter(row -> row.key().equals(ToolsLayout.BOOK_LOD)).findFirst()

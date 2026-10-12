@@ -509,6 +509,9 @@ public final class QuestSync {
         if (settings.disableCanvasLod()) {
             root.addProperty("disableCanvasLod", true);
         }
+        if (settings.giveBookOnFirstJoin()) {
+            root.addProperty("giveBookOnFirstJoin", true);
+        }
         if (!settings.lockMessage().isEmpty()) {
             root.addProperty("lockMessage", settings.lockMessage());
         }

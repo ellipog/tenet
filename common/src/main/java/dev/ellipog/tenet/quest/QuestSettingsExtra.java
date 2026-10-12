@@ -19,7 +19,8 @@ import java.util.Set;
  * object.
  */
 public record QuestSettingsExtra(boolean showLockIcons, boolean hideExcludedQuests, boolean pauseGame,
-                                 boolean disableGui, boolean dropBookOnDeath, double gridScale,
+                                 boolean disableGui, boolean dropBookOnDeath, boolean giveBookOnFirstJoin,
+                                 double gridScale,
                                  String lockMessage, int emergencyItemsCooldown,
                                  List<ItemRef> emergencyItems, boolean disableCanvasLod) {
 
@@ -34,12 +35,12 @@ public record QuestSettingsExtra(boolean showLockIcons, boolean hideExcludedQues
 
     /** A file that says nothing about how it behaves: hidden locks, no hiding, no pausing. */
     public static final QuestSettingsExtra DEFAULT = new QuestSettingsExtra(false, false, false, false,
-            false, 0.5, "", 300, List.of(), false);
+            false, false, 0.5, "", 300, List.of(), false);
 
     /** The field names this contributes, for the validator to allow in the settings block. */
     public static final Set<String> FIELDS = Set.of("showLockIcons", "hideExcludedQuests", "pauseGame",
-            "disableGui", "dropBookOnDeath", "gridScale", "lockMessage", "emergencyItemsCooldown",
-            "emergencyItems", "disableCanvasLod");
+            "disableGui", "dropBookOnDeath", "giveBookOnFirstJoin", "gridScale", "lockMessage",
+            "emergencyItemsCooldown", "emergencyItems", "disableCanvasLod");
 
     public static final MapCodec<QuestSettingsExtra> MAP_CODEC = RecordCodecBuilder.mapCodec(
             instance -> instance.group(
@@ -74,6 +75,11 @@ public record QuestSettingsExtra(boolean showLockIcons, boolean hideExcludedQues
                     // picked back up. False leaves death alone, as before.
                     Codec.BOOL.optionalFieldOf("dropBookOnDeath", false)
                             .forGetter(QuestSettingsExtra::dropBookOnDeath),
+                    // Whether a player joining for the first time finds a quest book in their
+                    // inventory. No legacy equivalent: authors used to tell players to take it from
+                    // the creative tab or a command. False changes nothing, as before.
+                    Codec.BOOL.optionalFieldOf("giveBookOnFirstJoin", false)
+                            .forGetter(QuestSettingsExtra::giveBookOnFirstJoin),
                     // The editor canvas's grid step, in content units per cell edge. The legacy
                     // `grid_scale`, whose editor snaps to `1 / gridScale`. File-only for now: the
                     // value is validated and stored, and the editor keeps its 8-unit step (see

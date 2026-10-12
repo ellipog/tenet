@@ -525,6 +525,7 @@ class LegacyMappingTest {
         assertFalse(absent.pauseGame());
         assertFalse(absent.disableGui());
         assertFalse(absent.dropBookOnDeath());
+        assertFalse(absent.giveBookOnFirstJoin(), "absent joins with empty hands");
         assertEquals(0.5, absent.gridScale());
         assertEquals("", absent.lockMessage());
         assertEquals(300, absent.emergencyItemsCooldown());
@@ -532,6 +533,7 @@ class LegacyMappingTest {
 
         var parsed = settings("{\"showLockIcons\": true, \"hideExcludedQuests\": true,"
                 + " \"pauseGame\": true, \"disableGui\": true, \"dropBookOnDeath\": true,"
+                + " \"giveBookOnFirstJoin\": true,"
                 + " \"gridScale\": 1.0, \"lockMessage\": \"Sealed\","
                 + " \"emergencyItemsCooldown\": 60,"
                 + " \"emergencyItems\": [{\"item\": \"minecraft:torch\", \"count\": 8}]}");
@@ -540,6 +542,7 @@ class LegacyMappingTest {
         assertTrue(parsed.pauseGame());
         assertTrue(parsed.disableGui());
         assertTrue(parsed.dropBookOnDeath());
+        assertTrue(parsed.giveBookOnFirstJoin(), "an explicit true greets every newcomer");
         assertEquals(1.0, parsed.gridScale());
         assertEquals("Sealed", parsed.lockMessage());
         assertEquals(60, parsed.emergencyItemsCooldown());

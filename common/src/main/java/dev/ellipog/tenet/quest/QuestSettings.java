@@ -218,6 +218,11 @@ public record QuestSettings(RewardAutoClaim defaultAutoClaim, boolean defaultTea
         return extra.dropBookOnDeath();
     }
 
+    /** Whether a player joining for the first time finds a quest book in their inventory. */
+    public boolean giveBookOnFirstJoin() {
+        return extra.giveBookOnFirstJoin();
+    }
+
     /** The editor canvas's grid step, in content units per cell edge. */
     public double gridScale() {
         return extra.gridScale();

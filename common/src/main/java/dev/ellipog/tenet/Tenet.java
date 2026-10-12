@@ -7,6 +7,7 @@ import dev.ellipog.armature.api.teams.Teams;
 
 import dev.ellipog.tenet.party.PartyStore;
 import dev.ellipog.tenet.progress.ProgressService;
+import dev.ellipog.tenet.progress.StarterBooks;
 import dev.ellipog.tenet.quest.TenetQuests;
 import dev.ellipog.tenet.quest.TreeRefresh;
 import dev.ellipog.tenet.net.ProgressSyncPayload;
@@ -171,6 +172,14 @@ public final class Tenet {
                 TenetNetworking.sendProgressToOwners(server,
                         Set.of(ProgressService.progressOwner(server, player)),
                         ProgressSyncPayload.REASON_CHANGED);
+            }
+
+            // The quest book's own welcome: the pack's `giveBookOnFirstJoin`. A first-time player
+            // finds one book in the first free slot, and nobody ever gets a second -- rejoining
+            // finds its mark, and respawning fires no join at all. Off by default, so a pack that
+            // never heard of the flag joins exactly as before.
+            if (server != null) {
+                StarterBooks.grantIfFirstJoin(server, player);
             }
         });
 

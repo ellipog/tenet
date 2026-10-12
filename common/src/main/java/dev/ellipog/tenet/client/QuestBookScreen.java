@@ -2711,6 +2711,15 @@ public final class QuestBookScreen extends ArmatureScreen
     private record CheckmarkRow(Slot box, String questId, int taskIndex) {}
 
     /**
+     * Reward rows that collect on press. Only claimable rows are registered — a finished quest's
+     * outstanding rewards — so a press that could open recipes keeps doing that everywhere else.
+     * Registered while drawing, read by the click, cleared with the other row lists.
+     */
+    private final List<RewardClaimRow> rewardClaimRows = new ArrayList<>();
+
+    private record RewardClaimRow(Slot box, String questId, int rewardIndex) {}
+
+    /**
      * The reader card's prerequisite rows, from the last frame's drawing: where a press navigates or
      * locates.
      *
@@ -7267,7 +7276,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // theme's -- see `ToolsLayout.bookRows`. Its own fold, so an operator theming the book can put
         // the pack's fields away.
         List<ToolsLayout.Action> bookRows = new ArrayList<>(
-                ToolsLayout.bookRows(toolsBookOpen, bookLodValue()));
+                ToolsLayout.bookRows(toolsBookOpen, bookLodValue(), bookStarterValue()));
         bookRows.addAll(ToolsLayout.rows(ClientAppearance.LOOK.motion(), DevMode.snap(),
                 DevMode.progress(), toolsColoursOpen, paletteOptions(), toolsPaletteOpen,
                 editedBackground(), toolsCanvasOpen, canvasCopyLabel()));
@@ -8431,6 +8440,13 @@ public final class QuestBookScreen extends ArmatureScreen
             // until the tree answers. The file saying `false` is the honest reading.
             sendBookField("disableCanvasLod", new JsonPrimitive(wanted));
             status(wanted ? "Canvas LOD off \u2014 icons always drawn" : "Canvas LOD on", false);
+            rebuildWidgets();
+        }
+        else if (key.equals(ToolsLayout.BOOK_STARTER)) {
+            // Explicit either way, for the same reason as the LOD row above: the switch
+            // shows the pending edit first, and null would read as the old state.
+            sendBookField("giveBookOnFirstJoin", new JsonPrimitive(wanted));
+            status(wanted ? "First join grants a quest book" : "No book on first join", false);
             rebuildWidgets();
         }
     }
@@ -29842,6 +29858,54 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
+     * Whether a row's body press collects what its strip button would.
+     *
+     * <p>One predicate for the drawing and the press, so the two cannot disagree about what is on
+     * screen: {@link #buildRewardWidgets} leaves a button live exactly when this answers true, and
+     * this is what the press asks before running that button's own {@link #rowPress}. A row that is
+     * already collected, gated, or still in flight answers false, and so do the accordion kinds —
+     * a chapter's banner and a quest's header fold rather than pay.
+     */
+    static boolean claimsOnRowPress(RewardInboxLayout.Row row) {
+        return (row.kind() == RewardInboxLayout.Kind.SINGLE || row.kind() == RewardInboxLayout.Kind.REWARD)
+                && row.pressable();
+    }
+
+    /**
+     * Claims a reward from a press on its row's body, exactly as its Claim button would.
+     *
+     * <p>The checkmark row's rule, one menu over: the row is the button. The press runs the same
+     * {@link #rowPress} the strip's widget was given, so a double press is the same no-op the
+     * button has (see {@link #claimReward}) and a choice row opens its picker rather than paying
+     * out. Asked of the layout rather than of a rectangle written here, and of the body's half of
+     * it — the action column is the widget's, which the widget pass already offered the press, so
+     * a press that reaches here is a press on the row and not on its button.
+     */
+    private boolean pressRewardRow(double mouseX, double mouseY) {
+        if (rewardLayout == null || !rewardView.viewport().containsScreen(mouseX, mouseY)) {
+            // Outside the list's own rectangle: the same culling as the fold, so a row scrolled
+            // under the card's header or footer is not claimable from where it is not drawn.
+            return false;
+        }
+        for (RewardInboxLayout.Row row : rewardRows) {
+            if (!claimsOnRowPress(row)) {
+                continue;
+            }
+            Slot slot = rewardLayout.slot(row.key());
+            if (slot == null) {
+                continue;
+            }
+            Slot onScreen = InspectLayout.onScreen(rewardView.viewport(), RewardInboxLayout.body(slot));
+            if (!onScreen.contains(mouseX, mouseY)) {
+                continue;
+            }
+            rowPress(row).run();
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * The claim menu: the chapters, their quests, their rewards, and the controls that collect them.
      *
      * <p>The count on the second line is the view's own count rather than the book's, so the sentence
@@ -30989,6 +31053,7 @@ public final class QuestBookScreen extends ArmatureScreen
         rowItems.clear();
         filterRows.clear();
         checkmarkRows.clear();
+        rewardClaimRows.clear();
         dependencyTargets.clear();
         try (GuiRenderer.Scoped clip = r.clip(body)) {
             drawProse(r, layout, body, mouseX, mouseY);
@@ -31470,6 +31535,25 @@ public final class QuestBookScreen extends ArmatureScreen
         for (CheckmarkRow row : checkmarkRows) {
             if (row.box().contains(mouseX, mouseY)) {
                 submit(row.questId(), row.taskIndex());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A press on a claimable reward row: the reward is collected, exactly as the Rewards menu's
+     * Claim button would.
+     *
+     * <p>The checkmark row's rule, one section down: the press goes through the same
+     * {@code claimReward} (pending marks and all), so a double press cannot collect twice and
+     * the row stops offering the moment the first press lands. Only claimable rows are
+     * registered, so this cannot steal a press a recipe lookup answers.
+     */
+    private boolean pressRewardClaimRow(double mouseX, double mouseY) {
+        for (RewardClaimRow row : rewardClaimRows) {
+            if (row.box().contains(mouseX, mouseY)) {
+                claimReward(row.questId(), row.rewardIndex());
                 return true;
             }
         }
@@ -32324,6 +32408,16 @@ public final class QuestBookScreen extends ArmatureScreen
         // so; the claim button is not this row's -- see BookGeometry's claimable -- and the server
         // refuses the payout anyway, with a message, if the press gets there.
         boolean locked = !ClientQuestCache.rewardLockOf(entry.id(), index).isEmpty();
+        // Whether a press on this row collects it: the quest finished, this reward unclaimed and
+        // ungated for this player, and no press for it already in flight. A claimable row is
+        // claim-only — it carries no recipe target, so one press is never two answers — while
+        // anything else keeps today's behaviour, recipes included.
+        java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
+        boolean claimable = self != null
+                && ClientQuestCache.canClaimReward(self, entry, index)
+                && !pendingClaims.isMarked(PendingClaims.rewardKey(entry.id(), index))
+                && !pendingClaims.isMarked(PendingClaims.questKey(entry.id()))
+                && !pendingClaims.isMarked(PendingClaims.chapterKey(entry.chapterId()));
 
         int contentRight = x + ROW_ICON + 5 + r.textWidth(text);
         if (count != null) {
@@ -32341,10 +32435,15 @@ public final class QuestBookScreen extends ArmatureScreen
         // carries the explanation.
         Slot row = rowBox(slot);
         // The row's target, from the same rule the task row uses: an item reward, and nothing for a
-        // reward with no item. Collected from the drawing pass, like the rowTooltips below.
-        RecipeLookups.Target target = BookRowTargets.ofReward(reward);
+        // reward with no item — and nothing at all while the row is claimable, when the press
+        // collects instead. Collected from the drawing pass, like the rowTooltips below.
+        RecipeLookups.Target target = claimable ? null : BookRowTargets.ofReward(reward);
         if (target != null) {
             rowItems.add(new RowItem(row, target));
+        }
+        // A claimable row answers the press the way the Rewards menu's button does.
+        if (claimable) {
+            rewardClaimRows.add(new RewardClaimRow(row, entry.id(), index));
         }
         if (row.contains(mouseX, mouseY)) {
             // The task row's rule, one member over: the player's explanation, never the author's.
@@ -32360,7 +32459,10 @@ public final class QuestBookScreen extends ArmatureScreen
                         QuestPanelLayout.playerTooltip("rewards", reward.type(), false, false));
                 appendConditionLines(lines, reward.conditions(),
                         ClientQuestCache.rewardLockOf(entry.id(), index));
-                if (RecipeLookups.canOpen(target)) {
+                if (claimable) {
+                    lines.add(Component.translatable("tenet.screen.rewards.claim").getString());
+                }
+                else if (RecipeLookups.canOpen(target)) {
                     lines.add("Click for recipes");
                 }
                 rowTooltips.add(new RowTooltip(row, lines));
@@ -32744,6 +32846,12 @@ public final class QuestBookScreen extends ArmatureScreen
                 if (toggleRewardRow(mouseX, mouseY)) {
                     return true;
                 }
+                // A reward's body claims it, exactly as its Claim button does -- the checkmark row's
+                // rule, one menu over. Only a row whose button is live answers; anything else falls
+                // through to the pan tail below, so a collected or gated row never claims or errors.
+                if (pressRewardRow(mouseX, mouseY)) {
+                    return true;
+                }
                 if (pressBar(rewardView.bar(), mouseX, mouseY)) {
                     return true;
                 }
@@ -32906,6 +33014,12 @@ public final class QuestBookScreen extends ArmatureScreen
                 // target either, and it is registered only while the hand-in is offered, so this
                 // cannot steal a press something else answers.
                 if (button == 0 && pressCheckmarkRow(mouseX, mouseY)) {
+                    return true;
+                }
+                // A claimable reward row collects, after the checkmark's: it carries no recipe
+                // target while claimable, and it is registered only then, so this cannot steal
+                // a press something else answers either.
+                if (button == 0 && pressRewardClaimRow(mouseX, mouseY)) {
                     return true;
                 }
             }
@@ -35410,6 +35524,13 @@ public final class QuestBookScreen extends ArmatureScreen
         return fieldDraft.flag(effectiveChapter(),
                 dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER, "disableCanvasLod",
                 ClientQuestCache.bookLodDisabled());
+    }
+
+    /** The first-join book answer as its switch should show it: the pending edit first, then the tree's own. */
+    private boolean bookStarterValue() {
+        return fieldDraft.flag(effectiveChapter(),
+                dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER, "giveBookOnFirstJoin",
+                ClientQuestCache.bookOnFirstJoin());
     }
 
     /** Commits the book's name. Blank clears it, so the client's own title comes back. */

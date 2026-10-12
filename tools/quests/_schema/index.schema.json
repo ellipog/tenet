@@ -100,6 +100,11 @@
           "default": false,
           "description": "Whether a dying player drops a quest book where they fell, so death cannot take the pack away with it. The legacy format calls this drop_book_on_death."
         },
+        "giveBookOnFirstJoin": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether a player joining for the first time finds a quest book in their inventory (first free slot, never overwritten, never again on rejoin or respawn). No legacy equivalent."
+        },
         "gridScale": {
           "type": "number",
           "minimum": 0.03125,

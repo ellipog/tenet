@@ -142,6 +142,7 @@ public final class ToolsLayout {
     public static final String BOOK_TITLE = "book:title";
     public static final String BOOK_ICON = "book:icon";
     public static final String BOOK_LOD = "book:lod";
+    public static final String BOOK_STARTER = "book:starter";
 
     /**
      * The chapter tab's appearance fold: everything under it writes the chapter's own theme patch.
@@ -291,6 +292,7 @@ public final class ToolsLayout {
             Map.entry(BOOK_TITLE, "tenet.dev.tools.help.book_title"),
             Map.entry(BOOK_ICON, "tenet.dev.tools.help.book_icon"),
             Map.entry(BOOK_LOD, "tenet.dev.tools.help.book_lod"),
+            Map.entry(BOOK_STARTER, "tenet.dev.tools.help.book_starter"),
             Map.entry(APPEARANCE_SECTION, "tenet.dev.tools.help.appearance"));
 
     /** The help a row key offers, or null. Palette rows share one; colour rows have none. */
@@ -806,7 +808,7 @@ public final class ToolsLayout {
      * list to build from, and so a reader of this class can see the whole of what a book row is.
      */
     public static List<Action> bookRows(boolean open) {
-        return bookRows(open, false);
+        return bookRows(open, false, false);
     }
 
     /**
@@ -815,6 +817,14 @@ public final class ToolsLayout {
      * read the tree alone.
      */
     public static List<Action> bookRows(boolean open, boolean lodDisabled) {
+        return bookRows(open, lodDisabled, false);
+    }
+
+    /**
+     * The same, with the first-join book answer beside the LOD one: the pending edit
+     * first, then the tree's, for the same reason.
+     */
+    public static List<Action> bookRows(boolean open, boolean lodDisabled, boolean starterBook) {
         List<Action> rows = new ArrayList<>();
         rows.add(Action.heading(BOOK_SECTION,
                 (open ? "\u25bc " : "\u203a ") + "tenet.dev.tools.book"));
@@ -823,6 +833,8 @@ public final class ToolsLayout {
             rows.add(Action.row(BOOK_ICON, "tenet.dev.tools.book_icon"));
             rows.add(Action.toggle(BOOK_LOD, "tenet.dev.tools.book_lod",
                     lodDisabled ? ON : OFF));
+            rows.add(Action.toggle(BOOK_STARTER, "tenet.dev.tools.book_starter",
+                    starterBook ? ON : OFF));
         }
         return List.copyOf(rows);
     }
