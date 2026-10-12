@@ -2836,6 +2836,11 @@ class QuestPlaythroughTest {
                 var inventory = player.getInventory();
                 for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
                     net.minecraft.world.item.ItemStack stack = inventory.getItem(slot);
+                    // The contract's skip, mirrored: stacks of the bucket item are measured by
+                    // Tenet's own bucket loop, so this counts them never. See FluidAccess.
+                    if (stack.is(bucketToSkip)) {
+                        continue;
+                    }
                     if (stack.is(Items.TORCH)) {
                         torches += stack.getCount();
                     }
@@ -2855,6 +2860,9 @@ class QuestPlaythroughTest {
                 var inventory = player.getInventory();
                 for (int slot = 0; slot < inventory.getContainerSize() && remaining >= 500; slot++) {
                     net.minecraft.world.item.ItemStack stack = inventory.getItem(slot);
+                    if (stack.is(bucketToSkip)) {
+                        continue;
+                    }
                     while (remaining >= 500 && stack.is(Items.TORCH) && !stack.isEmpty()) {
                         stack.shrink(1);
                         remaining -= 500;
@@ -3307,6 +3315,143 @@ class QuestPlaythroughTest {
                 "four ripe breaks are a harvest");
 
         note("logs completed by tag; only ripe wheat counted");
+    }
+
+    @Test
+    @Order(223)
+    @DisplayName("a bucket worn in the offhand or armour counts like one in the pack")
+    void fluidBucketsCountInEverySlot() {
+        // The seam contract measures every slot the inventory reports, and the bucket half is
+        // Tenet's own loop over the same range: a water bucket in the offhand and one in the
+        // boots counts two thousand millibuckets with an empty main inventory.
+        dev.ellipog.tenet.inventory.FluidAccesses.install(torchWater());
+        try {
+            clearInventories();
+            server.onServerThread(() -> {
+                player.getInventory().offhand.set(0, new ItemStack(Items.WATER_BUCKET));
+                player.getInventory().armor.set(0, new ItemStack(Items.WATER_BUCKET));
+                player.getInventory().setChanged();
+            });
+            dev.ellipog.tenet.quest.task.FluidTask task =
+                    new dev.ellipog.tenet.quest.task.FluidTask(
+                            new dev.ellipog.tenet.quest.TaskCommon(false, 20),
+                            net.minecraft.resources.ResourceLocation.withDefaultNamespace("water"),
+                            2000, false);
+            int measured = server.callOnServerThread(() ->
+                    dev.ellipog.tenet.quest.task.FluidTask.BEHAVIOUR.current(task,
+                            new dev.ellipog.tenet.quest.TaskContext(player,
+                                    dev.ellipog.tenet.quest.TenetQuests.index(), gameTime())));
+            assertEquals(2000, measured,
+                    "an offhand bucket plus an armour bucket is two thousand millibuckets");
+            note("a bucket in the offhand and one in the armour counted like two in the pack");
+        }
+        finally {
+            dev.ellipog.tenet.inventory.FluidAccesses.reset();
+        }
+    }
+
+    @Test
+    @Order(224)
+    @DisplayName("the task hands its own bucket as the seam's skip")
+    void fluidTaskPassesItsBucketAsTheSkip() {
+        // The no-double-count half of the contract: Tenet measures buckets itself, so the seam
+        // must skip stacks of exactly the bucket item. This pins the consumer half — the task
+        // hands its fluid's bucket, not some other item — with a fake that records what it got.
+        java.util.concurrent.atomic.AtomicReference<net.minecraft.world.item.Item> seen =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        dev.ellipog.tenet.inventory.FluidAccess inner = torchWater();
+        dev.ellipog.tenet.inventory.FluidAccess recording =
+                new dev.ellipog.tenet.inventory.FluidAccess() {
+                    @Override
+                    public int storedOf(ServerPlayer player,
+                                        net.minecraft.resources.ResourceLocation fluid,
+                                        net.minecraft.world.item.Item bucketToSkip) {
+                        seen.set(bucketToSkip);
+                        return inner.storedOf(player, fluid, bucketToSkip);
+                    }
+
+                    @Override
+                    public int drainFrom(ServerPlayer player,
+                                         net.minecraft.resources.ResourceLocation fluid, int mb,
+                                         net.minecraft.world.item.Item bucketToSkip) {
+                        seen.set(bucketToSkip);
+                        return inner.drainFrom(player, fluid, mb, bucketToSkip);
+                    }
+                };
+        dev.ellipog.tenet.inventory.FluidAccesses.install(recording);
+        try {
+            clearInventories();
+            assertEquals(1, asOperator("/give @s minecraft:water_bucket").result(),
+                    () -> "the bucket should have arrived");
+            assertEquals(1, asOperator("/give @s minecraft:torch").result(),
+                    () -> "the torch should have arrived");
+
+            HeadlessServer.Outcome submitted = asOperator("/tenet submit fluid_jug 0");
+            assertEquals(1, submitted.result(),
+                    () -> "the press should have been accepted. It said:\n" + submitted.text());
+            assertEquals(QuestState.COMPLETED, stateOf("fluid_jug"),
+                    "a bucket and a torch, pressed by hand, is fifteen hundred millibuckets");
+            assertEquals(net.minecraft.world.item.Items.WATER_BUCKET, seen.get(),
+                    "the seam was told to skip the task's own bucket, so buckets cannot count twice");
+            note("the fluid press handed its bucket as the skip and completed");
+        }
+        finally {
+            dev.ellipog.tenet.inventory.FluidAccesses.reset();
+        }
+    }
+
+    @Test
+    @Order(225)
+    @DisplayName("the seam double skips the bucket and counts everything else")
+    void fluidSeamFakeHonoursTheSkip() {
+        // The loader half of the contract, held by the house fake every seam test runs against:
+        // stacks of the skip item are not vessels, and everything else measures. The real
+        // loaders honor the same promise in their own slot loops — see FluidAccess — which no
+        // headless test can run, so this is the seam's executable copy of it.
+        var access = torchWater();
+        clearInventories();
+        assertEquals(1, asOperator("/give @s minecraft:torch 2").result(),
+                () -> "the torches should have arrived");
+        assertEquals(0, server.callOnServerThread(() -> access.storedOf(player,
+                        net.minecraft.resources.ResourceLocation.withDefaultNamespace("water"),
+                        net.minecraft.world.item.Items.TORCH)),
+                "two torches read as the skip item are no vessels at all");
+        assertEquals(1000, server.callOnServerThread(() -> access.storedOf(player,
+                        net.minecraft.resources.ResourceLocation.withDefaultNamespace("water"),
+                        net.minecraft.world.item.Items.WATER_BUCKET)),
+                "the same two torches measure a thousand millibuckets against any other skip");
+        note("the skip excluded the skip item and nothing else");
+    }
+
+    @Test
+    @Order(226)
+    @DisplayName("charge worn in the offhand or armour counts like charge in the pack")
+    void energyChargeCountsInEverySlot() {
+        // The energy contract's slot promise: every slot the inventory reports is measured, main,
+        // armour and offhand alike. A coal in the offhand and one in the boots counts two
+        // thousand Forge Energy with an empty main inventory.
+        dev.ellipog.armature.api.energy.EnergyAccesses.install(coalCharge());
+        try {
+            clearInventories();
+            server.onServerThread(() -> {
+                player.getInventory().offhand.set(0, new ItemStack(Items.COAL));
+                player.getInventory().armor.set(0, new ItemStack(Items.COAL));
+                player.getInventory().setChanged();
+            });
+            dev.ellipog.tenet.quest.task.EnergyTask task =
+                    new dev.ellipog.tenet.quest.task.EnergyTask(
+                            new dev.ellipog.tenet.quest.TaskCommon(false, 20), 2000, 0, false);
+            int measured = server.callOnServerThread(() ->
+                    dev.ellipog.tenet.quest.task.EnergyTask.BEHAVIOUR.current(task,
+                            new dev.ellipog.tenet.quest.TaskContext(player,
+                                    dev.ellipog.tenet.quest.TenetQuests.index(), gameTime())));
+            assertEquals(2000, measured,
+                    "an offhand coal plus an armour coal is two thousand Forge Energy");
+            note("charge in the offhand and the armour counted like charge in the pack");
+        }
+        finally {
+            dev.ellipog.armature.api.energy.EnergyAccesses.reset();
+        }
     }
 
     @Test
@@ -4561,6 +4706,12 @@ class QuestPlaythroughTest {
         @Override
         public boolean isDevelopmentEnvironment() {
             return true;
+        }
+
+        @Override
+        public boolean isFakePlayer(net.minecraft.server.level.ServerPlayer player) {
+            // Headless: every breaker here is a real test player, so nothing is fake.
+            return false;
         }
 
         @Override
