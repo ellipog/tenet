@@ -29605,8 +29605,14 @@ public final class QuestBookScreen extends ArmatureScreen
             rewardMarksRevision = pendingClaims.revision();
             return;
         }
+        // Filed under REWARDS if the bucket is missing it, rather than read with a
+        // getOrDefault over an immutable empty list: a full-screen rebuild clears the slide
+        // filing without touching this card's controls (they rebuild lazily), so the first
+        // claim press after a rebuild — F3+T with the book open is the reliable way — found no
+        // REWARDS entry and died removing from List.of(). Filing here changes nothing when the
+        // entry exists, and when it does not the removals below still run their cleanup.
         java.util.List<AbstractWidget> slid =
-                slideWidgets.getOrDefault(PanelKind.REWARDS, java.util.List.of());
+                slideWidgets.computeIfAbsent(PanelKind.REWARDS, kind -> new java.util.ArrayList<>());
         for (ArmatureButton control : rewardControls) {
             removeWidget(control);
             buttons.remove(control);
