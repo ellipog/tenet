@@ -1597,6 +1597,17 @@ public final class QuestBookScreen extends ArmatureScreen
     private Layout filterLayout;
     private int filterLayoutWidth = -1;
 
+    /**
+     * What the filter rows were resolved and truncated against: the locale overlay and the
+     * font epoch. A language or font change rebuilds the rows even at the same width, or the
+     * list would keep the old language's words cut to the old font's widths.
+     */
+    private long filterTextRevision = -1;
+    private long filterStamp = -1;
+
+    /** The filter rows' drawn strings, truncated at build in row order. See {@link #filterListRows}. */
+    private List<String> filterShownText = List.of();
+
     /** The expression the open list was read from; empty when no list is open. */
     private String filterExpression = "";
 
@@ -26957,11 +26968,14 @@ public final class QuestBookScreen extends ArmatureScreen
         // Only the nodes the canvas can show. The scissor already hides the rest, but a clipped fill is
         // still a fill that was built, transformed and submitted -- and at high zoom most of a chapter is
         // off-canvas, which is why this is the node half of the zoom fix. Culled by stampCanvas.
+        // The focused id unwrapped once for the loop rather than per node: `focused()` answers an
+        // Optional, and mapping it per node allocates two throwaways per visible node per frame.
+        String focusedId = canvasFocus.focused().orElse(null);
         List<FrameNode> nodes = frameNodes;
         for (FrameNode node : nodes) {
             float flash = node.id().equals(flashQuest)
                     ? CanvasReveal.flash(now - flashStart, CanvasReveal.FLASH_MILLIS) : 0F;
-            drawNode(r, node, nodeHover.amount(node.id(), now), flash, detail);
+            drawNode(r, node, nodeHover.amount(node.id(), now), flash, detail, focusedId);
         }
         // Titles in their own pass, after every node, so a label can see the other nodes -- see the
         // stamp for what happened when it could not. Placed, cut and collision-tested there; the
@@ -27093,7 +27107,7 @@ public final class QuestBookScreen extends ArmatureScreen
     // and the manipulation is the only part that had anything to say.
 
     private void drawNode(GuiRenderer r, FrameNode node, float hover, float flash,
-                          CanvasDetail detail) {
+                          CanvasDetail detail, String focusedId) {
         int size = node.size();
         int x = node.x();
         int y = node.y();
@@ -27110,7 +27124,9 @@ public final class QuestBookScreen extends ArmatureScreen
         // go", and the one moment the node must not blend in with its neighbours.
         // The keyboard's focus rings like a selection, and that is deliberate: it is the pointer for
         // somebody who has no pointer, so it has to be as loud as the mouse's own mark. See CanvasFocus.
-        boolean isFocused = canvasFocus.focused().map(node.id()::equals).orElse(false);
+        // Unwrapped by the caller: `focused()` answers an Optional, and mapping it here would
+        // allocate two throwaways per node per frame for an answer that cannot move mid-loop.
+        boolean isFocused = node.id().equals(focusedId);
         int ring = 0;
         if (flash > 0F) {
             ring = Colour.translucent(ArmatureTheme.selectedRing(), flash);
@@ -27518,6 +27534,19 @@ public final class QuestBookScreen extends ArmatureScreen
     private List<FrameLabel> frameLabels = List.of();
 
     /**
+     * The label pass's working buffers, reused across stamps rather than rebuilt.
+     *
+     * <p>Cleared and refilled on every pass that uses them; the published labels leave as a copy,
+     * so reuse can never show a previous stamp's rows. See the label pass for why the pass cannot
+     * be skipped on a drag (positions move) but its containers can survive one.
+     */
+    private final List<ClientQuestCache.Entry> stampNamed = new ArrayList<>();
+    private final List<Integer> stampColumns = new ArrayList<>();
+    private final List<LabelOverlap.Box> stampBoxes = new ArrayList<>();
+    private final Map<String, Integer> stampBoxOf = new HashMap<>();
+    private final List<FrameLabel> stampLabels = new ArrayList<>();
+
+    /**
      * Whether any drawn node wears a cycling adopted icon, and the second it was last
      * drawn for. A cycling icon advances once a second, so a stamp that could not see
      * the clock would freeze it — the stamp re-runs when the second turns, but only
@@ -27880,56 +27909,77 @@ public final class QuestBookScreen extends ArmatureScreen
         // cannot crowd a label. All of it from state the key already names, so a still
         // canvas pays for it once instead of sixty times a second; a tierless chapter
         // builds them at every zoom, for the same reason the draw forces FULL.
-        List<FrameLabel> labels = new ArrayList<>();
+        //
+        // The working buffers are reused across stamps rather than rebuilt: a drag re-stamps
+        // every frame, and the containers — five lists and maps sized by the quest count — were
+        // a five-figure byte churn per frame before a single label was placed. Clearing and
+        // refilling is sound because every buffer is fully rewritten before it is read; the
+        // published labels leave as a copy. An untitled chapter skips the pass whole: with no
+        // named node there is nothing to place, and the boxes built for the collision test
+        // would be work for nothing.
+        List<FrameLabel> labels = stampLabels;
+        labels.clear();
         if (ClientQuestCache.lodDisabledFor(effectiveChapter())
                 || CanvasDetail.of(viewport().scale()).labels()) {
-            List<ClientQuestCache.Entry> named = new ArrayList<>();
+            List<ClientQuestCache.Entry> named = stampNamed;
+            named.clear();
             for (ClientQuestCache.Entry entry : quests) {
                 if (fieldDraft.flag(entry.chapterId(), entry.id(), "showTitle", entry.showTitle())) {
                     named.add(entry);
                 }
             }
-            // One room per node, from its own neighbours: a single crowded pair used to decide
-            // every label in the chapter, so the airy majority truncated to a gap they were nowhere
-            // near. A label with no room of its own is not built at all -- the hover caption carries
-            // the name -- while its neighbours keep theirs. Skipping it here rather than drawing it
-            // is what keeps one tight cluster from reading as a corrupt string.
-            List<Integer> columns = named.stream().map(this::nodeScreenX).toList();
-            // One box per node on the canvas, and the index that finds a node's own box:
-            // the placement and the collision test read the same boxes, so the two cannot
-            // disagree about where a node is.
-            List<LabelOverlap.Box> boxes = new ArrayList<>(quests.size());
-            Map<String, Integer> boxOf = new HashMap<>(quests.size() * 2);
-            for (ClientQuestCache.Entry entry : quests) {
-                boxOf.put(entry.id(), boxes.size());
-                boxes.add(new LabelOverlap.Box(nodeScreenX(entry), nodeScreenY(entry),
-                        nodeSize(entry)));
-            }
-            LabelOverlap overlap = new LabelOverlap(boxes);
-            dev.ellipog.armature.client.ui.kit.Measure measure = textMeasure(r);
-            for (ClientQuestCache.Entry entry : named) {
-                int room = BookGeometry.labelRoomFor(columns, nodeScreenX(entry), LABEL_GAP,
-                        MAX_LABEL_WIDTH);
-                if (room < MIN_LABEL_WIDTH) {
-                    continue;
+            if (!named.isEmpty()) {
+                // One room per node, from its own neighbours: a single crowded pair used to decide
+                // every label in the chapter, so the airy majority truncated to a gap they were nowhere
+                // near. A label with no room of its own is not built at all -- the hover caption carries
+                // the name -- while its neighbours keep theirs. Skipping it here rather than drawing it
+                // is what keeps one tight cluster from reading as a corrupt string.
+                List<Integer> columns = stampColumns;
+                columns.clear();
+                for (ClientQuestCache.Entry entry : named) {
+                    columns.add(nodeScreenX(entry));
                 }
-                int owner = boxOf.get(entry.id());
-                LabelOverlap.Box box = boxes.get(owner);
-                int size = box.size();
-                RichText.Cut cut = RichText.truncate(titleOfRaw(entry), room, measure);
-                int width = cut.advance();
-                // Clamped inward so a label on the edge node is not half off the canvas,
-                // but never so far that it slides away from the node it belongs to. The
-                // clamp reads the dock-aware edge, which is why it sits in the key.
-                int textX = Mth.clamp(box.x() + size / 2 - width / 2, canvasLeft() + 2,
-                        visibleCanvasRight() - width - 2);
-                int textY = box.y() + size + LABEL_GAP;
-                if (textY + 9 > canvasBottom() || overlap.over(owner, textX, textY, width)) {
-                    // A label drawn over the node below it, or out of the canvas, is worse
-                    // than no label.
-                    continue;
+                columns.sort(Integer::compareTo);
+                // One box per node on the canvas, and the index that finds a node's own box:
+                // the placement and the collision test read the same boxes, so the two cannot
+                // disagree about where a node is.
+                List<LabelOverlap.Box> boxes = stampBoxes;
+                boxes.clear();
+                Map<String, Integer> boxOf = stampBoxOf;
+                boxOf.clear();
+                for (ClientQuestCache.Entry entry : quests) {
+                    boxOf.put(entry.id(), boxes.size());
+                    boxes.add(new LabelOverlap.Box(nodeScreenX(entry), nodeScreenY(entry),
+                            nodeSize(entry)));
                 }
-                labels.add(new FrameLabel(entry.id(), shownState(entry), textX, textY, cut));
+                LabelOverlap overlap = new LabelOverlap(boxes);
+                dev.ellipog.armature.client.ui.kit.Measure measure = textMeasure(r);
+                for (ClientQuestCache.Entry entry : named) {
+                    // Sorted once above rather than per label: the columns cannot move between labels,
+                    // so each call was copying and sorting the same list.
+                    int room = BookGeometry.labelRoomForSorted(columns, nodeScreenX(entry), LABEL_GAP,
+                            MAX_LABEL_WIDTH);
+                    if (room < MIN_LABEL_WIDTH) {
+                        continue;
+                    }
+                    int owner = boxOf.get(entry.id());
+                    LabelOverlap.Box box = boxes.get(owner);
+                    int size = box.size();
+                    RichText.Cut cut = RichText.truncate(titleOfRaw(entry), room, measure);
+                    int width = cut.advance();
+                    // Clamped inward so a label on the edge node is not half off the canvas,
+                    // but never so far that it slides away from the node it belongs to. The
+                    // clamp reads the dock-aware edge, which is why it sits in the key.
+                    int textX = Mth.clamp(box.x() + size / 2 - width / 2, canvasLeft() + 2,
+                            visibleCanvasRight() - width - 2);
+                    int textY = box.y() + size + LABEL_GAP;
+                    if (textY + 9 > canvasBottom() || overlap.over(owner, textX, textY, width)) {
+                        // A label drawn over the node below it, or out of the canvas, is worse
+                        // than no label.
+                        continue;
+                    }
+                    labels.add(new FrameLabel(entry.id(), shownState(entry), textX, textY, cut));
+                }
             }
         }
         // Zoomed far enough out that no title is drawn, the labels stay empty: the boxes
@@ -31910,7 +31960,7 @@ public final class QuestBookScreen extends ArmatureScreen
             String key = OverlayLayout.taskKey(i);
             Slot slot = placed(layout, body, key);
             if (slot != null) {
-                drawTaskRow(r, entry, i, slot, rowHover.amount(key, now), mouseX, mouseY);
+                drawTaskRow(r, entry, i, slot, rowHover.amount(key, now), mouseX, mouseY, rowStamp());
             }
         }
     }
@@ -31922,22 +31972,44 @@ public final class QuestBookScreen extends ArmatureScreen
      * things go and the hover tracker's is which one the pointer is over — and a method on the layout
      * that listed its own keys would be a second place the key naming has to be kept in step with
      * {@code stack}'s. It is not: both call the same key generators.
+     *
+     * <p>Remembered while the counts hold still: the keys are pure functions of the three counts, so
+     * one list per (quest, counts, draft) rather than one per frame. The draft version rides along
+     * because the dependency count is draft-aware — an author adding a prerequisite must move the
+     * hover, not just the form.
      */
-    private static List<String> rowKeysOf(ClientQuestCache.Entry entry) {
-        List<String> keys = new ArrayList<>(entry.tasks().size() + entry.rewards().size());
-        for (int i = 0; i < entry.tasks().size(); i++) {
+    private List<String> rowKeysOf(ClientQuestCache.Entry entry) {
+        int tasks = entry.tasks().size();
+        int rewards = entry.rewards().size();
+        int deps = dependenciesOf(entry).size();
+        RowKeysKey key = new RowKeysKey(entry.id(), tasks, rewards, deps, fieldDraft.version());
+        if (rowKeys != null && key.equals(rowKeysKey)) {
+            return rowKeys;
+        }
+        List<String> keys = new ArrayList<>(tasks + rewards + deps);
+        for (int i = 0; i < tasks; i++) {
             keys.add(OverlayLayout.taskKey(i));
         }
-        for (int i = 0; i < entry.rewards().size(); i++) {
+        for (int i = 0; i < rewards; i++) {
             keys.add(OverlayLayout.rewardKey(i));
         }
         // The prerequisites are rows of the body too: they carry a hover wash and a press, and both
         // read the row the pointer is over from this one list.
-        for (int i = 0; i < dependenciesOf(entry).size(); i++) {
+        for (int i = 0; i < deps; i++) {
             keys.add(OverlayLayout.dependencyKey(i));
         }
-        return keys;
+        rowKeys = List.copyOf(keys);
+        rowKeysKey = key;
+        return rowKeys;
     }
+
+    /** What a remembered row-key list was built from. See {@link #rowKeysOf}. */
+    private record RowKeysKey(String questId, int tasks, int rewards, int deps, long draft) {
+    }
+
+    /** The row keys in force, and what they were built from. See {@link #rowKeysOf}. */
+    private List<String> rowKeys;
+    private RowKeysKey rowKeysKey;
 
     /**
      * The key of the row under the pointer, or null.
@@ -32096,7 +32168,14 @@ public final class QuestBookScreen extends ArmatureScreen
         r.text(Measure.truncate(heading, w - 28, measure), left + 14, top + 12, ArmatureTheme.title());
 
         Viewport body = overlayBody();
-        if (filterLayout == null || filterLayoutWidth != body.viewWidth()) {
+        // The rows rebuild when the room does, and when the words or the font do: hover names
+        // follow the language and the overlay, and a width remembered across a font change lays
+        // text out to a width it no longer has. The matches themselves are stable objects from
+        // FilterMatches' own memo, so only these three move the build.
+        long filterText = ClientQuestCache.textRevision();
+        long filterEpoch = TextEpoch.now();
+        if (filterLayout == null || filterLayoutWidth != body.viewWidth()
+                || filterTextRevision != filterText || filterStamp != filterEpoch) {
             List<InspectRow> rows = new ArrayList<>();
             for (int i = 0; i < matches.shown().size(); i++) {
                 rows.add(InspectRow.action(FILTER_PREFIX + i,
@@ -32106,11 +32185,23 @@ public final class QuestBookScreen extends ArmatureScreen
             filterLayout = InspectLayout.build(filterListRows, body.viewWidth(),
                     Measure.monospace(6, 9));
             filterLayoutWidth = body.viewWidth();
+            filterTextRevision = filterText;
+            filterStamp = filterEpoch;
             filterView.clear();
             filterView.whole(true);
             filterView.viewport().bounds(body.originX(), body.originY(), body.viewWidth(),
                     body.viewHeight());
             filterView.apply(filterLayout, body.viewWidth());
+            // Truncated once per build rather than per row per frame: the labels above are already
+            // resolved, and these are the same slots the draw reads — onScreen only translates, so
+            // the widths agree by construction.
+            List<String> shown = new ArrayList<>(filterListRows.size());
+            for (InspectRow row : filterListRows) {
+                var slot = filterLayout.slot(row.key());
+                int room = slot == null ? 0 : Math.max(0, slot.width() - ROW_ICON - 8);
+                shown.add(Measure.truncate(row.label(), room, measure));
+            }
+            filterShownText = List.copyOf(shown);
         }
         filterView.apply(filterLayout, body.viewWidth());
         filterListRects.clear();
@@ -32135,8 +32226,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     r.fill(rect.x(), rect.y(), rect.right(), rect.bottom(), ArmatureTheme.rowHover());
                 }
                 r.icon(stack, rect.x() + 2, rect.y() + 2, ROW_ICON);
-                r.text(Measure.truncate(stack.getHoverName().getString(),
-                                Math.max(0, rect.width() - ROW_ICON - 8), measure),
+                r.text(filterShownText.get(i),
                         rect.x() + ROW_ICON + 6,
                         rect.y() + (rect.height() - r.lineHeight()) / 2, ArmatureTheme.body());
             }
@@ -32195,7 +32285,7 @@ public final class QuestBookScreen extends ArmatureScreen
             String key = OverlayLayout.rewardKey(i);
             Slot slot = placed(layout, body, key);
             if (slot != null) {
-                drawRewardRow(r, entry, i, slot, rowHover.amount(key, now), mouseX, mouseY);
+                drawRewardRow(r, entry, i, slot, rowHover.amount(key, now), mouseX, mouseY, rowStamp());
             }
         }
     }
@@ -32547,11 +32637,239 @@ public final class QuestBookScreen extends ArmatureScreen
      *     the box the hover test asks about is the box the highlight is drawn from
      * @param hover 0 at rest, 1 fully hovered, eased. See {@link Hover}
      */
-    private void drawTaskRow(GuiRenderer r, ClientQuestCache.Entry entry, int index, Slot slot,
-                             float hover, int mouseX, int mouseY) {
+    // ------------------------------------------------------------------
+    // Remembered rows
+    // ------------------------------------------------------------------
+
+    /**
+     * Which list a remembered row belongs to: the task rows, or the reward rows below them.
+     */
+    private enum RowKind {
+        TASK, REWARD
+    }
+
+    /**
+     * Which tag a row wears, if any. The literals are drawn by the row; nothing here is
+     * localised, which is why a tag survives the locale half of the stamp rather than moving it.
+     */
+    private enum RowTag {
+        NONE, LOCKED, HAND_IN, OPTIONAL
+    }
+
+    /** One remembered row, by the list it is in and its place in it. */
+    private record RowKey(RowKind kind, String questId, int index) {
+    }
+
+    /**
+     * The five revisions one card row depends on, read once per row list rather than per row.
+     *
+     * <p>Tree and progress for the data, marks for the optimistic presses in flight, text for the
+     * locale overlay, and the font epoch for the client's own language (which arrives through a
+     * font swap). Anything else a row reads — the slot geometry, the hover — is either passed in
+     * or drawn, never remembered.
+     */
+    private record RowStamp(long tree, long progress, long marks, long text, long font) {
+    }
+
+    /** The stamp in force for this frame's rows. See {@link RowStamp}. */
+    private RowStamp rowStamp() {
+        return new RowStamp(ClientQuestCache.treeRevision(), ClientQuestCache.progressRevision(),
+                pendingClaims.revision(), ClientQuestCache.textRevision(), TextEpoch.now());
+    }
+
+    /**
+     * What one remembered row says and shows, while its stamp holds still.
+     *
+     * <p>Everything the measured half used to rebuild per frame: the sentence, the count, the tag
+     * and the predicates behind it, the progress the bar fills from, and the parsed icon ids. The
+     * geometry — which widths, which x — is recomputed per frame from these plus the slot, because
+     * a resize must move the row rather than reuse it, and the widths underneath are memoised.
+     */
+    private record RowStrings(long tree, long progress, long marks, long text, long font,
+                              String words, String count, boolean missingItem, RowTag tag,
+                              boolean locked, boolean actionable, int progressValue, boolean satisfied,
+                              net.minecraft.resources.ResourceLocation texture,
+                              net.minecraft.resources.ResourceLocation sprite) {
+
+        /** Whether this bundle was built under this stamp. See {@link RowStamp}. */
+        boolean matches(RowStamp stamp) {
+            return tree == stamp.tree() && progress == stamp.progress() && marks == stamp.marks()
+                    && text == stamp.text() && font == stamp.font();
+        }
+    }
+
+    /**
+     * A task row's placed contributors, remembered with the geometry they were placed in.
+     *
+     * <p>The faces' x positions depend on the row's own width, so the geometry rides in the stamp:
+     * a resize misses and replaces rather than reusing positions from a narrower row. The data —
+     * who and how many — rides on the tree, progress and marks like everything else.
+     */
+    private record PlacedContributors(long tree, long progress, long marks, int facesRight,
+                                      int leftLimit, List<Contributor> placed) {
+
+        /** Whether this placing is still the one. */
+        boolean matches(long tree, long progress, long marks, int facesRight, int leftLimit) {
+            return this.tree == tree && this.progress == progress && this.marks == marks
+                    && this.facesRight == facesRight && this.leftLimit == leftLimit;
+        }
+    }
+
+    /** Remembered rows, eldest half out at the bound. A screen lives an open card, not a session. */
+    private static final int ROW_CACHE_LIMIT = 256;
+
+    private final Map<RowKey, RowStrings> rowStrings = new LinkedHashMap<>();
+    private final Map<RowKey, PlacedContributors> rowContributors = new LinkedHashMap<>();
+
+    /** Halves a row table at the bound, eldest first. Same policy as the toolkit's own tables. */
+    private static void halveRows(Map<?, ?> table) {
+        var it = table.keySet().iterator();
+        int remove = table.size() / 2;
+        for (int i = 0; i < remove && it.hasNext(); i++) {
+            it.next();
+            it.remove();
+        }
+    }
+
+    /**
+     * A task row's words and predicates, remembered while its stamp holds still.
+     *
+     * <p>The same reads the measured half has always done — the sentence through the prettifier,
+     * the count, the tag's three predicates, the parsed icon ids — moved verbatim behind one map
+     * lookup, so a hit draws exactly what a fresh build would have drawn.
+     *
+     * <p>Two rows are never remembered, because their answers move with things no revision names:
+     * an advancement row reads the client's live advancement tree, and a row of a quest with a
+     * cooling repeatable reads the wall clock. Both rebuild per frame, exactly as before.
+     */
+    private RowStrings taskStrings(ClientQuestCache.Entry entry, int index, RowStamp stamp) {
         ClientQuestCache.TaskEntry task = entry.tasks().get(index);
+        if (task.type().endsWith(":advancement")
+                || ClientQuestCache.cooldownOf(entry.id(), ClientTicker.ticks()) > 0) {
+            return buildTaskStrings(entry, index, task, stamp);
+        }
+        RowKey key = new RowKey(RowKind.TASK, entry.id(), index);
+        RowStrings hit = rowStrings.get(key);
+        if (hit != null && hit.matches(stamp)) {
+            return hit;
+        }
+        RowStrings built = buildTaskStrings(entry, index, task, stamp);
+        if (rowStrings.size() >= ROW_CACHE_LIMIT) {
+            halveRows(rowStrings);
+        }
+        rowStrings.put(key, built);
+        return built;
+    }
+
+    /** The build half of {@link #taskStrings}: the reads, with no decision about keeping them. */
+    private RowStrings buildTaskStrings(ClientQuestCache.Entry entry, int index,
+                                        ClientQuestCache.TaskEntry task, RowStamp stamp) {
         int progress = ClientQuestCache.taskProgressOf(entry.id(), index);
-        boolean satisfied = progress >= task.count();
+        boolean locked = !ClientQuestCache.taskLockOf(entry.id(), index).isEmpty();
+        boolean handIn = submitOfferedWithMarks(entry.id(), index);
+        boolean missingItem = !task.hasItem() && !task.itemId().isEmpty();
+        return new RowStrings(stamp.tree(), stamp.progress(), stamp.marks(), stamp.text(),
+                stamp.font(),
+                missingItem ? Component.translatable("tenet.screen.missing_item").getString()
+                        : rowText("tasks", task),
+                task.count() > 1 ? Math.min(progress, task.count()) + " / " + task.count() : null,
+                missingItem,
+                locked ? RowTag.LOCKED
+                        : handIn ? RowTag.HAND_IN
+                        : task.optional() ? RowTag.OPTIONAL : RowTag.NONE,
+                locked, handIn, progress, progress >= task.count(),
+                task.textureIcon().isEmpty() ? null
+                        : net.minecraft.resources.ResourceLocation.tryParse(task.textureIcon()),
+                task.spriteIcon().isEmpty() ? null
+                        : net.minecraft.resources.ResourceLocation.tryParse(task.spriteIcon()));
+    }
+
+    /**
+     * A reward row's words and predicates, remembered while its stamp holds still.
+     *
+     * <p>The task row's rule, one member over: the sentence, the count, the lock, whether a press
+     * collects it, and the parsed icon ids. A reward carries no progress and no contributors.
+     *
+     * <p>The same two rows are never remembered, for the same reasons: an advancement reward reads
+     * the live advancement tree, and a cooling repeatable reads the clock.
+     */
+    private RowStrings rewardStrings(ClientQuestCache.Entry entry, int index, RowStamp stamp) {
+        ClientQuestCache.RewardEntry reward = entry.rewards().get(index);
+        if (reward.type().endsWith(":advancement")
+                || ClientQuestCache.cooldownOf(entry.id(), ClientTicker.ticks()) > 0) {
+            return buildRewardStrings(entry, index, reward, stamp);
+        }
+        RowKey key = new RowKey(RowKind.REWARD, entry.id(), index);
+        RowStrings hit = rowStrings.get(key);
+        if (hit != null && hit.matches(stamp)) {
+            return hit;
+        }
+        RowStrings built = buildRewardStrings(entry, index, reward, stamp);
+        if (rowStrings.size() >= ROW_CACHE_LIMIT) {
+            halveRows(rowStrings);
+        }
+        rowStrings.put(key, built);
+        return built;
+    }
+
+    /** The build half of {@link #rewardStrings}: the reads, with no decision about keeping them. */
+    private RowStrings buildRewardStrings(ClientQuestCache.Entry entry, int index,
+                                          ClientQuestCache.RewardEntry reward, RowStamp stamp) {
+        boolean missingItem = !reward.hasItem() && !reward.itemId().isEmpty();
+        boolean locked = !ClientQuestCache.rewardLockOf(entry.id(), index).isEmpty();
+        java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
+        boolean claimable = self != null
+                && ClientQuestCache.canClaimReward(self, entry, index)
+                && !pendingClaims.isMarked(PendingClaims.rewardKey(entry.id(), index))
+                && !pendingClaims.isMarked(PendingClaims.questKey(entry.id()))
+                && !pendingClaims.isMarked(PendingClaims.chapterKey(entry.chapterId()));
+        return new RowStrings(stamp.tree(), stamp.progress(), stamp.marks(), stamp.text(),
+                stamp.font(),
+                missingItem ? Component.translatable("tenet.screen.missing_item").getString()
+                        : rowText("rewards", reward),
+                reward.hasItem() && reward.count() > 1 ? "x" + reward.count() : null,
+                missingItem, locked ? RowTag.LOCKED : RowTag.NONE,
+                locked, claimable, 0, false,
+                reward.textureIcon().isEmpty() ? null
+                        : net.minecraft.resources.ResourceLocation.tryParse(reward.textureIcon()),
+                reward.spriteIcon().isEmpty() ? null
+                        : net.minecraft.resources.ResourceLocation.tryParse(reward.spriteIcon()));
+    }
+
+    /**
+     * A task row's placed contributors, remembered with the geometry they were placed in.
+     *
+     * <p>The placing loop's count strings and widths are the per-frame cost this removes; the
+     * faces themselves draw from the placed positions either way. Geometry rides the stamp, so a
+     * resize replaces rather than reuses.
+     */
+    private List<Contributor> taskContributors(GuiRenderer r, String questId, int taskIndex,
+                                               int facesRight, int leftLimit) {
+        RowKey key = new RowKey(RowKind.TASK, questId, taskIndex);
+        long tree = ClientQuestCache.treeRevision();
+        long progress = ClientQuestCache.progressRevision();
+        long marks = pendingClaims.revision();
+        PlacedContributors hit = rowContributors.get(key);
+        if (hit != null && hit.matches(tree, progress, marks, facesRight, leftLimit)) {
+            return hit.placed();
+        }
+        List<Contributor> placed = placeContributors(r, questId, taskIndex, facesRight, leftLimit);
+        if (rowContributors.size() >= ROW_CACHE_LIMIT) {
+            halveRows(rowContributors);
+        }
+        rowContributors.put(key,
+                new PlacedContributors(tree, progress, marks, facesRight, leftLimit, placed));
+        return placed;
+    }
+
+    private void drawTaskRow(GuiRenderer r, ClientQuestCache.Entry entry, int index, Slot slot,
+                             float hover, int mouseX, int mouseY, RowStamp stamp) {
+        // The row's words and predicates, remembered while the stamp holds still: the same reads
+        // the measured half below has always done, decided once per stamp rather than once per frame.
+        RowStrings strings = taskStrings(entry, index, stamp);
+        ClientQuestCache.TaskEntry task = entry.tasks().get(index);
+        int progress = strings.progressValue();
+        boolean satisfied = strings.satisfied();
 
         int x = slot.x();
         int y = slot.y();
@@ -32568,16 +32886,12 @@ public final class QuestBookScreen extends ArmatureScreen
         // where the item's name would be, in the ink that says something is wrong. The id itself is
         // the author's business -- the picker names it -- and a player can act on "missing", not on
         // "minecraft:oak_log".
-        boolean missingItem = !task.hasItem() && !task.itemId().isEmpty();
-        String text = missingItem
-                ? Component.translatable("tenet.screen.missing_item").getString()
-                : rowText("tasks", task);
+        boolean missingItem = strings.missingItem();
+        String text = strings.words();
         int measuredTextX = x + ROW_ICON + 5;
         int measuredTextRight = measuredTextX + r.textWidth(text);
 
-        String count = task.count() > 1
-                ? Math.min(progress, task.count()) + " / " + task.count()
-                : null;
+        String count = strings.count();
         int barX = count == null
                 ? measuredTextRight + 8
                 : measuredTextRight + 8 + r.textWidth(count) + 8;
@@ -32590,10 +32904,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // Whether this row offers the hand-in right now: the button's own predicate, so the tag and the
         // button cannot disagree. Not the same as the type's `manual` flag -- a task that takes is handed
         // in once the player can pay for it, and a task already handed in offers nothing.
-        boolean handIn = submitOfferedWithMarks(entry.id(), index);
+        boolean handIn = strings.actionable();
         // A condition this player does not meet. Locked wins the one tag slot: "hand in" would be a lie
         // about a button that is not drawn, and the explanation is the whole point of the tag.
-        boolean locked = !ClientQuestCache.taskLockOf(entry.id(), index).isEmpty();
+        boolean locked = strings.locked();
         String tag = locked ? "locked" : (handIn ? "hand in" : (optional ? "optional" : null));
         int tagX = tag == null ? 0 : x + availableWidth - r.textWidth(tag)
                 - (handIn && optional ? r.textWidth("optional") + 6 : 0);
@@ -32601,8 +32915,9 @@ public final class QuestBookScreen extends ArmatureScreen
         // Who is contributing, right-aligned before the tag. Placed here rather than down at the
         // drawing, because the wash behind the row reaches the same edge -- two expressions of "where
         // the faces end" that happen to agree today is the fault this file's geometry exists against.
+        // Remembered with the geometry they were placed in: same faces, same row width, no re-walk.
         int facesRight = tag == null ? x + availableWidth : tagX - 6;
-        List<Contributor> contributors = placeContributors(r, entry.id(), index, facesRight,
+        List<Contributor> contributors = taskContributors(r, entry.id(), index, facesRight,
                 barX + barWidth + 8);
 
         int contentRight = Math.max(measuredTextRight, barX + barWidth);
@@ -32680,12 +32995,8 @@ public final class QuestBookScreen extends ArmatureScreen
 
         int textX = x;
         ItemStack toDraw = task.shown();
-        net.minecraft.resources.ResourceLocation taskTexture =
-                task.textureIcon().isEmpty() ? null
-                        : net.minecraft.resources.ResourceLocation.tryParse(task.textureIcon());
-        net.minecraft.resources.ResourceLocation taskSprite =
-                task.spriteIcon().isEmpty() ? null
-                        : net.minecraft.resources.ResourceLocation.tryParse(task.spriteIcon());
+        net.minecraft.resources.ResourceLocation taskTexture = strings.texture();
+        net.minecraft.resources.ResourceLocation taskSprite = strings.sprite();
         if (!task.filter().isEmpty() && taskTexture == null && taskSprite == null) {
             // A filter task cycles through what it names, one picture a second — the legacy cadence.
             // The author's texture or sprite still wins when set; an empty match list keeps the
@@ -32863,7 +33174,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * row's far edge.
      */
     private void drawRewardRow(GuiRenderer r, ClientQuestCache.Entry entry, int index, Slot slot,
-                               float hover, int mouseX, int mouseY) {
+                               float hover, int mouseX, int mouseY, RowStamp stamp) {
+        // The row's words and predicates, remembered while the stamp holds still: the task row's
+        // rule, one member over.
+        RowStrings strings = rewardStrings(entry, index, stamp);
         ClientQuestCache.RewardEntry reward = entry.rewards().get(index);
         int x = slot.x();
         int y = slot.y();
@@ -32871,25 +33185,18 @@ public final class QuestBookScreen extends ArmatureScreen
 
         // An item this pack no longer has is named for what it is rather than by its id: see
         // `rewardInboxRow` for the row that is drawn rather than hovered, and the same rule here.
-        boolean missingItem = !reward.hasItem() && !reward.itemId().isEmpty();
-        String text = missingItem
-                ? Component.translatable("tenet.screen.missing_item").getString()
-                : rowText("rewards", reward);
-        String count = reward.hasItem() && reward.count() > 1 ? "x" + reward.count() : null;
+        boolean missingItem = strings.missingItem();
+        String text = strings.words();
+        String count = strings.count();
         // A condition this player does not meet on this reward. The row is drawn shut and the tag says
         // so; the claim button is not this row's -- see BookGeometry's claimable -- and the server
         // refuses the payout anyway, with a message, if the press gets there.
-        boolean locked = !ClientQuestCache.rewardLockOf(entry.id(), index).isEmpty();
+        boolean locked = strings.locked();
         // Whether a press on this row collects it: the quest finished, this reward unclaimed and
         // ungated for this player, and no press for it already in flight. A claimable row is
         // claim-only — it carries no recipe target, so one press is never two answers — while
         // anything else keeps today's behaviour, recipes included.
-        java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
-        boolean claimable = self != null
-                && ClientQuestCache.canClaimReward(self, entry, index)
-                && !pendingClaims.isMarked(PendingClaims.rewardKey(entry.id(), index))
-                && !pendingClaims.isMarked(PendingClaims.questKey(entry.id()))
-                && !pendingClaims.isMarked(PendingClaims.chapterKey(entry.chapterId()));
+        boolean claimable = strings.actionable();
 
         int contentRight = x + ROW_ICON + 5 + r.textWidth(text);
         if (count != null) {
@@ -32944,12 +33251,8 @@ public final class QuestBookScreen extends ArmatureScreen
 
         int textX = x;
         ItemStack toDraw = reward.shown();
-        net.minecraft.resources.ResourceLocation rewardTexture =
-                reward.textureIcon().isEmpty() ? null
-                        : net.minecraft.resources.ResourceLocation.tryParse(reward.textureIcon());
-        net.minecraft.resources.ResourceLocation rewardSprite =
-                reward.spriteIcon().isEmpty() ? null
-                        : net.minecraft.resources.ResourceLocation.tryParse(reward.spriteIcon());
+        net.minecraft.resources.ResourceLocation rewardTexture = strings.texture();
+        net.minecraft.resources.ResourceLocation rewardSprite = strings.sprite();
         if (missingItem) {
             drawItemPlaceholder(r, x, y, ROW_ICON);
             textX = x + ROW_ICON + 5;

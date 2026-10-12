@@ -640,6 +640,31 @@ class BookGeometryTest {
     class LabelsAndHits {
 
         @Test
+        @DisplayName("the pre-sorted answers are the copying answers, over orders and gaps")
+        void sortedVariantsAgree() {
+            // The label pass sorts once and asks per node; the plain forms copy and sort per call.
+            // Swept over shuffled orders, because an answer that only agrees on sorted input is the
+            // sort being load-bearing rather than an optimisation.
+            List<List<Integer>> columns = List.of(
+                    List.of(), List.of(500), List.of(0, 64, 128), List.of(128, 0, 64),
+                    List.of(200, 200, 400), List.of(0, 300, 340, 40, 1000));
+            for (List<Integer> unsorted : columns) {
+                List<Integer> sorted = new ArrayList<>(unsorted);
+                sorted.sort(Integer::compareTo);
+                for (int margin = 0; margin <= 8; margin += 4) {
+                    assertEquals(BookGeometry.labelRoom(unsorted, margin, 120),
+                            BookGeometry.labelRoomSorted(sorted, margin, 120),
+                            "columns " + unsorted);
+                    for (int x : new int[] {-50, 0, 64, 300, 500, 2000}) {
+                        assertEquals(BookGeometry.labelRoomFor(unsorted, x, margin, 120),
+                                BookGeometry.labelRoomForSorted(sorted, x, margin, 120),
+                                "columns " + unsorted + " at " + x);
+                    }
+                }
+            }
+        }
+
+        @Test
         @DisplayName("columns 64 apart give each label 56 pixels, and 56 is less than 64")
         void crowdedColumnsStillLeaveMeasurableRoom() {
             // The bug behind the garbled text: a questline authored 64 pixels apart carrying titles

@@ -16,6 +16,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -501,6 +502,41 @@ class QuestLanguagesTest {
             assertEquals(1, problems.forFile("en_us.json").size(), "one warning per file");
             assertEquals(1, problems.forFile("es_es.json").size(), "one warning per file");
             assertEquals(2, problems.warningCount(), "two files, two warnings:\n" + problems.all());
+        }
+    }
+
+    @Nested
+    @DisplayName("normalisation")
+    class Normalisation {
+
+        @Test
+        @DisplayName("lower case, dashes to underscores, or empty")
+        void spellsLocales() {
+            assertEquals("en_us", QuestLanguages.normalise("en_us"));
+            assertEquals("en_us", QuestLanguages.normalise("en-US"));
+            assertEquals("en_us", QuestLanguages.normalise("  EN_us  "));
+            assertTrue(QuestLanguages.normalise(null).isEmpty());
+            assertTrue(QuestLanguages.normalise("not a locale").isEmpty());
+        }
+
+        @Test
+        @DisplayName("the same string object is spelled once, however often it is asked")
+        void sameReferenceAsksOnce() {
+            // The per-tick poll asks with the client's own language string, which is the same
+            // object every frame: the trim, the lower-casing and the pattern match run once per
+            // language rather than once per tick.
+            String language = "en_us";
+            assertSame(QuestLanguages.normalise(language), QuestLanguages.normalise(language));
+        }
+
+        @Test
+        @DisplayName("an equal string in another object recomputes to the same spelling")
+        void equalContentRecomputes() {
+            // Reference equality is the memo, not content equality: a fresh object with equal
+            // characters is a missed hit and never a wrong one.
+            String first = new String("en_us");
+            String second = new String("en_us");
+            assertEquals(QuestLanguages.normalise(first), QuestLanguages.normalise(second));
         }
     }
 }

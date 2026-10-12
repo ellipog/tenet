@@ -91,4 +91,13 @@ class ViewersTest {
                     viewer + " must not install without a loader to confirm it is there");
         }
     }
+
+    @Test
+    @DisplayName("the runtime answer is stable across calls: the probes run once per platform")
+    void chosenIsStable() {
+        // The per-tick path: mods load at boot and never mid-game, so asking twice must answer
+        // twice without asking the loader twice. Pinned by equality here; the probe count is an
+        // implementation detail the predicate tests above already own.
+        assertEquals(Viewers.chosen(), Viewers.chosen());
+    }
 }

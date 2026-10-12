@@ -66,8 +66,30 @@ public final class Viewers {
 
     /** The viewer that owns the integration on this client. Empty when none is installed. */
     public static Optional<Viewer> chosen() {
-        return choose(Viewers::loaded);
+        // Asked once per client tick, and the answer cannot move under a session: mods load at
+        // boot, never mid-game. So the probes run once per platform object rather than once per
+        // tick — keyed by identity, because a new platform is the only thing that can change the
+        // answer, and a test JVM swapping harnesses is exactly such a change. A null platform (no
+        // loader yet, or a test JVM) is a key like any other and reads as nothing loaded.
+        Object platform;
+        try {
+            platform = ArmatureApi.platform();
+        }
+        catch (RuntimeException e) {
+            platform = null;
+        }
+        if (platform != chosenPlatform) {
+            chosenPlatform = platform;
+            chosenAnswer = choose(Viewers::loaded);
+        }
+        return chosenAnswer;
     }
+
+    /** The platform the cached answer was decided against. Anything else recomputes. */
+    private static Object chosenPlatform = new Object();
+
+    /** The answer for {@link #chosenPlatform}. */
+    private static Optional<Viewer> chosenAnswer = Optional.empty();
 
     /**
      * Whether this viewer is the one that registered. Every adapter's first line is this.

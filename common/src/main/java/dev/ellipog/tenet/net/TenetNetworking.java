@@ -1397,11 +1397,16 @@ public final class TenetNetworking {
         if (owners.isEmpty()) {
             return;
         }
+        // Collected first, pushed second: the team push resolves once per team rather than once
+        // per member, and this set can span teams. Same messages either way — grouping only
+        // decides how many resolutions they cost.
+        List<ServerPlayer> recipients = new ArrayList<>();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (owners.contains(ProgressService.progressOwner(server, player))) {
-                QuestSync.sendProgress(server, player, reason);
+                recipients.add(player);
             }
         }
+        QuestSync.sendProgressToTeam(server, recipients, reason);
     }
 
     /**

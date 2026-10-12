@@ -55,6 +55,34 @@ class PageArtTest {
     }
 
     @Test
+    @DisplayName("the search lands on the walk's own answer at every width")
+    void fitMatchesTheLinearWalk() {
+        // The retired shrink-a-character loop, as the spec: swept over widths, including the ones
+        // where even the ellipsis does not fit and the ones where the whole string does.
+        RecordingRenderer renderer = RecordingRenderer.create();
+        String text = "The quick brown fox";
+        for (int width = 0; width <= 130; width++) {
+            assertEquals(linearFit(renderer, text, width), PageArt.fit(renderer, text, width),
+                    "width " + width);
+        }
+    }
+
+    /** The old walk, verbatim in behavior: shrink until the ellipsis form fits, or nothing. */
+    private static String linearFit(RecordingRenderer renderer, String text, int width) {
+        dev.ellipog.armature.client.ui.kit.Measure measure =
+                dev.ellipog.armature.client.ui.kit.Measure.of(renderer::textWidth,
+                        renderer.lineHeight());
+        if (width <= 0 || measure.width(text) <= width) {
+            return width <= 0 ? "" : text;
+        }
+        String cut = text;
+        while (!cut.isEmpty() && measure.width(cut + "...") > width) {
+            cut = cut.substring(0, cut.length() - 1);
+        }
+        return cut.isEmpty() ? "" : cut + "...";
+    }
+
+    @Test
     @DisplayName("a pill is its word plus padding, filled in its colour with white text on it")
     void aPillIsTheWordPlusPadding() {
         RecordingRenderer renderer = RecordingRenderer.create();

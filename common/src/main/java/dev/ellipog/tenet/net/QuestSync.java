@@ -38,6 +38,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -1781,7 +1782,43 @@ public final class QuestSync {
         }
 
         UUID owner = ProgressService.progressOwner(server, player);
+        sendProgress(server, player, reason, pushFor(server, owner));
+    }
+
+    /**
+     * What one team's push shares: everything that does not name a player.
+     *
+     * <p>The owner, the game time, the stored progress, the resolution over it, and the two
+     * owner-scoped closures are identical for every member of the team — resolving and capturing
+     * them per member recomputes one answer M times. What stays per player is the snapshot the
+     * delta is relative to, the full-sync decision, the lock and stage pictures (conditions are
+     * per player), and the encoding and sending of their own message.
+     *
+     * <p>Sharing is sound because none of the shared reads mutate: the resolution builds fresh
+     * maps, the delta builds a fresh document, and the closures read static maps no send path
+     * writes. A push that resolved per member and one that shares therefore send byte-identical
+     * messages, which the suites assert.
+     */
+    private record TeamPush(QuestIndex index, UUID owner, long gameTime, TeamProgress progress,
+                            ProgressionEngine.Resolution resolution,
+                            ProgressService.Contributors contributors, ProgressService.Live live) {
+    }
+
+    /** The shared half of one team's push, resolved once. See {@link TeamPush}. */
+    private static TeamPush pushFor(MinecraftServer server, UUID owner) {
+        QuestIndex index = TenetQuests.index();
         long gameTime = server.overworld().getGameTime();
+        TeamProgress progress = ProgressService.progressFor(server, owner);
+        return new TeamPush(index, owner, gameTime, progress,
+                ProgressionEngine.resolve(index, progress, gameTime),
+                ProgressService.contributors(owner), ProgressService.live(owner));
+    }
+
+    /** One member's message from the team's shared push. See {@link TeamPush}. */
+    private static void sendProgress(MinecraftServer server, ServerPlayer player, int reason,
+                                     TeamPush push) {
+        UUID owner = push.owner();
+        long gameTime = push.gameTime();
         Sent last = SENT.get(player.getUUID());
 
         boolean full = last == null
@@ -1789,22 +1826,20 @@ public final class QuestSync {
                 || reason == ProgressSyncPayload.REASON_JOIN
                 || reason == ProgressSyncPayload.REASON_RELOAD;
 
-        TeamProgress progress = ProgressService.progressFor(server, owner);
-        ProgressionEngine.Resolution resolution = ProgressionEngine.resolve(index, progress, gameTime);
-
         Map<String, ProgressService.LockView> locks =
-                ProgressService.lockView(server, index, player, owner);
+                ProgressService.lockView(server, push.index(), player, owner);
 
-        Delta delta = progressDelta(resolution, progress, index, full ? null : last.quests(),
-                ProgressService.contributors(owner),
+        Delta delta = progressDelta(push.resolution(), push.progress(), push.index(),
+                full ? null : last.quests(),
+                push.contributors(),
                 // The quests this player's stage gate shuts: the one per-player fact the per-quest text
                 // cannot carry, because the text is built from the team's progress. See progressDelta.
-                ProgressService.stageLockedQuests(server, player, index),
+                ProgressService.stageLockedQuests(server, player, push.index()),
                 // And the rows this player's conditions shut, for the same reason.
                 locks,
                 // And how much the tasks that wait for a press are holding right now, since none of it
                 // is recorded yet. See oneQuestAsJson.
-                ProgressService.live(owner));
+                push.live());
         SENT.put(player.getUUID(), new Sent(owner, delta.snapshot(), lockText(locks)));
 
         // Counted here rather than at the `send` calls below. One logical message can be several
@@ -1973,8 +2008,33 @@ public final class QuestSync {
     public static void sendProgressToTeam(MinecraftServer server,
                                           Collection<ServerPlayer> members,
                                           int reason) {
-        for (ServerPlayer member : members) {
-            sendProgress(server, member, reason);
+        sendProgressGrouped(server, members, reason);
+    }
+
+    /**
+     * Sends progress to a set of players, resolving once per team rather than once per member.
+     *
+     * <p>The players are grouped by progress owner first — members of one team share the whole
+     * push, so one resolution serves all of them. A set that spans teams resolves once each,
+     * which is still one resolution per team rather than one per member. Grouping preserves the
+     * recipient order, and every member's message is built exactly as the single-player path
+     * builds it, from that team's shared push.
+     */
+    private static void sendProgressGrouped(MinecraftServer server, Collection<ServerPlayer> players,
+                                            int reason) {
+        if (players.isEmpty() || TenetQuests.index().isEmpty()) {
+            return;
+        }
+        Map<UUID, List<ServerPlayer>> byOwner = new LinkedHashMap<>();
+        for (ServerPlayer player : players) {
+            byOwner.computeIfAbsent(ProgressService.progressOwner(server, player),
+                    empty -> new ArrayList<>()).add(player);
+        }
+        for (Map.Entry<UUID, List<ServerPlayer>> group : byOwner.entrySet()) {
+            TeamPush push = pushFor(server, group.getKey());
+            for (ServerPlayer member : group.getValue()) {
+                sendProgress(server, member, reason, push);
+            }
         }
     }
 

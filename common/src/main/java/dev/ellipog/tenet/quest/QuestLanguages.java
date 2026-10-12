@@ -508,8 +508,31 @@ public final class QuestLanguages {
      * <p>Empty means "not a locale id", and every caller treats it as "no answer" rather than as an
      * error. Both directions go through here — the file name when loading and the client's own
      * language when resolving — so the two can never be spelled differently and miss each other.
+     *
+     * <p>Remembered by reference while the input holds still: the per-tick poll asks with the same
+     * string object every frame, so the trim, the lower-casing and the pattern match run once per
+     * language rather than once per tick. Reference equality implies content equality, so a hit
+     * cannot be wrong — and a fresh object with equal content merely recomputes. The pair travels
+     * in one volatile holder, because the file side runs on a server thread and the poll on the
+     * client's.
      */
     public static String normalise(String locale) {
+        Normalised last = lastNormalised;
+        if (last.input() == locale) {
+            return last.output();
+        }
+        String result = normaliseUncached(locale);
+        lastNormalised = new Normalised(locale, result);
+        return result;
+    }
+
+    /** One remembered normalisation: the exact input object, and what it spelled. */
+    private record Normalised(String input, String output) {
+    }
+
+    private static volatile Normalised lastNormalised = new Normalised(null, "");
+
+    private static String normaliseUncached(String locale) {
         if (locale == null) {
             return "";
         }

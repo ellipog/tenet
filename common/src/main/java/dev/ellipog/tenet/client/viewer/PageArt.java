@@ -53,11 +53,27 @@ public final class PageArt {
         if (width <= 0 || FIT.width(text) <= width) {
             return width <= 0 ? "" : text;
         }
-        String cut = text;
-        while (!cut.isEmpty() && FIT.width(cut + "...") > width) {
-            cut = cut.substring(0, cut.length() - 1);
+        // Binary search for the longest prefix whose ellipsis form still fits, rather than
+        // shrinking a character at a time: the walk allocated a cut plus a concat per character,
+        // and the widths underneath are memoised either way. The probe measures the concatenated
+        // form rather than adding two widths, because that is exactly what the walk asked — and
+        // what the drawing draws.
+        String ellipsis = "...";
+        if (FIT.width(ellipsis) > width) {
+            return "";
         }
-        return cut.isEmpty() ? "" : cut + "...";
+        int lo = 0;
+        int hi = text.length();
+        while (hi - lo > 1) {
+            int mid = (lo + hi) >>> 1;
+            if (FIT.width(text.substring(0, mid) + ellipsis) <= width) {
+                lo = mid;
+            }
+            else {
+                hi = mid;
+            }
+        }
+        return lo == 0 ? "" : text.substring(0, lo) + ellipsis;
     }
 
     /**

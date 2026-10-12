@@ -4,8 +4,10 @@ import dev.ellipog.tenet.client.BookGeometry;
 import dev.ellipog.tenet.quest.loot.RewardTable;
 import dev.ellipog.tenet.quest.reward.TableReward;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * The table editor's arithmetic: the breadcrumb, the header, the toolbar, the rows and the footer.
@@ -601,11 +603,39 @@ public final class TableEditorLayout {
         return percent(chance.atLeastOnce(lootSize)) + " at least once";
     }
 
-    /** One decimal place, which is as precise as a weight an author types ever is. */
+    /**
+     * One decimal place, which is as precise as a weight an author types ever is.
+     *
+     * <p>Remembered by exact value rather than reformatted: a formatter is built per call, and the
+     * rows that ask are drawn per frame while the table editor is open. The key is the double's
+     * own bits rather than a rounded bucket, so two fractions that print differently can never
+     * share an entry — and the formatting itself is untouched, down to the rounding the
+     * formatter applies.
+     */
     public static String percent(double fraction) {
         double percent = Math.max(0.0, Math.min(1.0, fraction)) * 100.0;
-        return String.format(Locale.ROOT, "%.1f%%", percent);
+        long key = Double.doubleToLongBits(percent);
+        String hit = PERCENTS.get(key);
+        if (hit != null) {
+            return hit;
+        }
+        String built = String.format(Locale.ROOT, "%.1f%%", percent);
+        if (PERCENTS.size() >= PERCENT_LIMIT) {
+            var it = PERCENTS.keySet().iterator();
+            int remove = PERCENTS.size() / 2;
+            for (int i = 0; i < remove && it.hasNext(); i++) {
+                it.next();
+                it.remove();
+            }
+        }
+        PERCENTS.put(key, built);
+        return built;
     }
+
+    /** Formatted percents, eldest half out at the bound. Client thread only, like every frame cache. */
+    private static final Map<Long, String> PERCENTS = new LinkedHashMap<>();
+
+    private static final int PERCENT_LIMIT = 256;
 
     /**
      * The preview modes the header cycles, in the order it cycles them.

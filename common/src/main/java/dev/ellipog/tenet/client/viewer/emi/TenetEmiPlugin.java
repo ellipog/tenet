@@ -218,10 +218,21 @@ public final class TenetEmiPlugin implements dev.emi.emi.api.EmiPlugin, Integrat
         private final List<dev.emi.emi.api.stack.EmiIngredient> inputs;
         private final List<dev.emi.emi.api.stack.EmiStack> outputs;
 
+        /**
+         * The recipe's id, built once: the page and the category never change under it, and
+         * {@link #getId} is asked per frame by the pin check — an assembly per frame for an
+         * answer that cannot move.
+         */
+        private final ResourceLocation id;
+
         QuestEmiRecipe(dev.emi.emi.api.recipe.EmiRecipeCategory category, QuestPage page,
                        ItemStack fallbackIcon) {
             this.category = category;
             this.page = page;
+            // Synthetic, with the leading slash EMI reserves for ids that are not datapack recipes:
+            // the page is generated from the client cache and has no file behind it.
+            this.id = ResourceLocation.fromNamespaceAndPath(category.getId().getNamespace(),
+                    "/quest/" + page.quest().id());
 
             List<dev.emi.emi.api.stack.EmiIngredient> in = new ArrayList<>();
             for (QuestRow row : page.tasks()) {
@@ -252,10 +263,7 @@ public final class TenetEmiPlugin implements dev.emi.emi.api.EmiPlugin, Integrat
 
         @Override
         public ResourceLocation getId() {
-            // Synthetic, with the leading slash EMI reserves for ids that are not datapack recipes:
-            // the page is generated from the client cache and has no file behind it.
-            return ResourceLocation.fromNamespaceAndPath(category.getId().getNamespace(),
-                    "/quest/" + page.quest().id());
+            return id;
         }
 
         @Override

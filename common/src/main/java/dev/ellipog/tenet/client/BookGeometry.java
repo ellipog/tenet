@@ -1968,14 +1968,27 @@ public final class BookGeometry {
     public static int labelRoom(List<Integer> columnXs, int labelGap, int maxWidth) {
         List<Integer> sorted = new ArrayList<>(columnXs);
         sorted.sort(Integer::compareTo);
+        return labelRoomSorted(sorted, labelGap, maxWidth);
+    }
 
-        if (sorted.size() < 2) {
+    /**
+     * The same answer without the copy and the sort, for a caller asking per label.
+     *
+     * <p>The label pass asks once per named node over the same columns; copying and sorting them
+     * per node is one allocation and one {@code O(C log C)} per label for an answer that cannot
+     * move between labels. Sort once at the call site and ask here.
+     *
+     * @param sortedColumnXs the columns, already sorted ascending; not checked, because checking
+     *                       would be the walk this exists to avoid
+     */
+    public static int labelRoomSorted(List<Integer> sortedColumnXs, int labelGap, int maxWidth) {
+        if (sortedColumnXs.size() < 2) {
             // One column, so no neighbour to crowd. The cap still applies.
             return maxWidth;
         }
         int gap = Integer.MAX_VALUE;
-        for (int i = 1; i < sorted.size(); i++) {
-            gap = Math.min(gap, sorted.get(i) - sorted.get(i - 1));
+        for (int i = 1; i < sortedColumnXs.size(); i++) {
+            gap = Math.min(gap, sortedColumnXs.get(i) - sortedColumnXs.get(i - 1));
         }
         return clamp(gap - labelGap * 2, 0, maxWidth);
     }
@@ -1999,10 +2012,21 @@ public final class BookGeometry {
     public static int labelRoomFor(List<Integer> columnXs, int x, int labelGap, int maxWidth) {
         List<Integer> sorted = new ArrayList<>(columnXs);
         sorted.sort(Integer::compareTo);
+        return labelRoomForSorted(sorted, x, labelGap, maxWidth);
+    }
 
+    /**
+     * The same answer without the copy and the sort, for a caller asking per label.
+     *
+     * <p>See {@link #labelRoomSorted}: the label pass sorts the columns once and asks per node.
+     *
+     * @param sortedColumnXs the columns, already sorted ascending; not checked
+     */
+    public static int labelRoomForSorted(List<Integer> sortedColumnXs, int x, int labelGap,
+                                         int maxWidth) {
         int leftGap = Integer.MAX_VALUE;
         int rightGap = Integer.MAX_VALUE;
-        for (int column : sorted) {
+        for (int column : sortedColumnXs) {
             if (column < x) {
                 // The last one below wins, which is the nearest: the list is sorted.
                 leftGap = x - column;
