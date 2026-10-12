@@ -23,9 +23,7 @@ import net.minecraft.world.item.ItemStack;
  * <h2>Where it is</h2>
  *
  * <p>Two pixels in from the window's corner, which is where it ships and where {@link HudSettings} keeps it
- * until a player moves it in the HUD editor. With FTB Library's sidebar around it ships one sidebar cell
- * to the right instead -- see {@code FtbCompat} -- because that column draws from the same corner and
- * would otherwise sit on top of it. That corner is also contested by the recipe viewers -- JEI lays its
+ * until a player moves it in the HUD editor. That corner is contested -- JEI lays its
  * bookmarks out across the strip left of a container panel, and EMI's default left sidebar is its favourites
  * page -- and the answer to those is the editor and the switch rather than a different corner: a player can
  * put the button anywhere or turn it off, and it is worth having somewhere easy to find.

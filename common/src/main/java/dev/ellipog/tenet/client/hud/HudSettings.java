@@ -7,7 +7,6 @@ import com.google.gson.JsonParser;
 import dev.ellipog.armature.api.ArmatureApi;
 import dev.ellipog.armature.api.data.JsonWrite;
 import dev.ellipog.tenet.Constants;
-import dev.ellipog.tenet.client.compat.FtbCompat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -15,7 +14,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * Where this client's HUD things are, and whether they are drawn: {@code config/tenet/hud.json}.
@@ -35,10 +33,9 @@ import java.util.function.Predicate;
  * for what the player changed, and a file that grows a line every time somebody drags something and puts it
  * back is a file nobody can diff.
  *
- * <p>"Default" means the <b>effective</b> default: the book's button ships at window {@code (2, 2)} alone
- * and at {@code (22, 2)} with FTB Library's sidebar around -- see {@code FtbCompat} -- so putting it back
- * to the position it visibly shipped at leaves no entry either way. A stored coordinate always wins over
- * both, which is what keeps a player's explicit choice from moving when that sidebar arrives or leaves.
+ * <p>"Default" means the table's default: the book's button ships at window {@code (2, 2)},
+ * full stop. A stored coordinate always wins, which is what keeps a player's explicit choice
+ * where they put it.
  *
  * <h2>What a stored value is, and what it is not</h2>
  *
@@ -98,41 +95,19 @@ public final class HudSettings {
     /**
      * Where it sits, as a position in the window.
      *
-     * <p>The stored coordinate, or the effective default when the player never moved it: {@code (2, 2)}
-     * for the book's button alone, {@code (22, 2)} with FTB Library's sidebar around. A stored value
-     * always wins, so installing or removing that sidebar never moves an explicitly placed button.
+     * <p>The stored coordinate, or the table's default when the player never moved it.
      */
     public static int x(HudElement element) {
         Integer said = entry(element).x();
-        return said == null ? FtbCompat.effectiveDefaultX(element) : said;
-    }
-
-    /**
-     * The same over a stub, so the shifted default is testable with nothing installed.
-     *
-     * <p>The live path above stays on {@code FtbCompat}'s own live overload; this one exists so a
-     * test can ask what ships with that sidebar around without a loader to ask.
-     */
-    static int x(HudElement element, Predicate<String> loaded) {
-        Integer said = entry(element).x();
-        return said == null ? FtbCompat.effectiveDefaultX(element, loaded) : said;
+        return said == null ? element.defaultX() : said;
     }
 
     /**
      * The same, vertically.
-     *
-     * <p>Read through the effective default for the same reason: the sidebar grows downward, so the
-     * shipped height does not move, only what the file holds does.
      */
     public static int y(HudElement element) {
         Integer said = entry(element).y();
-        return said == null ? FtbCompat.effectiveDefaultY(element) : said;
-    }
-
-    /** The same over a stub, for the same test as {@link #x(HudElement, Predicate)}. */
-    static int y(HudElement element, Predicate<String> loaded) {
-        Integer said = entry(element).y();
-        return said == null ? FtbCompat.effectiveDefaultY(element, loaded) : said;
+        return said == null ? element.defaultY() : said;
     }
 
     /** How strong this element's background dim is, 0 for none and 1 for the theme's own wash. */
@@ -170,31 +145,14 @@ public final class HudSettings {
      * Remembers where an element was put and writes it.
      *
      * <p>Both coordinates together, because they are one decision: an element is somewhere, not at an x and
-     * separately at a y. Compared against the effective default rather than the table's, so putting the
-     * button back where it visibly shipped -- {@code (22, 2)} with that sidebar around -- leaves no entry,
-     * while explicitly choosing {@code (2, 2)} there is stored and survives that sidebar leaving.
+     * separately at a y. Compared against the table's default, so putting it back where it shipped
+     * leaves no entry.
      */
     public static void setPosition(HudElement element, int nextX, int nextY) {
         Entry before = entry(element);
         put(element, new Entry(
-                nextX == FtbCompat.effectiveDefaultX(element) ? null : nextX,
-                nextY == FtbCompat.effectiveDefaultY(element) ? null : nextY,
-                before.on(), before.dim(), before.anchor()));
-    }
-
-    /**
-     * The same over a stub, so what a drag writes under that sidebar is testable.
-     *
-     * <p>Putting the button back where it visibly shipped leaves no entry under either default,
-     * while explicitly choosing the other default is stored — which is what keeps that choice
-     * when the sidebar arrives or leaves.
-     */
-    static void setPosition(HudElement element, int nextX, int nextY,
-                            Predicate<String> loaded) {
-        Entry before = entry(element);
-        put(element, new Entry(
-                nextX == FtbCompat.effectiveDefaultX(element, loaded) ? null : nextX,
-                nextY == FtbCompat.effectiveDefaultY(element, loaded) ? null : nextY,
+                nextX == element.defaultX() ? null : nextX,
+                nextY == element.defaultY() ? null : nextY,
                 before.on(), before.dim(), before.anchor()));
     }
 
@@ -230,9 +188,6 @@ public final class HudSettings {
 
     /**
      * Puts one element back to everything it shipped with, and writes that.
-     *
-     * <p>Removing the entry reveals the effective default, so resetting the book's button with that
-     * sidebar around lands it right of the column rather than under it.
      */
     public static void resetElement(HudElement element) {
         entries.remove(element);

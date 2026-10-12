@@ -1,7 +1,5 @@
 package dev.ellipog.tenet.client.hud;
 
-import dev.ellipog.tenet.client.compat.FtbCompat;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,7 +10,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -314,55 +311,5 @@ class HudSettingsTest {
         assertEquals(HudElement.Origin.WINDOW, HudSettings.origin(HudElement.INVENTORY_BUTTON),
                 "and the anchor nobody here defines reads as the default");
         assertEquals(1, HudSettings.changed().size(), "with the entry kept, not dropped");
-    }
-
-    // ------------------------------------------------------------------
-    // That sidebar's shifted default: stored drags win, resets reveal it
-    // ------------------------------------------------------------------
-
-    private static final Predicate<String> FTB_ABSENT = mod -> false;
-    private static final Predicate<String> FTB_PRESENT = FtbCompat.MOD_ID::equals;
-
-    @Test
-    @DisplayName("with that sidebar the button ships shifted, and a stored drag wins either way")
-    void shiftedDefaultAndStoredDragWin() {
-        assertEquals(FtbCompat.SHIFTED_X,
-                HudSettings.x(HudElement.INVENTORY_BUTTON, FTB_PRESENT));
-        assertEquals(FtbCompat.SHIFTED_Y,
-                HudSettings.y(HudElement.INVENTORY_BUTTON, FTB_PRESENT));
-
-        HudSettings.setPosition(HudElement.INVENTORY_BUTTON, 100, 50, FTB_PRESENT);
-        assertEquals(100, HudSettings.x(HudElement.INVENTORY_BUTTON, FTB_PRESENT));
-        assertEquals(50, HudSettings.y(HudElement.INVENTORY_BUTTON, FTB_PRESENT));
-        assertEquals(100, HudSettings.x(HudElement.INVENTORY_BUTTON, FTB_ABSENT),
-                "a stored coordinate wins with or without that sidebar");
-    }
-
-    @Test
-    @DisplayName("putting it back where it shipped stores nothing, choosing the other default stores")
-    void shippedDefaultStoresNothing() {
-        HudSettings.setPosition(HudElement.INVENTORY_BUTTON,
-                FtbCompat.SHIFTED_X,
-                FtbCompat.SHIFTED_Y, FTB_PRESENT);
-        assertTrue(HudSettings.changed().isEmpty(),
-                "back at its visible default, the file stays a diff with nothing in it");
-
-        HudSettings.setPosition(HudElement.INVENTORY_BUTTON,
-                HudElement.INVENTORY_BUTTON.defaultX(),
-                HudElement.INVENTORY_BUTTON.defaultY(), FTB_PRESENT);
-        assertTrue(HudSettings.changed().containsKey(HudElement.INVENTORY_BUTTON),
-                "the explicit old default is stored, so it survives that sidebar leaving");
-    }
-
-    @Test
-    @DisplayName("reset reveals the shifted default with that sidebar around")
-    void resetRevealsShiftedDefault() {
-        HudSettings.setPosition(HudElement.INVENTORY_BUTTON, 100, 50, FTB_PRESENT);
-        HudSettings.resetElement(HudElement.INVENTORY_BUTTON);
-
-        assertEquals(FtbCompat.SHIFTED_X,
-                HudSettings.x(HudElement.INVENTORY_BUTTON, FTB_PRESENT));
-        assertEquals(FtbCompat.SHIFTED_Y,
-                HudSettings.y(HudElement.INVENTORY_BUTTON, FTB_PRESENT));
     }
 }
