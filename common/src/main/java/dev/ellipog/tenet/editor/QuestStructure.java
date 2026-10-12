@@ -922,7 +922,9 @@ public final class QuestStructure {
                     .sorted()
                     .toList();
         }
-        catch (IOException e) {
+        catch (IOException ignored) {
+            // A root that cannot be listed holds no folders the structure view can show; the edit that
+            // touches it reports the failure with a sentence instead.
             return List.of();
         }
     }
@@ -943,7 +945,9 @@ public final class QuestStructure {
             JsonFile file = parse(folder.get().resolve(QuestFiles.GROUP_MANIFEST), text);
             return new ArrayList<>(file.strings("chapters"));
         }
-        catch (RuntimeException e) {
+        catch (RuntimeException ignored) {
+            // A manifest that does not parse names no chapters: the structure view lists what resolves,
+            // and the edit that touches the file refuses with the parse error instead of this silence.
             return List.of();
         }
     }
@@ -1231,7 +1235,9 @@ public final class QuestStructure {
         try {
             JsonFile.of(path, object).write();
         }
-        catch (IOException e) {
+        catch (IOException ignored) {
+            // The false below is the report: the caller turns it into a refusal with a sentence, so
+            // logging here would say the same failure twice.
             return false;
         }
         return true;
@@ -1589,7 +1595,9 @@ public final class QuestStructure {
                     ? Optional.of(Files.readString(path, StandardCharsets.UTF_8))
                     : Optional.empty();
         }
-        catch (IOException e) {
+        catch (IOException ignored) {
+            // Absent and unreadable both read as no prior content: every caller falls back to a default
+            // or an empty document, and the write path reports a failure of its own when it matters.
             return Optional.empty();
         }
     }

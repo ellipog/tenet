@@ -3410,7 +3410,8 @@ public final class ClientQuestCache {
         try {
             return Integer.parseInt(raw);
         }
-        catch (NumberFormatException e) {
+        catch (NumberFormatException ignored) {
+            // A foreign server's bad key is skipped by the caller, not fatal: see lockMap's index guard.
             return -1;
         }
     }
@@ -3451,7 +3452,8 @@ public final class ClientQuestCache {
         try {
             return UUID.fromString(raw);
         }
-        catch (IllegalArgumentException e) {
+        catch (IllegalArgumentException ignored) {
+            // Dropped by the caller: one bad member must not cost the whole roster.
             return null;
         }
     }
