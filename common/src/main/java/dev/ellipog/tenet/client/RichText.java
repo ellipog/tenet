@@ -321,6 +321,57 @@ public final class RichText {
     }
 
     /**
+     * What a remembered cut is remembered against: the text, the width, and the stamp.
+     *
+     * <p>The stamp is the caller's because a cut depends on things this file cannot see: the
+     * font and the text scale (which {@code TextEpoch} names), the locale overlay a
+     * substitution resolves against (which {@code ClientQuestCache.textRevision} names), and
+     * the renderer the widths were measured with. A caller that passes a constant holds its
+     * cuts across a font change, which lays text out to widths it no longer has.
+     */
+    public record CutKey(String text, int maxWidth, long epoch) {
+    }
+
+    /** How many cuts one memo holds before it starts again, eldest half first. */
+    private static final int CUT_LIMIT = 512;
+
+    private static final Map<CutKey, Cut> CUTS = new LinkedHashMap<>();
+
+    /**
+     * Cuts a title to a width, remembered while its stamp holds still.
+     *
+     * <p>For the per-frame passes — the card's header cuts three titles a frame while one is
+     * open — where re-parsing (per-character look copies plus a throwaway Gson attempt on every
+     * brace-led string) is the cost and the answer is the same every frame. A hit returns the
+     * identical cut object; a new stamp recomputes through {@link #truncate}, so what a stamp
+     * change draws is what an uncached frame would have drawn.
+     *
+     * @param epoch what the cut is remembered against — font, scale, locale text and renderer;
+     *              see {@link CutKey}
+     */
+    public static Cut cut(String text, int maxWidth,
+                          dev.ellipog.armature.client.ui.kit.Measure measure, long epoch) {
+        Objects.requireNonNull(text, "text");
+        Objects.requireNonNull(measure, "measure");
+        CutKey key = new CutKey(text, maxWidth, epoch);
+        Cut hit = CUTS.get(key);
+        if (hit != null) {
+            return hit;
+        }
+        Cut built = truncate(text, maxWidth, measure);
+        if (CUTS.size() >= CUT_LIMIT) {
+            var it = CUTS.keySet().iterator();
+            int remove = CUTS.size() / 2;
+            for (int i = 0; i < remove && it.hasNext(); i++) {
+                it.next();
+                it.remove();
+            }
+        }
+        CUTS.put(key, built);
+        return built;
+    }
+
+    /**
      * Cuts a title to a width without drawing it.
      *
      * <p>Pure: widths come from the measure, so a caller with a memoised one pays the

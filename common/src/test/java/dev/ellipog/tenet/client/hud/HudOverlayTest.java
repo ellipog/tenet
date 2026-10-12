@@ -753,4 +753,37 @@ class HudOverlayTest {
         assertTrue(off.calls().stream().noneMatch(call -> call.op() == RecordingRenderer.Op.FILL),
                 "empty space draws nothing: " + drawn(off));
     }
+
+    @Test
+    @DisplayName("one shared assembly draws exactly what size plus paint draw")
+    void sharedAssemblyDrawsWhatSizePlusPaintDraw() {
+        // The frame's contract: render() assembles the pins and the column once and shares them
+        // between measuring and painting, where it used to assemble twice. Replaying the old
+        // shape — size, place, paint, separately — must issue the identical calls, or the sharing
+        // changed a pixel rather than an allocation.
+        accept(A, B);
+        PinnedQuests.pin("a");
+        PinnedQuests.pin("b");
+
+        RecordingRenderer shared = RecordingRenderer.create();
+        HudOverlay.render(shared, 640, 480, NOW, ME);
+
+        RecordingRenderer split = RecordingRenderer.create();
+        Measure measure = Measure.of(split::textWidth, split.lineHeight());
+        for (HudElement element : HudElement.values()) {
+            if (element.kind() != HudElement.Kind.HUD || !HudSettings.on(element)) {
+                continue;
+            }
+            HudOverlay.Size size = HudOverlay.size(element, measure, HudOverlay.Face.LIVE, NOW, ME);
+            if (size.empty()) {
+                continue;
+            }
+            BookGeometry.Rect box = HudLayout.boxAt(element, 640, 480,
+                    HudSettings.x(element), HudSettings.y(element), size.width(), size.height());
+            HudOverlay.paint(element, split, box, measure, HudOverlay.Face.LIVE, NOW, ME);
+        }
+
+        assertEquals(shared.calls(), split.calls(),
+                "the shared frame must draw exactly what the separate size+paint path draws");
+    }
 }

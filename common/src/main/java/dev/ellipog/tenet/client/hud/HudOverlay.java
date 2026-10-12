@@ -41,12 +41,15 @@ import java.util.Set;
  * called. Nothing here is drawn on a server, and nothing here decides whether the HUD is drawn at all: the
  * seam is not called while the player has hidden the GUI, which is the answer F1 gets for free.
  *
- * <h2>The element's size is measured every frame, and nothing is cached</h2>
+ * <h2>The element's size is measured every frame, and what is shared</h2>
  *
  * <p>A pin list and a notice stack are as big as what they hold, so their size is asked for rather than
- * remembered. {@code size} and {@code paint} each assemble the content again rather than sharing one
- * assembly, and that is deliberate: the tree and the progress can both move between the two calls, so a
- * cached panel would be a frame of somebody else's pins -- and the walk is a handful of quests either way.
+ * remembered. Within one {@link #render} the size and the paint share a single assembly — the pins
+ * resolve and the rows truncate once — because one call on one thread cannot see the tree move between
+ * the two. Across frames nothing is shared: the tree and the progress can both move between frames
+ * (a filter frame cycles every second), so a cached panel would be somebody else's pins. The public
+ * {@link #size} and {@link #paint} entry points still assemble their own, for callers that hold no
+ * frame to share — the editor, the hit test, and the tests.
  *
  * <h2>The notice stack</h2>
  *
@@ -130,6 +133,24 @@ public final class HudOverlay {
             // A control is somebody else's screen's business -- the inventory screen holds the real widget
             // and places it itself -- so only a drawn element is this class's to draw.
             if (element.kind() != HudElement.Kind.HUD || !HudSettings.on(element)) {
+                continue;
+            }
+            if (element == HudElement.PINNED_QUESTS) {
+                // One assembly per frame: the size and the paint share the content and the column, so
+                // the pins resolve and the rows truncate once rather than twice. Sound because this is
+                // one call on one thread -- the tree and the progress cannot move between the two --
+                // which is exactly what makes sharing across frames unsound. See the class note.
+                Content content = pins(player);
+                PinnedPanelLayout.Column column = PinnedPanelLayout.column(content.pins(), words(),
+                        measure, false);
+                Size size = new Size(column.width(), column.height());
+                if (size.empty()) {
+                    continue;
+                }
+                BookGeometry.Rect box = HudLayout.boxAt(element, screenWidth, screenHeight,
+                        HudSettings.x(element), HudSettings.y(element), size.width(), size.height());
+                beginBarFrame(now);
+                paintPins(renderer, box, measure, Face.LIVE, content, column);
                 continue;
             }
             Size size = size(element, measure, Face.LIVE, now, player);
@@ -262,6 +283,18 @@ public final class HudOverlay {
         Content content = pins(player);
         PinnedPanelLayout.Column column = PinnedPanelLayout.column(content.pins(), words(), measure,
                 face == Face.EDITOR);
+        paintPins(r, box, measure, face, content, column);
+    }
+
+    /**
+     * The shared half of both paint paths: draws an assembled column.
+     *
+     * <p>{@link #render} assembles once per frame and arrives here with it; the public
+     * {@link #paint} path assembles its own, because its callers (the editor, the tests) hold no
+     * frame to share. Same content, same column, same pixels either way.
+     */
+    private static void paintPins(GuiRenderer r, BookGeometry.Rect box, Measure measure, Face face,
+                                  Content content, PinnedPanelLayout.Column column) {
         if (column.empty()) {
             return;
         }
@@ -653,10 +686,28 @@ public final class HudOverlay {
 
     /** The boxes' sentences: the element's own label is gone, because a box per quest needs no panel name. */
     private static PinnedPanelLayout.Words words() {
-        return new PinnedPanelLayout.Words(
-                Component.translatable("tenet.hud.pinned_complete").getString(),
+        // Resolved once per language rather than twice per frame: the words only move when the
+        // language does, and the resolved complete-word is the proof. A language whose complete
+        // reads the same while its siblings differ would read stale -- accepted, because the
+        // sentinel is this element's own most-drawn word and any real language change moves it.
+        // The count word stays live: its lambda resolves per call, so a frame never draws a count
+        // in yesterday's language even across the one frame a switch lands in.
+        String sentinel = Component.translatable("tenet.hud.pinned_complete").getString();
+        if (sentinel.equals(wordsSentinel) && wordsCache != null) {
+            return wordsCache;
+        }
+        wordsSentinel = sentinel;
+        wordsCache = new PinnedPanelLayout.Words(
+                sentinel,
                 Component.translatable("tenet.hud.pinned_claimable").getString(),
                 Component.translatable("tenet.hud.pinned_sample").getString(),
                 count -> Component.translatable("tenet.hud.pinned_more_tasks", count).getString());
+        return wordsCache;
     }
+
+    /** The resolved word the cached words were built from; null before the first frame. */
+    private static String wordsSentinel = null;
+
+    /** The words in force while the language holds still. See {@link #words}. */
+    private static PinnedPanelLayout.Words wordsCache = null;
 }

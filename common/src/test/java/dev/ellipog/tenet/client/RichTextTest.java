@@ -2,9 +2,13 @@ package dev.ellipog.tenet.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -445,6 +449,65 @@ class RichTextTest {
                 RichText.Cut cut = RichText.truncate(text, room,
                         dev.ellipog.armature.client.ui.kit.Measure.of(fromCut::textWidth,
                                 fromCut.lineHeight()));
+                int cutAdvance = RichText.draw(fromCut, cut, 10, 20, RichText.WHITE);
+
+                assertEquals(siteAdvance, cutAdvance,
+                        "the advance disagrees for \"" + text + "\" in room " + room);
+                assertEquals(atSite.calls(), fromCut.calls(),
+                        "the draw calls disagree for \"" + text + "\" in room " + room);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("a remembered cut is the same object while its stamp holds, and recomputed after")
+    void cutRemembersWhileTheStampHolds() {
+        // The header's contract: three titles a frame, one parse per stamp. The delegate counts,
+        // because identical answers cannot tell a hit from a recompute.
+        Map<String, Integer> asks = new HashMap<>();
+        dev.ellipog.armature.client.ui.kit.Measure monospace =
+                dev.ellipog.armature.client.ui.kit.Measure.monospace(6, 9);
+        dev.ellipog.armature.client.ui.kit.Measure counting = new dev.ellipog.armature.client.ui.kit.Measure() {
+            @Override
+            public int width(String text) {
+                asks.merge(text, 1, Integer::sum);
+                return monospace.width(text);
+            }
+
+            @Override
+            public int lineHeight() {
+                return monospace.lineHeight();
+            }
+        };
+
+        RichText.Cut first = RichText.cut("&aGreen Tree", 200, counting, 7L);
+        RichText.Cut second = RichText.cut("&aGreen Tree", 200, counting, 7L);
+        assertSame(first, second, "same text, room and stamp: no second parse");
+        assertEquals(1, asks.size(), "one distinct string measured, once");
+
+        RichText.Cut moved = RichText.cut("&aGreen Tree", 200, counting, 8L);
+        assertEquals(first, moved, "a new stamp recomputes the same cut, not a different one");
+        assertNotSame(first, moved, "but it recomputes rather than returning the old object");
+    }
+
+    @Test
+    @DisplayName("a remembered cut draws exactly what truncating at the draw site draws")
+    void cutDrawsWhatDrawTruncatedDraws() {
+        // Old-vs-new over the header's own range: plain words, inks, a mid-run cut, rooms that
+        // fit nothing and everything, and the unbounded header width.
+        for (String text : new String[] {"Punch a Tree", "&aGreen Tree", "&aGreen &bTree &cForest",
+                "Fish & Chips", ""}) {
+            for (int room : new int[] {0, 3, 20, 200, Integer.MAX_VALUE}) {
+                dev.ellipog.tenet.client.render.RecordingRenderer atSite =
+                        dev.ellipog.tenet.client.render.RecordingRenderer.create();
+                int siteAdvance = RichText.drawTruncated(atSite, text, 10, 20, room, RichText.WHITE);
+
+                dev.ellipog.tenet.client.render.RecordingRenderer fromCut =
+                        dev.ellipog.tenet.client.render.RecordingRenderer.create();
+                RichText.Cut cut = RichText.cut(text, room,
+                        dev.ellipog.armature.client.ui.kit.Measure.of(fromCut::textWidth,
+                                fromCut.lineHeight()),
+                        1L);
                 int cutAdvance = RichText.draw(fromCut, cut, 10, 20, RichText.WHITE);
 
                 assertEquals(siteAdvance, cutAdvance,

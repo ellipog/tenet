@@ -31435,10 +31435,14 @@ public final class QuestBookScreen extends ArmatureScreen
         // is derived from the title's width, so it does not move when the title's drawing changes hands.
         // Colours are widthless, so the tag sits where the stripped measure says whether or not the
         // title wears them.
+        // The three titles draw from remembered cuts rather than re-parsing per frame: same runs, same
+        // advances, decided per stamp. See headerCutEpoch for what moves a stamp.
+        long cutEpoch = headerCutEpoch(r);
         int titleAdvance = r.textWidth(titleOf(entry));
         if (!InlineEdit.replaces("title", editingPath)) {
-            titleAdvance = RichText.drawColored(r, titleOfRaw(entry), textX, top + 12,
-                    InlineEdit.ink("title"));
+            titleAdvance = RichText.draw(r,
+                    RichText.cut(titleOfRaw(entry), Integer.MAX_VALUE, textMeasure(r), cutEpoch),
+                    textX, top + 12, InlineEdit.ink("title"));
         }
         r.text(cardStateLabel(state), textX + titleAdvance + 10, top + 12,
                 stateColour(state));
@@ -31448,13 +31452,17 @@ public final class QuestBookScreen extends ArmatureScreen
         // drawing both would print the chapter title through the field's text. Each part wears its
         // own colours, drawn left to right off the running advance.
         if (!InlineEdit.replaces("subtitle", editingPath)) {
-            int atX = RichText.drawColored(r, entry.chapterTitleTextRaw(), textX, top + 26,
-                    InlineEdit.ink("subtitle"));
+            int atX = RichText.draw(r,
+                    RichText.cut(entry.chapterTitleTextRaw(), Integer.MAX_VALUE, textMeasure(r),
+                            cutEpoch),
+                    textX, top + 26, InlineEdit.ink("subtitle"));
             if (!whereSub.isEmpty()) {
                 r.text("  \u00b7  ", atX, top + 26, InlineEdit.ink("subtitle"));
                 atX += r.textWidth("  \u00b7  ");
-                atX = RichText.drawColored(r, subtitleOfRaw(entry), atX, top + 26,
-                        InlineEdit.ink("subtitle"));
+                atX = RichText.draw(r,
+                        RichText.cut(subtitleOfRaw(entry), Integer.MAX_VALUE, textMeasure(r),
+                                cutEpoch),
+                        atX, top + 26, InlineEdit.ink("subtitle"));
             }
             // The guide book page this quest belongs to, when it names one. A reference in
             // faint ink, and nothing more: Tenet has no guide integration, so there is no
@@ -32425,6 +32433,22 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** The measure in force. See {@link #textMeasure}. */
     private Measure measure;
+
+    /**
+     * What a header cut is remembered against: the font and the text scale, the locale text, and
+     * the renderer the widths came from.
+     *
+     * <p>All three titles on the card's header draw from cuts remembered under this stamp (see
+     * {@code RichText.cut}), so each half has to be in it: a font reload or a text-scale move
+     * arrives through {@code TextEpoch}, a language change through the text revision, and a
+     * redraw through another renderer must never be handed widths measured through this one.
+     * Mixed rather than added — any half moving moves the whole — and compared for equality only.
+     */
+    private static long headerCutEpoch(GuiRenderer r) {
+        return TextEpoch.now() * 1_000_003L
+                + ClientQuestCache.textRevision() * 31L
+                + System.identityHashCode(r);
+    }
 
     /**
      * The wash behind a hovered row.
