@@ -24,9 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <h2>What is swept</h2>
  *
  * <p>{@code SWEPT} names the namespaces this sweep has converted — the player-facing screen strings,
- * status lines, state words, the command read-outs, the notices, and the editor's own
- * {@code tenet.dev.*}, which was converted last. Every key there must exist in {@code en_us}
- * <b>and</b> be referenced by code, so an orphan and a missing key both fail.
+ * status lines, state words, the command read-outs, the notices, the task/reward/condition/party/
+ * quest/viewer/notice vocabularies, and the editor's own {@code tenet.dev.*}, which was converted
+ * last. Every key there must exist in {@code en_us} <b>and</b> be referenced by code, so an orphan
+ * and a missing key both fail. Deliberately not swept: {@code tenet.hud.}, whose labels are derived
+ * by concatenation (see {@code HudElement.labelKey}) and would all read as orphans.
  *
  * <p>The editor's namespace is reached the second way: a layout record holds the key and the draw
  * site resolves it, so {@code literalsThatAreKeys} reads those records rather than a
@@ -58,7 +60,14 @@ class LangSweepTest {
             // The editor's own namespace, converted last: the layout records hold these keys and the
             // draw sites resolve them, so a key here is referenced by a record rather than by a
             // `translatable(...)` call -- which is the second road `literalsThatAreKeys` reads.
-            "tenet.dev.");
+            "tenet.dev.",
+            "tenet.task.",
+            "tenet.reward.",
+            "tenet.condition.",
+            "tenet.party.",
+            "tenet.quest.",
+            "tenet.viewer.",
+            "tenet.notice.");
 
     private static final Pattern KEY = Pattern.compile(
             "translatable(?:WithFallback)?\\(\\s*\"([^\"]+)\"");
