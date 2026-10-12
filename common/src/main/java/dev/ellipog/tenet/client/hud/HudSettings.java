@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Where this client's HUD things are, and whether they are drawn: {@code config/tenet/hud.json}.
@@ -107,6 +108,17 @@ public final class HudSettings {
     }
 
     /**
+     * The same over a stub, so the shifted default is testable with nothing installed.
+     *
+     * <p>The live path above stays on {@code FtbCompat}'s own live overload; this one exists so a
+     * test can ask what ships with that sidebar around without a loader to ask.
+     */
+    static int x(HudElement element, Predicate<String> loaded) {
+        Integer said = entry(element).x();
+        return said == null ? FtbCompat.effectiveDefaultX(element, loaded) : said;
+    }
+
+    /**
      * The same, vertically.
      *
      * <p>Read through the effective default for the same reason: the sidebar grows downward, so the
@@ -115,6 +127,12 @@ public final class HudSettings {
     public static int y(HudElement element) {
         Integer said = entry(element).y();
         return said == null ? FtbCompat.effectiveDefaultY(element) : said;
+    }
+
+    /** The same over a stub, for the same test as {@link #x(HudElement, Predicate)}. */
+    static int y(HudElement element, Predicate<String> loaded) {
+        Integer said = entry(element).y();
+        return said == null ? FtbCompat.effectiveDefaultY(element, loaded) : said;
     }
 
     /** How strong this element's background dim is, 0 for none and 1 for the theme's own wash. */
@@ -161,6 +179,22 @@ public final class HudSettings {
         put(element, new Entry(
                 nextX == FtbCompat.effectiveDefaultX(element) ? null : nextX,
                 nextY == FtbCompat.effectiveDefaultY(element) ? null : nextY,
+                before.on(), before.dim(), before.anchor()));
+    }
+
+    /**
+     * The same over a stub, so what a drag writes under that sidebar is testable.
+     *
+     * <p>Putting the button back where it visibly shipped leaves no entry under either default,
+     * while explicitly choosing the other default is stored — which is what keeps that choice
+     * when the sidebar arrives or leaves.
+     */
+    static void setPosition(HudElement element, int nextX, int nextY,
+                            Predicate<String> loaded) {
+        Entry before = entry(element);
+        put(element, new Entry(
+                nextX == FtbCompat.effectiveDefaultX(element, loaded) ? null : nextX,
+                nextY == FtbCompat.effectiveDefaultY(element, loaded) ? null : nextY,
                 before.on(), before.dim(), before.anchor()));
     }
 

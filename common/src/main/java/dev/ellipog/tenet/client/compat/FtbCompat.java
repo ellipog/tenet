@@ -33,6 +33,13 @@ import java.util.function.Predicate;
  * button back once with {@code H} and the choice persists in {@code hud.json} like any other move.
  * An inventory-anchored button is panel-relative and never shifted: a window corner means nothing to
  * it.
+ *
+ * <p>Reading the sidebar's own config instead was considered and rejected: a fresh install writes
+ * no such file (there is nothing on disk to read until a player changes something), and reaching
+ * past that would name this mod's packages, which the seam above exists to avoid. So the manual
+ * drag is the whole correction mechanism, and it only ever happens once: a stored coordinate
+ * always wins (see {@code HudSettings}), so installing or removing that sidebar never moves an
+ * explicitly placed button.
  */
 public final class FtbCompat {
 
