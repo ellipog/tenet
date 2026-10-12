@@ -1583,28 +1583,17 @@ public final class QuestSync {
      * a tree delta would have to carry removals to say so.
      */
     public static void sendTreeTo(ServerPlayer player, QuestIndex index) {
-        // The two halves of the broadcast that are worth separating: building the JSON is a walk of every
-        // quest, and deflating it is the other half of the same cost. They are timed separately because the
-        // remedies differ -- one is a data-shape problem and the other is a compression-level one -- and
-        // because the whole point of the measurement is that **this runs per player**: P editors cost P
-        // encodes and P deflates of byte-identical bytes, which is a claim only a per-recipient number can
-        // settle. See `WireTiming`.
-        boolean timing = EditPhases.on();
-        long encodeStarted = timing ? System.nanoTime() : 0L;
-        byte[] json = treeAsJson(index);
-        long encodedAt = timing ? System.nanoTime() : 0L;
-        byte[] packed = SyncWire.pack(json);
-        if (timing) {
-            WIRE_ENCODE_NANOS += encodedAt - encodeStarted;
-            WIRE_DEFLATE_NANOS += System.nanoTime() - encodedAt;
-        }
-        List<byte[]> parts = SyncWire.chunk(packed);
+        // Packed once per index and shared across recipients: encodes, deflates and chunks the
+        // same bytes for every player, with a fresh transfer id per message (ids must differ per
+        // message, the bytes must not). See treePack.
+        TreePack pack = treePack(index);
+        List<byte[]> parts = pack.chunks();
         int transferId = SyncWire.newTransferId();
 
         for (int i = 0; i < parts.size(); i++) {
             send(player, new QuestSyncPayload(
-                    index.questCount(),
-                    index.chapterCount(),
+                    pack.quests(),
+                    pack.chapters(),
                     // Read from the same place `treeAsJson` does, so the payload's copy and the tree's
                     // copy cannot disagree -- which they would the moment one of the two was changed.
                     packTheme(index),
@@ -1614,8 +1603,60 @@ public final class QuestSync {
 
         if (parts.size() > 1) {
             Constants.LOG.debug("sent the tree for {} quest(s) in {} chunk(s)",
-                    index.questCount(), parts.size());
+                    pack.quests(), parts.size());
         }
+    }
+
+    /**
+     * The packed tree: its chunks and the two counts the payload carries beside them.
+     *
+     * <p>One entry rather than a map, because there is only ever one current tree: a reload
+     * replaces the index wholesale, so the previous pack is garbage rather than a second entry.
+     * Keyed by the index object's identity for exactly that reason — same object, same bytes.
+     *
+     * <p>Package-visible rather than private, like {@link #treePack}: the suite pins the sharing
+     * (same index, same chunk objects; reloaded index, fresh bytes), and it can only do that by
+     * naming the pack.
+     */
+    record TreePack(List<byte[]> chunks, int quests, int chapters) {
+    }
+
+    /** The index the remembered pack was built from. Anything else rebuilds. */
+    private static QuestIndex cachedTreeIndex;
+
+    /** The remembered pack. Null until the first broadcast. */
+    private static TreePack cachedTreePack;
+
+    /**
+     * The tree packed and chunked, built once per index and shared across recipients.
+     *
+     * <p>The two halves of the old per-player cost live here now: building the JSON walks every
+     * quest, and deflating it is the other half. They are timed separately for the same reason
+     * they always were — one is a data-shape problem and the other a compression-level one —
+     * but only on the miss: a number that stays flat while players join is this cache working,
+     * which is worth being able to see rather than infer. (An earlier comment here claimed the
+     * counters proved the per-recipient cost; they proved the per-build cost all along, and now
+     * the two visibly differ.)
+     *
+     * <p>Package-private for the test that pins the sharing: same index, same chunk objects;
+     * reloaded index, fresh bytes of equal content.
+     */
+    static TreePack treePack(QuestIndex index) {
+        if (index != cachedTreeIndex || cachedTreePack == null) {
+            boolean timing = EditPhases.on();
+            long encodeStarted = timing ? System.nanoTime() : 0L;
+            byte[] json = treeAsJson(index);
+            long encodedAt = timing ? System.nanoTime() : 0L;
+            byte[] packed = SyncWire.pack(json);
+            if (timing) {
+                WIRE_ENCODE_NANOS += encodedAt - encodeStarted;
+                WIRE_DEFLATE_NANOS += System.nanoTime() - encodedAt;
+            }
+            cachedTreePack = new TreePack(SyncWire.chunk(packed), index.questCount(),
+                    index.chapterCount());
+            cachedTreeIndex = index;
+        }
+        return cachedTreePack;
     }
 
     /**

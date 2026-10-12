@@ -39,12 +39,15 @@ import java.util.Map;
 import java.util.UUID;
 
 import static dev.ellipog.tenet.quest.Fixtures.q;
+import static 
+org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -3231,5 +3234,43 @@ class QuestSyncTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no entry for " + questId + " in "
                         + ClientQuestCache.entries().stream().map(ClientQuestCache.Entry::id).toList()));
+    }
+
+    @Nested
+    @DisplayName("the packed tree")
+    class PackedTree {
+
+        @Test
+        @DisplayName("one index packs once: recipients share the chunk objects")
+        void oneIndexPacksOnce() {
+            QuestIndex index = twoQuests();
+
+            QuestSync.TreePack first = QuestSync.treePack(index);
+            QuestSync.TreePack second = QuestSync.treePack(index);
+
+            assertSame(first.chunks(), second.chunks(),
+                    "the second broadcast must reuse the first one's chunks, not rebuild them");
+            assertEquals(index.questCount(), first.quests());
+            assertEquals(index.chapterCount(), first.chapters());
+        }
+
+        @Test
+        @DisplayName("a reloaded index rebuilds: equal bytes, fresh objects")
+        void reloadedIndexRebuilds() {
+            QuestIndex before = twoQuests();
+            List<byte[]> packed = QuestSync.treePack(before).chunks();
+
+            // A reload replaces the index wholesale, so identity — not content — is the key.
+            // Same files, new object: the bytes must agree and the objects must not be shared.
+            QuestIndex after = twoQuests();
+            List<byte[]> repacked = QuestSync.treePack(after).chunks();
+
+            assertTrue(packed != repacked, "a new index must not be handed the old one's chunks");
+            assertEquals(packed.size(), repacked.size(), "same files, same chunking");
+            for (int i = 0; i < packed.size(); i++) {
+                assertArrayEquals(packed.get(i), repacked.get(i),
+                        "chunk " + i + " differs, so recipients would disagree");
+            }
+        }
     }
 }
