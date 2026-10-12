@@ -16,6 +16,17 @@ import net.minecraft.world.item.Item;
  * <p>The bucket item travels as a parameter so the two halves cannot count it twice: a filled
  * bucket is both a bucket and, on some loaders, a fluid handler. The loader skips stacks of
  * exactly that item and measures everything else.
+ *
+ * <h2>The parity contract both loaders honor</h2>
+ *
+ * <p>Millibuckets at the seam, truncated not rounded: a loader whose wire speaks finer units
+ * (Fabric's droplets) converts at the edges and drops sub-millibucket fractions, while a loader
+ * whose wire is already millibuckets (NeoForge) has nothing to drop. Either way a vessel holding
+ * less than a millibucket reads as empty, on every loader.
+ *
+ * <p>Every slot the inventory reports is measured — main, armour and offhand alike — and buckets
+ * are skipped by identity (an item travels as the skip, never a tag) on both loaders. What the
+ * loaders genuinely do differently is only the machinery between those two promises.
  */
 public interface FluidAccess {
 

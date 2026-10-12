@@ -21,6 +21,10 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandlerItem;
  * bucket is both a bucket and a handler on this loader, so counting both would count one vessel
  * twice. The measurement reads every slot the vanilla loop reads, armour and offhand included:
  * insertion is clamped to the main inventory, but measurement has no such reason to look away.
+ *
+ * <p>The skip is identity on both loaders, and native millibuckets need no conversion — the one
+ * unit-level difference (Fabric truncates droplets) is stated on
+ * {@link dev.ellipog.tenet.inventory.FluidAccess}, where the contract both halves keep is written.
  */
 public final class NeoForgeFluids implements FluidAccess {
 

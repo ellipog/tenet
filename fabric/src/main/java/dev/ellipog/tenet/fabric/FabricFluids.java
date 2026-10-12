@@ -27,6 +27,11 @@ import net.minecraft.world.level.material.Fluid;
  * Amounts travel the wire the API speaks (droplets, {@value FluidConstants#BUCKET} to the
  * bucket) and are converted to millibuckets at the edges, truncating sub-millibucket fractions
  * the task's own unit cannot name.
+ *
+ * <p>The slots are the Transfer storage's — main, armour and offhand, the same ground NeoForge's
+ * capability loop walks — and the skip is identity on both loaders. The contract both halves keep
+ * is written on {@link dev.ellipog.tenet.inventory.FluidAccess}; the one unit-level difference
+ * (truncation here, native millibuckets there) is stated there rather than hidden here.
  */
 public final class FabricFluids implements FluidAccess {
 
