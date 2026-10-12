@@ -69,4 +69,21 @@ class PartySizeConditionTest {
                 JsonParser.parseString("{\"type\": \"tenet:party_size\", \"min\": 0}"))
                 .result().isEmpty(), "a party of nobody is not a party");
     }
+
+    @Test
+    @DisplayName("a held count answers without a server: the tick's own shortcut, pinned headless")
+    void heldCountNeedsNoServer() {
+        // The tick walks members it already holds and tells each evaluation the count, so the
+        // behaviour must never touch the server when one is held. Null server and player would
+        // throw on the resolve path, which is exactly what makes this a test rather than a wish.
+        var condition = new PartySizeCondition(2);
+        ConditionBehaviour<PartySizeCondition> behaviour = PartySizeCondition.BEHAVIOUR;
+
+        assertTrue(behaviour.test(condition, new ConditionContext(null, null, null, 3)),
+                "three present opens a gate of two");
+        assertTrue(behaviour.test(condition, new ConditionContext(null, null, null, 2)),
+                "exactly enough is enough");
+        assertTrue(!behaviour.test(condition, new ConditionContext(null, null, null, 1)),
+                "one present does not open a gate of two");
+    }
 }

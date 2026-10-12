@@ -21,6 +21,17 @@ import java.util.UUID;
  *               condition is the player and never the team. It is here because the evaluation has to
  *               know whose progress it is resolving, and a party condition is the one that looked
  *               like it might be the exception.
+ * @param presentCount the subject's team members online, when the caller already holds them — the
+ *               tick's member walk, which is the whole team on screen. Null everywhere else, where
+ *               the behaviour resolves what it needs itself. Only {@code tenet:party_size} reads
+ *               it: every other condition is per player rather than per team, so a shared count
+ *               would be the wrong answer for them, not a faster one.
  */
-public record ConditionContext(ServerPlayer player, MinecraftServer server, UUID owner) {
+public record ConditionContext(ServerPlayer player, MinecraftServer server, UUID owner,
+                               Integer presentCount) {
+
+    /** Without a held count: the behaviour resolves what it needs itself. */
+    public ConditionContext(ServerPlayer player, MinecraftServer server, UUID owner) {
+        this(player, server, owner, null);
+    }
 }

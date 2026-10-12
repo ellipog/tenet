@@ -42,6 +42,14 @@ public record PartySizeCondition(int min) implements QuestCondition {
     }
 
     public static final ConditionBehaviour<PartySizeCondition> BEHAVIOUR = (condition, context) -> {
+        // Held by the tick's member walk, which is the whole team on screen: one count for every
+        // member rather than one team resolve plus one player-list scan each. The walk and this
+        // run on one thread with nothing between them that could move a player, so the held count
+        // is this count. Every other path passes none and resolves below, exactly as before.
+        Integer known = context.presentCount();
+        if (known != null) {
+            return known >= condition.min();
+        }
         var team = Teams.teamOf(context.server(), context.player().getUUID());
         int present = 0;
         for (ServerPlayer online : context.server().getPlayerList().getPlayers()) {

@@ -2506,8 +2506,13 @@ public final class ProgressService {
         List<Integer> perMember = new ArrayList<>(members.size());
         List<ServerPlayer> contributors = new ArrayList<>(members.size());
         for (ServerPlayer member : members) {
+            // The member count travels with the context: every member here is online in the same
+            // team, so the list's own size is each member's party-size answer — no team resolve and
+            // no player-list scan per member per gated task. Sound because this loop cannot see a
+            // join or a leave: it runs straight through on one thread, and the walk it walks is the
+            // count it carries.
             if (!Conditions.passes(task.common().conditions(),
-                    new ConditionContext(member, server, owner))) {
+                    new ConditionContext(member, server, owner, members.size()))) {
                 perMember.add(0);
                 continue;
             }
