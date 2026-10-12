@@ -1202,6 +1202,11 @@
           "type": "string",
           "description": "tenet:break (task) — only count this block state, e.g. minecraft:wheat[age=7], for what an id cannot pick out. Narrows `block` or `blockTag`, or stands alone."
         },
+        "countFakePlayers": {
+          "type": "boolean",
+          "default": false,
+          "description": "tenet:break (task) — count breaks by automation too, not only by a person. Off unless a pack asks, so machines farm nothing by default."
+        },
         "id": {
           "type": "string",
           "description": "tenet:custom (task and reward) — the id a mod or a script registered a handler for. The validator warns when this build has nothing registered for it."

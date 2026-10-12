@@ -109,7 +109,7 @@ class TaskBehaviourForwardingTest {
         // pinned rather than trusted: the wrapper forwarded "most" methods once already.
         BreakTask task = new BreakTask(TaskCommon.DEFAULT,
                 Optional.of(ResourceLocation.withDefaultNamespace("stone")),
-                Optional.empty(), Optional.empty(), 10);
+                Optional.empty(), Optional.empty(), 10, false);
         TaskBehaviour<QuestTask> through = TaskTypes.behaviourOf(task).orElseThrow();
 
         assertEquals(1, through.onBlockBroken(task, null,

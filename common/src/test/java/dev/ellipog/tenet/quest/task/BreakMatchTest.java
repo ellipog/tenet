@@ -41,7 +41,7 @@ class BreakMatchTest {
 
     private static BreakTask breaking(Optional<ResourceLocation> block, Optional<ResourceLocation> tag,
                                       Optional<String> state, int value) {
-        return new BreakTask(new TaskCommon(false, 20), block, tag, state, value);
+        return new BreakTask(new TaskCommon(false, 20), block, tag, state, value, false);
     }
 
     private static BreakTask breaking(String block, int value) {
@@ -169,5 +169,27 @@ class BreakMatchTest {
         assertEquals(1, plain.value(), "an absent count means one break");
         assertEquals(Optional.empty(), plain.blockTag());
         assertEquals(Optional.empty(), plain.blockState());
+        assertFalse(plain.countFakePlayers(), "absent means automation farms nothing");
+
+        var flagged = assertInstanceOf(BreakTask.class,
+                decoded("{\"type\": \"tenet:break\", \"block\": \"minecraft:wheat\","
+                        + " \"countFakePlayers\": true}"));
+        assertTrue(flagged.countFakePlayers(), "the farm-the-thousand-wheat quest opts in");
+    }
+
+    @Test
+    @DisplayName("automation counts only for the quest that asks for it")
+    void fakePlayersNeedTheFlag() {
+        var plain = breaking("minecraft:wheat", 1000);
+        var automation = new BreakTask(new TaskCommon(false, 20), Optional.empty(), Optional.empty(),
+                Optional.of("minecraft:wheat[age=7]"), 1000, true);
+
+        assertTrue(BreakTask.countsBreaker(plain, false), "a person always counts");
+        assertTrue(BreakTask.countsBreaker(automation, false),
+                "a person counts for an automation quest too");
+        assertFalse(BreakTask.countsBreaker(plain, true),
+                "a machine does not farm an ordinary quest");
+        assertTrue(BreakTask.countsBreaker(automation, true),
+                "a machine counts for the quest that names it");
     }
 }

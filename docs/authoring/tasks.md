@@ -84,12 +84,15 @@ types below are the eighteen this build ships.
 | `blockTag` | — | Or a block tag, to count any block in it. Its own field rather than a `#` in `block`. The tag wins when both are named. |
 | `blockState` | — | Only count this block state, e.g. `minecraft:wheat[age=7]`. Narrows `block` or `blockTag`, or stands alone. |
 | `value` | `1` | How many breaks count as enough, 1 to 1,000,000. |
+| `countFakePlayers` | `false` | Count breaks by automation too — a contraption's hands as well as a person's. Off unless a pack asks, so machines farm nothing by default; set it for the "build something that farms a thousand wheat" quest. |
 
 With none of `block`, `blockTag` or `blockState`, any broken block counts.
 
 What counts is the act, not the drop: silk touch, fortune and a voided drop all count,
 because the break event fires for the break either way. A break that never happens — a
-protected block, a cancelled event — counts nothing. A predicate that does not parse matches
+protected block, a cancelled event — counts nothing. Breaks in creative mode count, like
+every other task type counts there. Breaks by a fake player count only with
+`countFakePlayers`. A predicate that does not parse matches
 nothing, and the validator refuses it at the file's line; like a kill task's SNBT filter, it
 fails closed.
 

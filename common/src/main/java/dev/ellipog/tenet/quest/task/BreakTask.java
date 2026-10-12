@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
+import dev.ellipog.armature.api.ArmatureApi;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.QuestTask;
@@ -44,15 +45,22 @@ import java.util.function.Function;
  * <p>Breaks in creative mode count, like every other task type counts there: creative trivializes
  * all progression equally (a gift completes an item task the same way), so no task filters by game
  * mode and a per-type filter would be incoherent. Verified live, not assumed.
+ *
+ * <p>Breaks by a fake player — a contraption's hands rather than a person's — count only when the
+ * task opts in with {@code countFakePlayers}. The default is off, so automation cannot farm a
+ * quest unasked; a pack that wants "build a machine that farms a thousand wheat" sets the flag
+ * and the machine's breaks count. Asked of the loader through Armature, because vanilla marks
+ * nothing and each loader answers it its own way.
  */
 public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
-                        Optional<ResourceLocation> blockTag, Optional<String> blockState, int value)
+                        Optional<ResourceLocation> blockTag, Optional<String> blockState, int value,
+                        boolean countFakePlayers)
         implements QuestTask {
 
     public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "break");
 
     public static final Set<String> FIELDS =
-            Set.of("block", "blockTag", "blockState", "value");
+            Set.of("block", "blockTag", "blockState", "value", "countFakePlayers");
 
     public static final MapCodec<BreakTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(20).forGetter(BreakTask::common),
@@ -65,7 +73,10 @@ public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
             // `minecraft:wheat[age=7]`: the farming filter, narrowing whatever `block` or
             // `blockTag` names — or standing alone, implying its own block.
             Codec.STRING.optionalFieldOf("blockState").forGetter(BreakTask::blockState),
-            Codec.intRange(1, 1_000_000).optionalFieldOf("value", 1).forGetter(BreakTask::value)
+            Codec.intRange(1, 1_000_000).optionalFieldOf("value", 1).forGetter(BreakTask::value),
+            // Off unless a pack asks: automation farms nothing by default, and the wheat-farming
+            // contraption counts only for the quest that names it.
+            Codec.BOOL.optionalFieldOf("countFakePlayers", false).forGetter(BreakTask::countFakePlayers)
     ).apply(instance, BreakTask::new));
 
     @Override
@@ -126,9 +137,36 @@ public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
 
         @Override
         public int onBlockBroken(BreakTask task, ServerPlayer player, BlockState state) {
+            if (!countsBreaker(task, isFakeBreaker(player))) {
+                return 0;
+            }
             return task.matches(state) ? 1 : 0;
         }
     };
+
+    /**
+     * Whether this breaker counts for this task: a person always does, and a fake player only
+     * does for a task that opts in. Pure, so a test can hold the whole decision table without
+     * a loader — the platform call stays a one-liner in the behaviour above.
+     */
+    static boolean countsBreaker(BreakTask task, boolean fake) {
+        return !fake || task.countFakePlayers();
+    }
+
+    /**
+     * Whether this breaker is a fake player. The platform layer is not installed in headless
+     * unit tests — and there are no fake players there — so an uninstalled platform reads as
+     * a person rather than throwing. The same shape as the config-dir read: see
+     * {@code PinnedQuests}, which answers an unreadable platform the same way.
+     */
+    private static boolean isFakeBreaker(ServerPlayer player) {
+        try {
+            return ArmatureApi.platform().isFakePlayer(player);
+        }
+        catch (RuntimeException e) {
+            return false;
+        }
+    }
 
     public static final Function<BreakTask, TaskDisplay> DISPLAY = task -> {
         // The block is the subject; the count rides the row's own progress chip, so the sentence
