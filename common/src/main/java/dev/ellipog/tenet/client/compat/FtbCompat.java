@@ -11,12 +11,17 @@ import java.util.function.Predicate;
  *
  * <h2>Why this exists</h2>
  *
- * <p>FTB Library draws a dynamic button column from the window's top-left corner: 16-pixel icons on a
- * 17-pixel grid starting at {@code (1, 1)}, so its first icon covers {@code 1..17} in both axes. The
- * book's button ships at window {@code (2, 2)} and is 16 wide, so the two sit on top of each other
- * whenever that sidebar is present -- see tenet#25. Shifting right rather than down clears the whole
- * column however many rows it holds: a downward nudge only clears a fixed count, while a column is
- * always 17 wide no matter how tall it grows.
+ * <p>FTB Library draws its sidebar buttons from the window's top-left corner: 16-pixel icons on a
+ * 17-pixel grid starting at {@code (1, 1)}. The book's button ships at window {@code (2, 2)} and is
+ * 16 wide, so the two sit on top of each other whenever that sidebar is present -- see tenet#25.
+ * Shifting right rather than down clears a narrow column however tall it grows: a downward nudge
+ * only clears a fixed count.
+ *
+ * <p>That arithmetic assumes the narrow case — one icon at {@code 1..17}. That sidebar is really a
+ * grid that also runs right: five toggle buttons already reach past the shifted spot, and no fixed
+ * position clears a row whose length is the modpack's button count. So the shift buys the common
+ * case and the manual drag buys the rest: a player whose row runs under the button drags it back
+ * once with {@code H} and the choice persists in {@code hud.json} like any other move.
  *
  * <h2>Why a mod id and never an import</h2>
  *
