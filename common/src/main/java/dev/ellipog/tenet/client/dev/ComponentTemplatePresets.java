@@ -13,9 +13,9 @@ import java.util.List;
  *
  * <p>For the reason {@code ElementDefaults} gives: a default is a claim worth asserting, and
  * inline JSON in a menu handler cannot be tested — but literals in <i>this</i> class can,
- * because {@code ComponentTemplatePresetsTest} parses each one and checks it carries a type
- * the registries know and fields they declare. A preset that stops decoding is a test
- * failure, not a menu item that silently does nothing.
+ * because {@code ComponentTemplatePresetsTest} decodes each one through its kind's codec the
+ * way an apply does. A preset that stops decoding is a test failure, not a menu item that
+ * writes a file the validator then refuses.
  *
  * <h2>Why these ten</h2>
  *
@@ -49,7 +49,7 @@ public final class ComponentTemplatePresets {
         out.add(reward("reward_iron_sword", "An iron sword",
                 "{\"type\": \"tenet:item\", \"item\": \"minecraft:iron_sword\"}"));
         out.add(reward("reward_levels", "Five levels",
-                "{\"type\": \"tenet:xp\", \"levels\": 5}"));
+                "{\"type\": \"tenet:xp\", \"amount\": 5, \"levels\": true}"));
         out.add(condition("needs_started_stage", "Needs the started stage",
                 "{\"type\": \"tenet:stage\", \"stage\": \"started\"}"));
         out.add(condition("party_of_two", "Two players online",

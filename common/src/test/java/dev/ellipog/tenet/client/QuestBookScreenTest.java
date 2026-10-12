@@ -77,6 +77,35 @@ class QuestBookScreenTest {
     }
 
     @Nested
+    @DisplayName("the sidebar's scrollbar gutter")
+    class ScrollbarGutter {
+
+        @Test
+        @DisplayName("a list that fits takes the gutter its scrollbar would draw nothing in")
+        void fittingListsTakeTheGutter() {
+            // One chapter in a tall sidebar: the bar draws nothing when everything fits (a
+            // full-height grip would say there is more), so reserving its room leaves dead
+            // space the selected row makes visible — 8 pixels the toolbar above does not have.
+            int oneRow = SidebarLayout.pitch() - BookGeometry.SIDEBAR_ROW_GAP;
+            assertFalse(QuestBookScreen.sidebarReservesScrollbar(0, 200), "no rows, no gutter");
+            assertFalse(QuestBookScreen.sidebarReservesScrollbar(1, oneRow),
+                    "exactly fitting is not scrolling");
+            assertFalse(QuestBookScreen.sidebarReservesScrollbar(1, oneRow + 1),
+                    "and room to spare is not scrolling either");
+        }
+
+        @Test
+        @DisplayName("a list that overflows keeps the gutter the bar draws in")
+        void overflowingListsKeepTheGutter() {
+            int oneRow = SidebarLayout.pitch() - BookGeometry.SIDEBAR_ROW_GAP;
+            assertTrue(QuestBookScreen.sidebarReservesScrollbar(1, oneRow - 1),
+                    "one pixel over is scrolling");
+            assertTrue(QuestBookScreen.sidebarReservesScrollbar(40, 200),
+                    "and so is a questline no sidebar holds");
+        }
+    }
+
+    @Nested
     @DisplayName("the pin toggle")
     class PinToggle {
 

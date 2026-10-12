@@ -87,6 +87,13 @@ import java.util.Map;
  * absence of a key.
  * All four are read before anything draws, and none is gated on {@link #on()}: a player who never
  * turns developer mode on still has a layout, and it is theirs.
+ *
+ * <h2>The intro's own flag, and why it is one boolean</h2>
+ *
+ * <p>{@code guideSeen} says whether the first-run intro has been finished or dismissed for good.
+ * Absent means unseen, so it is written only when set — the same diff shape as the list's own
+ * switches above. The tour's rung-by-rung progress is deliberately <i>not</i> here: it names a
+ * server's book and would go stale across one, so it lives in the tour and dies on disconnect.
  */
 public final class DevMode {
 
@@ -103,6 +110,7 @@ public final class DevMode {
     private static boolean sidebarFloating = true;
     private static boolean sidebarPinned = true;
     private static boolean sidebarCollapsed;
+    private static boolean guideSeen;
     private static Path file;
 
     /**
@@ -122,10 +130,12 @@ public final class DevMode {
      *     say says floating, like a missing file
      * @param sidebarPinned whether a floating box stays open; docked, there is nothing to pin
      * @param sidebarCollapsed whether the list has slid away to its sliver; docked, always expanded
+     * @param guideSeen whether the first-run intro has been finished or dismissed for good
      */
     public record Parsed(boolean dev, boolean snap, boolean progress, boolean advanced,
             Map<PanelKind, Integer> panelWidths, PanelStack.Fold panelFold, int sidebarWidth,
-            boolean sidebarFloating, boolean sidebarPinned, boolean sidebarCollapsed) {
+            boolean sidebarFloating, boolean sidebarPinned, boolean sidebarCollapsed,
+            boolean guideSeen) {
     }
 
     private DevMode() {
@@ -350,6 +360,24 @@ public final class DevMode {
         save();
     }
 
+    /**
+     * Whether the first-run intro has been finished or dismissed for good.
+     *
+     * <p>Off unless a dismissal said otherwise — and {@link #parse} reads a file that never
+     * heard of it as off, so an author updating from before the intro existed meets it once.
+     * Not gated on {@link #on()}: the flag outlives edit mode the way the widths do, because a
+     * dismissal made outside edit mode is still a dismissal.
+     */
+    public static boolean hasSeenGuide() {
+        return guideSeen;
+    }
+
+    /** Remembers that choice and writes it. */
+    public static void setGuideSeen(boolean next) {
+        guideSeen = next;
+        save();
+    }
+
     /** The four answers together, as the file holds them. */
     public static SidebarState sidebarState() {
         return new SidebarState(sidebarWidth, sidebarFloating, sidebarPinned, sidebarCollapsed);
@@ -408,6 +436,7 @@ public final class DevMode {
                 sidebarFloating = read.sidebarFloating();
                 sidebarPinned = read.sidebarPinned();
                 sidebarCollapsed = read.sidebarCollapsed();
+                guideSeen = read.guideSeen();
             }
             catch (IOException | RuntimeException e) {
                 Constants.LOG.warn("tenet: {} could not be read, so developer mode is off. Deleting the"
@@ -486,7 +515,10 @@ public final class DevMode {
                 // one: floating pinned expanded is what absence already says for each key below.
                 !root.has("sidebarFloating") || booleanOf(root, "sidebarFloating", true),
                 !root.has("sidebarPinned") || booleanOf(root, "sidebarPinned", true),
-                root.has("sidebarCollapsed") && booleanOf(root, "sidebarCollapsed", false));
+                root.has("sidebarCollapsed") && booleanOf(root, "sidebarCollapsed", false),
+                // Absent means unseen: a file written before the intro existed belongs to an
+                // author who never met it, and showing it once is the direction that teaches.
+                root.has("guideSeen") && booleanOf(root, "guideSeen", false));
     }
 
     /**
@@ -561,6 +593,21 @@ public final class DevMode {
     public static String write(boolean dev, boolean snap, boolean progress, boolean advanced,
             Map<PanelKind, Integer> widths, PanelStack.Fold fold, int sidebarWidth,
             boolean sidebarFloating, boolean sidebarPinned, boolean sidebarCollapsed) {
+        return write(dev, snap, progress, advanced, widths, fold, sidebarWidth, sidebarFloating,
+                sidebarPinned, sidebarCollapsed, false);
+    }
+
+    /**
+     * Writes the file, with the chapter list's four answers and whether the intro has been seen.
+     *
+     * <p>The intro flag is written only when it is set, like the list's own three switches: the
+     * absence of the key already says "unseen", so a file that never met the guide stays
+     * byte-identical to what it always wrote.
+     */
+    public static String write(boolean dev, boolean snap, boolean progress, boolean advanced,
+            Map<PanelKind, Integer> widths, PanelStack.Fold fold, int sidebarWidth,
+            boolean sidebarFloating, boolean sidebarPinned, boolean sidebarCollapsed,
+            boolean guideSeen) {
         JsonObject root = new JsonObject();
         root.addProperty("dev", dev);
         root.addProperty("snap", snap);
@@ -588,6 +635,9 @@ public final class DevMode {
         if (sidebarCollapsed) {
             root.addProperty("sidebarCollapsed", true);
         }
+        if (guideSeen) {
+            root.addProperty("guideSeen", true);
+        }
         return root.toString();
     }
 
@@ -613,6 +663,7 @@ public final class DevMode {
         sidebarFloating = true;
         sidebarPinned = true;
         sidebarCollapsed = false;
+        guideSeen = false;
         file = null;
     }
 
@@ -629,7 +680,7 @@ public final class DevMode {
             // and a truncated file is the one way that could not be honoured. See JsonWrite.
             JsonWrite.atomically(file,
                     write(on, snap, progress, advanced, panelWidths, panelFold, sidebarWidth,
-                            sidebarFloating, sidebarPinned, sidebarCollapsed));
+                            sidebarFloating, sidebarPinned, sidebarCollapsed, guideSeen));
         }
         catch (IOException e) {
             Constants.LOG.warn("tenet: developer mode could not be written to {}", file, e);

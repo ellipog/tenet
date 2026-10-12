@@ -1802,6 +1802,37 @@ public final class QuestBookScreen extends ArmatureScreen
     private final ScrollView sidebarView = ScrollView.of(Viewport.fixed());
 
     /**
+     * Whether the sidebar's rows currently leave room for the scrollbar's gutter.
+     *
+     * <p>Decided in {@link #buildSidebarWidgets} from the rows it places, because that is the one
+     * place that knows the count — and read by {@link #sidebarViewport()}, which binds the bounds
+     * every frame. A field rather than a recompute, so the per-frame bounds and the placed rows
+     * cannot disagree: both answer from the same build. True until the first build, which is
+     * today's reservation, so a screen that never builds rows draws what it always drew.
+     */
+    private boolean sidebarReserveScrollbar = true;
+
+    /**
+     * The waiting-counts the row suffixes were last set from.
+     *
+     * <p>Compared by content every tick: a claim lands as a changed map, and only a changed map
+     * touches the buttons — so thirty rows are not re-examined for a progress tick that moved
+     * nothing. Set by the build for the buttons it just made, so a row rebuilt mid-drag carries
+     * its suffix from its first frame rather than waiting a tick for it.
+     */
+    private Map<String, Integer> sidebarWaiting;
+
+    /**
+     * The selection the suffix colours were last set for.
+     *
+     * <p>The count keeps the accent dimmed on the selected row, so a chapter change re-applies
+     * even when no count moved — otherwise the newly selected row keeps full accent until the
+     * next claim. Compared beside the map above: one string equality per tick, and the row walk
+     * only when something actually changed.
+     */
+    private String sidebarSuffixChapter;
+
+    /**
      * The sidebar's outline, and the tree revision it was built from.
      *
      * <h2>Why the outline is kept rather than rebuilt</h2>
@@ -3776,7 +3807,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * {@link #mouseScrolled} routes the wheel by it.
      */
     private Viewport sidebarViewport() {
-        BookGeometry.Rect rect = geometry().sidebarViewport(mayEditNow());
+        BookGeometry.Rect rect = geometry().sidebarViewport(mayEditNow(), sidebarReserveScrollbar);
         // The pitch goes with the bounds, because both are the frame's: this list moves a row at a time
         // -- the wheel snaps to `pitch()`, and the bar's page keeps one of those rows on screen -- and
         // the bar is where both of those numbers now live.
@@ -6017,6 +6048,20 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
+     * Whether the sidebar's rows leave room for the scrollbar's gutter.
+     *
+     * <p>Static and pure so a test can hold it: the content height is rows times the pitch the
+     * composition spaces them with, minus the one gap the composition puts between rows rather
+     * than after the last one — see {@link SidebarLayout#composition} for why that gap is not
+     * trailing. Exactly fitting is not scrolling (a bar with nowhere to go draws nothing), so
+     * the comparison is strict.
+     */
+    static boolean sidebarReservesScrollbar(int rowCount, int viewportHeight) {
+        return Math.max(0, rowCount * SidebarLayout.pitch() - BookGeometry.SIDEBAR_ROW_GAP)
+                > viewportHeight;
+    }
+
+    /**
      * Whether this screen is previewing the book as a player sees it: every hidden chapter and quest
      * filtered out, every editing gesture off, every quest card the reader's.
      *
@@ -6040,6 +6085,21 @@ public final class QuestBookScreen extends ArmatureScreen
      * command and its reply sit in the history a player would never have.
      */
     private boolean previewFromCommand;
+
+    /**
+     * The intro's anchors and buttons, re-placed every frame it shows.
+     *
+     * <p>Null unless drawn this frame: the quest card's add rows file their boxes as they draw,
+     * and the tooltip files its buttons as it draws, so a closed panel or a hidden tour cannot
+     * leave a stale box behind — and a press tests the fields rather than re-deriving them.
+     */
+    private BookGeometry.Rect introTaskBox;
+    private BookGeometry.Rect introRewardBox;
+    private BookGeometry.Rect introTipBox;
+    private BookGeometry.Rect introSkipBox;
+    private BookGeometry.Rect introNextBox;
+    private BookGeometry.Rect introKeepBox;
+    private BookGeometry.Rect introDontBox;
 
     /**
      * A {@code /tenet preview} ask parked between the payload and the screen's construction.
@@ -10880,6 +10940,14 @@ public final class QuestBookScreen extends ArmatureScreen
         // built before the clears would be registered on the screen and tracked nowhere —
         // frozen through every slide and never removed.
         buildSidebarToolbar();
+        // The gutter only when the list scrolls: decided here, from the same rows the stack below
+        // places, so the bounds the binder files two lines down and the width the rows take cannot
+        // disagree — and a short list takes the gutter its scrollbar would have drawn nothing in.
+        // Measured against the binder's own height (the may-edit toolbar or not), because a reader's
+        // taller list fits what an author's would scroll, and the flag has to answer for the rect
+        // that is actually bound rather than for the one this width is read from.
+        sidebarReserveScrollbar = sidebarReservesScrollbar(layout.rows().size(),
+                geometry().sidebarViewport(mayEditNow()).height());
         sidebarViewport();
         SidebarState effective = geometry().sidebarState();
         if (effective.collapsed()) {
@@ -10887,11 +10955,17 @@ public final class QuestBookScreen extends ArmatureScreen
             // built when the peek begins. Nothing to place, and the viewport is zero-area to say so.
             return;
         }
-        int width = geometry().sidebarViewport().width();
+        int width = geometry().sidebarViewport(mayEditNow(), sidebarReserveScrollbar).width();
 
         // Resolved once per rebuild, not per frame: the icons come from the cache, which only moves when
         // a tree arrives -- and a tree arriving rebuilds this list anyway.
         Map<String, SidebarIcon> icons = sidebarIcons();
+
+        // And the waiting counts with them, for the same reason: a drag rebuilds these rows on every
+        // step, and rows born without their suffix draw one frame of full-width title before the
+        // tick sets it — a flicker on every pixel of the drag. The tick still owns updates between
+        // rebuilds (see syncSidebarSuffixes); this owns the first frame.
+        Map<String, Integer> waiting = rewardCounts().byChapter();
 
         for (SidebarLayout.Row row : layout.rows()) {
             boolean heading = row.group();
@@ -10937,11 +11011,26 @@ public final class QuestBookScreen extends ArmatureScreen
                 button.selected(isSelected)
                         .textColour(isSelected ? ArmatureTheme.title()
                                 : row.locked() ? ArmatureTheme.blocked() : ArmatureTheme.body());
+                // The "(3)" rewards count, as the button's suffix from birth: the button truncates
+                // around it while drawing, so a row rebuilt mid-drag never shows one frame of title
+                // running under a count the tick has not set yet.
+                Integer waitingCount = waiting.get(row.id());
+                if (waitingCount != null && waitingCount > 0) {
+                    int accent = themeFor(row.id()).inProgress();
+                    button.suffix("(" + waitingCount + ")").suffixColour(
+                            isSelected ? Colour.shade(accent, 0.35F) : accent);
+                }
             }
 
             sidebarView.put(row.key(), button);
             sidebarRowWidgets.add(button);
         }
+
+        // Filed as seen: the tick compares against these, so a build that just set every suffix
+        // must not be followed by a walk that sets them again. The tick still owns every change
+        // after this — a claim lands as a changed map, a chapter change as a changed selection.
+        sidebarWaiting = waiting;
+        sidebarSuffixChapter = effectiveChapter();
 
         sidebarView.apply(layout.stack(width), width);
     }
@@ -13395,6 +13484,15 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         BookGeometry.Rect box = BookGeometry.Rect.at(slot.x(), slot.y() + 2,
                 Math.max(120, r.textWidth(label) + 24), Math.max(8, slot.height() - 4));
+        if (action == EditAction.ADD_TASK) {
+            // The intro's anchor for its task rung: filed where the row is measured, because this
+            // box is the measured one — the registered target below is the same rectangle, so the
+            // spotlight and the press cannot disagree about where "+ Add task" is.
+            introTaskBox = box;
+        }
+        else if (action == EditAction.ADD_REWARD) {
+            introRewardBox = box;
+        }
         drawEditAffordance(r, box, box.contains(mouseX, mouseY));
         r.text(label, box.x() + 6, box.y() + (box.height() - 8) / 2,
                 ArmatureTheme.faint());
@@ -16241,8 +16339,51 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * The chapter rows' completion bars, along the bottom of each row, and the "(3)" rewards count at
-     * its right edge.
+     * The "(3)" rewards counts, as suffixes on the chapter row buttons.
+     *
+     * <p>A suffix rather than paint over the label: the button truncates its title around the note,
+     * so a long chapter ends before the count instead of under it — which is what the overlay this
+     * replaces could not do, because it never moved the truncation the label was fitted with. The
+     * count keeps the {@code inProgress} accent it has always worn, dimmed on the selected row the
+     * way the overlay dimmed it; hover leaves it alone, which is one subtle wash lost for a whole
+     * overlap cured. Groups get none of it: a heading is not a thing with rewards waiting.
+     *
+     * <p>On the waiting map rather than on a revision: progress, tree, marks and viewer each move
+     * it, and the map is the one value all four arrive as — so a change in any of them that moves
+     * no count touches no button. Called every tick; setting an unchanged suffix is still a write
+     * the button does not need, which is what the comparison is for.
+     */
+    private void syncSidebarSuffixes() {
+        SidebarLayout layout = sidebar();
+        if (layout == null) {
+            return;
+        }
+        Map<String, Integer> waiting = rewardCounts().byChapter();
+        String selectedChapter = effectiveChapter();
+        if (waiting.equals(sidebarWaiting)
+                && java.util.Objects.equals(selectedChapter, sidebarSuffixChapter)) {
+            return;
+        }
+        sidebarWaiting = waiting;
+        sidebarSuffixChapter = selectedChapter;
+        for (SidebarLayout.Row row : layout.rows()) {
+            if (row.group() || !(sidebarView.get(row.key()) instanceof ArmatureButton button)) {
+                continue;
+            }
+            Integer count = waiting.get(row.id());
+            if (count != null && count > 0) {
+                int accent = themeFor(row.id()).inProgress();
+                button.suffix("(" + count + ")").suffixColour(
+                        row.id().equals(selectedChapter) ? Colour.shade(accent, 0.35F) : accent);
+            }
+            else {
+                button.suffix(null);
+            }
+        }
+    }
+
+    /**
+     * The chapter rows' completion bars, along the bottom of each row.
      *
      * <p>The bar is a one-pixel hairline inside the row's own height, so the selection pill wraps it
      * and nothing about the list's layout moves. It is inset a pixel from each end — just enough to
@@ -16250,14 +16391,15 @@ public final class QuestBookScreen extends ArmatureScreen
      * when something is done, because a track along every untouched chapter is a groove nobody asked
      * for.
      *
-     * <p>Both marks are the chapter's own colours: the bar's fill is its {@code complete} and its
-     * track its {@code recessed} (the token a progress bar's track is for), and the count keeps the
-     * {@code inProgress} accent it has always worn. The row's states still speak — hover and
-     * selection brighten the marks rather than recolouring them, which is what a mark with a colour
-     * of its own can do. Groups get none of it: a heading is not a thing with a completion.
+     * <p>The bar's fill is the chapter's {@code complete} and its track its {@code recessed} (the
+     * token a progress bar's track is for). Groups get none of it: a heading is not a thing with a
+     * completion. The "(3)" rewards count used to be drawn here too, at the row's right edge — it
+     * lives on the row button as a suffix now, because a count drawn over the label cannot move the
+     * truncation the label was fitted with, and a long title ran straight under it. See
+     * {@link #syncSidebarSuffixes}.
      *
      * <p>The bar answers to {@link DevMode#progress()}, which a reader can turn off from the Tools
-     * panel; the count does not, because "(3)" is a call to action rather than a decoration.
+     * panel.
      */
     private void drawSidebarChapterProgress(GuiRenderer r, int mouseX, int mouseY) {
         SidebarLayout layout = sidebar();
@@ -16269,10 +16411,9 @@ public final class QuestBookScreen extends ArmatureScreen
             refreshSidebarChapterTooltips(layout, counts);
             tooltippedCounts = counts;
         }
-        Map<String, Integer> waitingQuests = rewardCounts().byChapter();
 
-        // One batch for the whole list: a bar is two fills and a count is one, and thirty rows drawn
-        // without this would be ninety rounds of per-fill flushes for what is a decoration; see
+        // One batch for the whole list: a bar is two fills, and thirty rows drawn without this
+        // would be sixty rounds of per-fill flushes for what is a decoration; see
         // `GuiRenderer.batched` for the submission argument the canvas makes at length.
         r.batched(() -> {
             for (SidebarLayout.Row row : layout.rows()) {
@@ -16302,15 +16443,6 @@ public final class QuestBookScreen extends ArmatureScreen
                         ChapterBar.draw(r, rect.x() + 1, rect.bottom() - ChapterBar.HEIGHT - 1,
                                 rect.width() - 2, ChapterBar.HEIGHT, fraction, fill, track);
                     }
-                }
-                Integer waiting = waitingQuests.get(row.id());
-                if (waiting != null && waiting > 0) {
-                    String text = "(" + waiting + ")";
-                    int accent = theme.inProgress();
-                    int colour = selected ? Colour.shade(accent, 0.35F)
-                            : hovered ? Colour.shade(accent, 0.15F) : accent;
-                    r.text(text, rect.right() - 4 - r.textWidth(text),
-                            rect.y() + (rect.height() - 8) / 2, colour);
                 }
             }
             // The batch exists for its fills, not its value; `batched` takes a supplier, so this is
@@ -16471,8 +16603,11 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     private void closeNaming() {
-        naming = null;
         closeOverlay();
+        // Deferred, not dropped: the exiting rail draws from this session for the length of its
+        // slide — the same rule closeOverlay's own nullings follow. Nulling eagerly is a departed
+        // card drawing with no session, which crashes the book in drawNamingOverlay the next frame.
+        deferForLastDeparted(() -> naming = null, PanelKind.NAMING);
     }
 
     /** The two fields' rectangles: one derivation for the widgets and for the drawing. */
@@ -16662,6 +16797,11 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** The card itself: heading, field labels, and the live verdict on the id. */
     private void drawNamingOverlay(GuiRenderer r) {
+        if (naming == null) {
+            // No session, no card — the same guard buildNamingWidgets keeps. The close defers the
+            // nulling so a departed rail still draws, but a draw without one must never dereference.
+            return;
+        }
         BookGeometry.Rect card = surfaceCard(PanelKind.NAMING);
         ArmatureTheme.panel(r, card.x(), card.y(), card.width(), card.height(),
                 ArmatureTheme.panel(), ArmatureTheme.panelEdge());
@@ -24695,6 +24835,10 @@ public final class QuestBookScreen extends ArmatureScreen
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderMouseX = mouseX;
         renderMouseY = mouseY;
+        // The intro's anchors are re-placed while drawing, so a closed panel cannot leave a stale
+        // one: each frame starts with none, and the quest card's add rows file theirs as they draw.
+        introTaskBox = null;
+        introRewardBox = null;
         // **What the drawing sees, which is not always where the pointer is.** An overlay that is drawn over
         // the book and answers a press anywhere *owns the pointer* while it is open: nothing under it may
         // hover, and the three draws that *are* the overlay read `renderMouseX`/`renderMouseY` instead. See
@@ -25178,6 +25322,9 @@ public final class QuestBookScreen extends ArmatureScreen
                 drawRowTooltips(renderer, hoverX, hoverY);
                 drawLinkTarget(renderer, hoverX, hoverY);
                 drawTooltips(renderer, hoverX, hoverY);
+                // The intro over the tooltips: its spotlight dims the book and its tooltip must
+                // beat theirs, while owning no press but its own three buttons.
+                drawIntroGuide(renderer, hoverX, hoverY);
             }
             pose.popPose();
 
@@ -26334,6 +26481,288 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void drawTooltip(GuiRenderer r, List<String> lines, int mouseX, int mouseY) {
         Tooltips.draw(r, lines, mouseX, mouseY, width, height);
+    }
+
+    // ------------------------------------------------------------------
+    // The first-run intro
+    // ------------------------------------------------------------------
+
+    /**
+     * The intro's spotlight and tooltip, drawn last so they beat every tooltip.
+     *
+     * <p>Over everything but owning nothing: the scrim dims the book around the rung's anchor
+     * while every control under it stays live, because the rung advances on the author pressing
+     * the real {@code + Chapter} strip, the real canvas, the real add rows — never the tooltip.
+     * The tooltip's own buttons are the only presses this answers (see
+     * {@link #pressIntroGuide}), so a rung can never trap the book: Esc closes over it, and any
+     * other press falls straight through.
+     *
+     * <p>An anchor that is not on screen falls back to the region that holds it — a collapsed
+     * sidebar's strip for its toolbar, the canvas for a quest card that is not open — and the
+     * copy names the control, so the tour points at where to go rather than at air.
+     */
+    private void drawIntroGuide(GuiRenderer r, int mouseX, int mouseY) {
+        if (!IntroGuide.isActive()) {
+            introTipBox = null;
+            introSkipBox = null;
+            introNextBox = null;
+            introKeepBox = null;
+            introDontBox = null;
+            return;
+        }
+        BookGeometry.Rect anchor = introAnchor();
+        if (anchor != null) {
+            // Four fills around the anchor rather than one with a hole: a quad over the anchor
+            // would dim the control the rung needs pressed.
+            int dim = ArmatureTheme.dim();
+            r.fill(0, 0, width, anchor.y(), dim);
+            r.fill(0, anchor.bottom(), width, height, dim);
+            r.fill(0, anchor.y(), anchor.x(), anchor.bottom(), dim);
+            r.fill(anchor.right(), anchor.y(), width, anchor.bottom(), dim);
+            // Two pixels of the title ink: the shape is the spotlight, and the ink is the
+            // brightest the theme owns, so it reads on charcoal and parchment alike.
+            int ring = ArmatureTheme.title();
+            r.fill(anchor.x() - 2, anchor.y() - 2, anchor.right() + 2, anchor.y(), ring);
+            r.fill(anchor.x() - 2, anchor.bottom(), anchor.right() + 2, anchor.bottom() + 2, ring);
+            r.fill(anchor.x() - 2, anchor.y(), anchor.x(), anchor.bottom(), ring);
+            r.fill(anchor.right(), anchor.y(), anchor.right() + 2, anchor.bottom(), ring);
+        }
+        else {
+            // The done card: centred over the whole book, dimmed like everything it celebrates.
+            r.fill(0, 0, width, height, ArmatureTheme.dim());
+        }
+
+        if (naming != null || !menu.isEmpty() || pickingEntryType != null) {
+            // Something the author is reading is open — the naming card, a right-click menu, the
+            // type picker — so the tooltip stands aside while the spotlight stays: covering the menu
+            // that says "New quest here" with a tooltip that says nearly the same would be the tour
+            // getting in its own way. The buttons go with it, so no press can land on a tooltip
+            // that is not drawn.
+            introTipBox = null;
+            introSkipBox = null;
+            introNextBox = null;
+            introKeepBox = null;
+            introDontBox = null;
+            return;
+        }
+
+        IntroGuide.Step step = IntroGuide.step();
+        boolean done = step == IntroGuide.Step.DONE;
+        String title = Component.translatable(introTitleKey(step)).getString();
+        List<String> body = done && !IntroGuide.completedByDoing()
+                ? List.of(Component.translatable("tenet.screen.intro.skipped.1").getString(),
+                        Component.translatable("tenet.screen.intro.skipped.2").getString())
+                : List.of(Component.translatable(introBodyKey(step, 1)).getString(),
+                        Component.translatable(introBodyKey(step, 2)).getString());
+
+        int pad = 8;
+        int lineHeight = r.lineHeight();
+        int boxWidth = 240;
+        int buttonHeight = 13;
+        // Measured before placing, because the checkbox drops to its own row rather than
+        // overlapping the buttons: a centred button and a right-aligned checkbox share the
+        // middle of a narrow box, and a translation longer than the English makes even the
+        // left-aligned row collide. The box grows for the second row before it is placed, so
+        // the placement still holds wholly on screen.
+        String keep = Component.translatable("tenet.screen.intro.keep").getString();
+        String skip = Component.translatable("tenet.screen.intro.skip").getString();
+        String next = Component.translatable("tenet.screen.intro.next").getString();
+        String dont = Component.translatable("tenet.screen.intro.dontshow").getString();
+        int keepWidth = r.textWidth(keep) + 12;
+        int skipWidth = r.textWidth(skip) + 12;
+        int nextWidth = r.textWidth(next) + 12;
+        int dontWidth = 9 + 4 + r.textWidth(dont);
+        int buttonsEnd = pad + (done ? keepWidth : skipWidth + 6 + nextWidth);
+        boolean wrapped = buttonsEnd + 6 + dontWidth > boxWidth - pad;
+        int checkHeight = Math.max(9, lineHeight);
+        int boxHeight = pad + lineHeight + 4 + lineHeight * body.size() + 6 + buttonHeight + pad
+                + (wrapped ? 4 + checkHeight : 0);
+        int[] placed = placeIntroBox(anchor, boxWidth, boxHeight);
+        int boxX = placed[0];
+        int boxY = placed[1];
+        introTipBox = BookGeometry.Rect.at(boxX, boxY, boxWidth, boxHeight);
+
+        ArmatureTheme.panel(r, boxX, boxY, boxWidth, boxHeight,
+                ArmatureTheme.tooltipFill(), ArmatureTheme.tooltipEdge());
+        int textY = boxY + pad;
+        r.text(title, boxX + pad, textY, ArmatureTheme.title());
+        textY += lineHeight + 4;
+        for (String line : body) {
+            r.text(line, boxX + pad, textY, ArmatureTheme.tooltipText());
+            textY += lineHeight;
+        }
+        int buttonsY = boxY + boxHeight - pad - buttonHeight - (wrapped ? 4 + checkHeight : 0);
+        if (done) {
+            int keepX = boxX + pad;
+            drawIntroButton(r, keepX, buttonsY, keepWidth, buttonHeight, keep,
+                    keepX <= mouseX && mouseX < keepX + keepWidth
+                            && buttonsY <= mouseY && mouseY < buttonsY + buttonHeight);
+            introKeepBox = BookGeometry.Rect.at(keepX, buttonsY, keepWidth, buttonHeight);
+            introSkipBox = null;
+            introNextBox = null;
+        }
+        else {
+            int skipX = boxX + pad;
+            int nextX = skipX + skipWidth + 6;
+            drawIntroButton(r, skipX, buttonsY, skipWidth, buttonHeight, skip,
+                    skipX <= mouseX && mouseX < skipX + skipWidth
+                            && buttonsY <= mouseY && mouseY < buttonsY + buttonHeight);
+            drawIntroButton(r, nextX, buttonsY, nextWidth, buttonHeight, next,
+                    nextX <= mouseX && mouseX < nextX + nextWidth
+                            && buttonsY <= mouseY && mouseY < buttonsY + buttonHeight);
+            introSkipBox = BookGeometry.Rect.at(skipX, buttonsY, skipWidth, buttonHeight);
+            introNextBox = BookGeometry.Rect.at(nextX, buttonsY, nextWidth, buttonHeight);
+            introKeepBox = null;
+        }
+        // The "Don't show again" checkbox: on the button row when it fits beside the buttons,
+        // on its own row below when it does not. Either way right-aligned, and the durable flag
+        // and nothing else — checking it never ends the tour, it only stops the next one.
+        int dontX = boxX + boxWidth - pad - dontWidth;
+        int dontY = wrapped
+                ? buttonsY + buttonHeight + 4 + (checkHeight - 9) / 2
+                : buttonsY + (buttonHeight - 9) / 2;
+        boolean dontOn = IntroGuide.dontShowAgain();
+        boolean dontHover = dontX <= mouseX && mouseX < dontX + dontWidth
+                && dontY <= mouseY && mouseY < dontY + 9;
+        if (dontHover) {
+            r.fill(dontX - 2, dontY - 2, dontX + dontWidth + 2, dontY + 11, ArmatureTheme.rowHover());
+        }
+        r.fill(dontX, dontY, dontX + 9, dontY + 1, ArmatureTheme.tooltipEdge());
+        r.fill(dontX, dontY + 8, dontX + 9, dontY + 9, ArmatureTheme.tooltipEdge());
+        r.fill(dontX, dontY, dontX + 1, dontY + 9, ArmatureTheme.tooltipEdge());
+        r.fill(dontX + 8, dontY, dontX + 9, dontY + 9, ArmatureTheme.tooltipEdge());
+        if (dontOn) {
+            r.fill(dontX + 2, dontY + 2, dontX + 7, dontY + 7, ArmatureTheme.title());
+        }
+        r.text(dont, dontX + 13, dontY + (9 - lineHeight) / 2, ArmatureTheme.tooltipText());
+        introDontBox = BookGeometry.Rect.at(dontX - 2, dontY - 2, dontWidth + 4,
+                Math.max(13, checkHeight + 4));
+    }
+
+    /**
+     * The intro's title key for a rung, written whole.
+     *
+     * <p>Whole literals rather than a prefix plus the rung's name, because the translation sweep
+     * reads literals rather than concatenations: a built key would render fine in game and fail
+     * the sweep as an orphan, which is exactly the failure that sweep exists to catch.
+     */
+    private static String introTitleKey(IntroGuide.Step step) {
+        return switch (step) {
+            case CHAPTER -> "tenet.screen.intro.chapter.title";
+            case QUEST -> "tenet.screen.intro.quest.title";
+            case TASK -> "tenet.screen.intro.task.title";
+            case REWARD -> "tenet.screen.intro.reward.title";
+            case DONE -> "tenet.screen.intro.done.title";
+        };
+    }
+
+    /** The intro's body key for a rung's line, written whole for the sweep's reason above. */
+    private static String introBodyKey(IntroGuide.Step step, int line) {
+        return switch (step) {
+            case CHAPTER -> line == 1 ? "tenet.screen.intro.chapter.1" : "tenet.screen.intro.chapter.2";
+            case QUEST -> line == 1 ? "tenet.screen.intro.quest.1" : "tenet.screen.intro.quest.2";
+            case TASK -> line == 1 ? "tenet.screen.intro.task.1" : "tenet.screen.intro.task.2";
+            case REWARD -> line == 1 ? "tenet.screen.intro.reward.1" : "tenet.screen.intro.reward.2";
+            case DONE -> line == 1 ? "tenet.screen.intro.done.1" : "tenet.screen.intro.done.2";
+        };
+    }
+
+    /** One of the tooltip's own buttons: a wash on hover and the label centred in it. */
+    private void drawIntroButton(GuiRenderer r, int x, int y, int w, int h, String label,
+            boolean hovered) {
+        if (hovered) {
+            r.fill(x, y, x + w, y + h, ArmatureTheme.rowHover());
+        }
+        r.fill(x, y + h - 1, x + w, y + h, ArmatureTheme.tooltipEdge());
+        r.text(label, x + (w - r.textWidth(label)) / 2, y + (h - r.lineHeight()) / 2,
+                hovered ? ArmatureTheme.title() : ArmatureTheme.tooltipText());
+    }
+
+    /**
+     * Where the tooltip goes: beside its anchor, or centred for the done card.
+     *
+     * <p>Below, above, right, left — the first that fits wholly on screen, like the tooltip
+     * toolkit's own caption placement, because a tour that covers its own spotlight is pointing
+     * at itself. A box that fits nowhere is clamped onto the screen rather than left hanging
+     * off it, which is degradation rather than an error: a window that small is already
+     * clipping the book.
+     */
+    private int[] placeIntroBox(BookGeometry.Rect anchor, int boxWidth, int boxHeight) {
+        if (anchor == null) {
+            return new int[] {(width - boxWidth) / 2, (height - boxHeight) / 2};
+        }
+        int margin = 4;
+        int gap = 6;
+        int[][] candidates = {
+                {anchor.x(), anchor.bottom() + gap},
+                {anchor.x(), anchor.y() - gap - boxHeight},
+                {anchor.right() + gap, anchor.y()},
+                {anchor.x() - gap - boxWidth, anchor.y()}};
+        for (int[] at : candidates) {
+            if (at[0] >= margin && at[1] >= margin
+                    && at[0] + boxWidth <= width - margin
+                    && at[1] + boxHeight <= height - margin) {
+                return at;
+            }
+        }
+        return new int[] {
+                Math.max(margin, Math.min(candidates[0][0], width - boxWidth - margin)),
+                Math.max(margin, Math.min(candidates[0][1], height - boxHeight - margin))};
+    }
+
+    /**
+     * The rung's anchor, in screen coordinates — or null for the done card, which is centred.
+     *
+     * <p>Live every frame rather than remembered, because the sidebar slides, the window
+     * resizes and the quest card opens: an anchor from last frame is where the control was, and
+     * the spotlight must be where it is. Whatever is missing falls back to the region that
+     * holds it, so the tour degrades to pointing at the neighbourhood rather than at air.
+     */
+    private BookGeometry.Rect introAnchor() {
+        return switch (IntroGuide.step()) {
+            case CHAPTER -> {
+                // The strip's own + Chapter half; the strip itself when collapsed, which has no
+                // halves — pressing it expands the list, and the next frame anchors the half.
+                BookGeometry.Rect add =
+                        geometry().sidebarToolbar().get("addChapter");
+                yield add != null ? add : geometry().sidebar();
+            }
+            case QUEST -> geometry().canvas();
+            // The card's own add rows once it is open, else the canvas they will be made on.
+            case TASK -> introTaskBox != null ? introTaskBox : geometry().canvas();
+            case REWARD -> introRewardBox != null ? introRewardBox : geometry().canvas();
+            case DONE -> null;
+        };
+    }
+
+    /**
+     * One of the tooltip's own presses — and nothing else.
+     *
+     * <p>Asked first in {@code mouseClicked} and answering only its own buttons, so the press on
+     * the spotlighted control falls through to the book untouched: the tour watches the author
+     * work, it never works for them.
+     */
+    private boolean pressIntroGuide(double mouseX, double mouseY, int button) {
+        if (button != 0) {
+            return false;
+        }
+        if (introKeepBox != null && introKeepBox.contains(mouseX, mouseY)) {
+            IntroGuide.dismiss();
+            return true;
+        }
+        if (introNextBox != null && introNextBox.contains(mouseX, mouseY)) {
+            IntroGuide.skipStep();
+            return true;
+        }
+        if (introSkipBox != null && introSkipBox.contains(mouseX, mouseY)) {
+            IntroGuide.skip();
+            return true;
+        }
+        if (introDontBox != null && introDontBox.contains(mouseX, mouseY)) {
+            IntroGuide.setDontShowAgain(!IntroGuide.dontShowAgain());
+            return true;
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------
@@ -32584,6 +33013,13 @@ public final class QuestBookScreen extends ArmatureScreen
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // The intro's buttons first, and only they: a press on Skip, Next or the checkbox is the
+        // tour's, while every other press — including the press on the + Chapter strip or the
+        // canvas the tour is pointing at — falls through to the book untouched. Asked before the
+        // blur below, because a press on the tour is not a press away from a field.
+        if (IntroGuide.isActive() && pressIntroGuide(mouseX, mouseY, button)) {
+            return true;
+        }
         // A press anywhere is "no" to an armed delete, which is the rule the menu's own Delete states: any
         // other press disarms. A press that selects a node does not need to re-arm by hand -- the next
         // Delete key press asks about the selection it made.
@@ -36009,6 +36445,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // in flight belong to presses nobody has answered yet, which is exactly what the wholesale clear
         // used to get wrong.
         reconcilePendingClaims(millis);
+        // The sidebar's waiting counts ride the row buttons as suffixes, and a claim lands as a
+        // changed map — see syncSidebarSuffixes. Here rather than in the drawing, because setting
+        // a widget is state and state does not belong inside a render.
+        syncSidebarSuffixes();
         if (overlay == PanelKind.REWARDS) {
             long progress = ClientQuestCache.progressRevision();
             boolean marksMoved = rewardMarksRevision != pendingClaims.revision();
@@ -36197,7 +36637,20 @@ public final class QuestBookScreen extends ArmatureScreen
                 selectedQuest = reply.questId();
                 authorReport("Now editing " + reply.questId());
             }
+            if (!tableReply) {
+                // The intro's gates: a made quest, task or reward advances the tour. Chapter ops only —
+                // a table op's id is a table's, and the tour's rungs are quests. Advisory rather than
+                // exact (see IntroGuide): any accepted chapter edit on the task and reward rungs moves it.
+                IntroGuide.noteReply(reply.ok(), reply.questId());
+            }
         }
+
+        // The first-run intro, evaluated on the counts the replies above just moved: an author facing
+        // an empty book starts the guided making of one chapter, quest, task and reward, and the rungs
+        // the tree satisfies advance. Here rather than in the drawing, because starting is state and
+        // state does not belong inside a render.
+        IntroGuide.tick(mayEdit(), DevMode.on(), previewing(), ClientQuestCache.hasTree(),
+                ClientQuestCache.chapters().size(), ClientQuestCache.entries().size());
     }
 
     /**
@@ -36371,6 +36824,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // And the preview ask with it: it names a view of the server being left, and a book opened on
         // the next server must open as its own editor or reader rather than as somebody's preview.
         clearPreviewRequest();
+        // And the intro with it: its rung names that server's book, and a book opened on the next
+        // server starts its own tour rather than resuming this one's. The seen flag stays — it is
+        // the client's, not the server's.
+        IntroGuide.clearSession();
         // The clipboard goes too: another server's quests are not this one's to paste, and a tree
         // carried across a disconnect is an op the new server would dutifully apply to its own files.
         ClientEditorClipboard.clear();

@@ -243,6 +243,16 @@ public final class TenetCommand {
                         .then(Commands.literal("off")
                                 .executes(ctx -> preview(ctx, Optional.of(false)))))
 
+                // The first-quest intro, for an operator: reset the client's seen flag and walk
+                // the guided making of one chapter, one quest, one task and one reward. An
+                // editor's tool rather than a player's, which is why it takes the edit permission:
+                // the latch it resets and the tour it starts are both the editor's. The same shape
+                // as `preview` — the command runs here, the guide lives on the client, so this
+                // sends one payload there rather than starting anything here.
+                .then(Commands.literal("intro")
+                        .requires(QuestAuthority.mayEdit())
+                        .executes(TenetCommand::intro))
+
                 // The pack's emergency shelf: what `emergencyItems` names, once per cooldown. No
                 // permission gate, for the same reason `claim` has none — this is a player
                 // collecting what the pack offers, not an operator changing anything. The legacy
@@ -1220,6 +1230,33 @@ public final class TenetCommand {
             context.getSource().sendSuccess(
                     () -> Component.translatable("tenet.command.preview.off"), false);
         }
+        return 1;
+    }
+
+    /**
+     * Parks a fresh-start intro ask on the invoker's client and opens the book on it.
+     *
+     * <p>A command runs on the server and the guide lives on the client, so this sends one
+     * payload there rather than resetting anything here — the same shape as {@code preview}.
+     * Refused with the pack's sentence when the pack disabled its book, like the open itself,
+     * and refused from the console, because only a player has a screen to walk on.
+     */
+    private static int intro(CommandContext<CommandSourceStack> context)
+            throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) {
+            context.getSource().sendFailure(Component.literal(
+                    "Run this as a player. Only a player has a screen to walk on."));
+            return 0;
+        }
+        if (TenetQuests.settings().disableGui()) {
+            context.getSource().sendFailure(
+                    Component.translatable("tenet.screen.book_disabled"));
+            return 0;
+        }
+        dev.ellipog.tenet.net.TenetNetworking.sendIntroTo(player);
+        context.getSource().sendSuccess(
+                () -> Component.translatable("tenet.command.intro.done"), false);
         return 1;
     }
 

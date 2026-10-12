@@ -1368,6 +1368,20 @@ public final class BookGeometry {
      * the caller that knows which mode it is drawing in passes it.
      */
     public Rect sidebarViewport(boolean toolbar) {
+        return sidebarViewport(toolbar, true);
+    }
+
+    /**
+     * The same region, with the scrollbar's gutter reserved only when asked.
+     *
+     * <p>An always-reserved gutter is dead space beside every list short enough not to scroll:
+     * the bar draws nothing when everything fits (a full-height grip would say there is more),
+     * so the rows stop a scrollbar short of the strip above them and a handle short of symmetric
+     * with the left edge — which is exactly what a selected row makes visible. The caller that
+     * knows the list fits passes false and the rows take the gutter; every caller that does not
+     * know keeps today's reservation.
+     */
+    public Rect sidebarViewport(boolean toolbar, boolean scrollbar) {
         if (sidebarState.collapsed()) {
             // The sliver carries no rows: hovering it peeks the box, and the box it peeks is
             // built when the peek begins. A zero-area viewport is what tells every caller that.
@@ -1381,7 +1395,8 @@ public final class BookGeometry {
                     + (toolbar ? SIDEBAR_ROW_HEIGHT + SIDEBAR_TOOLBAR_GAP : 0);
             int boxBottom = sidebar.bottom() - EDGE;
             return Rect.at(sidebar.x() + EDGE, boxTop,
-                    Math.max(0, sidebar.width() - EDGE * 2 - SIDEBAR_SCROLLBAR - SIDEBAR_HANDLE),
+                    Math.max(0, sidebar.width() - EDGE * 2 - (scrollbar ? SIDEBAR_SCROLLBAR : 0)
+                            - SIDEBAR_HANDLE),
                     Math.max(0, boxBottom - boxTop));
         }
         int top = toolbar
@@ -1396,9 +1411,11 @@ public final class BookGeometry {
         // its own 8 pixels and the handle owns the outermost 5, so a press on one can never be
         // read as the other. The rows end where the bar begins, exactly as they always have —
         // only the bar stands 5 pixels further from the edge than it did, which is what keeps the
-        // grip from covering the thumb it would otherwise shadow.
+        // grip from covering the thumb it would otherwise shadow. Callers that know no bar will
+        // show pass scrollbar as false (see the overload), so a list that fits takes the gutter.
         return Rect.at(panel.x() + EDGE, top,
-                Math.max(0, sidebarInner(sidebarWidth) - SIDEBAR_SCROLLBAR - SIDEBAR_HANDLE),
+                Math.max(0, sidebarInner(sidebarWidth) - (scrollbar ? SIDEBAR_SCROLLBAR : 0)
+                        - SIDEBAR_HANDLE),
                 Math.max(0, bottom - top));
     }
 

@@ -578,6 +578,26 @@ class BookGeometryTest {
         }
 
         @Test
+        @DisplayName("a list that fits takes the scrollbar's gutter, and only the gutter")
+        void fittingListsTakeTheGutter() {
+            // The report this locks: a one-chapter list ended 8 pixels short of the toolbar above
+            // it, because the viewport reserved the scrollbar's room against a bar that draws
+            // nothing when everything fits. Unreserved, the rows take exactly those 8 pixels —
+            // same left edge, same height, one gutter wider — so a short list lines up with the
+            // strip above it instead of stopping short of it.
+            for (int[] size : sizes()) {
+                BookGeometry geometry = new BookGeometry(size[0], size[1]);
+                BookGeometry.Rect reserved = geometry.sidebarViewport(true, true);
+                BookGeometry.Rect freed = geometry.sidebarViewport(true, false);
+                assertEquals(reserved.width() + BookGeometry.SIDEBAR_SCROLLBAR, freed.width(),
+                        "the freed viewport is one gutter wider on a "
+                                + size[0] + "x" + size[1] + " screen");
+                assertEquals(reserved.x(), freed.x(), "same left edge");
+                assertEquals(reserved.height(), freed.height(), "same height");
+            }
+        }
+
+        @Test
         @DisplayName("the canvas has room to draw in")
         void theCanvasIsNotDegenerate() {
             for (int[] size : sizes()) {

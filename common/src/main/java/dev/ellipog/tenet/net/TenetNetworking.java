@@ -402,6 +402,20 @@ public final class TenetNetworking {
                 TenetNetworking::handlePreview,
                 null));
 
+        // --- a command asked for the first-quest intro: reset it and show it, there ---
+        //
+        // The same shape as the preview above: the command runs on the server and the guide's
+        // latch lives on the client, so the server forwards the ask and the client's handler
+        // parks it and opens the book. The ask carries nothing — resetting the seen flag is the
+        // whole of "show me again", and which rung to start on is the client's to work out from
+        // the book it already holds.
+        ArmatureNetwork.register(new ArmatureNetwork.Registration<>(
+                IntroPayload.TYPE,
+                IntroPayload.CODEC,
+                ArmatureNetwork.Direction.TO_CLIENT,
+                TenetNetworking::handleIntro,
+                null));
+
         // --- one edit, client to server, and the server's answer ---
         //
         // The op path. A client asks; the server checks permission, applies the operation to its own model
@@ -1572,6 +1586,11 @@ public final class TenetNetworking {
         ArmatureNetwork.sendToPlayer(player, new PreviewPayload(toggle, on));
     }
 
+    /** Asks one player's client to reset its first-quest intro and walk it. See {@link IntroPayload}. */
+    public static void sendIntroTo(ServerPlayer player) {
+        ArmatureNetwork.sendToPlayer(player, new IntroPayload());
+    }
+
     private static void handlePartySync(PartySyncPayload payload) {
         ClientPartyCache.accept(payload.packed());
         // Info rather than debug, paired with the sender's line: "the server sent it" and "the client
@@ -1818,6 +1837,15 @@ public final class TenetNetworking {
             return;
         }
         dev.ellipog.tenet.client.QuestBookScreen.requestPreview(payload.toggle(), payload.on());
+        dev.ellipog.armature.api.client.ArmatureClient.openScreen(dev.ellipog.tenet.Tenet.QUEST_BOOK_SCREEN);
+    }
+
+    /** A command asked for the first-quest intro: park the fresh-start ask and open the book on it. */
+    private static void handleIntro(IntroPayload payload) {
+        if (!dev.ellipog.tenet.client.QuestBookScreen.checkOpenAllowed()) {
+            return;
+        }
+        dev.ellipog.tenet.client.IntroGuide.requestFresh();
         dev.ellipog.armature.api.client.ArmatureClient.openScreen(dev.ellipog.tenet.Tenet.QUEST_BOOK_SCREEN);
     }
 

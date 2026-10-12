@@ -161,6 +161,11 @@ class SyncWiringTest {
                 "tenet:edit_problems",
                 "tenet:editor_op",
                 "tenet:editor_reply",
+                // Not a viewer message either: a command's answer to "walk me through my first
+                // quest", which no existing message carries — the open above opens the book but
+                // not the tour, and the tour's rung is the client's to work out from the book it
+                // holds. Asked and answered here like the preview switch above.
+                "tenet:intro",
                 // The one player's quest text, in the language they read: the tree is broadcast and
                 // carries the canonical strings, so a locale cannot ride on it. The request is the
                 // other half -- the only way a language changed after the login handshake can reach

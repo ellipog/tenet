@@ -50,6 +50,28 @@ class ComponentTemplatePresetsTest {
         }
     }
 
+    @Test
+    @DisplayName("every preset fully decodes through its kind's codec, the way the game decodes it")
+    void everyPresetFullyDecodes() {
+        // Names and fields are checked above, and they are not enough: a preset can name a known
+        // type and carry only declared fields while still decoding to nothing — a required field
+        // absent, a value of the wrong shape. That is exactly how the five-levels reward shipped
+        // as levels: 5, which the codec refuses. So each preset goes through the same dispatch
+        // codec an apply does, on plain JSON ops like every other headless codec test.
+        for (ComponentTemplate.Template preset : ComponentTemplatePresets.builtIns()) {
+            com.mojang.serialization.DataResult<?> decoded = switch (preset.kind()) {
+                case TASK -> dev.ellipog.tenet.quest.task.TaskTypes.dispatchCodec()
+                        .parse(com.mojang.serialization.JsonOps.INSTANCE, preset.payload());
+                case REWARD -> dev.ellipog.tenet.quest.reward.RewardTypes.dispatchCodec()
+                        .parse(com.mojang.serialization.JsonOps.INSTANCE, preset.payload());
+                case CONDITION -> dev.ellipog.tenet.quest.condition.ConditionTypes.dispatchCodec()
+                        .parse(com.mojang.serialization.JsonOps.INSTANCE, preset.payload());
+            };
+            assertTrue(decoded.result().isPresent(),
+                    () -> preset.id() + " does not decode: "
+                            + decoded.error().map(Object::toString).orElse("unknown"));
+        }
+    }
     private static boolean known(ComponentTemplate.Kind kind, ResourceLocation id) {
         return switch (kind) {
             case TASK -> dev.ellipog.tenet.quest.task.TaskTypes.ids().contains(id);

@@ -454,4 +454,34 @@ class DevModeTest {
         DevMode.load(file);
         assertEquals(BookGeometry.SIDEBAR_MAX_WIDTH, DevMode.sidebarWidth());
     }
+
+    @Test
+    @DisplayName("the intro flag defaults to unseen, round-trips, and is omitted when unset")
+    void guideSeen(@TempDir Path dir) throws IOException {
+        assertFalse(DevMode.hasSeenGuide(), "a first run has not seen the intro");
+
+        assertFalse(DevMode.parse("{\"dev\":true}").guideSeen(),
+                "a file written before the intro existed reads as unseen, so its author meets it once");
+        assertTrue(DevMode.parse("{\"guideSeen\":true}").guideSeen());
+        assertFalse(DevMode.parse("{\"guideSeen\":\"yes\"}").guideSeen(),
+                "a wrong type costs the flag, not the file");
+
+        Map<PanelKind, Integer> none = new EnumMap<>(PanelKind.class);
+        assertFalse(DevMode.write(true, true, true, false, none, PanelStack.Fold.AUTO,
+                        BookGeometry.SIDEBAR_WIDTH, true, true, false, false).contains("guideSeen"),
+                "unset is written as absence, so files that never met the guide stay byte-identical");
+        String seen = DevMode.write(true, true, true, false, none, PanelStack.Fold.AUTO,
+                BookGeometry.SIDEBAR_WIDTH, true, true, false, true);
+        assertTrue(seen.contains("\"guideSeen\":true"), "set is written");
+        assertTrue(DevMode.parse(seen).guideSeen(), "and what was written is what is read");
+
+        Path file = dir.resolve(DevMode.FILE_NAME);
+        Files.writeString(file, seen, StandardCharsets.UTF_8);
+        DevMode.load(file);
+        assertTrue(DevMode.hasSeenGuide(), "and it comes back through the same file");
+        DevMode.setGuideSeen(false);
+        assertFalse(DevMode.hasSeenGuide());
+        DevMode.load(file);
+        assertFalse(DevMode.hasSeenGuide(), "unseeing writes through the file too");
+    }
 }

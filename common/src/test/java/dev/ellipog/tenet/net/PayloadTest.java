@@ -129,6 +129,7 @@ class PayloadTest {
                 "tenet:edit_problems",
                 "tenet:editor_op",
                 "tenet:editor_reply",
+                "tenet:intro",
                 "tenet:locale_request",
                 "tenet:locale_sync",
                 "tenet:open_book",
@@ -681,6 +682,21 @@ class PayloadTest {
 
         OpenBookPayload plain = roundTrip(OpenBookPayload.CODEC, new OpenBookPayload(""));
         assertEquals("", plain.questId(), "empty is the plain opening, not a quest");
+    }
+
+    @Test
+    @DisplayName("an intro ask survives the wire carrying nothing at all")
+    void introRoundTrip() {
+        // Empty by design: the ask resets the client's seen flag, and which rung to start on
+        // is the client's to work out from the book it holds. A codec that wrote anything would
+        // be a server deciding what the author's own book still needs. The shared round-trip
+        // helper asserts something was written, so this spells the empty trip out directly.
+        FriendlyByteBuf plain = new FriendlyByteBuf(Unpooled.buffer());
+        RegistryFriendlyByteBuf buffer = RegistryFriendlyByteBuf.decorator(RegistryAccess.EMPTY).apply(plain);
+
+        IntroPayload.CODEC.encode(buffer, new IntroPayload());
+        assertEquals(0, buffer.writerIndex(), "the ask is the message, and there is nothing else on the wire");
+        assertEquals(new IntroPayload(), IntroPayload.CODEC.decode(buffer));
     }
 
     @Test
