@@ -217,7 +217,7 @@ public final class HudSettings {
         catch (RuntimeException e) {
             // Reachable only if this runs before the platform is installed, which is a caller ordering
             // fault rather than a player's. The shipped layout is the working default either way.
-            Constants.LOG.warn("tenet: the platform layer was not ready, so the HUD layout was not read."
+            Constants.LOG.warn("the platform layer was not ready, so the HUD layout was not read."
                     + " Every element keeps its default.", e);
         }
 
@@ -245,7 +245,7 @@ public final class HudSettings {
                 entries = new EnumMap<>(parse(Files.readString(path, StandardCharsets.UTF_8)));
             }
             catch (IOException | RuntimeException e) {
-                Constants.LOG.warn("tenet: {} could not be read, so every HUD element keeps its default."
+                Constants.LOG.warn("{} could not be read, so every HUD element keeps its default."
                         + " Deleting the file will stop this message.", path, e);
             }
         }
@@ -422,7 +422,7 @@ public final class HudSettings {
             JsonWrite.atomically(file, write(entries));
         }
         catch (IOException e) {
-            Constants.LOG.warn("tenet: the HUD layout could not be written to {}", file, e);
+            Constants.LOG.warn("the HUD layout could not be written to {}", file, e);
         }
     }
 }

@@ -48,11 +48,11 @@ class InstrumentedLinesTest {
      * session found it still at debug, having never once been written.
      */
     private static final String[][] LINES = {
-        {"tenet: cache walks", "common/src/main/java/dev/ellipog/tenet/client/dev/QuestWalks.java"},
-        {"tenet: cache hits", "common/src/main/java/dev/ellipog/tenet/client/dev/CountingRenderer.java"},
-        {"tenet: edit cost", "common/src/main/java/dev/ellipog/tenet/editor/EditPhases.java"},
-        {"tenet: edit flush", "common/src/main/java/dev/ellipog/tenet/editor/EditPhases.java"},
-        {"Tenet: load phases", "common/src/main/java/dev/ellipog/tenet/quest/QuestLoader.java"},
+        {"cache walks", "common/src/main/java/dev/ellipog/tenet/client/dev/QuestWalks.java"},
+        {"cache hits", "common/src/main/java/dev/ellipog/tenet/client/dev/CountingRenderer.java"},
+        {"edit cost", "common/src/main/java/dev/ellipog/tenet/editor/EditPhases.java"},
+        {"edit flush", "common/src/main/java/dev/ellipog/tenet/editor/EditPhases.java"},
+        {"load phases", "common/src/main/java/dev/ellipog/tenet/quest/QuestLoader.java"},
     };
 
     /** The repo root, found by walking up — a module's tests run with that module as the working directory. */

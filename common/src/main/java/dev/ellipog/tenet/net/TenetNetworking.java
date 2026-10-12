@@ -510,7 +510,7 @@ public final class TenetNetworking {
                 null));
 
         declared = ArmatureNetwork.registeredCount();
-        Constants.LOG.info("Tenet: declared {} payload(s)", declared);
+        Constants.LOG.info("declared {} payload(s)", declared);
     }
 
     // ------------------------------------------------------------------
@@ -577,7 +577,7 @@ public final class TenetNetworking {
             }
         }
         catch (RuntimeException e) {
-            Constants.LOG.warn("tenet: ignored an unreadable locale from the server: {}",
+            Constants.LOG.warn("ignored an unreadable locale from the server: {}",
                     e.getMessage());
             return;
         }
@@ -612,7 +612,7 @@ public final class TenetNetworking {
             packed = reassembler.accept(chunk, data);
         }
         catch (SyncWire.MalformedSync e) {
-            Constants.LOG.warn("tenet: ignored an unplaceable {} chunk from the server: {}",
+            Constants.LOG.warn("ignored an unplaceable {} chunk from the server: {}",
                     what, e.getMessage());
             return null;
         }
@@ -624,7 +624,7 @@ public final class TenetNetworking {
             return SyncWire.unpack(packed);
         }
         catch (SyncWire.MalformedSync e) {
-            Constants.LOG.warn("tenet: ignored an unreadable {} message from the server: {}",
+            Constants.LOG.warn("ignored an unreadable {} message from the server: {}",
                     what, e.getMessage());
             return null;
         }
@@ -669,7 +669,7 @@ public final class TenetNetworking {
         // The index resolves aliases, so a client holding a stale id after a rename still works.
         var entry = index.quest(payload.questId());
         if (entry.isEmpty()) {
-            Constants.LOG.warn("tenet: {} asked to submit a task of unknown quest '{}'",
+            Constants.LOG.warn("{} asked to submit a task of unknown quest '{}'",
                     sender.getScoreboardName(), payload.questId());
             return;
         }
@@ -706,7 +706,7 @@ public final class TenetNetworking {
         // The index resolves aliases, so a client holding a stale id after a rename still works.
         var entry = TenetQuests.index().quest(payload.questId());
         if (entry.isEmpty()) {
-            Constants.LOG.warn("tenet: {} asked to claim the rewards of unknown quest '{}'",
+            Constants.LOG.warn("{} asked to claim the rewards of unknown quest '{}'",
                     sender.getScoreboardName(), payload.questId());
             return;
         }
@@ -757,7 +757,7 @@ public final class TenetNetworking {
                     .onClickEvent(sender, fire.event(), fire.chapterId(), fire.elementId());
             return;
         }
-        Constants.LOG.warn("tenet: {} pressed a canvas element with no server-side action '{}:{}'",
+        Constants.LOG.warn("{} pressed a canvas element with no server-side action '{}:{}'",
                 sender.getScoreboardName(), payload.chapterId(), payload.elementId());
     }
 
@@ -880,7 +880,7 @@ public final class TenetNetworking {
         // The index resolves aliases, so a client holding a stale id after a rename still works.
         var entry = TenetQuests.index().quest(payload.questId());
         if (entry.isEmpty()) {
-            Constants.LOG.warn("tenet: {} asked to claim reward {} of unknown quest '{}'",
+            Constants.LOG.warn("{} asked to claim reward {} of unknown quest '{}'",
                     sender.getScoreboardName(), payload.rewardIndex(), payload.questId());
             return;
         }
@@ -950,7 +950,7 @@ public final class TenetNetworking {
             return;
         }
         if (!QuestAuthority.mayEdit(sender)) {
-            Constants.LOG.warn("tenet: {} asked to reset quest '{}' without edit permission",
+            Constants.LOG.warn("{} asked to reset quest '{}' without edit permission",
                     sender.getScoreboardName(), payload.questId());
             return;
         }
@@ -958,7 +958,7 @@ public final class TenetNetworking {
         // The index resolves aliases, so a client holding a stale id after a rename still works.
         var entry = TenetQuests.index().quest(payload.questId());
         if (entry.isEmpty()) {
-            Constants.LOG.warn("tenet: {} asked to reset unknown quest '{}'",
+            Constants.LOG.warn("{} asked to reset unknown quest '{}'",
                     sender.getScoreboardName(), payload.questId());
             return;
         }
@@ -985,7 +985,7 @@ public final class TenetNetworking {
             return;
         }
         if (!QuestAuthority.mayEdit(sender)) {
-            Constants.LOG.warn("tenet: {} asked to reset chapter '{}' without edit permission",
+            Constants.LOG.warn("{} asked to reset chapter '{}' without edit permission",
                     sender.getScoreboardName(), payload.chapterId());
             return;
         }
@@ -1009,7 +1009,7 @@ public final class TenetNetworking {
             return;
         }
         if (!QuestAuthority.mayEdit(sender)) {
-            Constants.LOG.warn("tenet: {} asked to reset the whole book without edit permission",
+            Constants.LOG.warn("{} asked to reset the whole book without edit permission",
                     sender.getScoreboardName());
             return;
         }
@@ -1051,7 +1051,7 @@ public final class TenetNetworking {
         }
         var entry = TenetQuests.index().quest(payload.questId());
         if (entry.isEmpty()) {
-            Constants.LOG.warn("tenet: {} answered a choice on unknown quest '{}'",
+            Constants.LOG.warn("{} answered a choice on unknown quest '{}'",
                     sender.getScoreboardName(), payload.questId());
             return;
         }
@@ -1596,7 +1596,7 @@ public final class TenetNetworking {
         // Info rather than debug, paired with the sender's line: "the server sent it" and "the client
         // took it" are two claims, and a panel that shows the wrong party is almost always one of them
         // being false while the other looks fine.
-        Constants.LOG.info("tenet: roster received ({} member(s))",
+        Constants.LOG.info("roster received ({} member(s))",
                 ClientPartyCache.memberCount());
     }
 
@@ -1637,7 +1637,7 @@ public final class TenetNetworking {
         ClientEditReplies.takeSent();
         ClientChapterReplica.accept(payload.chapter(), payload.quests(), payload.chapterTree(),
                 ClientQuestCache.treeRevision());
-        Constants.LOG.info("tenet: chapter \"{}\" replica received ({} bytes)",
+        Constants.LOG.info("chapter \"{}\" replica received ({} bytes)",
                 payload.chapter(), payload.quests().length());
     }
 
@@ -1937,7 +1937,7 @@ public final class TenetNetworking {
      */
     private static void handleEditorReply(EditorReplyPayload payload) {
         ClientEditReplies.accept(payload);
-        Constants.LOG.info("tenet: edit reply for \"{}\" -- {}",
+        Constants.LOG.info("edit reply for \"{}\" -- {}",
                 payload.chapter(), payload.ok() ? "applied" : "refused");
     }
 
@@ -2061,7 +2061,7 @@ public final class TenetNetworking {
             // Debug rather than info, and it is the one silent exit left in this path: a member who has
             // disconnected between a change and the push. The *expected* null -- the joining player,
             // who is not in the list yet -- no longer comes through here at all. See `sendOwnRosterTo`.
-            Constants.LOG.debug("tenet: no player {} to send a roster to", playerId);
+            Constants.LOG.debug("no player {} to send a roster to", playerId);
             return;
         }
         sendRoster(player, snapshot);
@@ -2086,7 +2086,7 @@ public final class TenetNetworking {
         // Logged at info rather than debug, and one line per message: a party's messages are a handful
         // per session, and "was the client told" is the question every fault in this area has turned
         // on. Both halves of it are logged -- see `handlePartySync` for the receiving side.
-        Constants.LOG.info("Tenet: roster -> {} ({} member(s))",
+        Constants.LOG.info("roster -> {} ({} member(s))",
                 player.getScoreboardName(), snapshot.members().size());
         send(player, new PartySyncPayload(snapshot.pack()));
     }

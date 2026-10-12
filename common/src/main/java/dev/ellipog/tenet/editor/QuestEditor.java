@@ -231,7 +231,7 @@ public final class QuestEditor {
             discovery = QuestFiles.discover(questRoot);
         }
         catch (RuntimeException e) {
-            Constants.LOG.warn("tenet: the quest folder could not be walked, so the editor is"
+            Constants.LOG.warn("the quest folder could not be walked, so the editor is"
                     + " unavailable.", e);
             return Optional.empty();
         }
@@ -250,7 +250,7 @@ public final class QuestEditor {
                 return Optional.of(editor);
             }
             catch (IOException | RuntimeException e) {
-                Constants.LOG.warn("tenet: {} could not be opened for editing.", manifestPath, e);
+                Constants.LOG.warn("{} could not be opened for editing.", manifestPath, e);
                 return Optional.empty();
             }
         }
@@ -287,7 +287,7 @@ public final class QuestEditor {
             return JsonFile.parse(groupPath, Files.readString(groupPath, StandardCharsets.UTF_8));
         }
         catch (IOException | RuntimeException e) {
-            Constants.LOG.warn("tenet: {} could not be read, so the group is not editable.", groupPath, e);
+            Constants.LOG.warn("{} could not be read, so the group is not editable.", groupPath, e);
             return null;
         }
     }
@@ -324,7 +324,7 @@ public final class QuestEditor {
                 // files: the author's report is "it deleted something else", and this is the only line
                 // that could produce it.
                 if (quests.containsKey(id)) {
-                    Constants.LOG.warn("tenet: {} and {} both declare the quest id \"{}\"; the first is"
+                    Constants.LOG.warn("{} and {} both declare the quest id \"{}\"; the first is"
                             + " the one open here, because the loader and the canvas resolve that id to it"
                             + " as well. Rename one of them.", stems.get(id) + SUFFIX, stem + SUFFIX, id);
                     continue;
@@ -336,7 +336,7 @@ public final class QuestEditor {
             catch (IOException | RuntimeException e) {
                 // One unreadable file does not lose the rest of the chapter: it is left out of the
                 // editor and named, so an author can see which file to fix rather than a blank canvas.
-                Constants.LOG.warn("tenet: {} could not be read, so it is not open for editing.", path, e);
+                Constants.LOG.warn("{} could not be read, so it is not open for editing.", path, e);
             }
         }
     }
@@ -1007,7 +1007,7 @@ public final class QuestEditor {
             created.write();
         }
         catch (IOException e) {
-            Constants.LOG.warn("tenet: {} could not be written, so no quest was created.",
+            Constants.LOG.warn("{} could not be written, so no quest was created.",
                     pathOf(id), e);
             undo.pop();
             return null;
@@ -1035,7 +1035,7 @@ public final class QuestEditor {
             // A quest file that declares an id this build would refuse -- a separator, a capital, a dot --
             // is not a name to build a second file from. The load reports the file itself, which is where
             // the author can fix it.
-            Constants.LOG.warn("tenet: \"{}\" is not a usable id, so nothing was duplicated.", id);
+            Constants.LOG.warn("\"{}\" is not a usable id, so nothing was duplicated.", id);
             return null;
         }
         push();
@@ -1049,7 +1049,7 @@ public final class QuestEditor {
         }
         catch (IOException e) {
             // Nothing was added to the chapter, so the undo entry for this attempt is a lie.
-            Constants.LOG.warn("tenet: {} could not be written, so nothing was duplicated.", path, e);
+            Constants.LOG.warn("{} could not be written, so nothing was duplicated.", path, e);
             undo.pop();
             return null;
         }
@@ -1083,7 +1083,7 @@ public final class QuestEditor {
             // so a tree naming `../../x` would write outside the quest folder and destroy whatever `.json`
             // was there, before the save ever validated it. The table side refuses the same thing in the
             // same place; see `ServerTables.idProblem`.
-            Constants.LOG.warn("tenet: a pasted tree names the id \"{}\", which is not a usable name, so"
+            Constants.LOG.warn("a pasted tree names the id \"{}\", which is not a usable name, so"
                     + " nothing was pasted.", base);
             return null;
         }
@@ -1099,7 +1099,7 @@ public final class QuestEditor {
         }
         catch (IOException e) {
             // Nothing was added to the chapter, so the undo entry for this attempt is a lie.
-            Constants.LOG.warn("tenet: {} could not be written, so nothing was pasted.", path, e);
+            Constants.LOG.warn("{} could not be written, so nothing was pasted.", path, e);
             undo.pop();
             return null;
         }
@@ -1154,7 +1154,7 @@ public final class QuestEditor {
         if (Files.exists(aside)) {
             // Before anything moves, so there is no snapshot to pop and no history entry: this is not an
             // edit that failed, it is one that never started.
-            Constants.LOG.warn("tenet: {} is already there, so {} was not deleted - moving it would have"
+            Constants.LOG.warn("{} is already there, so {} was not deleted - moving it would have"
                     + " destroyed it. Restore or remove that copy first.", aside, gone.file());
             return Deletion.refused(aside.getFileName() + " is already in that folder, and moving it"
                     + " would have destroyed that copy - restore or remove it first");
@@ -1169,7 +1169,7 @@ public final class QuestEditor {
             Files.move(gone.file(), aside);
         }
         catch (IOException e) {
-            Constants.LOG.warn("tenet: {} could not be renamed out of the way, so nothing was deleted.",
+            Constants.LOG.warn("{} could not be renamed out of the way, so nothing was deleted.",
                     gone.file(), e);
             quests.put(id, gone);
             undo.pop();
@@ -1194,7 +1194,7 @@ public final class QuestEditor {
                 // this name, so Ctrl+Z is still the way back rather than a copy sitting in the folder
                 // under a name the author has to think of. The sentence says which way back, because this
                 // is the one refusal that is not a no-op.
-                Constants.LOG.warn("tenet: {} could not be put back and is at {}; undo still restores it.",
+                Constants.LOG.warn("{} could not be put back and is at {}; undo still restores it.",
                         gone.file(), aside, e);
                 return Deletion.refused("this chapter's \"" + MANIFEST + "\" does not list "
                         + stem + SUFFIX + ", and " + aside.getFileName() + " could not be put back -"
@@ -1270,7 +1270,7 @@ public final class QuestEditor {
             Files.move(aside, back);
         }
         catch (IOException e) {
-            Constants.LOG.warn("tenet: {} could not be put back.", aside, e);
+            Constants.LOG.warn("{} could not be put back.", aside, e);
             undo.pop();
             return Deletion.refused(aside.getFileName() + " could not be put back: " + e.getMessage());
         }
@@ -1594,7 +1594,7 @@ public final class QuestEditor {
             reloadQuests();
         }
         catch (IOException | RuntimeException e) {
-            Constants.LOG.warn("tenet: a chapter could not be re-read after a structural edit.", e);
+            Constants.LOG.warn("a chapter could not be re-read after a structural edit.", e);
         }
     }
 
@@ -1667,7 +1667,7 @@ public final class QuestEditor {
                 // **Every file is attempted, not just up to the first failure.** Returning here left the
                 // rest of the chapter unrecovered for one locked file, which turns one bad path into a
                 // half-restored chapter; the caller is told instead, and Ctrl+Z converges on a retry.
-                Constants.LOG.warn("tenet: {} could not be restored by an undo.", entry.getKey(), e);
+                Constants.LOG.warn("{} could not be restored by an undo.", entry.getKey(), e);
                 whole = false;
             }
         }
@@ -1684,7 +1684,7 @@ public final class QuestEditor {
                     Files.move(quest.file(), QuestFiles.asidePath(quest.file()));
                 }
                 catch (IOException e) {
-                    Constants.LOG.warn("tenet: {} could not be put back to deleted by an undo.",
+                    Constants.LOG.warn("{} could not be put back to deleted by an undo.",
                             quest.file(), e);
                     whole = false;
                 }
@@ -1813,7 +1813,7 @@ public final class QuestEditor {
                 // exactly as it was, rather than truncated as it would have been when this wrote through
                 // a plain `Files.writeString`. The edit is not lost either: the tree in memory is still
                 // dirty, so a second save retries it.
-                Constants.LOG.warn("tenet: {} could not be written.", path, e);
+                Constants.LOG.warn("{} could not be written.", path, e);
                 failures.add(new DataProblem(root.relativize(path).toString(), 1, 1, "$",
                         DataProblem.Severity.ERROR, "could not be written: " + e
                         + "\n    nothing on disk was changed, and the edit is still in memory, so saving"

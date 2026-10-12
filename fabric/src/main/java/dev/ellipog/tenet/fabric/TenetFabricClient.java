@@ -271,6 +271,6 @@ public final class TenetFabricClient implements ClientModInitializer {
             TenetNetworking.forgetTransfers();
         });
 
-        Constants.LOG.info("Tenet: Fabric client ready");
+        Constants.LOG.info("Fabric client ready");
     }
 }

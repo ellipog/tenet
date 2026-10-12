@@ -143,7 +143,7 @@ public final class StarterBooks extends SavedData {
                 books.given.add(UUID.fromString(list.getString(i)));
             }
             catch (IllegalArgumentException e) {
-                Constants.LOG.warn("tenet: '{}' is not a valid player uuid in stored starter books",
+                Constants.LOG.warn("'{}' is not a valid player uuid in stored starter books",
                         list.getString(i));
             }
         }

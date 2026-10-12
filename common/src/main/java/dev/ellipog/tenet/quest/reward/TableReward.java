@@ -197,7 +197,7 @@ public record TableReward(RewardCommon common, Mode mode, Optional<String> table
 
     /** A warning once per failed lookup, and a grant that does nothing: an author's typo, not a crash. */
     private static void reportMissing(TableReward reward) {
-        Constants.LOG.warn("tenet: {} reward points at a table that is not loaded ({}) and granted nothing",
+        Constants.LOG.warn("{} reward points at a table that is not loaded ({}) and granted nothing",
                 reward.mode().wire(), reward.table().orElse("?"));
     }
 
@@ -235,7 +235,7 @@ public record TableReward(RewardCommon common, Mode mode, Optional<String> table
      */
     public static List<QuestReward> resolve(List<QuestReward> rewards, RandomSource random, int depth) {
         if (depth > RewardTable.MAX_NESTING) {
-            Constants.LOG.warn("tenet: a reward table nested more than {} deep was cut off -- "
+            Constants.LOG.warn("a reward table nested more than {} deep was cut off -- "
                     + "a table probably references itself", RewardTable.MAX_NESTING);
             return List.of();
         }
@@ -250,7 +250,7 @@ public record TableReward(RewardCommon common, Mode mode, Optional<String> table
                 if (isChoice(nested)) {
                     // Named rather than "an entry was skipped": the author has to find this in a file,
                     // and the table it points at is what identifies the line.
-                    Constants.LOG.warn("tenet: a choice reward inside a table cannot be offered, "
+                    Constants.LOG.warn("a choice reward inside a table cannot be offered, "
                             + "because a roll hands its entries out rather than offering them; "
                             + "skipped the entry naming \"{}\"", nested.table().orElse("an inline table"));
                     continue;
@@ -285,7 +285,7 @@ public record TableReward(RewardCommon common, Mode mode, Optional<String> table
                 catch (RuntimeException e) {
                     // Same rule as the engine's own grant loop: one bad entry must not stop the
                     // rest of the roll.
-                    Constants.LOG.error("tenet: granting a {} from a table failed", leaf.type(), e);
+                    Constants.LOG.error("granting a {} from a table failed", leaf.type(), e);
                 }
             });
         }

@@ -49,7 +49,7 @@ public final class FabricNetworking implements NetworkBackend {
         if (registration.direction().reachesServer()) {
             PayloadTypeRegistry.playC2S().register(registration.type(), registration.codec());
         }
-        Constants.LOG.debug("tenet: registered payload format {} ({})",
+        Constants.LOG.debug("registered payload format {} ({})",
                 registration.type().id(), registration.direction());
     }
 

@@ -24765,7 +24765,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         ArmatureNetwork.sendToServer(new SubmitTaskPayload(questId, taskIndex));
-        Constants.LOG.debug("tenet: asked the server to submit task {} of {}", taskIndex, questId);
+        Constants.LOG.debug("asked the server to submit task {} of {}", taskIndex, questId);
     }
 
     /**
@@ -24784,7 +24784,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         ArmatureNetwork.sendToServer(new ClaimRewardPayload(questId));
-        Constants.LOG.debug("tenet: asked the server to hand over the rewards for {}", questId);
+        Constants.LOG.debug("asked the server to hand over the rewards for {}", questId);
     }
 
     /**
@@ -24799,7 +24799,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private void resetQuests(List<String> questIds) {
         for (String questId : questIds) {
             ArmatureNetwork.sendToServer(new ResetQuestPayload(questId));
-            Constants.LOG.debug("tenet: asked the server to clear the progress of {}", questId);
+            Constants.LOG.debug("asked the server to clear the progress of {}", questId);
         }
     }
 
@@ -24811,13 +24811,13 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void resetChapter(String chapterId) {
         ArmatureNetwork.sendToServer(new ResetChapterPayload(chapterId));
-        Constants.LOG.debug("tenet: asked the server to clear the progress of chapter {}", chapterId);
+        Constants.LOG.debug("asked the server to clear the progress of chapter {}", chapterId);
     }
 
     /** Asks the server to clear the whole book's progress, for playtesting. */
     private void resetAll() {
         ArmatureNetwork.sendToServer(new ResetAllPayload());
-        Constants.LOG.debug("tenet: asked the server to clear the whole book's progress");
+        Constants.LOG.debug("asked the server to clear the whole book's progress");
     }
 
     // ------------------------------------------------------------------
@@ -30002,7 +30002,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         refreshRewardCard();
         ArmatureNetwork.sendToServer(new ClaimChapterPayload(chapterId, rewardState.filter()));
-        Constants.LOG.debug("tenet: asked the server for every reward in chapter {}", chapterId);
+        Constants.LOG.debug("asked the server for every reward in chapter {}", chapterId);
     }
 
     /**
@@ -30112,7 +30112,7 @@ public final class QuestBookScreen extends ArmatureScreen
         markPending(questId, rewardIndex, net.minecraft.Util.getMillis());
         refreshRewardCard();
         ArmatureNetwork.sendToServer(new ClaimRewardEntryPayload(questId, rewardIndex));
-        Constants.LOG.debug("tenet: asked the server for reward {} of {}", rewardIndex, questId);
+        Constants.LOG.debug("asked the server for reward {} of {}", rewardIndex, questId);
     }
 
     /**
@@ -36548,7 +36548,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // one with its file and line. A toast is a pointer, and a pointer has to fit.
         for (ClientEditProblems.Report report : ClientEditProblems.drain()) {
             for (String line : report.lines()) {
-                Constants.LOG.info("tenet: the pack has a problem: {}", line);
+                Constants.LOG.info("the pack has a problem: {}", line);
             }
             authorToast(Component.translatable("tenet.dev.problems.toast", report.count()).getString(), true);
         }
@@ -36610,12 +36610,12 @@ public final class QuestBookScreen extends ArmatureScreen
                     // waiting for that table can say what the server said instead of saying nothing.
                     if (replicaAnswer && replicaAskedFor != null) {
                         dev.ellipog.tenet.client.ClientTableReplica.refuse(replicaAskedFor, said);
-                        Constants.LOG.info("tenet: table replica for \"{}\" was refused: {}",
+                        Constants.LOG.info("table replica for \"{}\" was refused: {}",
                                 replicaAskedFor, said);
                         replicaAskedFor = null;
                     }
                     ClientChapterReplica.refuse(reply.chapter(), said);
-                    Constants.LOG.info("tenet: replica for \"{}\" was refused while another chapter was open: {}",
+                    Constants.LOG.info("replica for \"{}\" was refused while another chapter was open: {}",
                             reply.chapter(), said);
                 }
                 continue;
@@ -36631,7 +36631,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     if (!tableReply) {
                         ClientChapterReplica.refuse(reply.chapter(), line);
                     }
-                    Constants.LOG.info("tenet: reply was refused: {}", line);
+                    Constants.LOG.info("reply was refused: {}", line);
                     authorToast(line, true);
                 }
             }
@@ -37016,7 +37016,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         warnedThemeFor = chapter;
-        Constants.LOG.warn("tenet: chapter '{}' asks to be drawn in a theme called '{}', which this"
+        Constants.LOG.warn("chapter '{}' asks to be drawn in a theme called '{}', which this"
                 + " build does not have, so your own theme is in use. The themes it has are: {}",
                 chapter, named, Themes.names());
     }

@@ -230,7 +230,7 @@ public final class ProgressStore extends SavedData {
             CompoundTag entry = list.getCompound(i);
             UUID teamId = readUuid(entry.getString("team"));
             if (teamId == null) {
-                Constants.LOG.warn("tenet: skipping stored progress with no team id");
+                Constants.LOG.warn("skipping stored progress with no team id");
                 continue;
             }
             store.byTeam.put(teamId, TeamProgress.load(entry, registries));
@@ -244,7 +244,7 @@ public final class ProgressStore extends SavedData {
             CompoundTag entry = stages.getCompound(i);
             UUID player = readUuid(entry.getString("player"));
             if (player == null) {
-                Constants.LOG.warn("tenet: skipping stored stages with no player id");
+                Constants.LOG.warn("skipping stored stages with no player id");
                 continue;
             }
             Set<ResourceLocation> held = new java.util.LinkedHashSet<>();
@@ -252,7 +252,7 @@ public final class ProgressStore extends SavedData {
             for (int j = 0; j < ids.size(); j++) {
                 ResourceLocation stage = ResourceLocation.tryParse(ids.getString(j));
                 if (stage == null) {
-                    Constants.LOG.warn("tenet: '{}' is not a valid stage id in stored stages", ids.getString(j));
+                    Constants.LOG.warn("'{}' is not a valid stage id in stored stages", ids.getString(j));
                     continue;
                 }
                 held.add(stage);
@@ -265,7 +265,7 @@ public final class ProgressStore extends SavedData {
             CompoundTag entry = teamStages.getCompound(i);
             UUID team = readUuid(entry.getString("team"));
             if (team == null) {
-                Constants.LOG.warn("tenet: skipping stored team stages with no team id");
+                Constants.LOG.warn("skipping stored team stages with no team id");
                 continue;
             }
             Set<ResourceLocation> held = new java.util.LinkedHashSet<>();
@@ -273,7 +273,7 @@ public final class ProgressStore extends SavedData {
             for (int j = 0; j < ids.size(); j++) {
                 ResourceLocation stage = ResourceLocation.tryParse(ids.getString(j));
                 if (stage == null) {
-                    Constants.LOG.warn("tenet: '{}' is not a valid stage id in stored team stages",
+                    Constants.LOG.warn("'{}' is not a valid stage id in stored team stages",
                             ids.getString(j));
                     continue;
                 }
@@ -339,7 +339,7 @@ public final class ProgressStore extends SavedData {
             return UUID.fromString(raw);
         }
         catch (IllegalArgumentException e) {
-            Constants.LOG.warn("tenet: '{}' is not a valid team uuid in stored progress", raw);
+            Constants.LOG.warn("'{}' is not a valid team uuid in stored progress", raw);
             return null;
         }
     }

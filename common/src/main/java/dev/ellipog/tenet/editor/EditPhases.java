@@ -159,7 +159,7 @@ public final class EditPhases {
         // whole, the encode and the deflate -- had never been written either. Gated on `on()` above, so at
         // info it prints only while an operator has asked for the counter.
         Constants.LOG.info(
-                "tenet: edit flush -- reload {} ms, encode {} ms, deflate {} ms, {} player(s)",
+                "edit flush -- reload {} ms, encode {} ms, deflate {} ms, {} player(s)",
                 reloadNanos / 1_000_000L, encodeNanos / 1_000_000L, deflateNanos / 1_000_000L, players);
     }
 
@@ -197,7 +197,7 @@ public final class EditPhases {
         // found *zero* occurrences of it -- an instrument that cannot be read is not an instrument. It is
         // already behind two gates (the switch in `on()`, and the empty-tally check above), so at info it
         // prints only while an operator has asked for it and only when something happened.
-        Constants.LOG.info("tenet: edit cost -- {}", describe());
+        Constants.LOG.info("edit cost -- {}", describe());
         TALLY.clear();
     }
 

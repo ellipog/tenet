@@ -1024,7 +1024,7 @@ public final class ProgressService {
 
         TenetEvents.QUEST_COMPLETED.invoker().onQuestCompleted(player, quest);
 
-        Constants.LOG.info("tenet: {} completed '{}' for team {}{}",
+        Constants.LOG.info("{} completed '{}' for team {}{}",
                 player.getScoreboardName(), quest.id(), owner, outstanding ? " -- rewards waiting" : "");
         // No chat line: the completion notice is the client's job now -- the book's own stack when it is
         // open, a real toast when it is not, and one sound either way. A line here was the third copy of
@@ -1505,7 +1505,7 @@ public final class ProgressService {
             updated = endRepeatableRoundIfCollected(server, quest, current, updated);
             store.put(owner, team.put(quest, updated));
 
-            Constants.LOG.info("tenet: {} collected {} of {} reward(s) for '{}' (team {}){}",
+            Constants.LOG.info("{} collected {} of {} reward(s) for '{}' (team {}){}",
                     player.getScoreboardName(), taken, total, quest.id(), owner,
                     halted ? " -- stopped, inventory full" : "");
             // The claim is confirmed by the UI it changes and by the pickup sound the client plays when
@@ -1589,7 +1589,7 @@ public final class ProgressService {
         Optional<dev.ellipog.tenet.quest.reward.RewardBehaviour<QuestReward>> behaviour =
                 RewardTypes.behaviourOf(reward);
         if (behaviour.isEmpty()) {
-            Constants.LOG.warn("tenet: no behaviour registered for reward type {}; skipped", reward.type());
+            Constants.LOG.warn("no behaviour registered for reward type {}; skipped", reward.type());
             return;
         }
         try {
@@ -1598,7 +1598,7 @@ public final class ProgressService {
         catch (RuntimeException e) {
             // One bad reward must not abort the rest, and must not leave the quest unclaimed --
             // which would re-grant everything on the next evaluation.
-            Constants.LOG.error("tenet: granting a {} reward failed; the rest were still given",
+            Constants.LOG.error("granting a {} reward failed; the rest were still given",
                     reward.type(), e);
         }
     }
@@ -1703,7 +1703,7 @@ public final class ProgressService {
             grantLeaves(leaves, context);
         }
         catch (RuntimeException e) {
-            Constants.LOG.error("tenet: granting the chosen reward of '{}' failed; nothing was claimed",
+            Constants.LOG.error("granting the chosen reward of '{}' failed; nothing was claimed",
                     quest.id(), e);
             announceOverflow(player, feedback);
             return ClaimChoiceResultPayload.Result.REFUSED;
@@ -2060,7 +2060,7 @@ public final class ProgressService {
             Optional<dev.ellipog.tenet.quest.reward.RewardBehaviour<QuestReward>> behaviour =
                     RewardTypes.behaviourOf(reward);
             if (behaviour.isEmpty()) {
-                Constants.LOG.warn("tenet: no behaviour registered for reward type {}; skipped", reward.type());
+                Constants.LOG.warn("no behaviour registered for reward type {}; skipped", reward.type());
                 continue;
             }
             try {
@@ -2069,7 +2069,7 @@ public final class ProgressService {
             catch (RuntimeException e) {
                 // One bad reward must not abort the rest, and must not leave the quest unclaimed --
                 // which would re-grant everything on the next evaluation.
-                Constants.LOG.error("tenet: granting a {} reward failed; the rest were still given",
+                Constants.LOG.error("granting a {} reward failed; the rest were still given",
                         reward.type(), e);
             }
             TenetEvents.REWARD_CLAIMED.invoker().onRewardClaimed(player, quest, reward);

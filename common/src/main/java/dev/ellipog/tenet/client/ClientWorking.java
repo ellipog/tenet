@@ -117,7 +117,7 @@ public final class ClientWorking {
         catch (RuntimeException e) {
             // Reachable only if this runs before the platform is installed, which is a caller's ordering
             // fault rather than a player's. The defaults are what a first run gets either way.
-            Constants.LOG.warn("tenet: the platform layer was not ready, so where you were was not read.",
+            Constants.LOG.warn("the platform layer was not ready, so where you were was not read.",
                     e);
         }
         if (path != null) {
@@ -149,7 +149,7 @@ public final class ClientWorking {
                 templateSort = knownSort(read.templateSort());
             }
             catch (IOException | RuntimeException e) {
-                Constants.LOG.warn("tenet: {} could not be read, so nothing is remembered. Deleting the"
+                Constants.LOG.warn("{} could not be read, so nothing is remembered. Deleting the"
                         + " file will stop this message.", path, e);
             }
         }
@@ -246,7 +246,7 @@ public final class ClientWorking {
             JsonWrite.atomically(file, write(lastTable, section, drawerTab, templateSort));
         }
         catch (IOException e) {
-            Constants.LOG.warn("tenet: where you were could not be written to {}", file, e);
+            Constants.LOG.warn("where you were could not be written to {}", file, e);
         }
     }
 }

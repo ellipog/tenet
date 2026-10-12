@@ -202,7 +202,7 @@ public final class PinnedQuests {
         catch (RuntimeException e) {
             // Reachable only if this runs before the platform is installed, which is a caller ordering
             // fault rather than a player's. No pins is the working default either way.
-            Constants.LOG.warn("tenet: the platform layer was not ready, so the pinned quests were not read."
+            Constants.LOG.warn("the platform layer was not ready, so the pinned quests were not read."
                     + " Nothing is pinned.", e);
         }
 
@@ -229,7 +229,7 @@ public final class PinnedQuests {
                 hideClaimed = parseHideClaimed(text);
             }
             catch (IOException | RuntimeException e) {
-                Constants.LOG.warn("tenet: {} could not be read, so nothing is pinned. Deleting the file will"
+                Constants.LOG.warn("{} could not be read, so nothing is pinned. Deleting the file will"
                         + " stop this message.", path, e);
             }
         }
@@ -355,7 +355,7 @@ public final class PinnedQuests {
             JsonWrite.atomically(file, root.toString());
         }
         catch (IOException e) {
-            Constants.LOG.warn("tenet: the pinned quests could not be written to {}", file, e);
+            Constants.LOG.warn("the pinned quests could not be written to {}", file, e);
         }
     }
 }

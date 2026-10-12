@@ -236,6 +236,6 @@ public final class TenetNeoForgeClient {
             TenetNetworking.forgetTransfers();
         });
 
-        Constants.LOG.info("Tenet: NeoForge client ready");
+        Constants.LOG.info("NeoForge client ready");
     }
 }

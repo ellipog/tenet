@@ -41,6 +41,6 @@ public final class ClientTicker {
     /** Resets to zero. For the moment a client disconnects, so a new world starts from a clean count. */
     public static void reset() {
         ticks = 0;
-        Constants.LOG.debug("tenet: client tick counter reset");
+        Constants.LOG.debug("client tick counter reset");
     }
 }

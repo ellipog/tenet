@@ -43,7 +43,7 @@ public record AdvancementReward(RewardCommon common, ResourceLocation advancemen
     public static final RewardBehaviour<AdvancementReward> BEHAVIOUR = (reward, context) -> {
         var holder = context.server().getAdvancements().get(reward.advancement());
         if (holder == null) {
-            Constants.LOG.warn("tenet: advancement reward names {} which this build does not have; skipped",
+            Constants.LOG.warn("advancement reward names {} which this build does not have; skipped",
                     reward.advancement());
             return;
         }

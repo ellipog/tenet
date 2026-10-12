@@ -2504,13 +2504,13 @@ public final class ClientQuestCache {
             // the client, or a player would carry one pack's look onto the next server with nothing on
             // screen to explain it.
             ClientAppearance.LOOK.setServerDefault(packTheme);
-            Constants.LOG.info("tenet: received {} quest(s) in {} chapter(s)", quests, chapters);
+            Constants.LOG.info("received {} quest(s) in {} chapter(s)", quests, chapters);
         }
         catch (RuntimeException e) {
             // A malformed tree is a bug in the serialiser, not the player's problem. Cleared rather
             // than half-kept, so the screen shows "no quests" instead of a list with entries missing
             // in the middle and nothing saying why.
-            Constants.LOG.error("tenet: the server sent a quest tree this client could not read", e);
+            Constants.LOG.error("the server sent a quest tree this client could not read", e);
             entries = List.of();
             groups = List.of();
             // Qualified, because this method's own `chapters` parameter is the count that came with the
@@ -2575,7 +2575,7 @@ public final class ClientQuestCache {
             progress = Map.of();
         }
         else if (previous == null || !previous.equals(incomingTeam)) {
-            Constants.LOG.warn("tenet: refused a progress delta for team {} -- this client holds no "
+            Constants.LOG.warn("refused a progress delta for team {} -- this client holds no "
                     + "full sync for it (it holds {}), so there is nothing for the delta to be relative "
                     + "to. The server sends a full sync on join and on reload.",
                     incomingTeam, previous);
@@ -2583,7 +2583,7 @@ public final class ClientQuestCache {
         }
 
         if (previous != null && !previous.equals(incomingTeam)) {
-            Constants.LOG.info("tenet: progress is now for team {} (was {})", incomingTeam, previous);
+            Constants.LOG.info("progress is now for team {} (was {})", incomingTeam, previous);
         }
         teamId = incomingTeam;
 
@@ -2592,7 +2592,7 @@ public final class ClientQuestCache {
             syncedAt = clientTickNow;
         }
         catch (RuntimeException e) {
-            Constants.LOG.error("tenet: the server sent progress this client could not read", e);
+            Constants.LOG.error("the server sent progress this client could not read", e);
             progress = Map.of();
             // And nothing is named, as the whole of it: the cache has just been emptied, so a reader
             // holding a baseline is looking at a tree that says nothing rather than at a delta that
@@ -2688,7 +2688,7 @@ public final class ClientQuestCache {
         // will ever get, which is why it names both numbers.
         int version = root.has("version") ? root.get("version").getAsInt() : 1;
         if (version > QuestSync.TREE_VERSION) {
-            Constants.LOG.warn("tenet: the server sent a version {} quest tree and this client"
+            Constants.LOG.warn("the server sent a version {} quest tree and this client"
                     + " understands up to version {}. Anything it added will not be drawn.", version,
                     QuestSync.TREE_VERSION);
         }

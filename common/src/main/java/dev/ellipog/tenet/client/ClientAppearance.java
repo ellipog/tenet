@@ -55,7 +55,7 @@ public final class ClientAppearance {
             config = ArmatureApi.platform().configDir(Constants.MOD_ID);
         }
         catch (RuntimeException e) {
-            Constants.LOG.warn("tenet: the platform layer was not ready, so the appearance was not read."
+            Constants.LOG.warn("the platform layer was not ready, so the appearance was not read."
                     + " The default theme is in use.", e);
             return;
         }

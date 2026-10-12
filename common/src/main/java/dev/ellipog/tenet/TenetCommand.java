@@ -349,7 +349,7 @@ public final class TenetCommand {
         // /tenet subcommand, which is what a registration clash on the shared root would do.
         for (String alias : new String[] {"quests", "questbook"}) {
             if (dispatcher.getRoot().getChild(alias) != null) {
-                Constants.LOG.warn("Tenet: /{} is already registered by another mod; alias skipped", alias);
+                Constants.LOG.warn("/{} is already registered by another mod; alias skipped", alias);
                 continue;
             }
             dispatcher.register(Commands.literal(alias)

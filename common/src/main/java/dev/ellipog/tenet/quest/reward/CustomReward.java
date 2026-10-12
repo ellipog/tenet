@@ -50,7 +50,7 @@ public record CustomReward(RewardCommon common, String id) implements QuestRewar
         if (handler.isEmpty()) {
             // Not an error: a pack may ship a custom reward whose handler mod is not installed, and
             // the quest still completes. The message says exactly that so nobody hunts a broken file.
-            Constants.LOG.warn("tenet: custom reward \"{}\" has no handler registered (a mod or script "
+            Constants.LOG.warn("custom reward \"{}\" has no handler registered (a mod or script "
                     + "that provides it is not loaded); it granted nothing", reward.id());
             return;
         }
@@ -61,7 +61,7 @@ public record CustomReward(RewardCommon common, String id) implements QuestRewar
             handler.get().grant(context.player(), context);
         }
         catch (RuntimeException | Error thrown) {
-            Constants.LOG.warn("tenet: custom reward \"{}\" threw while being granted; it granted nothing"
+            Constants.LOG.warn("custom reward \"{}\" threw while being granted; it granted nothing"
                     + " ({})", reward.id(), thrown.toString());
         }
     };

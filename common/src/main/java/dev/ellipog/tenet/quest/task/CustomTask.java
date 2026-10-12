@@ -175,7 +175,7 @@ public record CustomTask(TaskCommon common, String id, int value) implements Que
          */
         static void warnOnce(String id, Throwable thrown) {
             if (WARNED.add(id)) {
-                Constants.LOG.warn("tenet: custom task \"{}\" threw while being measured; it reads as no"
+                Constants.LOG.warn("custom task \"{}\" threw while being measured; it reads as no"
                         + " progress until the handler is fixed ({})", id, thrown.toString());
             }
         }

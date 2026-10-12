@@ -63,7 +63,7 @@ public record ItemReward(RewardCommon common, ItemRef item, int randomBonus, boo
             // The item does not exist. The validator reports this at load time, so reaching here
             // means a reload changed the registries underneath a loaded questline -- worth saying,
             // and not worth throwing over.
-            dev.ellipog.tenet.Constants.LOG.warn("tenet: reward {} resolved to nothing and was skipped",
+            dev.ellipog.tenet.Constants.LOG.warn("reward {} resolved to nothing and was skipped",
                     reward.item().describe());
             return List.of();
         }

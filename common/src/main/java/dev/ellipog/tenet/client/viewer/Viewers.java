@@ -95,7 +95,7 @@ public final class Viewers {
             return ArmatureApi.platform().isModLoaded(modId);
         }
         catch (RuntimeException e) {
-            Constants.LOG.debug("tenet: cannot ask whether '{}' is loaded ({}); assuming not",
+            Constants.LOG.debug("cannot ask whether '{}' is loaded ({}); assuming not",
                     modId, e.toString());
             return false;
         }

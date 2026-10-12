@@ -79,7 +79,7 @@ public final class TenetFabric implements ModInitializer {
      */
     static void registerServerReceivers() {
         FabricNetworking.registerReceivers();
-        dev.ellipog.tenet.Constants.LOG.info("Tenet: Fabric networking ready ({} payload(s))",
+        dev.ellipog.tenet.Constants.LOG.info("Fabric networking ready ({} payload(s))",
                 TenetNetworking.declaredCount());
     }
 }

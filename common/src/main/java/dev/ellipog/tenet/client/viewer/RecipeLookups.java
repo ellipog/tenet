@@ -97,10 +97,10 @@ public final class RecipeLookups {
     public static void install(Lookup lookup) {
         Objects.requireNonNull(lookup, "lookup");
         if (installed != null && installed != lookup) {
-            Constants.LOG.debug("tenet: recipe lookup replaced by {}", lookup.getClass().getName());
+            Constants.LOG.debug("recipe lookup replaced by {}", lookup.getClass().getName());
         }
         else {
-            Constants.LOG.debug("tenet: recipe lookup installed by {}", lookup.getClass().getName());
+            Constants.LOG.debug("recipe lookup installed by {}", lookup.getClass().getName());
         }
         installed = lookup;
     }

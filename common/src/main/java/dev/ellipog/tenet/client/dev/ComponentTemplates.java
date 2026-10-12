@@ -328,7 +328,7 @@ public final class ComponentTemplates {
             path = ArmatureApi.platform().configDir(dev.ellipog.tenet.Constants.MOD_ID).resolve(FILE_NAME);
         }
         catch (RuntimeException e) {
-            Constants.LOG.warn("tenet: the platform layer was not ready, so the template library"
+            Constants.LOG.warn("the platform layer was not ready, so the template library"
                     + " was not read.", e);
         }
         if (path != null) {
@@ -377,7 +377,7 @@ public final class ComponentTemplates {
                 }
             }
             if (skipped > 0) {
-                Constants.LOG.warn("tenet: {} held {} template(s) that could not be read, so they"
+                Constants.LOG.warn("{} held {} template(s) that could not be read, so they"
                         + " were skipped rather than dropping the shelf.", path, skipped);
             }
         }
@@ -385,7 +385,7 @@ public final class ComponentTemplates {
             synchronized (user) {
                 user.clear();
             }
-            Constants.LOG.warn("tenet: {} could not be read, so no saved templates are listed."
+            Constants.LOG.warn("{} could not be read, so no saved templates are listed."
                     + " Deleting the file will stop this message.", path, e);
         }
     }
@@ -477,7 +477,7 @@ public final class ComponentTemplates {
             JsonWrite.atomically(file, write());
         }
         catch (IOException e) {
-            Constants.LOG.warn("tenet: the template library could not be written to {}", file, e);
+            Constants.LOG.warn("the template library could not be written to {}", file, e);
         }
     }
 }

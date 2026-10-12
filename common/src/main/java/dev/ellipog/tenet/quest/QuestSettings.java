@@ -261,7 +261,7 @@ public record QuestSettings(RewardAutoClaim defaultAutoClaim, boolean defaultTea
             root = JsonParser.parseString(Files.readString(indexPath));
         }
         catch (IOException | RuntimeException e) {
-            Constants.LOG.warn("Tenet: could not read {} for its settings; using the defaults ({})",
+            Constants.LOG.warn("could not read {} for its settings; using the defaults ({})",
                     indexPath, e.getMessage());
             return DEFAULTS;
         }
@@ -273,6 +273,6 @@ public record QuestSettings(RewardAutoClaim defaultAutoClaim, boolean defaultTea
             return DEFAULTS;
         }
         return CODEC.parse(JsonOps.INSTANCE, settings).resultOrPartial(problem ->
-                Constants.LOG.warn("Tenet: index.json settings: {}", problem)).orElse(DEFAULTS);
+                Constants.LOG.warn("index.json settings: {}", problem)).orElse(DEFAULTS);
     }
 }

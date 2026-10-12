@@ -806,7 +806,7 @@ public final class QuestStructure {
             return null;
         }
         catch (IOException | RuntimeException e) {
-            dev.ellipog.tenet.Constants.LOG.warn("tenet: a structural undo step failed: {}", step, e);
+            dev.ellipog.tenet.Constants.LOG.warn("a structural undo step failed: {}", step, e);
             return "the filesystem refused a step: " + e.getMessage();
         }
     }

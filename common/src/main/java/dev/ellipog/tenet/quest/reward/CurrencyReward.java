@@ -46,7 +46,7 @@ public record CurrencyReward(RewardCommon common, int amount) implements QuestRe
         if (provider.isEmpty()) {
             // Not an error: a pack may pay in a currency whose mod is not installed, and the
             // quest still completes. The message says exactly that so nobody hunts a broken file.
-            Constants.LOG.warn("tenet: currency reward for {} has no provider registered (a mod or "
+            Constants.LOG.warn("currency reward for {} has no provider registered (a mod or "
                     + "script that pays currency is not loaded); it granted nothing", reward.amount());
             return;
         }
@@ -56,7 +56,7 @@ public record CurrencyReward(RewardCommon common, int amount) implements QuestRe
             provider.get().give(context.player(), reward.amount());
         }
         catch (RuntimeException | Error thrown) {
-            Constants.LOG.warn("tenet: currency provider \"{}\" threw while granting {}; it granted "
+            Constants.LOG.warn("currency provider \"{}\" threw while granting {}; it granted "
                     + "nothing ({})", provider.get().name(), reward.amount(), thrown.toString());
         }
     };
@@ -102,7 +102,7 @@ public record CurrencyReward(RewardCommon common, int amount) implements QuestRe
         public static void setActive(CurrencyProvider provider) {
             CurrencyProvider previous = ACTIVE;
             if (previous != null) {
-                Constants.LOG.warn("tenet: overriding the currency provider: {} -> {}",
+                Constants.LOG.warn("overriding the currency provider: {} -> {}",
                         previous.name(), provider.name());
             }
             ACTIVE = java.util.Objects.requireNonNull(provider, "provider");

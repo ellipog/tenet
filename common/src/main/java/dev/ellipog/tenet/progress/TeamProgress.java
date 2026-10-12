@@ -285,7 +285,7 @@ public final class TeamProgress {
         catch (IllegalArgumentException e) {
             // A state name that no longer exists. LOCKED is the safe reading: it grants nothing, and
             // the quest recomputes its own state from the dependency graph on the next evaluation.
-            dev.ellipog.tenet.Constants.LOG.warn("tenet: unknown stored quest state '{}', treating as LOCKED", raw);
+            dev.ellipog.tenet.Constants.LOG.warn("unknown stored quest state '{}', treating as LOCKED", raw);
             return QuestState.LOCKED;
         }
     }

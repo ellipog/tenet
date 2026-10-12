@@ -84,7 +84,7 @@ public final class QuestWalks {
             return;
         }
         lastReportNanos = now;
-        Constants.LOG.info("tenet: cache walks -- {}", describe());
+        Constants.LOG.info("cache walks -- {}", describe());
         TALLY.clear();
     }
 

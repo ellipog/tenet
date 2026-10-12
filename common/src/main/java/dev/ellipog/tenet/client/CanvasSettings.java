@@ -102,7 +102,7 @@ public final class CanvasSettings {
             path = ArmatureApi.platform().configDir(Constants.MOD_ID).resolve(FILE_NAME);
         }
         catch (RuntimeException e) {
-            Constants.LOG.warn("tenet: the platform layer was not ready, so the canvas thresholds were not"
+            Constants.LOG.warn("the platform layer was not ready, so the canvas thresholds were not"
                     + " read. Every default is in force.", e);
         }
         if (path != null) {
@@ -123,7 +123,7 @@ public final class CanvasSettings {
             apply(parse(Files.readString(path, StandardCharsets.UTF_8)));
         }
         catch (IOException | RuntimeException e) {
-            Constants.LOG.warn("tenet: {} could not be read, so the canvas thresholds are the defaults."
+            Constants.LOG.warn("{} could not be read, so the canvas thresholds are the defaults."
                     + " Deleting the file will stop this message.", path, e);
         }
     }

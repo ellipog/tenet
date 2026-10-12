@@ -1612,7 +1612,7 @@ public final class QuestSync {
         }
 
         if (parts.size() > 1) {
-            Constants.LOG.debug("tenet: sent the tree for {} quest(s) in {} chunk(s)",
+            Constants.LOG.debug("sent the tree for {} quest(s) in {} chunk(s)",
                     index.questCount(), parts.size());
         }
     }
@@ -1704,7 +1704,7 @@ public final class QuestSync {
         List<byte[]> parts = SyncWire.chunk(packed);
         LOCALE_CHUNKS.put(served, parts);
         if (!served.isEmpty()) {
-            Constants.LOG.debug("tenet: packed the {} locale for {} key(s)", served, countKeys(json));
+            Constants.LOG.debug("packed the {} locale for {} key(s)", served, countKeys(json));
         }
         return parts;
     }

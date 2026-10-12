@@ -328,9 +328,9 @@ public final class TenetQuests {
         rewardTables = tables.loaded();
         refusedTables = refusals(problems, tables.refused());
         if (!problems.all().isEmpty()) {
-            Constants.LOG.warn("tenet: {} problem(s) in the reward tables:", problems.all().size());
+            Constants.LOG.warn("{} problem(s) in the reward tables:", problems.all().size());
             for (var problem : problems.all()) {
-                Constants.LOG.warn("tenet:   {}", problem.render());
+                Constants.LOG.warn("  {}", problem.render());
             }
         }
         return problems;
@@ -393,7 +393,7 @@ public final class TenetQuests {
         var problems = result.problems();
 
         if (!problems.isEmpty()) {
-            Constants.LOG.warn("Tenet: {} problem(s) in the quest files:", problems.all().size());
+            Constants.LOG.warn("{} problem(s) in the quest files:", problems.all().size());
             for (DataProblem problem : problems.all()) {
                 Constants.LOG.warn("  {}", problem.render());
             }
@@ -405,13 +405,13 @@ public final class TenetQuests {
         // being correct are not the same thing, and a log line that says otherwise sends someone
         // looking in the wrong place.
         if (result.filesFound() == 0) {
-            Constants.LOG.info("Tenet: no quest files found");
+            Constants.LOG.info("no quest files found");
         }
         else if (result.filesWithErrors() == 0) {
-            Constants.LOG.info("Tenet: loaded {} file(s) cleanly", result.filesDecoded());
+            Constants.LOG.info("loaded {} file(s) cleanly", result.filesDecoded());
         }
         else {
-            Constants.LOG.warn("Tenet: loaded {} of {} file(s); {} had errors - see above",
+            Constants.LOG.warn("loaded {} of {} file(s); {} had errors - see above",
                     result.filesDecoded(), result.filesFound(), result.filesWithErrors());
         }
 
@@ -439,7 +439,7 @@ public final class TenetQuests {
         catch (RuntimeException e) {
             // A broken quest file must not stop a server from starting. The world matters more than
             // the questline, and an author with a half-written file should still be able to play.
-            Constants.LOG.error("Tenet: the quest files could not be loaded at all", e);
+            Constants.LOG.error("the quest files could not be loaded at all", e);
         }
     }
 

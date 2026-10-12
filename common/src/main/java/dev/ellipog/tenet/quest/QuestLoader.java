@@ -281,7 +281,7 @@ public final class QuestLoader {
         // unconditional), so at info it prints on every reload. A reload is coalesced to one per server tick
         // and is already the moment a burst of edits becomes one, so that is one line per tick while
         // somebody is editing and nothing at all otherwise -- which is the cost of the reading existing.
-        Constants.LOG.info("Tenet: load phases -- {} file(s) examined; read+decode {} ms, assemble {} ms,"
+        Constants.LOG.info("load phases -- {} file(s) examined; read+decode {} ms, assemble {} ms,"
                         + " index {} ms, cycles {} ms, tables {} ms, total {} ms",
                 filesExamined, millis(started, readDone), millis(readDone, assembled),
                 millis(assembled, indexed), millis(indexed, checked), millis(checked, tabled),
@@ -741,7 +741,7 @@ public final class QuestLoader {
      */
     public static void logTree(QuestIndex index, int maxLines) {
         if (index.isEmpty()) {
-            Constants.LOG.info("Tenet: no quests loaded");
+            Constants.LOG.info("no quests loaded");
             return;
         }
 
@@ -783,7 +783,7 @@ public final class QuestLoader {
         if (truncated) {
             out.append("\n    … more quests omitted from this log line budget");
         }
-        Constants.LOG.info("Tenet: quest tree ({} quests in {} chapters){}",
+        Constants.LOG.info("quest tree ({} quests in {} chapters){}",
                 index.questCount(), index.chapterCount(), out);
     }
 }

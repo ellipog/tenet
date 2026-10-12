@@ -48,7 +48,7 @@ public final class NeoForgeNetworking implements NetworkBackend {
         // Nothing to do yet: the registrar does not exist until the event fires, and NeoForge rejects
         // a registration at the wrong time rather than ignoring it. Held for onRegisterPayloads.
         QUEUED.add(registration);
-        Constants.LOG.debug("tenet: queued payload {} ({}) for NeoForge registration",
+        Constants.LOG.debug("queued payload {} ({}) for NeoForge registration",
                 registration.type().id(), registration.direction());
     }
 
@@ -85,7 +85,7 @@ public final class NeoForgeNetworking implements NetworkBackend {
             registerOne(registrar, registration);
         }
 
-        Constants.LOG.info("tenet: registered {} payload(s) with NeoForge", QUEUED.size());
+        Constants.LOG.info("registered {} payload(s) with NeoForge", QUEUED.size());
     }
 
     private static <T extends CustomPacketPayload> void registerOne(PayloadRegistrar registrar,

@@ -127,7 +127,7 @@ public final class PartyStore extends SavedData {
             CompoundTag entry = list.getCompound(i);
             UUID teamId = readUuid(entry.getString("team"));
             if (teamId == null) {
-                Constants.LOG.warn("tenet: skipping a stored party mode with no team id");
+                Constants.LOG.warn("skipping a stored party mode with no team id");
                 continue;
             }
             // An unrecognised name is reported and defaulted rather than dropped, for the same reason
@@ -136,7 +136,7 @@ public final class PartyStore extends SavedData {
             // leaving it in a state no code can name.
             PartyMode mode = PartyMode.byId(entry.getString("mode")).orElse(null);
             if (mode == null) {
-                Constants.LOG.warn("tenet: stored party mode '{}' is not one of {}; using {}",
+                Constants.LOG.warn("stored party mode '{}' is not one of {}; using {}",
                         entry.getString("mode"), PartyMode.ids(), PartyMode.DEFAULT.id());
                 mode = PartyMode.DEFAULT;
             }
@@ -172,7 +172,7 @@ public final class PartyStore extends SavedData {
             return UUID.fromString(raw);
         }
         catch (IllegalArgumentException e) {
-            Constants.LOG.warn("tenet: '{}' is not a valid team uuid in a stored party mode", raw);
+            Constants.LOG.warn("'{}' is not a valid team uuid in a stored party mode", raw);
             return null;
         }
     }

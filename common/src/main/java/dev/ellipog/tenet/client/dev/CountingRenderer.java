@@ -166,7 +166,7 @@ public final class CountingRenderer implements GuiRenderer {
         long walkPoints = LineArt.drainWalked();
         // The line keeps the shape TESTING.md greps for -- `book frame -- N fill(s)` -- so everything
         // newer than that is appended rather than inserted among the older counts.
-        Constants.LOG.info("tenet: book frame -- {} fill(s), {} text(s), {} icon(s), {} texture(s),"
+        Constants.LOG.info("book frame -- {} fill(s), {} text(s), {} icon(s), {} texture(s),"
                         + " {} batched region(s), {} width(s), {} flush(es), {} flat icon(s)/s,"
                         + " {} live icon(s)/s, {} submission(s), {} line walk point(s)",
                 fills, texts, icons, textures, batches, widths, flushes, planned.flat(), planned.live(),
@@ -219,7 +219,7 @@ public final class CountingRenderer implements GuiRenderer {
         java.util.Map<String, int[]> ratios = dev.ellipog.armature.client.ui.CacheHits.drain();
         String line = dev.ellipog.armature.client.ui.CacheHits.describe(ratios);
         if (!line.isEmpty()) {
-            Constants.LOG.info("tenet: cache hits -- {}", line);
+            Constants.LOG.info("cache hits -- {}", line);
         }
     }
 

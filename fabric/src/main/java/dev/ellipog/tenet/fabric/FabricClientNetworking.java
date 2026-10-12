@@ -50,6 +50,6 @@ public final class FabricClientNetworking {
                     // cache is written on this thread, which is where the screen reads it.
                     registration.onClient().accept(payload);
                 });
-        Constants.LOG.debug("tenet: registered client receiver for {}", registration.type().id());
+        Constants.LOG.debug("registered client receiver for {}", registration.type().id());
     }
 }

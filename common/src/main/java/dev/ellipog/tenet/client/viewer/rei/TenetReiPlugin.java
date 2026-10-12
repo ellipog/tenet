@@ -147,7 +147,7 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
             builder.open();
         }
         catch (RuntimeException e) {
-            Constants.LOG.debug("tenet: REI is not ready to open a view ({})", e.toString());
+            Constants.LOG.debug("REI is not ready to open a view ({})", e.toString());
         }
     }
 

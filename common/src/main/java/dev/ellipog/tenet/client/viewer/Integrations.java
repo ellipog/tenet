@@ -72,10 +72,10 @@ public final class Integrations {
     public static void install(QuestContent installed) {
         Objects.requireNonNull(installed, "content");
         if (content != null && content != installed) {
-            Constants.LOG.debug("tenet: recipe-viewer content replaced by {}",
+            Constants.LOG.debug("recipe-viewer content replaced by {}",
                     installed.getClass().getName());
         } else {
-            Constants.LOG.debug("tenet: recipe-viewer content installed by {}",
+            Constants.LOG.debug("recipe-viewer content installed by {}",
                     installed.getClass().getName());
         }
         content = installed;

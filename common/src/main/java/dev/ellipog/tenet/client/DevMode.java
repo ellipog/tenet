@@ -396,7 +396,7 @@ public final class DevMode {
         catch (RuntimeException e) {
             // Reachable only if this runs before the platform is installed, which would be a caller
             // ordering fault rather than a player's. Off is the working default either way.
-            Constants.LOG.warn("tenet: the platform layer was not ready, so developer mode was not read."
+            Constants.LOG.warn("the platform layer was not ready, so developer mode was not read."
                     + " It is off.", e);
         }
 
@@ -439,7 +439,7 @@ public final class DevMode {
                 guideSeen = read.guideSeen();
             }
             catch (IOException | RuntimeException e) {
-                Constants.LOG.warn("tenet: {} could not be read, so developer mode is off. Deleting the"
+                Constants.LOG.warn("{} could not be read, so developer mode is off. Deleting the"
                         + " file will stop this message.", path, e);
             }
         }
@@ -683,7 +683,7 @@ public final class DevMode {
                             sidebarFloating, sidebarPinned, sidebarCollapsed, guideSeen));
         }
         catch (IOException e) {
-            Constants.LOG.warn("tenet: developer mode could not be written to {}", file, e);
+            Constants.LOG.warn("developer mode could not be written to {}", file, e);
         }
     }
 }

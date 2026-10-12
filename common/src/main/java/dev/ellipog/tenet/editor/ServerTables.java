@@ -81,7 +81,7 @@ public final class ServerTables {
             return Files.readString(file, StandardCharsets.UTF_8);
         }
         catch (IOException | RuntimeException unreadable) {
-            Constants.LOG.warn("tenet: reward_tables/{}.json could not be read for a client.", id, unreadable);
+            Constants.LOG.warn("reward_tables/{}.json could not be read for a client.", id, unreadable);
             return "";
         }
     }
@@ -244,7 +244,7 @@ public final class ServerTables {
             return applyOne(op, ops);
         }
         catch (RuntimeException unexpected) {
-            Constants.LOG.warn("tenet: applying a table edit failed", unexpected);
+            Constants.LOG.warn("applying a table edit failed", unexpected);
             return EditorOps.Applied.refused("that edit could not be applied");
         }
     }
@@ -449,7 +449,7 @@ public final class ServerTables {
             Path aside = QuestFiles.asidePath(file);
             Files.move(file, aside);
             open.remove(delete.id());
-            Constants.LOG.info("tenet: reward table \"{}\" was set aside as {}", delete.id(),
+            Constants.LOG.info("reward table \"{}\" was set aside as {}", delete.id(),
                     aside.getFileName());
             return new EditorOps.Applied(true, null,
                     List.of("removed \"" + delete.id() + "\" - the file is beside it as "
@@ -490,7 +490,7 @@ public final class ServerTables {
             return EditorOps.Applied.refused(name + " could not be put back: " + failed.getMessage());
         }
         String id = name.endsWith(".json") ? name.substring(0, name.length() - ".json".length()) : name;
-        Constants.LOG.info("tenet: reward table \"{}\" was put back from {}", id, aside.getFileName());
+        Constants.LOG.info("reward table \"{}\" was put back from {}", id, aside.getFileName());
         return new EditorOps.Applied(true, null,
                 List.of("put \"" + id + "\" back - it is a table again"), null, null, List.of());
     }

@@ -184,7 +184,7 @@ public final class TableImport {
                     .append(MAX_COUNT).append(" (")
                     .append(String.join(", ", imported.clipped())).append(")");
         }
-        Constants.LOG.debug("tenet: {}", line);
+        Constants.LOG.debug("{}", line);
         return line.toString();
     }
 }

@@ -146,11 +146,11 @@ public final class Tenet {
         });
 
         ArmatureEvents.SERVER_STOPPING.register(server ->
-                Constants.LOG.info("Tenet: server stopping; {} loaded, nothing to save yet",
+                Constants.LOG.info("server stopping; {} loaded, nothing to save yet",
                         TenetQuests.summary()));
 
         ArmatureEvents.PLAYER_JOIN.register(player -> {
-            Constants.LOG.info("Tenet: {} joined", player.getScoreboardName());
+            Constants.LOG.info("{} joined", player.getScoreboardName());
             // And every party's panel, because a party lists the players who are not in it: somebody
             // arriving is news to panels they are nowhere near. See sendRostersToAllParties.
             TenetNetworking.sendRostersToAllParties(player.getServer());
@@ -184,7 +184,7 @@ public final class Tenet {
         });
 
         ArmatureEvents.PLAYER_LEAVE.register(player -> {
-            Constants.LOG.info("Tenet: {} left", player.getScoreboardName());
+            Constants.LOG.info("{} left", player.getScoreboardName());
             // The other half: a player leaving takes their Invite row with them, and their dot off
             // every roster they were on.
             TenetNetworking.sendRostersToAllParties(player.getServer());
@@ -265,7 +265,7 @@ public final class Tenet {
 
         ArmatureEvents.COMMANDS_REGISTER.register((dispatcher, context, selection) -> {
             TenetCommand.register(dispatcher);
-            Constants.LOG.info("Tenet: /tenet registered");
+            Constants.LOG.info("/tenet registered");
         });
     }
 
@@ -369,7 +369,7 @@ public final class Tenet {
         //     on the reasoning that "a new team is empty and nobody's progress belongs to it yet" --
         //     which is true of everybody except the one player who just created it.
         TeamEvents.TEAM_CREATED.register((eventServer, team) -> {
-            Constants.LOG.info("Tenet: team '{}' created; {} progress now comes from it",
+            Constants.LOG.info("team '{}' created; {} progress now comes from it",
                     team.name(), team.owner());
             TenetNetworking.sendTeamChange(eventServer, team, null);
             // And the roster, beside the progress rather than instead of it. The two messages answer
@@ -380,7 +380,7 @@ public final class Tenet {
         });
 
         TeamEvents.MEMBER_JOINED.register((eventServer, team, player) -> {
-            Constants.LOG.info("Tenet: {} joined team '{}'; progress now comes from team {}",
+            Constants.LOG.info("{} joined team '{}'; progress now comes from team {}",
                     player, team.name(), team.id());
             TenetNetworking.sendTeamChange(eventServer, team, null);
             TenetNetworking.sendPartyToTeam(eventServer, team.id());
@@ -388,7 +388,7 @@ public final class Tenet {
             TenetNetworking.sendPublicLists(eventServer);
         });
         TeamEvents.MEMBER_LEFT.register((eventServer, team, player, reason) -> {
-            Constants.LOG.info("Tenet: {} left team '{}' ({})", player, team.name(), reason);
+            Constants.LOG.info("{} left team '{}' ({})", player, team.name(), reason);
 
             // **First, before any push below**: the leaver's own record is about to become the one
             // they read, and it has to hold what they earned in the party. Doing it here rather than
@@ -429,7 +429,7 @@ public final class Tenet {
         // Roles and the owner moved, so the roster every member is drawing is now wrong. Progress does
         // not move with ownership -- a team keys it, not a player -- so nothing else is owed here.
         TeamEvents.OWNER_TRANSFERRED.register((eventServer, team, previousOwner) -> {
-            Constants.LOG.info("Tenet: team '{}' handed from {} to {}", team.name(), previousOwner, team.owner());
+            Constants.LOG.info("team '{}' handed from {} to {}", team.name(), previousOwner, team.owner());
             TenetNetworking.sendPartyToTeam(eventServer, team.id());
         });
 
