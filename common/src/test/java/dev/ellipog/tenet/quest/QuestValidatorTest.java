@@ -408,6 +408,35 @@ class QuestValidatorTest {
         assertPointsAtValue(problem, json, "\"minecraft:wheat[age=sideways]\"");
     }
 
+    @Test
+    @DisplayName("a break task naming both a block and a tag warns that the tag wins")
+    void blockAndTagBothSetWarns() {
+        String json = Fixtures.file(
+                "{\"id\": \"a\", \"title\": \"a\", \"tasks\": "
+                        + "[ {\"type\": \"tenet:break\", \"block\": \"minecraft:stone\","
+                        + " \"blockTag\": \"minecraft:logs\", \"value\": 4} ]}");
+
+        Problems problems = validate(json);
+        DataProblem problem = containing(problems, "takes precedence");
+
+        assertTrue(problem.severity() == DataProblem.Severity.WARNING, messages(problems));
+        assertPointsAtValue(problem, json, "\"minecraft:stone\"");
+        assertFalse(problems.hasErrors(), "so the file still loads");
+    }
+
+    @Test
+    @DisplayName("a break task with no selector warns that it counts every break")
+    void breakWithNoSelectorWarns() {
+        String json = Fixtures.file(
+                "{\"id\": \"a\", \"title\": \"a\", \"tasks\": "
+                        + "[ {\"type\": \"tenet:break\", \"value\": 4} ]}");
+
+        Problems problems = validate(json);
+        containing(problems, "counts every break");
+
+        assertFalse(problems.hasErrors(), "so the file still loads");
+    }
+
     // ------------------------------------------------------------------
     // Ids and enums
     // ------------------------------------------------------------------

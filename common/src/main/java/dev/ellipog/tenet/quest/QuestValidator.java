@@ -12,6 +12,7 @@ import dev.ellipog.armature.client.ui.ThemePatch;
 import dev.ellipog.tenet.quest.condition.ConditionTypes;
 import dev.ellipog.tenet.quest.reward.RewardAutoClaim;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
+import dev.ellipog.tenet.quest.task.BreakTask;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -1024,6 +1025,29 @@ public final class QuestValidator {
         // by the task type's field set.
         if (document.has(path + ".item")) {
             checkItem(document, path, problems);
+        }
+
+        // A break task that names both an id and a tag: the tag wins and the id is silently
+        // ignored (see BreakTask.matches), so without this the author learns nothing about which
+        // one counts. A warning rather than an error — the file still loads and behaves exactly
+        // as before, so no working pack can break on it.
+        if (type.get().equals(BreakTask.TYPE)
+                && document.has(path + ".block") && document.has(path + ".blockTag")) {
+            problems.warn(document, path + ".block",
+                    "this task also sets \"blockTag\", which takes precedence: \"block\" is ignored."
+                    + " Remove one of the two so the file says what it means."
+                    + " The task still loads and counts tag matches");
+        }
+
+        // A break task with no selector at all: it counts every block broken anywhere, which is
+        // almost never what the author meant. A warning rather than an error, for the same
+        // compatibility reason as above — the file still loads either way.
+        if (type.get().equals(BreakTask.TYPE)
+                && !document.has(path + ".block") && !document.has(path + ".blockTag")
+                && !document.has(path + ".blockState")) {
+            problems.warn(document, path,
+                    "a break task with no \"block\", \"blockTag\" or \"blockState\" counts every break."
+                    + " The task still loads; name a target if that was not the intent");
         }
 
         // A break task names its block under "block" rather than under "item", so the check
