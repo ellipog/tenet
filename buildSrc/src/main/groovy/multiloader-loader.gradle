@@ -42,3 +42,44 @@ tasks.named('sourcesJar', Jar) {
     dependsOn(configurations.commonResources)
     from(configurations.commonResources)
 }
+
+// ---------------------------------------------------------------------------
+// Headless tests for the loader modules.
+//
+// :common carries the suite, but the loader seam -- events, registrars, adapters -- had no
+// runnable tests at all: nothing can run what Gradle does not know. The test source set
+// inherits main's already-resolved classpath (the same trick :common uses, for the same two
+// reasons: Minecraft arrives through the loader toolchain's own configuration, and Armature
+// is compileOnly so the test JVM gets its own copy), plus JUnit. Loader APIs (fabric-api,
+// the NeoForge capability jars, TR Energy) travel with main's classpath, so adapter classes
+// load; the game itself is never launched. Anything needing registries bootstraps them the
+// way :common's MinecraftTestBootstrap does -- these first tests deliberately need none.
+sourceSets {
+    test {
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+}
+
+dependencies {
+    // No Armature test dependency, unlike :common, and the absence is load-bearing: each loader
+    // module already carries its loader's Armature jar as runtimeOnly, and that jar supplies the
+    // same common classes. Declaring armature-common here as well puts both jars on the test
+    // runtime, and they declare the same capability -- so resolution fails naming the conflict
+    // rather than running anything. The inherited runtimeClasspath is the whole answer.
+    testImplementation platform("org.junit:junit-bom:${junit_version}")
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+
+    testLogging {
+        // Full exception text. A failure that says "expected true but was false" without the
+        // values is a test you have to re-run to understand, which is most of the point wasted.
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat 'full'
+        showStackTraces = true
+    }
+}
