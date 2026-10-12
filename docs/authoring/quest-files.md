@@ -14,13 +14,13 @@ config/tenet/quests/
 │   └── first_steps/            a chapter
 │       ├── chapter.json
 │       └── punch_a_tree.json   one quest
-└── stuck_in_the_past.json      an older single-file questline — still read
+└── stuck_in_the_past.json      an older single-file questline, still read
 ```
 
 ## Groups and chapters
 
 A group folder holds a `group.json`. Its `chapters` array names the group's chapter folders, in the
-order they should appear — that list is the only place the order is expressed:
+order they should appear: that list is the only place the order is expressed:
 
 ```json
 {
@@ -33,7 +33,7 @@ order they should appear — that list is the only place the order is expressed:
 A group also carries its own `description` and `icon` (a group with no icon borrows its first
 chapter's on the client), its former ids as `aliases`, and `collapsedByDefault`: with it set, the
 book shows the group's chapters collapsed the first time it sees the tree. That first sight is all
-it decides — no client ever writes it back, so reopening a group stays reopened.
+it decides. No client ever writes it back, so reopening a group stays reopened.
 
 A chapter folder holds a `chapter.json`. Its `quests` array names the chapter's quest files, in order,
 and that order is **load-bearing rather than cosmetic**: in a `linear` chapter it *is* the progression,
@@ -54,7 +54,7 @@ because each quest unlocks when the one above it completes.
 ```
 
 A chapter can also wait on other chapters, which is how a pack gates a whole chapter rather than every
-quest in it — `dependsOn` refuses its quests until the rule is met, and `completesWhen` says what
+quest in it: `dependsOn` refuses its quests until the rule is met, and `completesWhen` says what
 finishes it. The two `defaultHideUntilDependencies*` fields are the chapter's defaults for its quests'
 *own* reveal flags, so a reveal chapter is one line rather than fifty:
 
@@ -70,7 +70,7 @@ finishes it. The two `defaultHideUntilDependencies*` fields are the chapter's de
 ```
 
 Here the chapter's row is withheld until `first_steps` is finished, and every quest inside it is
-withheld until its own prerequisites are met — a quest that should be visible early writes
+withheld until its own prerequisites are met. A quest that should be visible early writes
 `"hideUntilDependenciesComplete": false` to say so. A chapter whose quests are all still hidden is
 itself left out of a reader's book, so the whole chapter arrives as one reveal.
 
@@ -81,12 +81,12 @@ same fields a quest inherits from them: `defaultPrerequisiteMode`, `defaultConsu
 `minRequired`, `completesWhen`, `autofocus`, `hideUntilDependenciesComplete` and `alwaysInvisible`
 are documented there too, under
 *[a chapter's own dependencies](quests.md#a-chapters-own-dependencies)*. Quests, chapters and
-groups each carry an optional `tags` list as well — see
-*[tags](quests.md#tags)*.
+groups each carry an optional `tags` list as well (see
+*[tags](quests.md#tags)*).
 
 > [!WARNING]
 > **A folder's name is its id, and that is checked.** A folder called `first_light` whose manifest
-> says `"id": "first_steps"` is reported, naming both sides — and the folder name wins, because every
+> says `"id": "first_steps"` is reported, naming both sides, and the folder name wins, because every
 > path in the tree is built from it. The same goes for the name lists: a chapter named in `chapters`
 > that is not on disk is reported, and a chapter folder that no manifest names is reported too.
 
@@ -115,39 +115,39 @@ order they are written here.
 }
 ```
 
-**`x` and `y` are the top-left corner in canvas pixels**, exactly as they are for a quest — the same
+**`x` and `y` are the top-left corner in canvas pixels**, exactly as they are for a quest: the same
 coordinate space, the same grid, and the same numbers you see in the editor. `line` is the exception and
 says what it is: `x1, y1, x2, y2` are its two endpoints, so a line is placed by placing both its ends.
 
 The four types are `image`, `text`, `line` and `rect`, and every field they read is in
-[the chapter schema](../../tools/quests/_schema/chapter.schema.json) — including the ranges, which the
+[the chapter schema](../../tools/quests/_schema/chapter.schema.json), including the ranges, which the
 loader clamps rather than refuses, so a `width` of `99999` becomes the largest legal box instead of
 costing you the chapter.
 
 | | |
 |---|---|
-| `image` | A picture from a **file** in a resource pack (`{ "texture": "pack:textures/crest.png" }`) or from a **block-atlas sprite** (`{ "sprite": "minecraft:block/lodestone_top" }`). A sprite always resolves; a file that is not in the pack draws nothing at all. `title` is what the picture says: a hover tooltip, or — when `label.onImage` is set — words painted into the picture, placed by `label.hAlign`, `label.vAlign` and an `inset` from the edge they name, in the font's own shadow or not (`label.shadow`). |
-| `text` | A label. `\n` starts a second line, `scale` sizes it, and `shadow` is the font's own shadow — which is what makes words readable over a picture. |
+| `image` | A picture from a **file** in a resource pack (`{ "texture": "pack:textures/crest.png" }`) or from a **block-atlas sprite** (`{ "sprite": "minecraft:block/lodestone_top" }`). A sprite always resolves; a file that is not in the pack draws nothing at all. `title` is what the picture says: a hover tooltip, or (when `label.onImage` is set) words painted into the picture, placed by `label.hAlign`, `label.vAlign` and an `inset` from the edge they name, in the font's own shadow or not (`label.shadow`). |
+| `text` | A label. `\n` starts a second line, `scale` sizes it, and `shadow` is the font's own shadow, which is what makes words readable over a picture. |
 | `line` | A rule with an optional head at either end: `arrowhead` is `none`, `start`, `end` or `both`. |
 | `rect` | A filled box with an optional border. The border is drawn across the whole box and the fill inset by `borderWidth`, so the two never fight. |
 
 **Two fields hide an element, and neither is access control.** `dev: true` draws it only for an author
 with the editor's advanced depth on, and `requires: "<quest>"` draws it only once that quest is
-complete. Both reach every client with the tree — they are presentation, and the file is not a place to
+complete. Both reach every client with the tree. They are presentation, and the file is not a place to
 keep a secret.
 
 **`click` makes an element pressable**: `open_quest` opens another quest by id or alias, and `open_uri`
 opens an `http` or `https` address in the browser. `show_recipe` opens the named item's recipes in a
-viewer — or says there is none installed, because a viewer is a soft dependency. `show_docs` names a
+viewer, or says there is none installed, because a viewer is a soft dependency. `show_docs` names a
 guide page as `<mod>,<book>[,<page>[,<anchor>]]`, and answers with a message naming it: guide books
 have no integration here, and a click that silently did nothing would read as a bug in the mod.
 `run_command` runs server-side as the pressing player, through the server's own dispatcher, at the
-pack's `clickCommandLevel` — with `{p}`, `{x}`/`{y}`/`{z}`, `{chapter}` and `{element}` filled in,
+pack's `clickCommandLevel`, with `{p}`, `{x}`/`{y}`/`{z}`, `{chapter}` and `{element}` filled in,
 and the command's own output as the feedback. `custom_event` fires `TenetEvents.clickEvent` with the
-`namespace:path` id the file named — see [[tenet:authoring/kubejs]] — so a script sorts presses by id.
+`namespace:path` id the file named (see [[tenet:authoring/kubejs]]), so a script sorts presses by id.
 
 **`links` marks quests that live elsewhere**: each entry draws in the node layer with its target's
-state and icon, and pressing it opens that quest — switching chapters when the quest lives in
+state and icon, and pressing it opens that quest, switching chapters when the quest lives in
 another one. A link holds no progress, gates nothing and is never counted for its chapter's
 completion; no `dependsOn`, gate or milestone may name one.
 
@@ -155,7 +155,7 @@ completion; no `dependsOn`, gate or milestone may name one.
 { "id": "gate_hint", "quest": "the_deep_descent", "x": 336, "y": -64 }
 ```
 
-`quest` is the target by id or alias, in any chapter — a name that resolves to nothing is reported
+`quest` is the target by id or alias, in any chapter. A name that resolves to nothing is reported
 with the file and line, because the link would then mirror nothing and its press would do nothing.
 A link's `id` must not equal any quest, chapter or group id or alias. `x` and `y` are the top-left
 corner in canvas pixels, exactly as for a quest; `shape` and `size` fall back to the quest defaults
@@ -164,7 +164,7 @@ the migration tool maps both onto this shape.
 
 **`locked: true` pins a picture against the editor's drag**: grips and moves leave it where it is,
 while readers see no difference. the legacy mod calls this `position_locked`, and the migration tool
-maps it onto this key — a deliberate edit still writes, so unlocking is always one switch away.
+maps it onto this key. An edit still writes, so unlocking is always one switch away.
 
 Elements are translated like everything else: `element.<id>.text` for a label's words and
 `element.<id>.title` for a picture's caption, in the same `lang` folder as `quest.<id>.title`. A
@@ -174,7 +174,7 @@ screen.
 > [!WARNING]
 > **A sprite that does not exist cannot be checked by the server, and a file that does not exist is not
 > a fault either.** The atlas is built by the client, so an unresolvable sprite draws the game's own
-> missing-texture marker rather than refusing the chapter — look at the picture, not at the log. The
+> missing-texture marker rather than refusing the chapter. Look at the picture, not at the log. The
 > one thing that *is* checked is a `requires` or an `open_quest` naming a quest that does not exist,
 > which is reported with the file and line, because an element gated on nothing is never drawn and a
 > press that opens nothing reads as a broken control.
@@ -208,9 +208,9 @@ thing it affects:
 
 | Setting | Default | What it does |
 |---|---|---|
-| `defaultAutoClaim` | `disabled` | What a reward with `auto: "default"` does — see [[tenet:authoring/rewards]] |
+| `defaultAutoClaim` | `disabled` | What a reward with `auto: "default"` does (see [[tenet:authoring/rewards]]) |
 | `defaultTeamReward` | `false` | Whether a reward that does not say otherwise is one claim for the team |
-| `suppressAllAutoclaiming` | `false` | Holds every automatic payout, whatever individual rewards say — an operator's switch for an event |
+| `suppressAllAutoclaiming` | `false` | Holds every automatic payout, whatever individual rewards say, an operator's switch for an event |
 | `detectionDelay` | `20` | Minimum ticks between inventory checks: an item, item-tag, filter, fluid or energy task is re-read no more often than this, whatever its own interval says. Other task types keep their own cadence. |
 | `clickCommandLevel` | `0` | What a canvas click's `run_command` runs as: `0` is the pressing player's own level, `2` is elevated enough for `say`, `give` and `summon` without opening op. Never above `2`, and never the presser's own level however high that is. File-only: no client draws it, so the Book panel has no row for it. |
 | `defaultConsumeItems` | `false` | Whether item tasks take the items when neither the task nor its chapter says: the bottom rung of the consume ladder (task wins over chapter, chapter over this). |
@@ -222,16 +222,16 @@ thing it affects:
 | `disableCanvasLod` | `false` | Whether the book's chapters draw without the zoom tiers unless a chapter says otherwise: icons, rings, titles and badges at any zoom, as the legacy mod drew them. A chapter opts back into tiers with an explicit `false` of its own. The migration tool writes `true`, so migrated packs read as their source did. Synced to every client with the tree; editable in game from the **Book** section like the name and icon. |
 | `dropBookOnDeath` | `false` | Whether a dying player drops a quest book where they fell, so death cannot take the pack away with it. Server-side: nothing crosses the wire. |
 | `giveBookOnFirstJoin` | `false` | Whether a player joining for the first time finds a quest book in their inventory: one book in the first free slot, never overwritten, never again on rejoin or respawn. Synced to every client with the tree; editable in game from the **Book** section like the name and icon. |
-| `gridScale` | `0.5` | The editor canvas's grid step, from the legacy mod's `grid_scale` (1/32 to 8). File-only for now: validated and stored, while the editor keeps its 8-unit step — see the field's note in the schema. |
+| `gridScale` | `0.5` | The editor canvas's grid step, from the legacy mod's `grid_scale` (1/32 to 8). File-only for now: validated and stored, while the editor keeps its 8-unit step (see the field's note in the schema). |
 | `lockMessage` | `""` | What a locked quest is called when the pack has a better word than "Locked": the author's own sentence, drawn on the quest card. Empty means the client's own word. Synced to every client with the tree. |
 | `emergencyItemsCooldown` | `300` | How long a player waits between `/tenet emergency` grants, in seconds, 0–86400 (the legacy mod documents no unit; Tenet reads seconds, so `300` is five minutes). See [[tenet:commands]]. |
 | `emergencyItems` | `[]` | What `/tenet emergency` hands out: item references with counts and components, exactly as a task writes them. Empty means the command answers that there is nothing to grant. See [[tenet:commands]]. |
-| `bookTitle` | `""` | What the book calls itself, drawn top-left in its header; empty uses the client's own title. Translatable via `book.title` in `lang/` — see [[tenet:authoring/languages]] |
+| `bookTitle` | `""` | What the book calls itself, drawn top-left in its header; empty uses the client's own title. Translatable via `book.title` in `lang/` (see [[tenet:authoring/languages]]) |
 | `bookIcon` | `""` | The item id the book wears in its header; an id a client cannot resolve is drawn as a missing-item mark |
-| `fallbackLocale` | `en_us` | The locale the tree's own strings are written in. Every other locale is merged over it, so a player whose language has no file still reads this one — see [[tenet:authoring/languages]] |
+| `fallbackLocale` | `en_us` | The locale the tree's own strings are written in. Every other locale is merged over it, so a player whose language has no file still reads this one (see [[tenet:authoring/languages]]) |
 
 The last two are the book's identity, synced to every client with the tree. They can be set by hand
-here or in game from the **Book** section of the tools panel — an operator's tool. Unlike every other
+here or in game from the **Book** section of the tools panel, an operator's tool. Unlike every other
 edit there, a Book edit is not covered by Ctrl+Z: the settings block is not modelled by the editor's
 history, and the write goes straight to this file.
 
@@ -239,24 +239,24 @@ An absent `index.json` is not an error: the tree is ordered the old way, folders
 how every pack written before the file existed still loads.
 
 **A broken one is read the same way, and says so.** A file that will not parse, or whose `entries` is
-not a list, cannot say what the root is — so the tree is read as if the file were not there, with one
+not a list, cannot say what the root is, so the tree is read as if the file were not there, with one
 error naming it and one warning saying what was done instead: every folder at the root is a group, in
 folder-name order, and anything this file would have left out is loaded instead. That rule has one cost
 worth knowing, and the warning names it: a chapter that only `index.json` declares is a folder with no
 `group.json`, so with the manifest unreadable there is nothing left that says it is a chapter, and it is
 reported as a folder that is not one. An `entries` list that is *declared* is still believed, even when
-an entry in it resolves to nothing — that is a per-entry fault, and falling back there would load
-content the file deliberately left out.
+an entry in it resolves to nothing. That is a per-entry fault, and falling back there would load
+content the file left out.
 
 > [!NOTE]
 > Group folders come before their contents in reading order, but nothing above them declares an order
-> unless `index.json` does — which is why **renaming a group folder can reorder the book** when the
+> unless `index.json` does, which is why **renaming a group folder can reorder the book** when the
 > file is absent. With an `index.json`, the order is authored and a rename changes nothing but the id.
 
 ## Ids, aliases, and the cost of a rename
 
 An id is lowercase letters, digits and underscores, at most 64 characters, and it may not begin with
-`_` — the loader skips every name that does — nor end in `.deleted`, which is what a removed chapter is
+`_` (the loader skips every name that does) nor end in `.deleted`, which is what a removed chapter is
 renamed to. It appears in player progress files, which is the whole reason `aliases` exists: a renamed
 quest, chapter or group lists its former ids, and nothing that referenced the old name breaks.
 
@@ -267,7 +267,7 @@ something back to a name it used to have is allowed while renaming it onto someb
 not.
 
 Lookups ignore letter case: an id, an alias, and any case mix of either resolve to the same quest,
-chapter or group. That is for converted packs, whose ids may be uppercase hexadecimal — the case is
+chapter or group. That is for converted packs, whose ids may be uppercase hexadecimal. The case is
 never what makes a reference fail. The files themselves stay lowercase: ids and `dependsOn` entries
 must still be written that way, while aliases may use uppercase. An alias that differs from its own
 id only in case is an error, because it names nothing the id does not already name; and two names
@@ -283,7 +283,7 @@ that differ only in case on two different objects are a clash, which fails fast 
 A delete in the editor is a **rename**, never an erase: a quest file becomes `<name>.json.deleted`, a
 chapter's or a group's whole folder becomes `<name>.deleted` with everything inside it, and a reward
 table becomes `<name>.json.deleted`. A chapter's, a group's and a table's copy is **numbered** when that
-name is already set aside — `<name>.deleted`, then `<name>.deleted.2` — so a second removal cannot
+name is already set aside (`<name>.deleted`, then `<name>.deleted.2`), so a second removal cannot
 overwrite the first copy. A quest file's copy is the plain `<name>.json.deleted`, because an undo finds
 it by that exact name, and a second removal of that name is **refused** with a sentence naming the copy
 in the way rather than numbered. The loader skips that suffix at every level, exactly as it skips the `_`
@@ -295,10 +295,10 @@ by id, and an id no loaded quest claims is kept), and the file would sit beside 
 which makes it undeletable until that copy is moved. Bring the removed quest back with `Ctrl+Z` or
 `/tenet restore` instead.
 
-`Ctrl+Z` puts a chapter's own edit back — a deleted quest file, a deleted chapter or group, a table's
-field edit — and it is one history step like any other edit. A **table** delete is the one removal that
+`Ctrl+Z` puts a chapter's own edit back (a deleted quest file, a deleted chapter or group, a table's
+field edit), and it is one history step like any other edit. A **table** delete is the one removal that
 is not on that trail: put it back with `/tenet restore`. The history is the **server's**, so it does not
-survive a restart, and `/tenet reload` drops it deliberately — the copies on disk survive both, and
+survive a restart, and `/tenet reload` drops it on purpose. The copies on disk survive both, and
 `/tenet removed` lists them with the name each would come back as. `/tenet restore <path>` takes one
 back: the file or folder returns under its own name and is listed again in the manifest it belonged to.
 Both take permission level 2, like `reload`; see [[tenet:commands]].
@@ -310,7 +310,7 @@ one with `"table": "dungeon"`; the file's own format is on [[tenet:authoring/rew
 
 ## Underscores are skipped, everywhere
 
-Any file or folder whose name begins with `_` is skipped by the loader — the convention that lets a
+Any file or folder whose name begins with `_` is skipped by the loader, the convention that lets a
 schema folder, a note, or a draft sit beside the content without being loaded. It is a
 [[declared-path]]: the mod reads its directories by name rather than scanning them, so a stray file
 cannot be mistaken for content. `tools/quests/_schema/` in the repository is the worked example.
@@ -347,7 +347,7 @@ does. New packs should use the folder format; the flat one is kept so old ones d
 rewritten. Its schema is published at
 `https://ellipog.dev/tenet/_legacy/tenet-quests.schema.json`.
 
-A chapter inside a flat file carries `elements` exactly as a `chapter.json` does — it is the same codec
+A chapter inside a flat file carries `elements` exactly as a `chapter.json` does. It is the same codec
 and the same record, so a decoration written in either format behaves identically. The one difference is
 where the array sits: on the chapter object inside `chapterGroups[]` rather than in a file of its own,
 which is the difference between the two formats and nothing to do with elements.
@@ -357,6 +357,6 @@ which is the difference between the two formats and nothing to do with elements.
 ## Reloading
 
 `/tenet reload` re-reads the folder without a restart, and re-syncs every connected player's tree and
-progress — a quest removed, an id renamed, or a dependency broken is visible immediately rather than
+progress. A quest removed, an id renamed, or a dependency broken is visible immediately rather than
 on the next reconnect. A file with an error is reported and skipped; the rest of the pack still loads.
 [[tenet:authoring/validation]] is the page about what those reports say.

@@ -1,7 +1,7 @@
 # Conditions
 
-A condition is a question about a player — do they have this item, this stage, this score, this
-advancement — and a task or a reward can wait for the answer. A task with a condition counts only for
+A condition is a question about a player: do they have this item, this stage, this score, this
+advancement? A task or a reward can wait for the answer. A task with a condition counts only for
 a player who meets it; a reward with a condition is paid only to one. Nothing is consumed to satisfy
 one, and nothing about a condition changes a quest's dependency graph.
 
@@ -16,7 +16,7 @@ one, and nothing about a condition changes a quest's dependency graph.
 ```
 
 `conditions` sits on the task or reward itself, beside `optional` or `auto`, and it is a list. **Every
-entry must hold** — the list is an AND, and an empty list (or no field at all) is met by definition.
+entry must hold**: the list is an AND, and an empty list (or no field at all) is met by definition.
 Conditions can be put on a task, on a reward, or on both; a quest's `requiresStage` is a separate,
 quest-level gate from the [[tenet:authoring/quests|quest's own fields]].
 
@@ -24,19 +24,19 @@ quest-level gate from the [[tenet:authoring/quests|quest's own fields]].
 
 A condition is asked **per player**, at the moment the player's answer would matter:
 
-- **A measured task** — the server's own tick counts a member's progress only if that member meets the
+- **A measured task:** the server's own tick counts a member's progress only if that member meets the
   task's conditions. A member who does not contributes nothing, and in a `pooled` party they do not
   pay for it either.
-- **A submit** — the button refuses, so a press cannot be used to skip a condition.
-- **A reward** — every path that pays one checks its conditions: the claim, Claim all, the answer to a
+- **A submit:** the button refuses, so a press cannot be used to skip a condition.
+- **A reward:** every path that pays one checks its conditions: the claim, Claim all, the answer to a
   choice offer, and the two automatic ones. A reward whose conditions are unmet is not lost; it stays
   unclaimed and is paid the moment they hold. The exception is a reward that is an **entry of a reward
   table**: it is handed out by the roll rather than claimed, so the validator refuses `conditions` on
-  one — put them on the table reward itself, where every payout path does check them.
+  one. Put them on the table reward itself, where every payout path does check them.
 
 A condition is a **gate on acquiring progress, not a lock on what is already recorded**. A task that
-was satisfied while its condition held stays satisfied if the condition stops holding — complete is
-complete — which is the same direction the engine's task counting has always taken. Rewards are the
+was satisfied while its condition held stays satisfied if the condition stops holding, because complete is
+complete, which is the same direction the engine's task counting has always taken. Rewards are the
 exception by nature: they are paid on the day, so a reward's condition is checked on the day.
 
 An unknown condition type is a warning in the file, reported at its own line by the
@@ -48,9 +48,9 @@ is loaded.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `type` | — | Which condition this is; the rest of the fields follow it. |
+| `type` | none | Which condition this is; the rest of the fields follow it. |
 
-Nothing else is shared between the types below — a condition is small by design, so each type names
+Nothing else is shared between the types below. A condition is small by design, so each type names
 its own fields.
 
 ## The six types
@@ -68,9 +68,9 @@ its own fields.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `item` | — | The item's namespaced id. |
+| `item` | none | The item's namespaced id. |
 | `count` | `1` | How many of them. |
-| `components` | — | 1.21 data components, as on an item task: a condition can ask for the renamed sword and not the plain one. |
+| `components` | none | 1.21 data components, as on an item task: a condition can ask for the renamed sword and not the plain one. |
 | `match` | `strict` | How closely a carried stack must match: `none` ignores its data, `fuzzy` needs the data it names, `strict` needs the whole stack. |
 
 The condition half of the `tenet:item` task, and the same matching. It counts and never takes: the
@@ -80,20 +80,20 @@ item task's `consumeItems` has no counterpart here, because a condition only eve
 
 | Field | Default | Meaning |
 |---|---|---|
-| `tag` | — | The item tag's id, e.g. `minecraft:logs`. Any item in it counts. |
+| `tag` | none | The item tag's id, e.g. `minecraft:logs`. Any item in it counts. |
 | `count` | `1` | How many of them. |
 
 ## `tenet:score`
 
 | Field | Default | Meaning |
 |---|---|---|
-| `objective` | — | The scoreboard objective's name, as the scoreboard command spells it. |
-| `min` | — | The score to reach, 1 or more. |
+| `objective` | none | The scoreboard objective's name, as the scoreboard command spells it. |
+| `min` | none | The score to reach, 1 or more. |
 
 Read from the scoreboard, per player. Two things are worth knowing:
 
 - **A missing objective reads as zero**, not as an error. Objectives are world state rather than
-  registry entries, so the validator cannot check the name — a typo locks the gate, and nothing in
+  registry entries, so the validator cannot check the name. A typo locks the gate, and nothing in
   the log says so. Create it with `/scoreboard objectives add <name> dummy`.
 - **An objective's name is a plain word** in the scoreboard command, so it cannot contain a colon:
   `condition_gallery_standing`, not `pack:standing`. The condition still takes any name the server
@@ -103,14 +103,14 @@ Read from the scoreboard, per player. Two things are worth knowing:
 
 | Field | Default | Meaning |
 |---|---|---|
-| `advancement` | — | The advancement's namespaced id, e.g. `minecraft:story/mine_diamond`. |
-| `criterion` | — | Require one criterion of it instead of the whole advancement. |
+| `advancement` | none | The advancement's namespaced id, e.g. `minecraft:story/mine_diamond`. |
+| `criterion` | none | Require one criterion of it instead of the whole advancement. |
 
 ## `tenet:stage`
 
 | Field | Default | Meaning |
 |---|---|---|
-| `stage` | — | The stage's id. A stage exists by being granted, so there is no list to pick from and no id to validate. |
+| `stage` | none | The stage's id. A stage exists by being granted, so there is no list to pick from and no id to validate. |
 
 The condition half of the `tenet:stage` task. `/tenet stage add` grants one, a stage reward grants
 one, and a script can too.
@@ -119,11 +119,11 @@ one, and a script can too.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `min` | — | How many members of the party have to be online, 1 to 1000. |
+| `min` | none | How many members of the party have to be online, 1 to 1000. |
 
 **Online members, not the roster, and you count as one.** A solo player is a party of one, so
 `"min": 2` is the bring-a-friend gate; a party of three with two members offline is one person here.
-Nothing else about the party matters — its progress mode, its owner, who is in it — because this asks
+Nothing else about the party matters (its progress mode, its owner, who is in it), because this asks
 how many people are actually present, which is what a togetherness gate is about.
 
 ## Reusing a setup

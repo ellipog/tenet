@@ -2,7 +2,7 @@
 
 A questline written for one language is a questline half the people who install it cannot read. Tenet
 lets a pack ship its own translations beside the book, one file per language, and sends each player the
-one they read — without the quest files being written twice and without the tree being sent once per
+one they read, without the quest files being written twice and without the tree being sent once per
 language.
 
 ```
@@ -18,8 +18,8 @@ config/tenet/quests/
 ```
 
 The folder is `lang/`, and it sits at the root of the quest tree next to `reward_tables/`. It is
-reserved by name: the root is otherwise strictly what `index.json` lists, so a folder that is
-deliberately not book content has to be named as such — which is why a `lang/` folder produces no
+reserved by name: the root is otherwise strictly what `index.json` lists, so a folder outside
+the book has to be named as such, which is why a `lang/` folder produces no
 complaint about being unlisted.
 
 The worked questline in the repository ships one as a starting point:
@@ -37,7 +37,7 @@ A flat object of key to text, the same shape a resource pack's language file has
 }
 ```
 
-The file's own name **is** the locale — `es_es.json` is `es_es` — because there is nowhere else to
+The file's own name **is** the locale (`es_es.json` is `es_es`), because there is nowhere else to
 declare one and a name no client can ask for is simply never looked up. Names are read lower case with
 `-` treated as `_`, so `en-US.json` is `en_us`. A name that is not a locale id at all is refused and
 reported, since nothing could ever ask for it.
@@ -45,7 +45,7 @@ reported, since nothing could ever ask for it.
 A file that does not parse, or a value that is not a string, is refused **whole** and reported with its
 file, line and column. Half a locale is worse than none: a few sentences translated and the rest
 silently in the canonical language is the failure that reads as working. The rest of the folder still
-loads, and the questline is never affected — a typo in a translation should cost you a working book and
+loads, and the questline is never affected. A typo in a translation should cost you a working book and
 a line naming the file, not a server that will not start.
 
 ## Which file a player gets
@@ -63,7 +63,7 @@ files the pack actually ships, in this order:
 | 5 | `fallbackLocale` | Nothing matched the language, so your own language is the honest answer |
 
 The locale that wins is then laid **over** `fallbackLocale`, not instead of it. So a pack can keep the
-strings every language shares — a name, a number, a line it did not translate — in its canonical file
+strings every language shares (a name, a number, a line it did not translate) in its canonical file
 and only the differences in the others. `lang/en_us.json`:
 
 ```json
@@ -96,7 +96,7 @@ still reads the canonical one.
 ```
 
 The locale the tree's own strings are written in. A quest file's `title` is what a player reads when
-nothing has translated it, so the canonical locale is whatever language those strings are in — and it
+nothing has translated it, so the canonical locale is whatever language those strings are in, and it
 is what every other locale is merged over.
 
 ## The keys
@@ -113,24 +113,24 @@ file for a translation to work:
 | A canvas element's label or picture | `element.<id>.text`, `element.<id>.title` |
 | The book | `book.title` |
 
-The book's key translates the `bookTitle` in `index.json` — the name the header draws — so a pack
+The book's key translates the `bookTitle` in `index.json` (the name the header draws), so a pack
 that ships it renames the book for every language it translates without touching the file.
 
-A task's or a reward's sentence is already a translation key of its own — a checkmark task's `title`,
-or a built-in sentence like `tenet.reward.xp.points` — so it needs no conventional key: put **its** key
+A task's or a reward's sentence is already a translation key of its own (a checkmark task's `title`,
+or a built-in sentence like `tenet.reward.xp.points`), so it needs no conventional key: put **its** key
 in a locale file and it is translated like any other.
 
 ### Descriptions, and paragraphs
 
-A description is a list of paragraphs, and a translation is a sentence — so the two can disagree about
+A description is a list of paragraphs, and a translation is a sentence, so the two can disagree about
 how many there are. Three roads, tried in this order:
 
-1. **`quest.<id>.description`** — one string for the whole description. This is the road to use: write
+1. **`quest.<id>.description`:** one string for the whole description. This is the road to use: write
    it as one paragraph, or put `\n` between them and write it as four, and the canonical count never
    has to agree with yours.
-2. **`quest.<id>.description.<i>`** — one paragraph by index, for when a single line of many is wrong.
+2. **`quest.<id>.description.<i>`:** one paragraph by index, for when a single line of many is wrong.
    The index is against the canonical description, so a key past its end simply never matches.
-3. **Nothing** — the canonical paragraphs, as the tree sent them.
+3. **Nothing:** the canonical paragraphs, as the tree sent them.
 
 ### Two roads to the same title
 
@@ -141,7 +141,7 @@ wants:
 { "id": "punch_a_tree", "title": { "translate": "my_pack.punch", "fallback": "Punch a Tree" } }
 ```
 
-Then `my_pack.punch` is tried first and `quest.punch_a_tree.title` second — the more specific thing you
+Then `my_pack.punch` is tried first and `quest.punch_a_tree.title` second, because the more specific thing you
 said about this exact quest wins over the pack-wide convention. The `fallback` is what a player reads
 when neither is translated, which is why the validator warns when it is missing: without it a missing
 translation shows the raw key.
@@ -151,11 +151,11 @@ first task's name (see [[tenet:authoring/quests]]), unless a translation has wor
 
 ### Stale keys
 
-A key for an object that is gone — a deleted quest, a renamed table — warns on reload, with the file
+A key for an object that is gone (a deleted quest, a renamed table) warns on reload, with the file
 named and, where the spelling is close, the id that was meant. It never fails the load: a pack with
 leftover keys still plays. Write keys against the object's own lowercase id: another case, an alias
 or a tag is a key no reader looks up, and the warning names the id it should have been. Keys in no
-book namespace are left alone — the overlay serves any key, and a script may own the ones no reader
+book namespace are left alone, because the overlay serves any key, and a script may own the ones no reader
 looks up.
 
 ## What a player sees, and what the editor sees
@@ -181,6 +181,6 @@ client's options follows within a tick, with no reconnect at all.
 
 - A chapter's `description`: nothing draws it for a player, so there is no surface for
   a translation to reach. It is the editor's, and the editor shows the file. The chapter's
-  `subtitle` does have one — the second line of its sidebar row's hover — so `chapter.<id>.subtitle`
+  `subtitle` does have one (the second line of its sidebar row's hover), so `chapter.<id>.subtitle`
   translates it.
 - A legacy `image` object's title: Tenet has no image object, so the key has no home here.
