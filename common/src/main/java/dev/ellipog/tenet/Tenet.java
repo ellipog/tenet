@@ -344,7 +344,7 @@ public final class Tenet {
         }
         teamListenersInstalled = true;
 
-        Constants.LOG.info("Tenet: teams come from '{}' on this server", Teams.of(server).name());
+        Constants.LOG.info("teams come from '{}' on this server", Teams.of(server).name());
 
         // Every membership change moves progress for somebody, so each one pushes rather than only
         // logging. This was two log lines with a comment saying "this is the hook it will attach to" —
