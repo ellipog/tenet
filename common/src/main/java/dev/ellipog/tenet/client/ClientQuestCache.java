@@ -350,6 +350,9 @@ public final class ClientQuestCache {
                 return blankToEmpty(matches.shown().get(0).getHoverName().getString().trim());
             }
             catch (RuntimeException e) {
+                // Unparseable filter: empty, as the javadoc above promises — a draw path must
+                // never throw over a title, and the file:line for the bad filter is the
+                // validator's to report, not a frame's.
                 return java.util.Optional.empty();
             }
         }
