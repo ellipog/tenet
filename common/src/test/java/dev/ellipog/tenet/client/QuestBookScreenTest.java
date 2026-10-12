@@ -1,7 +1,9 @@
 package dev.ellipog.tenet.client;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
@@ -102,6 +104,38 @@ class QuestBookScreenTest {
                     "one pixel over is scrolling");
             assertTrue(QuestBookScreen.sidebarReservesScrollbar(40, 200),
                     "and so is a questline no sidebar holds");
+        }
+    }
+
+    @Nested
+    @DisplayName("the slide filing")
+    class SlideFiling {
+
+        @Test
+        @DisplayName("a rail with no filing gets a mutable list, not the immutable empty")
+        void missingRailFilesAMutableList() {
+            // The tenet#47 crash shape: a full-screen rebuild clears the filing, and the first
+            // claim press after it removed a control from the default List.of() — which throws
+            // rather than doing nothing. The helper files instead of defaulting.
+            java.util.Map<PanelKind, java.util.List<net.minecraft.client.gui.components.AbstractWidget>> filed =
+                    new java.util.EnumMap<>(PanelKind.class);
+            java.util.List<net.minecraft.client.gui.components.AbstractWidget> list =
+                    QuestBookScreen.slideList(filed, PanelKind.REWARDS);
+            assertDoesNotThrow(() -> list.remove(null),
+                    "removing from a missing rail's list must clean up, not throw");
+            assertSame(list, filed.get(PanelKind.REWARDS),
+                    "filed, so the next press finds the entry instead of defaulting again");
+        }
+
+        @Test
+        @DisplayName("a rail that already filed keeps its list")
+        void existingRailKeepsItsList() {
+            java.util.Map<PanelKind, java.util.List<net.minecraft.client.gui.components.AbstractWidget>> filed =
+                    new java.util.EnumMap<>(PanelKind.class);
+            java.util.List<net.minecraft.client.gui.components.AbstractWidget> first =
+                    QuestBookScreen.slideList(filed, PanelKind.REWARDS);
+            assertSame(first, QuestBookScreen.slideList(filed, PanelKind.REWARDS),
+                    "filing twice must not replace the travelling widgets mid-slide");
         }
     }
 

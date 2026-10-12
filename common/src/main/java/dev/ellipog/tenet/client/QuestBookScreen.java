@@ -865,6 +865,20 @@ public final class QuestBookScreen extends ArmatureScreen
         slideWidgets.computeIfAbsent(slideBucket, kind -> new java.util.ArrayList<>()).add(widget);
     }
 
+    /**
+     * The travelling widgets filed under a rail, filing an empty list when the rail has none.
+     *
+     * <p>Filed rather than defaulted: a full-screen rebuild clears this map without touching
+     * cards whose controls rebuild lazily, so the first claim press after a rebuild found no
+     * entry and died removing from {@code List.of()}. The returned list is always mutable and
+     * always the map's own, so a removal below cleans up either way. Pure in everything but
+     * the map it is handed, so a test can hold the crash shape headlessly.
+     */
+    static java.util.List<AbstractWidget> slideList(
+            java.util.Map<PanelKind, java.util.List<AbstractWidget>> filed, PanelKind kind) {
+        return filed.computeIfAbsent(kind, missing -> new java.util.ArrayList<>());
+    }
+
     @Override
     protected <T extends GuiEventListener & Renderable & NarratableEntry> T addRenderableWidget(
             T widget) {
@@ -29605,14 +29619,13 @@ public final class QuestBookScreen extends ArmatureScreen
             rewardMarksRevision = pendingClaims.revision();
             return;
         }
-        // Filed under REWARDS if the bucket is missing it, rather than read with a
-        // getOrDefault over an immutable empty list: a full-screen rebuild clears the slide
-        // filing without touching this card's controls (they rebuild lazily), so the first
-        // claim press after a rebuild — F3+T with the book open is the reliable way — found no
-        // REWARDS entry and died removing from List.of(). Filing here changes nothing when the
-        // entry exists, and when it does not the removals below still run their cleanup.
-        java.util.List<AbstractWidget> slid =
-                slideWidgets.computeIfAbsent(PanelKind.REWARDS, kind -> new java.util.ArrayList<>());
+        // Filed under REWARDS if the bucket is missing it — see slideList for the crash this
+        // answers: a full-screen rebuild clears the slide filing without touching this card's
+        // controls (they rebuild lazily), so the first claim press after a rebuild — F3+T with
+        // the book open is the reliable way — found no REWARDS entry and died removing from
+        // List.of(). Filing here changes nothing when the entry exists, and when it does not
+        // the removals below still run their cleanup.
+        java.util.List<AbstractWidget> slid = slideList(slideWidgets, PanelKind.REWARDS);
         for (ArmatureButton control : rewardControls) {
             removeWidget(control);
             buttons.remove(control);
