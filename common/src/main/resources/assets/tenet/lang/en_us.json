@@ -711,7 +711,7 @@
     "tenet.status.template_open_a_quest": "Open a quest to apply this template to",
     "tenet.status.template_condition_needs_entry": "Touch a task or reward first — or pick this from its + Condition row",
     "tenet.status.nothing_to_copy_yet_the_chapter_s_copy_has_not_a": "Nothing to copy yet -- the chapter's copy has not arrived",
-    "tenet.command.text.7no_dependencies": "  \u00a77no dependencies",
+    "tenet.command.text.no_dependencies": "  \u00a77no dependencies",
     "tenet.dev.quest.show_title": "Show title",
     "tenet.dev.quest.invisible": "Invisible",
     "tenet.dev.quest.hide_until_deps_done": "Hide until deps done",

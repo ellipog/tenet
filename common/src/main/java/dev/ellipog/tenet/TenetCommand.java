@@ -667,7 +667,7 @@ public final class TenetCommand {
                                         TenetQuests.index(), quest, mode) + ")"), false);
             }
             else {
-                context.getSource().sendSuccess(() -> Component.translatable("tenet.command.text.7no_dependencies"), false);
+                context.getSource().sendSuccess(() -> Component.translatable("tenet.command.text.no_dependencies"), false);
             }
 
             // The flags that change behaviour, so a file with them set can be confirmed to have
