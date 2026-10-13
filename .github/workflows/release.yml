@@ -1,9 +1,9 @@
 # Tagged releases and manual builds for Tenet.
 #
 # Two triggers and nothing else, deliberately: no run on an ordinary push or a pull request. A
-# release is a decision (a tag) or a button press, not a side effect of committing. Everything is a
-# pre-release for now -- `prerelease: true` below is the single line to flip when a stable release
-# is wanted.
+# release is a decision (a tag) or a button press, not a side effect of committing. Releases are
+# stable since 1.0.0 -- `prerelease: false` below is the line to flip back if a pre-release is
+# ever wanted.
 #
 # Armature has to be released before this runs: Tenet compiles against the artefact Armature's own
 # release workflow publishes to maven.ellipog.dev, and this checks that `armature_version` is there
@@ -338,13 +338,13 @@ jobs:
           echo "::error::$url is not being served after the upload"
           exit 1
 
-      - name: Publish the GitHub Pre-Release
+      - name: Publish the GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           token: ${{ github.token }}
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: dist/*.jar
