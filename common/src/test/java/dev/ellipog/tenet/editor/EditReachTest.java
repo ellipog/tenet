@@ -82,6 +82,28 @@ class EditReachTest {
     }
 
     @Test
+    @DisplayName("a row's own words are display-only: labels name nothing progress is stored against")
+    void rowLabelsAreDisplayOnly() {
+        // The one carve-out in the rule above, and it is narrow on purpose: exactly `label` and
+        // `labelArg` as the third step, never a subtree. A label is the sentence rows draw — keyed
+        // by an index no label edit moves — while counts, items and gates move resolved states and
+        // keep the CONTENT answer below. Typing a label is the bursty edit this saves from a full
+        // reload per tick; the save still validates the write, and a chapter that will not patch
+        // falls back to the full reload, so a malformed path can never slip through here.
+        for (String path : List.of("tasks.0.label", "tasks.0.labelArg", "rewards.2.label",
+                "rewards.2.labelArg")) {
+            assertEquals(TreeRefresh.Touch.COSMETIC, field(path), path + " moves words, not states");
+        }
+        // And the guardrails that keep the carve-out narrow.
+        assertEquals(TreeRefresh.Touch.CONTENT, field("tasks.0.label.extra"),
+                "deeper than a leaf is malformed, and malformed is CONTENT");
+        assertEquals(TreeRefresh.Touch.CONTENT, field("tasks.label"),
+                "without an index there is no row, so there is nothing display-only to name");
+        assertEquals(TreeRefresh.Touch.CONTENT, field("tasks.0.labelArg.deeper.still"),
+                "depth never smuggles a subtree into the cosmetic list");
+    }
+
+    @Test
     @DisplayName("a canvas element is decoration, so every edit to one is cosmetic")
     void elementEditsAreCosmetic() {
         // The one place this feature could cost a player something: a CONTENT touch re-resolves every

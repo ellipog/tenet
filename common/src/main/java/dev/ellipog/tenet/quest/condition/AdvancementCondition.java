@@ -49,13 +49,13 @@ public record AdvancementCondition(ResourceLocation advancement, Optional<String
         // The criterion may name one this advancement does not declare -- the validator cannot know
         // which names exist, so a typo reaches here -- and `getCriterion` returns null for it. Vanilla's
         // own isCriterionDone null-checks the same way; without this, one wrong word in a file
-        // dereferences on every tick and every lock refresh.
-        return condition.criterion()
-                .map(name -> {
-                    var criterion = progress.getCriterion(name);
-                    return criterion != null && criterion.isDone();
-                })
-                .orElseGet(progress::isDone);
+        // dereferences on every tick and every lock refresh. Plain branches rather than the mapped
+        // lambda, for the same reason as the task's own: the same answers, typo included.
+        if (condition.criterion().isPresent()) {
+            var criterion = progress.getCriterion(condition.criterion().get());
+            return criterion != null && criterion.isDone();
+        }
+        return progress.isDone();
     };
 
     public static final Function<AdvancementCondition, ConditionDisplay> DISPLAY = condition -> {

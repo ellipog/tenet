@@ -361,11 +361,19 @@ public record Quest(
      * <p>Every task that is not marked optional — with the one exception the plan names: if every
      * task is optional, then any one of them completes the quest. A quest where nothing is required
      * would otherwise complete itself the moment it unlocked.
+     *
+     * <p>A plain loop rather than a stream: this runs per quest per resolution, and a stream is a
+     * pipeline allocation per call for a question a counter answers.
      */
     public int requiredTaskCount() {
-        long mandatory = tasks.stream().filter(task -> !task.optional()).count();
+        int mandatory = 0;
+        for (QuestTask task : tasks) {
+            if (!task.optional()) {
+                mandatory++;
+            }
+        }
         if (mandatory > 0) {
-            return (int) mandatory;
+            return mandatory;
         }
         // All optional: one will do, unless there are none at all, in which case there is nothing
         // to do and the quest is completable by declaration.

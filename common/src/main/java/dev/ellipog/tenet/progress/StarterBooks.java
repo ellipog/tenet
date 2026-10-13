@@ -138,14 +138,24 @@ public final class StarterBooks extends SavedData {
         // Absent in a file from before this store existed, which is why nothing checks a version:
         // a missing section is "nobody got one", a valid state rather than something to migrate.
         ListTag list = tag.getList("given", Tag.TAG_STRING);
+        // Summarised rather than one line per bad entry: a corrupted file names every one of its
+        // rows at warn level otherwise, and the count plus the first few is what a reader acts on.
+        int bad = 0;
+        String firstBad = null;
         for (int i = 0; i < list.size(); i++) {
             try {
                 books.given.add(UUID.fromString(list.getString(i)));
             }
             catch (IllegalArgumentException e) {
-                Constants.LOG.warn("'{}' is not a valid player uuid in stored starter books",
-                        list.getString(i));
+                bad++;
+                if (firstBad == null) {
+                    firstBad = list.getString(i);
+                }
             }
+        }
+        if (bad > 0) {
+            Constants.LOG.warn("skipped {} invalid player uuid{} in stored starter books"
+                    + " (first: '{}')", bad, bad == 1 ? "" : "s", firstBad);
         }
         return books;
     }

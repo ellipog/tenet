@@ -140,6 +140,10 @@ class SyncWiringTest {
 
         assertEquals(List.of(
                 "tenet:chapter_replica",
+                // Not a viewer message either: the overflow path for chapters past the single
+                // message's per-string cap, chunked through SyncWire like the tree. The small path
+                // is untouched — this only answers where the old message refused.
+                "tenet:chapter_replica_chunk",
                 "tenet:choice_reward",
                 "tenet:claim_all",
                 "tenet:claim_chapter",

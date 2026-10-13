@@ -58,7 +58,9 @@ public record ItemReward(RewardCommon common, ItemRef item, int randomBonus, boo
      * the player already carries.
      */
     public static List<ItemStack> stacksToGive(ItemReward reward, net.minecraft.server.level.ServerPlayer player) {
-        ItemStack template = reward.item().toStack();
+        // The shared template: read for emptiness, carrying and size, and copied for the handover —
+        // the granted stacks are fresh, so the shared one never loses a log.
+        ItemStack template = reward.item().template();
         if (template.isEmpty()) {
             // The item does not exist. The validator reports this at load time, so reaching here
             // means a reload changed the registries underneath a loaded questline -- worth saying,

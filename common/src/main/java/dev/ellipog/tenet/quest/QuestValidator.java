@@ -111,20 +111,47 @@ public final class QuestValidator {
 
     /** Every type currently registered, for the fallback when a task's own type is unknown. */
     private static Set<String> allTaskFields() {
-        Set<String> fields = new LinkedHashSet<>();
-        for (ResourceLocation id : TaskTypes.ids()) {
-            fields.addAll(TaskTypes.fieldsOf(id));
+        // Remembered by registered-type count rather than rebuilt per task: the union is the
+        // allowed set for every task's field check, so a pack of hundreds pays hundreds of walks
+        // over every type's fields per load. The registries are append-only — registering an id
+        // twice throws — so a count names a set, and a newly registered type misses once and is
+        // kept. The sets are only ever unioned, never mutated; see union.
+        int count = TaskTypes.count();
+        if (taskFieldsMemo == null || count != taskFieldsCount) {
+            Set<String> fields = new LinkedHashSet<>();
+            for (ResourceLocation id : TaskTypes.ids()) {
+                fields.addAll(TaskTypes.fieldsOf(id));
+            }
+            taskFieldsMemo = fields;
+            taskFieldsCount = count;
         }
-        return fields;
+        return taskFieldsMemo;
     }
 
+    /** What {@link #allTaskFields} was built from. See there for why a count is the key. */
+    private static int taskFieldsCount = -1;
+
+    /** The remembered union. See {@link #allTaskFields}. */
+    private static Set<String> taskFieldsMemo;
+
     private static Set<String> allRewardFields() {
-        Set<String> fields = new LinkedHashSet<>();
-        for (ResourceLocation id : RewardTypes.ids()) {
-            fields.addAll(RewardTypes.fieldsOf(id));
+        int count = RewardTypes.count();
+        if (rewardFieldsMemo == null || count != rewardFieldsCount) {
+            Set<String> fields = new LinkedHashSet<>();
+            for (ResourceLocation id : RewardTypes.ids()) {
+                fields.addAll(RewardTypes.fieldsOf(id));
+            }
+            rewardFieldsMemo = fields;
+            rewardFieldsCount = count;
         }
-        return fields;
+        return rewardFieldsMemo;
     }
+
+    /** What {@link #allRewardFields} was built from. See {@link #allTaskFields}. */
+    private static int rewardFieldsCount = -1;
+
+    /** The remembered union. See {@link #allTaskFields}. */
+    private static Set<String> rewardFieldsMemo;
 
     /**
      * Every condition type's own fields, for the fallback when a condition's type is unknown.
@@ -135,12 +162,23 @@ public final class QuestValidator {
      * reward unions give.
      */
     private static Set<String> allConditionFields() {
-        Set<String> fields = new LinkedHashSet<>();
-        for (ResourceLocation id : ConditionTypes.ids()) {
-            fields.addAll(ConditionTypes.fieldsOf(id));
+        int count = ConditionTypes.count();
+        if (conditionFieldsMemo == null || count != conditionFieldsCount) {
+            Set<String> fields = new LinkedHashSet<>();
+            for (ResourceLocation id : ConditionTypes.ids()) {
+                fields.addAll(ConditionTypes.fieldsOf(id));
+            }
+            conditionFieldsMemo = fields;
+            conditionFieldsCount = count;
         }
-        return fields;
+        return conditionFieldsMemo;
     }
+
+    /** What {@link #allConditionFields} was built from. See {@link #allTaskFields}. */
+    private static int conditionFieldsCount = -1;
+
+    /** The remembered union. See {@link #allTaskFields}. */
+    private static Set<String> conditionFieldsMemo;
 
     private QuestValidator() {
     }

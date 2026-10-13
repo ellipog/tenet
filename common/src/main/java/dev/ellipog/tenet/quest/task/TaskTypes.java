@@ -15,8 +15,10 @@ import dev.ellipog.tenet.quest.TaskCommon;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -604,9 +606,28 @@ public final class TaskTypes {
      */
     public static Optional<TaskBehaviour<QuestTask>> behaviourOf(QuestTask task) {
         if (task instanceof UnknownTask) {
-            return Optional.of(Unknown.BEHAVIOUR);
+            return UNKNOWN_BEHAVIOUR;
         }
-        return REGISTRY.get(task.type()).map(Entry::behaviour);
+        return BEHAVIOURS.computeIfAbsent(task.type(), TaskTypes::lookupBehaviour);
+    }
+
+    /** The unregistered answer, built once: these tasks are never satisfied and have no button. */
+    private static final Optional<TaskBehaviour<QuestTask>> UNKNOWN_BEHAVIOUR =
+            Optional.of(Unknown.BEHAVIOUR);
+
+    /**
+     * Behaviours by type id, remembered.
+     *
+     * <p>Sound without invalidation because the registry is append-only: registering the same id
+     * twice throws, so an id's behaviour cannot change under a remembered answer — and a type
+     * registered after the first lookup simply misses once and is kept.
+     */
+    private static final Map<ResourceLocation, Optional<TaskBehaviour<QuestTask>>> BEHAVIOURS =
+            new ConcurrentHashMap<>();
+
+    /** One registry read, for the miss half of {@link #behaviourOf}. */
+    private static Optional<TaskBehaviour<QuestTask>> lookupBehaviour(ResourceLocation id) {
+        return REGISTRY.get(id).map(Entry::behaviour);
     }
 
     /**

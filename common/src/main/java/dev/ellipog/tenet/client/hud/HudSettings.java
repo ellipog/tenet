@@ -95,11 +95,13 @@ public final class HudSettings {
     /**
      * Where it sits, as a position in the window.
      *
-     * <p>The stored coordinate, or the table's default when the player never moved it.
+     * <p>The stored coordinate, or the table's default when the player never moved it — shifted
+     * right for the book's button when FTB Library's sidebar crowds the corner. See
+     * {@link #effectiveDefaultX}.
      */
     public static int x(HudElement element) {
         Integer said = entry(element).x();
-        return said == null ? element.defaultX() : said;
+        return said == null ? effectiveDefaultX(element) : said;
     }
 
     /**
@@ -145,15 +147,53 @@ public final class HudSettings {
      * Remembers where an element was put and writes it.
      *
      * <p>Both coordinates together, because they are one decision: an element is somewhere, not at an x and
-     * separately at a y. Compared against the table's default, so putting it back where it shipped
-     * leaves no entry.
+     * separately at a y. Compared against the effective default, so putting it back where it shipped
+     * leaves no entry — whichever spot that is with FTB Library around.
      */
     public static void setPosition(HudElement element, int nextX, int nextY) {
         Entry before = entry(element);
         put(element, new Entry(
-                nextX == element.defaultX() ? null : nextX,
+                nextX == effectiveDefaultX(element) ? null : nextX,
                 nextY == element.defaultY() ? null : nextY,
                 before.on(), before.dim(), before.anchor()));
+    }
+
+    /**
+     * The x an element ships at: the table's, or one sidebar cell right of it for the book's
+     * button when FTB Library's sidebar crowds the corner.
+     *
+     * <p>That is the documented `(22, 2)`: the table says 2 and the sidebar cell is 20 wide.
+     * Derived rather than written out, so the table stays the single source of the default. A
+     * stored position always wins over both — see {@link #x} — so this only ever moves a button
+     * nobody placed, and removing FTB Library moves it back by itself.
+     *
+     * <p>Read once, because the mod list cannot move under a session: mods load at boot, never
+     * mid-game. Probed through the platform rather than named, so a session without FTB Library —
+     * a server, a unit test — loses nothing and pays one failed ask, once.
+     */
+    private static final int FTB_SIDEBAR_SHIFT = 20;
+
+    private static Boolean ftbSidebar;
+
+    private static int effectiveDefaultX(HudElement element) {
+        if (element == HudElement.INVENTORY_BUTTON && ftbSidebarPresent()) {
+            return element.defaultX() + FTB_SIDEBAR_SHIFT;
+        }
+        return element.defaultX();
+    }
+
+    private static boolean ftbSidebarPresent() {
+        if (ftbSidebar == null) {
+            boolean present;
+            try {
+                present = dev.ellipog.armature.api.ArmatureApi.platform().isModLoaded("ftblibrary");
+            }
+            catch (RuntimeException e) {
+                present = false;
+            }
+            ftbSidebar = present;
+        }
+        return ftbSidebar;
     }
 
     /**
@@ -391,6 +431,9 @@ public final class HudSettings {
     public static void reset() {
         entries = new EnumMap<>(HudElement.class);
         file = null;
+        // And the sidebar probe with them: a test that installed a platform harness must not decide
+        // the default for the next test, and a client coming back deserves a fresh ask either way.
+        ftbSidebar = null;
     }
 
     // ------------------------------------------------------------------

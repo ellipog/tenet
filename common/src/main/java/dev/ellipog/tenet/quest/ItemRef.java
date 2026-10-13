@@ -11,6 +11,9 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * A reference to an item and a count — <b>not</b> an {@link ItemStack}.
  *
@@ -98,6 +101,24 @@ public record ItemRef(ResourceLocation item, int count, DataComponentPatch compo
             stack.applyComponents(components);
         }
         return stack;
+    }
+
+    /**
+     * The stack this reference names, shared across callers that only read it.
+     *
+     * <p>For the measuring paths — counting an inventory against it, matching a slot against it,
+     * reading its size — which rebuild the same stack per evaluation for an answer that cannot
+     * move: the reference is immutable and the registries do not change while a client is
+     * connected. Callers that hand the stack over or mutate it keep using {@link #toStack},
+     * because a shared stack with one fewer log in it is a duplication bug with no stack trace.
+     *
+     * <p>Bounded by the pack rather than by a cap: one entry per distinct reference in the loaded
+     * files.
+     */
+    private static final Map<ItemRef, ItemStack> TEMPLATES = new ConcurrentHashMap<>();
+
+    public ItemStack template() {
+        return TEMPLATES.computeIfAbsent(this, ItemRef::toStack);
     }
 
     /** For messages: {@code minecraft:oak_log x8}, with the count omitted when it is one. */

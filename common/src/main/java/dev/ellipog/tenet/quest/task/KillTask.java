@@ -8,6 +8,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.QuestTask;
+import dev.ellipog.tenet.quest.TagKeys;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
@@ -18,12 +19,13 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -70,7 +72,7 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
     public boolean matches(LivingEntity killed) {
         boolean typeMatches;
         if (entityTypeTag().isPresent()) {
-            typeMatches = killed.getType().is(TagKey.create(Registries.ENTITY_TYPE, entityTypeTag().get()));
+            typeMatches = killed.getType().is(TagKeys.of(Registries.ENTITY_TYPE, entityTypeTag().get()));
         }
         else if (entity().isPresent()) {
             typeMatches = entity().get().equals(BuiltInRegistries.ENTITY_TYPE.getKey(killed.getType()));
@@ -92,20 +94,42 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
         }
 
         if (nbtFilter().isPresent()) {
-            try {
-                CompoundTag filter = TagParser.parseTag(nbtFilter().get());
-                CompoundTag actual = killed.saveWithoutId(new CompoundTag());
-                if (!NbtUtils.compareNbt(filter, actual, true)) {
-                    return false;
-                }
+            // The filter parsed once per distinct string rather than once per kill: the parse walks
+            // the filter's own grammar, and the string never changes under a loaded file. An empty
+            // answer matches nothing — the fail-closed fallback, decided here rather than per kill.
+            // Ordered before the save on purpose: a broken filter refuses without serialising the
+            // whole entity, which is kilobytes per kill the old order paid for nothing.
+            Optional<CompoundTag> filter = filterOf(nbtFilter().get());
+            if (filter.isEmpty()) {
+                return false;
             }
-            catch (CommandSyntaxException e) {
-                // A filter that does not parse matches nothing rather than everything -- a validator
-                // should have caught it at the file's line, and failing closed is the honest fallback.
+            CompoundTag actual = killed.saveWithoutId(new CompoundTag());
+            if (!NbtUtils.compareNbt(filter.get(), actual, true)) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Parsed NBT filters, by filter string. Absent means the filter does not parse, which matches
+     * nothing — see {@link #matches}.
+     *
+     * <p>Bounded by the pack rather than by a cap: one entry per distinct filter string in the
+     * loaded files, and tasks hold the strings, so nothing here can grow past what the files name.
+     */
+    private static final Map<String, Optional<CompoundTag>> FILTERS = new ConcurrentHashMap<>();
+
+    /** The parsed filter, remembered; empty when it does not parse. See {@link #matches}. */
+    private static Optional<CompoundTag> filterOf(String filter) {
+        return FILTERS.computeIfAbsent(filter, text -> {
+            try {
+                return Optional.of(TagParser.parseTag(text));
+            }
+            catch (CommandSyntaxException unparsable) {
+                return Optional.empty();
+            }
+        });
     }
 
     public static final TaskBehaviour<KillTask> BEHAVIOUR = new TaskBehaviour<>() {

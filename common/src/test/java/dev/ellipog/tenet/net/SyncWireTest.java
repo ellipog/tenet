@@ -405,4 +405,64 @@ class SyncWireTest {
         int second = SyncWire.newTransferId();
         assertFalse(first == second, "two transfers were given the same id");
     }
+
+    // ------------------------------------------------------------------
+    // The chapter replica's frame
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a framed replica splits back into its two texts, byte for byte")
+    void replicaFrameRoundTrips() {
+        String quests = "{\"a\": 1, \"snowman\": \"☃\"}";
+        String tree = "{\"title\": \"ü\"}";
+        byte[] framed = ChapterReplicaChunk.frame(quests.getBytes(StandardCharsets.UTF_8),
+                tree.getBytes(StandardCharsets.UTF_8));
+
+        ChapterReplicaChunk.Framed back = ChapterReplicaChunk.split(framed)
+                .orElseThrow(() -> new AssertionError("a frame this side built must split"));
+        assertEquals(quests, back.quests());
+        assertEquals(tree, back.chapterTree());
+    }
+
+    @Test
+    @DisplayName("a corrupt frame is empty, not an exception and not half a chapter")
+    void corruptFrameIsEmpty() {
+        assertTrue(ChapterReplicaChunk.split(new byte[0]).isEmpty(), "no length prefix");
+        assertTrue(ChapterReplicaChunk.split(new byte[] {0, 0}).isEmpty(), "a short prefix");
+        assertTrue(ChapterReplicaChunk.split(new byte[] {0, 0, 0, 10, 1, 2}).isEmpty(),
+                "a length longer than the frame");
+        assertTrue(ChapterReplicaChunk.split(new byte[] {(byte) 0xFF, 0, 0, 0, 1, 2}).isEmpty(),
+                "a negative length");
+    }
+
+    @Test
+    @DisplayName("a replica survives pack, chunk, reassembly and unpack, like the wire does it")
+    void replicaSurvivesTheWire() {
+        // The overflow path end to end, headless: frame, deflate, cut, reassemble out of order,
+        // inflate, split. What the server sends and what the client accepts, with no network.
+        String quests = "{\"quests\": [" + "\"quest\", ".repeat(500) + "\"quest\"]}";
+        String tree = "{\"title\": \"big\"}";
+        byte[] framed = ChapterReplicaChunk.frame(quests.getBytes(StandardCharsets.UTF_8),
+                tree.getBytes(StandardCharsets.UTF_8));
+        List<byte[]> parts = SyncWire.chunk(SyncWire.pack(framed));
+
+        SyncWire.Reassembler reassembler = new SyncWire.Reassembler();
+        int transferId = SyncWire.newTransferId();
+        byte[] whole = null;
+        // Back to front, because the transport may reorder and the test should prove it survives.
+        for (int i = parts.size() - 1; i >= 0; i--) {
+            byte[] done = reassembler.accept(
+                    new SyncChunk(transferId, i, parts.size(), true), parts.get(i));
+            if (done != null) {
+                assertNull(whole, "completed twice");
+                whole = done;
+            }
+        }
+        assertNotNull(whole, "all chunks offered and nothing completed");
+
+        ChapterReplicaChunk.Framed back = ChapterReplicaChunk.split(SyncWire.unpack(whole))
+                .orElseThrow(() -> new AssertionError("a packed frame must split"));
+        assertEquals(quests, back.quests());
+        assertEquals(tree, back.chapterTree());
+    }
 }

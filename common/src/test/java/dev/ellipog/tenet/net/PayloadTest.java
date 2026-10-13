@@ -116,6 +116,7 @@ class PayloadTest {
         // and colon checks the moment it is declared. Only this one, which names them, has to be told.
         assertEquals(List.of(
                 "tenet:chapter_replica",
+                "tenet:chapter_replica_chunk",
                 "tenet:choice_reward",
                 "tenet:claim_all",
                 "tenet:claim_chapter",

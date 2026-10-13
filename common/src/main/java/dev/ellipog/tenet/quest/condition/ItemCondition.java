@@ -40,7 +40,8 @@ public record ItemCondition(ItemRef item, ComponentMatch match) implements Quest
     }
 
     public static final ConditionBehaviour<ItemCondition> BEHAVIOUR = (condition, context) -> {
-        int have = ItemCounting.countIn(context.player().getInventory(), condition.item().toStack(),
+        // The shared template: counting reads it, so the per-member per-task rebuild goes away.
+        int have = ItemCounting.countIn(context.player().getInventory(), condition.item().template(),
                 condition.match(), condition.item().count());
         return have >= condition.item().count();
     };

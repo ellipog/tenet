@@ -6,13 +6,13 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.RegistryRef;
+import dev.ellipog.tenet.quest.TagKeys;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.levelgen.structure.Structure;
 
 import java.util.Set;
@@ -61,7 +61,7 @@ public record StructureTask(TaskCommon common, RegistryRef structure) implements
             for (Structure structure : containing.keySet()) {
                 boolean found = task.structure().tag()
                         ? registry.wrapAsHolder(structure)
-                                .is(TagKey.create(Registries.STRUCTURE, task.structure().id()))
+                                .is(TagKeys.of(Registries.STRUCTURE, task.structure().id()))
                         : task.structure().id().equals(registry.getKey(structure));
                 if (found) {
                     return 1;

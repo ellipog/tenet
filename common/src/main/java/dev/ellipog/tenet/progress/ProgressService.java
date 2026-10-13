@@ -43,7 +43,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -52,6 +51,7 @@ import java.util.TreeMap;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Everything that changes quest progress.
@@ -183,9 +183,28 @@ public final class ProgressService {
         return keyOf(quest.id(), taskIndex);
     }
 
-    /** The same key, from a quest's id, for a caller that has no {@code Quest} to hand. */
+    /**
+     * The same key, from a quest's id, for a caller that has no {@code Quest} to hand.
+     *
+     * <p>Remembered rather than rebuilt: the key is asked per task per team per tick whether the
+     * task is due or not, and a quest id plus an index spell exactly one string. Bounded by the
+     * pack rather than by a cap — one entry per quest task the files name.
+     */
+    private static final Map<String, Map<Integer, String>> TASK_KEYS = new ConcurrentHashMap<>();
+
     private static String keyOf(String questId, int taskIndex) {
-        return questId + "#" + taskIndex;
+        Map<Integer, String> perQuest = TASK_KEYS.get(questId);
+        String key = perQuest == null ? null : perQuest.get(taskIndex);
+        if (key != null) {
+            return key;
+        }
+        return buildKey(questId, taskIndex);
+    }
+
+    /** The miss half of {@link #keyOf}, synchronised so two teams cannot build it twice. */
+    private static synchronized String buildKey(String questId, int taskIndex) {
+        return TASK_KEYS.computeIfAbsent(questId, id -> new ConcurrentHashMap<>())
+                .computeIfAbsent(taskIndex, i -> questId + "#" + i);
     }
 
     /**
@@ -438,6 +457,10 @@ public final class ProgressService {
 
         Map<QuestIndex.QuestEntry, QuestProgress> touched = new LinkedHashMap<>();
         boolean changed = false;
+        // One context for the whole event rather than one per site: the killer, the server and the
+        // owner cannot move between sites of the same death, so per-site contexts were one
+        // allocation per task for an identical answer.
+        ConditionContext death = new ConditionContext(killer, server, owner);
         for (KillSite site : sites) {
             Quest quest = site.entry().quest();
             if (!resolution.stateOf(quest).isPlayable()) {
@@ -450,8 +473,7 @@ public final class ProgressService {
             // At event time, which is the only moment the kill is real: a condition that was unmet
             // when the mob died cannot be satisfied afterwards, so this is a gate on the act rather
             // than on a later tally.
-            if (!Conditions.passes(site.task().common().conditions(),
-                    new ConditionContext(killer, server, owner))) {
+            if (!Conditions.passes(site.task().common().conditions(), death)) {
                 continue;
             }
             int delta = KillTask.BEHAVIOUR.onEntityDeath(site.task(), killer, entity);
@@ -546,6 +568,9 @@ public final class ProgressService {
 
         Map<QuestIndex.QuestEntry, QuestProgress> touched = new LinkedHashMap<>();
         boolean changed = false;
+        // One context for the whole event, like the death path beside it: the player, the server
+        // and the owner are fixed for the break.
+        ConditionContext broke = new ConditionContext(player, server, owner);
         for (BreakSite site : sites) {
             Quest quest = site.entry().quest();
             if (!resolution.stateOf(quest).isPlayable()) {
@@ -558,8 +583,7 @@ public final class ProgressService {
             // At event time, which is the only moment the break is real: a condition that was unmet
             // when the block broke cannot be satisfied afterwards, so this is a gate on the act rather
             // than on a later tally.
-            if (!Conditions.passes(site.task().common().conditions(),
-                    new ConditionContext(player, server, owner))) {
+            if (!Conditions.passes(site.task().common().conditions(), broke)) {
                 continue;
             }
             int delta = BreakTask.BEHAVIOUR.onBlockBroken(site.task(), player, state);
@@ -643,6 +667,11 @@ public final class ProgressService {
         // never in force for all of it.
         PartyMode mode = PartyStore.of(server).modeOf(owner);
         int ownerIndex = indexOfMember(members, team.owner());
+
+        // One question per member for the whole pass, reused across tasks: the subjects, the
+        // index and the tick cannot move between tasks of one evaluation, so per-task contexts
+        // were two allocations per member per task for identical answers. See asksFor.
+        MemberAsks asks = asksFor(server, owner, members, index, now);
 
         // Whether anything moved, for the caller's return value and for the write below.
         //
@@ -756,12 +785,15 @@ public final class ProgressService {
                 // press that pays for a waiting task has to ask the same question. See `submit`.
                 PartyCounts counts;
                 if (behaviour.get().manualOnly(task)) {
-                    counts = new PartyCounts(List.of(), new java.util.ArrayList<>(
-                            java.util.Collections.nCopies(members.size(), 0)));
+                    // Zeros stand in for the asking, so the tick publishes zero and records nothing.
+                    // The view is already a list, so it is passed as is rather than copied through a
+                    // second one: nothing here writes to it, and the copy was one allocation per task
+                    // per team per tick for the same zeros.
+                    counts = new PartyCounts(List.of(), java.util.Collections.nCopies(members.size(), 0));
                 }
                 else {
-                    counts = countMembers(index, server, owner, members, task,
-                            behaviour.get(), now);
+                    counts = countMembers(index, server, owner, members,
+                            asks, task, behaviour.get(), now);
                 }
                 List<Integer> perMember = counts.perMember();
 
@@ -882,7 +914,8 @@ public final class ProgressService {
             // refusal happens, rather than dropping it on the floor.
             if (ProgressionEngine.tasksSatisfied(quest, questProgress) && canComplete(quest, working)
                     && gateOpenForFlexible(index, entry, quest, resolution.states())) {
-                working = complete(server, owner, earner, entry, working.put(quest, questProgress));
+                working = complete(server, owner, earner, entry, working.put(quest, questProgress),
+                        resolution.states());
                 changed = true;
             }
             else if (!questProgress.equals(working.progressOf(quest))) {
@@ -935,6 +968,26 @@ public final class ProgressService {
                                         ServerPlayer player,
                                         QuestIndex.QuestEntry entry,
                                         TeamProgress progress) {
+        return complete(server, owner, player, entry, progress, null);
+    }
+
+    /**
+     * The same, judging the flexible gate against states the caller already holds.
+     *
+     * <p>For the tick, which resolved the pass a moment ago: re-resolving inside would be a second
+     * full evaluation for an answer that cannot differ — the gate reads other quests' states, and
+     * states only ever move toward satisfied within a pass, so a gate the pass left open is open
+     * here too. Commands, submits and events pass nothing and judge a fresh resolution, exactly as
+     * before.
+     *
+     * @param passStates the pass's resolved states, or null to resolve fresh
+     */
+    private static TeamProgress complete(MinecraftServer server,
+                                         UUID owner,
+                                         ServerPlayer player,
+                                         QuestIndex.QuestEntry entry,
+                                         TeamProgress progress,
+                                         Map<String, QuestState> passStates) {
         Quest quest = entry.quest();
         QuestProgress current = progress.progressOf(quest);
 
@@ -954,9 +1007,10 @@ public final class ProgressService {
         // a pass's states. The tick's own check above already answered for the pass it holds; this
         // is what stops a submit or a kill from finishing a flexible quest whose gate is still shut.
         long now = server.overworld().getGameTime();
+        Map<String, QuestState> states = passStates != null ? passStates
+                : ProgressionEngine.resolve(TenetQuests.index(), progress, now).states();
         if (ProgressionEngine.isFlexible(quest, entry.chapter())
-                && !ProgressionEngine.dependenciesSatisfied(TenetQuests.index(), entry,
-                        ProgressionEngine.resolve(TenetQuests.index(), progress, now).states())) {
+                && !ProgressionEngine.dependenciesSatisfied(TenetQuests.index(), entry, states)) {
             return progress;
         }
 
@@ -1082,6 +1136,12 @@ public final class ProgressService {
             return List.of();
         }
         List<Grant> grants = new ArrayList<>();
+        // One context per member for the whole grant pass rather than one per reward per member:
+        // the subject, the server and the owner cannot move between rewards of one completion.
+        Map<ServerPlayer, ConditionContext> contexts = new LinkedHashMap<>();
+        for (ServerPlayer member : members) {
+            contexts.put(member, new ConditionContext(member, server, owner));
+        }
         for (int index = 0; index < quest.rewards().size(); index++) {
             QuestReward reward = quest.rewards().get(index);
             if (isBlocked(team, quest, reward) || !reward.autoGrantable()) {
@@ -1102,7 +1162,8 @@ public final class ProgressService {
                 if (!current.claims().team().contains(index)
                         && stageGateOpen(server, quest, completer.getUUID())
                         && Conditions.passes(reward.common().conditions(),
-                                new ConditionContext(completer, server, owner))) {
+                                contexts.computeIfAbsent(completer,
+                                        late -> new ConditionContext(late, server, owner)))) {
                     grants.add(new Grant(index, completer, true));
                 }
             }
@@ -1111,7 +1172,7 @@ public final class ProgressService {
                     if (!current.claims().claimed(member.getUUID(), index, false)
                             && stageGateOpen(server, quest, member.getUUID())
                             && Conditions.passes(reward.common().conditions(),
-                                    new ConditionContext(member, server, owner))) {
+                                    contexts.get(member))) {
                         grants.add(new Grant(index, member, false));
                     }
                 }
@@ -1208,15 +1269,23 @@ public final class ProgressService {
         if (server == null) {
             return java.util.Set.of();
         }
-        java.util.Set<net.minecraft.resources.ResourceLocation> held = StageService.list(server,
-                player.getUUID());
-        java.util.Set<net.minecraft.resources.ResourceLocation> teamHeld = StageService.listTeam(server,
-                progressOwner(server, player));
+        // Asked per quest rather than copied per send: the held sets were built whole and then
+        // probed once per gated quest, so a pack with a handful of gates paid for every stage ever
+        // granted. A miss reads as locked, exactly as the set-membership form answered — a stage
+        // neither the player nor (for a team gate) the team holds is not held.
+        java.util.UUID self = player.getUUID();
+        java.util.UUID team = progressOwner(server, player);
         java.util.Set<String> locked = new java.util.LinkedHashSet<>();
         for (QuestIndex.QuestEntry entry : index.quests()) {
             Quest quest = entry.quest();
-            if (quest.requiresStage().isPresent()
-                    && !(quest.requiresStageTeam() ? teamHeld : held).contains(quest.requiresStage().get())) {
+            if (quest.requiresStage().isEmpty()) {
+                continue;
+            }
+            net.minecraft.resources.ResourceLocation stage = quest.requiresStage().get();
+            boolean held = quest.requiresStageTeam()
+                    ? StageService.hasTeam(server, team, stage)
+                    : StageService.has(server, self, stage);
+            if (!held) {
                 locked.add(quest.id());
             }
         }
@@ -1341,6 +1410,9 @@ public final class ProgressService {
         List<Integer> offers = new ArrayList<>();
         boolean sawBlocked = false;
         boolean sawLocked = false;
+        // One context for the press rather than one per reward: the player, the server and the
+        // owner cannot move between rewards of one plan.
+        ConditionContext context = new ConditionContext(player, server, owner);
         for (int index = 0; index < quest.rewards().size(); index++) {
             if (onlyIndex >= 0 && index != onlyIndex) {
                 // Somebody else's row. Skipped before every check, so a reward this press is not about
@@ -1361,8 +1433,7 @@ public final class ProgressService {
             // both build the same plan and both refuse a row whose conditions are unmet, and the refusal
             // is a message rather than a silent no-op. Nothing is marked, so the reward stays outstanding
             // and is paid the moment the conditions hold.
-            if (!Conditions.passes(reward.common().conditions(),
-                    new ConditionContext(player, server, owner))) {
+            if (!Conditions.passes(reward.common().conditions(), context)) {
                 sawLocked = true;
                 continue;
             }
@@ -2208,7 +2279,8 @@ public final class ProgressService {
             }
             PartyMode mode = PartyStore.of(server).modeOf(owner);
             int ownerIndex = indexOfMember(members, team.owner());
-            PartyCounts counts = countMembers(TenetQuests.index(), server, owner, members, task,
+            PartyCounts counts = countMembers(TenetQuests.index(), server, owner, members,
+                    asksFor(server, owner, members, TenetQuests.index(), now), task,
                     behaviour.get(), now);
             PartyMode.Tally tally = mode.combine(counts.perMember(), ownerIndex);
             if (tally.counted() < required) {
@@ -2365,7 +2437,11 @@ public final class ProgressService {
      */
     private static List<ServerPlayer> onlineMembersOf(MinecraftServer server, Team team) {
         List<UUID> ids = new ArrayList<>(team.memberIds());
-        ids.sort(Comparator.comparing(UUID::toString));
+        // Natural UUID order rather than lexicographic-string order: the sort is load-bearing for
+        // stability (who counts as "first" must not wander), and the spelling is not — so the
+        // thirty-six characters per comparison go away while the stability stays. Indexes built
+        // from this order are per-pass and never persisted, so no stored data depends on it.
+        ids.sort(UUID::compareTo);
 
         List<ServerPlayer> online = new ArrayList<>(ids.size());
         for (UUID member : ids) {
@@ -2500,26 +2576,48 @@ public final class ProgressService {
      *              snapshot of the pack.
      */
     private static PartyCounts countMembers(QuestIndex index, MinecraftServer server, UUID owner,
-                                            List<ServerPlayer> members, QuestTask task,
+                                            List<ServerPlayer> members, MemberAsks asks,
+                                            QuestTask task,
                                             dev.ellipog.tenet.quest.task.TaskBehaviour<QuestTask> behaviour,
                                             long now) {
         List<Integer> perMember = new ArrayList<>(members.size());
         List<ServerPlayer> contributors = new ArrayList<>(members.size());
-        for (ServerPlayer member : members) {
-            // The member count travels with the context: every member here is online in the same
-            // team, so the list's own size is each member's party-size answer — no team resolve and
-            // no player-list scan per member per gated task. Sound because this loop cannot see a
-            // join or a leave: it runs straight through on one thread, and the walk it walks is the
-            // count it carries.
-            if (!Conditions.passes(task.common().conditions(),
-                    new ConditionContext(member, server, owner, members.size()))) {
+        for (int m = 0; m < members.size(); m++) {
+            ServerPlayer member = members.get(m);
+            if (!Conditions.passes(task.common().conditions(), asks.conditions().get(m))) {
                 perMember.add(0);
                 continue;
             }
             contributors.add(member);
-            perMember.add(behaviour.current(task, new TaskContext(member, index, now)));
+            perMember.add(behaviour.current(task, asks.tasks().get(m)));
         }
         return new PartyCounts(contributors, perMember);
+    }
+
+    /** One pass's per-member questions, in member order. See {@link #asksFor}. */
+    private record MemberAsks(List<ConditionContext> conditions,
+                              List<TaskContext> tasks) {
+    }
+
+    /**
+     * One condition context and one task context per member, built once per pass and reused
+     * across tasks.
+     *
+     * <p>The subject, the server, the owner, the index and the tick are the same for every task a
+     * pass asks about, so per-task contexts were two allocations per member per task for identical
+     * answers — and the held member count travels with the condition half, which is what makes
+     * the party-size gate free on the same pass. See the count call for why the held count is
+     * exact.
+     */
+    private static MemberAsks asksFor(MinecraftServer server, UUID owner, List<ServerPlayer> members,
+                                      QuestIndex index, long now) {
+        List<ConditionContext> conditions = new ArrayList<>(members.size());
+        List<TaskContext> tasks = new ArrayList<>(members.size());
+        for (ServerPlayer member : members) {
+            conditions.add(new ConditionContext(member, server, owner, members.size()));
+            tasks.add(new TaskContext(member, index, now));
+        }
+        return new MemberAsks(List.copyOf(conditions), List.copyOf(tasks));
     }
 
     /** The two lists {@link #countMembers} produces: who is counted, and what each one holds. */

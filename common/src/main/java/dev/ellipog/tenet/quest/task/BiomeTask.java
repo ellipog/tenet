@@ -6,13 +6,13 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.RegistryRef;
+import dev.ellipog.tenet.quest.TagKeys;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.biome.Biome;
 
 import java.util.Set;
@@ -45,7 +45,7 @@ public record BiomeTask(TaskCommon common, RegistryRef biome) implements QuestTa
     /** Whether a biome holder is the one named, or a member of the tag named. */
     public static boolean matches(Holder<Biome> holder, RegistryRef wanted) {
         if (wanted.tag()) {
-            return holder.is(TagKey.create(Registries.BIOME, wanted.id()));
+            return holder.is(TagKeys.of(Registries.BIOME, wanted.id()));
         }
         return holder.unwrapKey().map(key -> key.location().equals(wanted.id())).orElse(false);
     }

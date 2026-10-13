@@ -60,13 +60,14 @@ public record AdvancementTask(TaskCommon common, ResourceLocation advancement, O
             AdvancementProgress progress = context.player().getAdvancements().getOrStartProgress(holder);
             // Null-checked in vanilla's own way: `getCriterion` returns null for a name this
             // advancement does not declare, which the validator has no way to know about, so a typo
-            // used to dereference here rather than read as "not done".
-            return task.criterion()
-                    .map(name -> {
-                        var criterion = progress.getCriterion(name);
-                        return criterion != null && criterion.isDone();
-                    })
-                    .orElseGet(progress::isDone) ? 1 : 0;
+            // used to dereference here rather than read as "not done". Plain branches rather than
+            // the mapped lambda: one fewer allocation per evaluation for the same answers, typo
+            // included.
+            if (task.criterion().isPresent()) {
+                var criterion = progress.getCriterion(task.criterion().get());
+                return criterion != null && criterion.isDone() ? 1 : 0;
+            }
+            return progress.isDone() ? 1 : 0;
         }
 
         @Override

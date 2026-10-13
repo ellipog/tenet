@@ -397,7 +397,11 @@ public final class TableEditor {
      */
     private boolean push() {
         if (chapter != null) {
-            chapter.pushHistory();
+            JsonFile file = file();
+            if (file == null) {
+                return false;
+            }
+            chapter.pushHistory(file);
             return true;
         }
         JsonFile file = file();
@@ -406,9 +410,18 @@ public final class TableEditor {
         }
         undo.push(file.json());
         // The chapter's depth, from the one place it is written: a named table remembers as many
-        // steps as a chapter, and an inline table is on the chapter's own stack above.
+        // steps as a chapter, and an inline table is on the chapter's own stack above. The byte
+        // cap with it, for the same reason the chapter has one: a table of huge entries would
+        // otherwise keep sixty whole copies of itself. Small tables never reach it.
         while (undo.size() > QuestEditor.HISTORY) {
             undo.removeLast();
+        }
+        long bytes = 0;
+        for (String text : undo) {
+            bytes += text.length();
+        }
+        while (undo.size() > 1 && bytes > QuestEditor.HISTORY_BYTES) {
+            bytes -= undo.removeLast().length();
         }
         redo.clear();
         return true;

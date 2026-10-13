@@ -1334,8 +1334,9 @@ public final class QuestSync {
         // Which quests an exclusive choice has shut out for good, decided once per message rather
         // than once per quest: the engine's own first pass over stored progress, which is also
         // what the resolver reads — so the mark and the LOCKED state cannot disagree. See
-        // `ProgressionEngine.excludedIds`.
-        java.util.Set<String> excluded = ProgressionEngine.excludedIds(index, progress);
+        // `ProgressionEngine.excludedIds`. Read off the resolution, which carried it from the
+        // same pass, rather than re-derived per message.
+        java.util.Set<String> excluded = resolution.excluded();
 
         for (QuestIndex.QuestEntry entry : index.quests()) {
             Quest quest = entry.quest();

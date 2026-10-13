@@ -6,6 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.QuestTask;
+import dev.ellipog.tenet.quest.TagKeys;
 import dev.ellipog.tenet.quest.TagLabels;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
@@ -80,7 +81,7 @@ public record ItemTagTask(TaskCommon common, ResourceLocation tag, int count,
                 // item task's own flag, with the same difference from the legacy format.
                 int crafted = 0;
                 for (var holder : net.minecraft.core.registries.BuiltInRegistries.ITEM
-                        .getTagOrEmpty(TagKey.create(Registries.ITEM, task.tag()))) {
+                        .getTagOrEmpty(TagKeys.of(Registries.ITEM, task.tag()))) {
                     crafted += context.player().getStats().getValue(
                             net.minecraft.stats.Stats.ITEM_CRAFTED.get(holder.value()));
                     if (crafted >= task.count()) {
@@ -89,7 +90,7 @@ public record ItemTagTask(TaskCommon common, ResourceLocation tag, int count,
                 }
                 return Math.min(task.count(), crafted);
             }
-            TagKey<Item> tag = TagKey.create(Registries.ITEM, task.tag());
+            TagKey<Item> tag = TagKeys.of(Registries.ITEM, task.tag());
             return ItemCounting.countIn(context.player().getInventory(), tag, task.count());
         }
 
@@ -122,7 +123,7 @@ public record ItemTagTask(TaskCommon common, ResourceLocation tag, int count,
 
         @Override
         public int take(ItemTagTask task, ServerPlayer player, int count) {
-            TagKey<Item> tag = TagKey.create(Registries.ITEM, task.tag());
+            TagKey<Item> tag = TagKeys.of(Registries.ITEM, task.tag());
             int remaining = count;
             var inventory = player.getInventory();
             for (int slot = 0; slot < inventory.getContainerSize() && remaining > 0; slot++) {

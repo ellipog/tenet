@@ -48,7 +48,8 @@ public final class ProgressionEngine {
     /** State of every quest, keyed by the quest's own id. */
     public record Resolution(Map<String, QuestState> states,
                              Map<String, QuestState> chapterStates,
-                             Map<String, Long> cooldownRemaining) {
+                             Map<String, Long> cooldownRemaining,
+                             Set<String> excluded) {
 
         public QuestState stateOf(Quest quest) {
             return states.getOrDefault(quest.id(), QuestState.LOCKED);
@@ -178,7 +179,8 @@ public final class ProgressionEngine {
                     cappedOut, positionInChapter, chapterStates, new ArrayDeque<>());
         }
 
-        return new Resolution(states, chapterStates, cooldowns);
+        return new Resolution(states, chapterStates, cooldowns,
+                excludedIds(index, progress, takenExclusiveGroups, cappedOut));
     }
 
     /**
@@ -498,8 +500,20 @@ public final class ProgressionEngine {
                 taken.add(exclusiveKey(entry.chapterId(), group.get()));
             }
         }
+        return excludedIds(index, progress, taken, cappedDependents(index, progress));
+    }
 
-        Set<String> excluded = new HashSet<>(cappedDependents(index, progress));
+    /**
+     * The same answer from already-decided sets, for the resolver to carry on its resolution.
+     *
+     * <p>The sync reads the excluded mark once per progress message, and re-deriving the taken
+     * groups and the dependent caps per message is two walks the resolver has already walked for
+     * the same states. Same rule, same sets — the mark and the LOCKED state cannot disagree
+     * because they come from one pass.
+     */
+    private static Set<String> excludedIds(QuestIndex index, TeamProgress progress,
+                                           Set<String> taken, Set<String> capped) {
+        Set<String> excluded = new HashSet<>(capped);
         for (QuestIndex.QuestEntry entry : index.quests()) {
             Quest quest = entry.quest();
             Optional<String> group = quest.exclusiveGroup();

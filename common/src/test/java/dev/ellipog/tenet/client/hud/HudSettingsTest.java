@@ -312,4 +312,19 @@ class HudSettingsTest {
                 "and the anchor nobody here defines reads as the default");
         assertEquals(1, HudSettings.changed().size(), "with the entry kept, not dropped");
     }
+
+    @Test
+    @DisplayName("without FTB Library the button ships at the table's corner")
+    void noFtbLibraryMeansTableDefault() {
+        // No platform in a test JVM, so the sidebar probe answers absent: the effective default
+        // is the table's, and a stored position would still win over both. The FTB-present branch
+        // cannot run headless -- it needs a loader answering for the mod -- so what is pinned
+        // here is that absence changes nothing, and reset() re-arms the probe for the next test.
+        assertEquals(HudElement.INVENTORY_BUTTON.defaultX(),
+                HudSettings.x(HudElement.INVENTORY_BUTTON));
+        HudSettings.setPosition(HudElement.INVENTORY_BUTTON,
+                HudElement.INVENTORY_BUTTON.defaultX(), HudElement.INVENTORY_BUTTON.defaultY());
+        assertTrue(HudSettings.changed().isEmpty(),
+                "back at the effective default leaves no entry, as before");
+    }
 }

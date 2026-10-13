@@ -393,9 +393,18 @@ public final class TenetQuests {
         var problems = result.problems();
 
         if (!problems.isEmpty()) {
-            Constants.LOG.warn("{} problem(s) in the quest files:", problems.all().size());
-            for (DataProblem problem : problems.all()) {
-                Constants.LOG.warn("  {}", problem.render());
+            // Capped like the tree dump below it: a broken pack can carry thousands of problems,
+            // and every one at its own warn line is a log nobody scrolls. The shown messages are
+            // exact; the count says how many more there are, and the full report still reaches
+            // players through the problems sync.
+            java.util.List<DataProblem> all = problems.all();
+            Constants.LOG.warn("{} problem(s) in the quest files:", all.size());
+            int shown = Math.min(all.size(), TREE_LOG_BUDGET);
+            for (int i = 0; i < shown; i++) {
+                Constants.LOG.warn("  {}", all.get(i).render());
+            }
+            if (shown < all.size()) {
+                Constants.LOG.warn("  ... and {} more problem(s) not shown here", all.size() - shown);
             }
         }
 

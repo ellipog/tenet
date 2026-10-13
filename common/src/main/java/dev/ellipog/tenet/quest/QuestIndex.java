@@ -1024,12 +1024,22 @@ public final class QuestIndex {
      *
      * <p>Answered with a canonical id rather than the table key: keys are lowercased, and a
      * suggestion should spell the name the way its file does.
+     *
+     * <p>The length check skips candidates that cannot win: an edit distance is never less than
+     * the lengths' difference, so a candidate that far away cannot beat the best so far. Same
+     * answer, fewer dynamic-programming tables — and the miss is folded once rather than per
+     * candidate, for the same reason.
      */
     private Optional<String> nearestIdentifier(String missed) {
+        String want = key(missed);
         String best = null;
         int bestDistance = 3;
         for (QuestEntry entry : quests) {
-            int distance = editDistance(key(missed), key(entry.quest().id()));
+            String have = key(entry.quest().id());
+            if (Math.abs(want.length() - have.length()) >= bestDistance) {
+                continue;
+            }
+            int distance = editDistance(want, have);
             if (distance < bestDistance) {
                 bestDistance = distance;
                 best = entry.quest().id();
@@ -1044,12 +1054,20 @@ public final class QuestIndex {
      * <p>Parameterised by the names rather than by the table because a chapter reference needs the
      * suggestion as much as a quest one does — the two tables hold different things and the same
      * arithmetic — and a second copy of this loop is a second answer to "which name did they mean".
+     *
+     * <p>Same length-difference skip as {@link #nearestIdentifier}: identical suggestions, fewer
+     * tables. Only broken packs reach here — a resolved reference never asks — so this is load
+     * hygiene for the error path rather than a hot loop.
      */
     private static Optional<String> nearest(java.util.Collection<String> names, String missed) {
+        String want = missed.toLowerCase(Locale.ROOT);
         String best = null;
         int bestDistance = 3;
         for (String candidate : names) {
-            int distance = editDistance(missed.toLowerCase(Locale.ROOT), candidate.toLowerCase(Locale.ROOT));
+            if (Math.abs(want.length() - candidate.length()) >= bestDistance) {
+                continue;
+            }
+            int distance = editDistance(want, candidate.toLowerCase(Locale.ROOT));
             if (distance < bestDistance) {
                 bestDistance = distance;
                 best = candidate;

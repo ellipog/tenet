@@ -24,10 +24,12 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * One chapter of quest files, open for editing.
@@ -84,6 +86,16 @@ public final class QuestEditor {
      * it. An inline table is on this stack already, so there is nothing for it to keep of its own.
      */
     static final int HISTORY = 60;
+
+    /**
+     * How many snapshot characters one chapter's undo trail holds before the oldest steps go.
+     *
+     * <p>Alongside {@link #HISTORY} rather than instead of it: sixty narrowed steps are kilobytes,
+     * so small chapters keep all sixty and only a chapter of huge files ever meets this cap. Six
+     * million characters is roughly what sixty whole snapshots of a fifty-quest chapter used to
+     * cost — the size this change stops paying — so the cap bites where the old shape hurt.
+     */
+    static final long HISTORY_BYTES = 6_000_000L;
 
     private final Path root;
     private final Path folder;
@@ -168,15 +180,17 @@ public final class QuestEditor {
      * aside, in the entry that reverses it, and {@link #restore} moves only a copy its own entry made. An
      * entry with none (a field edit, a create) writes the text it holds and leaves every tombstone alone.
      *
-     * @param files  the chapter's files as text, which is what an undo has to put back
+     * @param files  the touched files as text, which is what an undo has to put back. Only what
+     *               the op changed: every other file is already as it was, so storing it again is
+     *               one serialisation per untouched file per op. See {@link #snapshotFiles}.
+     * @param known  every file the chapter held when the entry was taken, touched or not. What tells
+     *               an undone create apart from a file this entry simply does not cover: the first is
+     *               in the model but not here, and goes aside again. Without it a narrowed entry would
+     *               set aside every file it did not record.
      * @param asides file → the path it was set aside as, for the deletes this entry reverses
      */
-    private record Snapshot(Map<Path, String> files, Map<Path, Path> asides) implements History {
-
-        /** The ordinary case: nothing was set aside, so an undo has only text to put back. */
-        Snapshot(Map<Path, String> files) {
-            this(files, Map.of());
-        }
+    private record Snapshot(Map<Path, String> files, Set<Path> known, Map<Path, Path> asides)
+            implements History {
     }
 
     /** A structural edit, with the steps that reverse it. */
@@ -474,7 +488,7 @@ public final class QuestEditor {
         if (quest == null || path == null || path.isBlank()) {
             return false;
         }
-        push();
+        push(quest);
         try {
             switch (value) {
                 case String text -> quest.setText(path, text);
@@ -542,7 +556,7 @@ public final class QuestEditor {
         if (path == null || path.isBlank()) {
             return false;
         }
-        push();
+        push(manifest);
         try {
             switch (value) {
                 case String text -> manifest.setText(path, text);
@@ -587,7 +601,7 @@ public final class QuestEditor {
         if (tree == null) {
             return false;
         }
-        push();
+        push(manifest);
         try {
             JsonObject placed = tree.deepCopy();
             String wanted = placed.has("id") && placed.get("id").isJsonPrimitive()
@@ -616,7 +630,7 @@ public final class QuestEditor {
         if (at < 0) {
             return false;
         }
-        push();
+        push(manifest);
         try {
             if (!manifest.removeIndex("elements", at)) {
                 undo.pop();
@@ -644,7 +658,7 @@ public final class QuestEditor {
         if (at < 0 || path == null || path.isBlank()) {
             return false;
         }
-        push();
+        push(manifest);
         try {
             // Dotted rather than bracketed: this file's paths spell an array position as a step, which is
             // what `tasks.1` already does everywhere else in the editor.
@@ -711,7 +725,7 @@ public final class QuestEditor {
         if (tree == null) {
             return false;
         }
-        push();
+        push(manifest);
         try {
             JsonObject placed = tree.deepCopy();
             String wanted = placed.has("id") && placed.get("id").isJsonPrimitive()
@@ -739,7 +753,7 @@ public final class QuestEditor {
         if (at < 0) {
             return false;
         }
-        push();
+        push(manifest);
         try {
             if (!manifest.removeIndex("links", at)) {
                 undo.pop();
@@ -768,7 +782,7 @@ public final class QuestEditor {
         if (at < 0 || path == null || path.isBlank()) {
             return false;
         }
-        push();
+        push(manifest);
         try {
             // Dotted rather than bracketed: this file's paths spell an array position as a step, which is
             // what `tasks.1` already does everywhere else in the editor.
@@ -878,7 +892,7 @@ public final class QuestEditor {
         if (group == null || path == null || path.isBlank()) {
             return false;
         }
-        push();
+        push(group);
         try {
             switch (value) {
                 case String text -> group.setText(path, text);
@@ -919,7 +933,7 @@ public final class QuestEditor {
         if (quest == null || entry == null) {
             return false;
         }
-        push();
+        push(quest);
         try {
             quest.insert(path, index, entry);
         }
@@ -936,7 +950,7 @@ public final class QuestEditor {
         if (quest == null) {
             return false;
         }
-        push();
+        push(quest);
         if (!quest.removeIndex(path, index)) {
             undo.pop();
             return false;
@@ -950,7 +964,7 @@ public final class QuestEditor {
         if (quest == null) {
             return false;
         }
-        push();
+        push(quest);
         if (!quest.moveIndex(path, from, to)) {
             undo.pop();
             return false;
@@ -967,7 +981,7 @@ public final class QuestEditor {
         if (quest.number("x", 0) == x && quest.number("y", 0) == y) {
             return false;
         }
-        push();
+        push(quest);
         quest.setNumber("x", x);
         quest.setNumber("y", y);
         return true;
@@ -988,7 +1002,7 @@ public final class QuestEditor {
             // joined to a path, because a name that is not a name is a write somewhere else.
             return null;
         }
-        push();
+        push(manifest);
 
         JsonObject root = new JsonObject();
         root.addProperty("$schema", schemaPath());
@@ -1038,7 +1052,7 @@ public final class QuestEditor {
             Constants.LOG.warn("\"{}\" is not a usable id, so nothing was duplicated.", id);
             return null;
         }
-        push();
+        push(manifest);
 
         Path path = pathOf(copyId);
         JsonFile copy = JsonFile.parse(path, original.json());
@@ -1087,7 +1101,7 @@ public final class QuestEditor {
                     + " nothing was pasted.", base);
             return null;
         }
-        push();
+        push(manifest);
 
         Path path = pathOf(id);
         JsonFile pasted = JsonFile.of(path, tree.deepCopy());
@@ -1265,7 +1279,7 @@ public final class QuestEditor {
         }
         // One history step, so the restore is undoable like every other edit: the delete it reverses is
         // not the only way in, and an author who restores the wrong copy has the same key as ever.
-        push();
+        push(manifest);
         try {
             Files.move(aside, back);
         }
@@ -1324,7 +1338,7 @@ public final class QuestEditor {
             lastMeta = structural.structure().reverseMeta();
             return true;
         }
-        redo.push(snapshotFiles());
+        redo.push(captureFor(history));
         if (!restore((Snapshot) history)) {
             // The trail goes back exactly as it was found, and the step stays on it: `restore` re-attempts
             // every file it has to put back and skips the ones already back, so the retry converges rather
@@ -1358,7 +1372,7 @@ public final class QuestEditor {
             lastMeta = structural.structure().forwardMeta();
             return true;
         }
-        undo.push(snapshotFiles());
+        undo.push(captureFor(history));
         if (!restore((Snapshot) history)) {
             undo.pop();
             redo.push(history);
@@ -1374,13 +1388,23 @@ public final class QuestEditor {
      *
      * <p>Silent while a {@link #group} is open: that block took the one snapshot the whole group costs,
      * and a second one per mutation inside it is precisely the seventy-step history this class grew
-     * {@code group} to stop writing.
+     * {@code group} to stop writing. While grouped the touched files are captured into the open
+     * entry instead — see {@link #group} — so the one step still reverses every mutation in it.
+     *
+     * @param touched the files this op is about to change; only their texts are stored
      */
-    private void push() {
+    private void push(JsonFile... touched) {
         if (grouping) {
+            captureGrouped(touched);
             return;
         }
-        undo.push(snapshotFiles());
+        Set<Path> paths = new LinkedHashSet<>();
+        for (JsonFile file : touched) {
+            if (file != null) {
+                paths.add(file.file());
+            }
+        }
+        undo.push(snapshotFiles(paths));
         trim();
         redo.clear();
     }
@@ -1400,9 +1424,27 @@ public final class QuestEditor {
             if (groupAsides != null) {
                 groupAsides.put(restored, aside);
             }
+            // The text it holds now, because it is about to move: at undo time the copy may be
+            // gone, and the text is the fallback the disk loop writes. First capture wins — an
+            // earlier edit in this group already holds the older text. Files created inside this
+            // same group are not recorded: they were never the chapter's, so no undo may move
+            // them back, and the known set the group opened with already excludes them.
+            //
+            // The manifest with it: the delete takes its list entry next, and without its text
+            // the entry cannot put the list back. Same first-wins rule — an earlier op in this
+            // group already holds the older list.
+            if (groupCapture != null) {
+                groupCapture.files.putIfAbsent(manifest.file(), manifest.json());
+                if (groupCapture.known.contains(restored)) {
+                    String text = textOf(restored);
+                    if (text != null) {
+                        groupCapture.files.putIfAbsent(restored, text);
+                    }
+                }
+            }
             return;
         }
-        undo.push(new Snapshot(snapshotFiles().files(), Map.of(restored, aside)));
+        undo.push(snapshotFiles(Set.of(manifest.file(), restored), Map.of(restored, aside)));
         trim();
         redo.clear();
     }
@@ -1453,18 +1495,61 @@ public final class QuestEditor {
         // The one snapshot the gesture costs, with a map the deletes inside it fill as they go: a batch of
         // deletes that could not name its own copies would put them back from text instead of moving the
         // bytes. See `Snapshot`.
+        //
+        // The contents start empty and are captured as the gesture's ops run — see push — because what
+        // the entry has to hold is each file as it was before the gesture first touched it, and that is
+        // only known once the ops name their files. The known set is taken now, up front: files the
+        // gesture itself creates were never the chapter's, so no undo may move them back.
         Map<Path, Path> asides = new LinkedHashMap<>();
-        undo.push(new Snapshot(snapshotFiles().files(), asides));
+        Map<Path, String> files = new LinkedHashMap<>();
+        Set<Path> known = knownFiles();
+        undo.push(new Snapshot(files, known, asides));
         trim();
         redo.clear();
         grouping = true;
         groupAsides = asides;
+        groupCapture = new GroupCapture(files, known);
         try {
             work.run();
         }
         finally {
             grouping = false;
             groupAsides = null;
+            groupCapture = null;
+        }
+    }
+
+    /**
+     * What a group is collecting while its gesture runs: the open entry's pieces.
+     *
+     * <p>One object rather than three fields because the three are one state — the entry on the
+     * trail names the same maps, so filling them fills the step. {@link #files} holds each touched
+     * file's text from before the gesture first touched it; {@link #known} is the chapter's files
+     * from before the gesture ran at all.
+     */
+    private static final class GroupCapture {
+
+        final Map<Path, String> files;
+        final Set<Path> known;
+
+        GroupCapture(Map<Path, String> files, Set<Path> known) {
+            this.files = files;
+            this.known = known;
+        }
+    }
+
+    /** The capture an open group is filling, or null when no group is open. */
+    private GroupCapture groupCapture;
+
+    /** Captures the touched files' texts into the open group entry; first capture wins. */
+    private void captureGrouped(JsonFile... touched) {
+        if (groupCapture == null) {
+            return;
+        }
+        for (JsonFile file : touched) {
+            if (file != null) {
+                groupCapture.files.putIfAbsent(file.file(), file.json());
+            }
         }
     }
 
@@ -1475,9 +1560,11 @@ public final class QuestEditor {
      * for {@code TableEditor}, whose inline drafts edit a quest file through this editor and must land
      * in this history rather than a second one — an inline table <i>is</i> a quest field, so its undo
      * is the chapter's, and Ctrl+Z after a weight edit is the same key as after a title edit.
+     *
+     * @param file the file the caller is about to change; only its text is stored
      */
-    void pushHistory() {
-        push();
+    void pushHistory(JsonFile file) {
+        push(file);
     }
 
     /** Puts the last step back, for the same caller. */
@@ -1602,18 +1689,117 @@ public final class QuestEditor {
         while (undo.size() > HISTORY) {
             undo.removeLast();
         }
+        // Alongside the count: a chapter of huge files would otherwise keep sixty whole copies of
+        // itself in memory. Small chapters never reach the cap — sixty narrowed steps are kilobytes
+        // — so they keep all sixty; a giant one trades depth for bytes instead of growing without
+        // bound. The newest step is always kept: a cap that ate the only way back would be worse
+        // than the memory.
+        while (undo.size() > 1 && historyBytes() > HISTORY_BYTES) {
+            undo.removeLast();
+        }
     }
 
-    private Snapshot snapshotFiles() {
+    /** How many snapshot characters the undo trail holds, approximately. */
+    private long historyBytes() {
+        long bytes = 0;
+        for (History history : undo) {
+            if (history instanceof Snapshot snapshot) {
+                for (String text : snapshot.files().values()) {
+                    bytes += text.length();
+                }
+            }
+        }
+        return bytes;
+    }
+
+    /**
+     * A snapshot of these files' texts, with the chapter's full known set.
+     *
+     * <p>Only what the op names is serialised — a field edit stores one file, not the chapter —
+     * and a path with no file behind it is skipped rather than stored as nothing: a create names
+     * a file that does not exist yet, and its absence from the texts is exactly what makes its
+     * undo set it aside again.
+     */
+    private Snapshot snapshotFiles(Set<Path> touched) {
+        return snapshotFiles(touched, Map.of());
+    }
+
+    private Snapshot snapshotFiles(Set<Path> touched, Map<Path, Path> asides) {
         Map<Path, String> files = new LinkedHashMap<>();
-        files.put(manifest.file(), manifest.json());
+        for (Path path : touched) {
+            JsonFile file = fileAt(path);
+            if (file != null) {
+                files.put(path, file.json());
+            }
+        }
+        return new Snapshot(files, knownFiles(), asides);
+    }
+
+    /**
+     * The current texts for the paths an entry covers, for the opposite trail.
+     *
+     * <p>What undo and redo push before they restore: the state being left, narrowed to the files
+     * the step being reversed covers, so the return trip costs the same as the way out. Files the
+     * step added — in the model now but not in its known set — are captured too: without them a
+     * redone create could not write its file back. A structural entry carries both directions
+     * already and passes through.
+     */
+    private History captureFor(History history) {
+        if (history instanceof Snapshot snapshot) {
+            Set<Path> paths = new LinkedHashSet<>(snapshot.files().keySet());
+            for (Path path : knownFiles()) {
+                if (!snapshot.known().contains(path)) {
+                    paths.add(path);
+                }
+            }
+            Map<Path, String> files = new LinkedHashMap<>();
+            for (Path path : paths) {
+                JsonFile file = fileAt(path);
+                if (file != null) {
+                    files.put(path, file.json());
+                }
+            }
+            return new Snapshot(files, knownFiles(), Map.of());
+        }
+        return history;
+    }
+
+    /** Every file the chapter holds: the manifest, the group when there is one, every quest. */
+    private Set<Path> knownFiles() {
+        Set<Path> known = new LinkedHashSet<>();
+        known.add(manifest.file());
         if (group != null) {
-            files.put(group.file(), group.json());
+            known.add(group.file());
         }
         for (JsonFile quest : quests.values()) {
-            files.put(quest.file(), quest.json());
+            known.add(quest.file());
         }
-        return new Snapshot(files);
+        return known;
+    }
+
+    /** The open file at this path, or null when the model does not hold it. */
+    private JsonFile fileAt(Path path) {
+        if (path == null) {
+            return null;
+        }
+        if (manifest.file().equals(path)) {
+            return manifest;
+        }
+        if (group != null && group.file().equals(path)) {
+            return group;
+        }
+        for (JsonFile quest : quests.values()) {
+            if (quest.file().equals(path)) {
+                return quest;
+            }
+        }
+        return null;
+    }
+
+    /** One file's text, or null when the model does not hold it. */
+    private String textOf(Path path) {
+        JsonFile file = fileAt(path);
+        return file == null ? null : file.json();
     }
 
     /**
@@ -1637,6 +1823,13 @@ public final class QuestEditor {
         Map<Path, String> files = snapshot.files();
         Map<Path, Path> asides = snapshot.asides();
         boolean whole = true;
+
+        // The contract narrowed entries stand on: every file this entry does not cover is clean, so
+        // re-reading it from disk below loses nothing. Every op saves before the next begins — one
+        // save per op, one per batch, one per undo — which is what keeps that true. A dirty file
+        // outside the entry means something mutated without saving and is about to lose the
+        // difference, so it is named loudly rather than eaten quietly.
+        warnForDirtyOutside(files, snapshot.known());
 
         for (Map.Entry<Path, String> entry : files.entrySet()) {
             if (Files.isRegularFile(entry.getKey())) {
@@ -1673,9 +1866,9 @@ public final class QuestEditor {
         }
 
         for (JsonFile quest : List.copyOf(quests.values())) {
-            if (!files.containsKey(quest.file())) {
+            if (!snapshot.known().contains(quest.file())) {
                 try {
-                    // A file the model holds and the snapshot does not is being set aside again -- so it
+                    // A file the model holds and the snapshot never knew is being set aside again -- so it
                     // goes to a **numbered** name, through the one place that name is decided, and it can
                     // never replace a copy that is already there. Writing the fixed `<name>.json.deleted`
                     // with REPLACE_EXISTING is what destroyed an author's earlier copy; `asidePath` returns
@@ -1696,7 +1889,13 @@ public final class QuestEditor {
         // saved: the disk may still hold the edit being undone, and a tree marked clean is a file the next
         // save skips -- which is how an undo used to survive on the screen and vanish on reload. See
         // `JsonFile.replaceWith`, and the op tests that found it.
-        manifest.replaceWith(files.get(manifest.file()));
+        //
+        // Only the files the entry covers: the rest are already as they were, because an entry records
+        // exactly what its op changed. An unconditional manifest write here would need the manifest's
+        // text in every entry, which is the whole-chapter snapshot this narrowing stops taking.
+        if (files.containsKey(manifest.file())) {
+            manifest.replaceWith(files.get(manifest.file()));
+        }
         if (group != null && files.containsKey(group.file())) {
             group.replaceWith(files.get(group.file()));
         }
@@ -1708,6 +1907,32 @@ public final class QuestEditor {
             quest.replaceWith(files.get(quest.file()));
         }
         return whole;
+    }
+
+    /**
+     * Names the files a restore is about to read over while they hold unsaved edits.
+     *
+     * <p>See the call site for the contract. This is the tripwire on it: silent in production,
+     * where every op saves, and loud the moment some path mutates without saving and then
+     * reverses — because what it would lose is the author's unsaved work, which is the one thing
+     * an undo must never eat.
+     */
+    private void warnForDirtyOutside(Map<Path, String> files, Set<Path> known) {
+        if (manifest.dirty() && !files.containsKey(manifest.file())) {
+            Constants.LOG.warn("{} holds unsaved edits no undo entry covers; reversing may lose them.",
+                    manifest.file());
+        }
+        if (group != null && group.dirty() && !files.containsKey(group.file())) {
+            Constants.LOG.warn("{} holds unsaved edits no undo entry covers; reversing may lose them.",
+                    group.file());
+        }
+        for (JsonFile quest : quests.values()) {
+            if (quest.dirty() && !files.containsKey(quest.file())
+                    && known.contains(quest.file())) {
+                Constants.LOG.warn("{} holds unsaved edits no undo entry covers; reversing may lose them.",
+                        quest.file());
+            }
+        }
     }
 
     // ------------------------------------------------------------------

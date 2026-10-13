@@ -73,6 +73,7 @@ public final class TenetNetworking {
      */
     private static final SyncWire.Reassembler TREE = new SyncWire.Reassembler();
     private static final SyncWire.Reassembler PROGRESS = new SyncWire.Reassembler();
+    private static final SyncWire.Reassembler REPLICA = new SyncWire.Reassembler();
 
     /**
      * The locale's own, for the reason the two above are separate from each other.
@@ -450,6 +451,13 @@ public final class TenetNetworking {
                 TenetNetworking::handleChapterReplica,
                 null));
 
+        ArmatureNetwork.register(new ArmatureNetwork.Registration<>(
+                ChapterReplicaChunk.TYPE,
+                ChapterReplicaChunk.CODEC,
+                ArmatureNetwork.Direction.TO_CLIENT,
+                TenetNetworking::handleChapterReplicaChunk,
+                null));
+
         // --- a reward table's file, asked for by an editor ---
         ArmatureNetwork.register(new ArmatureNetwork.Registration<>(
                 TableReplicaRequestPayload.TYPE,
@@ -642,11 +650,13 @@ public final class TenetNetworking {
         TREE.forgetAll();
         PROGRESS.forgetAll();
         LOCALE.forgetAll();
+        REPLICA.forgetAll();
     }
 
     /** How many transfers are half-received. Diagnostics for a test. */
     public static int pendingTransfers() {
-        return TREE.pendingTransfers() + PROGRESS.pendingTransfers() + LOCALE.pendingTransfers();
+        return TREE.pendingTransfers() + PROGRESS.pendingTransfers() + LOCALE.pendingTransfers()
+                + REPLICA.pendingTransfers();
     }
 
     /**
@@ -1626,8 +1636,39 @@ public final class TenetNetworking {
             return;
         }
         com.google.gson.JsonObject chapterTree = TenetQuests.editors().chapterTree(payload.chapter());
-        ArmatureNetwork.sendToPlayer(sender, new ChapterReplicaPayload(payload.chapter(), quests.toString(),
-                chapterTree == null ? "{}" : chapterTree.toString()));
+        sendReplicaTo(sender, payload.chapter(), quests.toString(),
+                chapterTree == null ? "{}" : chapterTree.toString());
+    }
+
+    /**
+     * A chapter's files to one editor's client, in one message or in chunks.
+     *
+     * <p>One message while the texts fit it — every pack that opens today keeps this path, byte
+     * for byte. Past the per-string cap the texts travel framed, deflated and chunked instead:
+     * without this a chapter past a megabyte is a refusal rather than a chapter, and the only
+     * thing standing between an author and it is the message size. The client accepts the same
+     * replica either way.
+     */
+    private static void sendReplicaTo(ServerPlayer sender, String chapter, String quests,
+                                      String chapterTree) {
+        byte[] questsBytes = quests.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] treeBytes = chapterTree.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        // The codec's own caps, so the boundary is where the single message stops working rather
+        // than an arbitrary smaller number: anything that fits keeps the exact message it has
+        // always received.
+        if (questsBytes.length <= 1048576 && treeBytes.length <= 1048576) {
+            ArmatureNetwork.sendToPlayer(sender,
+                    new ChapterReplicaPayload(chapter, quests, chapterTree));
+            return;
+        }
+        List<byte[]> parts = SyncWire.chunk(SyncWire.pack(ChapterReplicaChunk.frame(questsBytes,
+                treeBytes)));
+        int transferId = SyncWire.newTransferId();
+        for (int i = 0; i < parts.size(); i++) {
+            ArmatureNetwork.sendToPlayer(sender, new ChapterReplicaChunk(chapter,
+                    new SyncChunk(transferId, i, parts.size(), true), parts.get(i)));
+        }
+        Constants.LOG.debug("sent chapter \"{}\" replica in {} chunk(s)", chapter, parts.size());
     }
 
     /**
@@ -1644,6 +1685,31 @@ public final class TenetNetworking {
                 ClientQuestCache.treeRevision());
         Constants.LOG.info("chapter \"{}\" replica received ({} bytes)",
                 payload.chapter(), payload.quests().length());
+    }
+
+    /**
+     * One chunk of a large chapter replica: reassemble, split the frame, and accept it like the
+     * single message.
+     *
+     * <p>The small path above stays the path for chapters that fit it; this is only the overflow.
+     * Same acceptance, same marker, same log line — a large chapter opens exactly like a small one.
+     */
+    private static void handleChapterReplicaChunk(ChapterReplicaChunk payload) {
+        byte[] packed = completed(REPLICA, payload.chunk(), payload.data(), "chapter replica");
+        if (packed == null) {
+            return;
+        }
+        var framed = ChapterReplicaChunk.split(packed);
+        if (framed.isEmpty()) {
+            Constants.LOG.warn("ignored an unreadable chapter replica message from the server: "
+                    + "the frame does not split into two texts");
+            return;
+        }
+        ClientEditReplies.takeSent();
+        ClientChapterReplica.accept(payload.chapter(), framed.get().quests(),
+                framed.get().chapterTree(), ClientQuestCache.treeRevision());
+        Constants.LOG.info("chapter \"{}\" replica received ({} bytes)",
+                payload.chapter(), framed.get().quests().length());
     }
 
     /**

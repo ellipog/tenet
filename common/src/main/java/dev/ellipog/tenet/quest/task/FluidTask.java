@@ -17,7 +17,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.material.Fluid;
 
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -53,10 +55,19 @@ public record FluidTask(TaskCommon common, ResourceLocation fluid, int amount, b
         return TYPE;
     }
 
-    /** The bucket item that carries this fluid, or air when the fluid has none. */
+    /**
+     * The bucket item that carries this fluid, or air when the fluid has none.
+     *
+     * <p>Remembered by fluid: the registry behind it does not change while a client is connected,
+     * and the lookup runs per evaluation and per press. Bounded by the fluids a pack names.
+     */
+    private static final Map<ResourceLocation, Item> BUCKETS = new ConcurrentHashMap<>();
+
     public static Item bucketFor(ResourceLocation fluid) {
-        Fluid found = BuiltInRegistries.FLUID.get(fluid);
-        return found.getBucket();
+        return BUCKETS.computeIfAbsent(fluid, missing -> {
+            Fluid found = BuiltInRegistries.FLUID.get(missing);
+            return found.getBucket();
+        });
     }
 
     public static final TaskBehaviour<FluidTask> BEHAVIOUR = new TaskBehaviour<>() {
@@ -128,18 +139,22 @@ public record FluidTask(TaskCommon common, ResourceLocation fluid, int amount, b
                     inventory.setItem(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
                 }
                 inventory.setChanged();
-                // Handed back after the slots are cleared, not as each bucket empties: placing an
-                // empty into a slot still holding its own dead stack reads as free space, and the
-                // clearing write that follows would erase what was just handed back.
-                for (int i = 0; i < buckets; i++) {
-                    // The empty bucket comes straight back, as it does out of a crafting table. One
-                    // that no longer fits is dropped rather than discarded: `add` mutates its
-                    // argument down to the remainder, which is what goes over the side.
-                    ItemStack empty = new ItemStack(Items.BUCKET);
+                // Handed back in full stacks rather than one bucket at a time: the empties are
+                // identical, and an add takes what fits and leaves the remainder in the passed
+                // stack — which is what goes over the side. Same items overboard, one inventory
+                // walk per stack instead of one per bucket. Chunked at the max stack size rather
+                // than handed over whole, because a single oversize add is not a shape the
+                // inventory promises to split.
+                int max = new ItemStack(Items.BUCKET).getMaxStackSize();
+                int left = buckets;
+                while (left > 0) {
+                    int size = Math.min(left, max);
+                    ItemStack empty = new ItemStack(Items.BUCKET, size);
                     inventory.add(empty);
                     if (!empty.isEmpty()) {
                         player.drop(empty, false);
                     }
+                    left -= size;
                 }
             }
             // Buckets first, containers for the rest: the press this answers measured both in the

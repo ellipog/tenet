@@ -40,7 +40,7 @@ public record ItemTagCondition(ResourceLocation tag, int count) implements Quest
     }
 
     public static final ConditionBehaviour<ItemTagCondition> BEHAVIOUR = (condition, context) -> {
-        TagKey<Item> tag = TagKey.create(Registries.ITEM, condition.tag());
+        TagKey<Item> tag = dev.ellipog.tenet.quest.TagKeys.of(Registries.ITEM, condition.tag());
         return ItemCounting.countIn(context.player().getInventory(), tag, condition.count()) >= condition.count();
     };
 

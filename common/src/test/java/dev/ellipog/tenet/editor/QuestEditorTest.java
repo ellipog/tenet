@@ -1359,4 +1359,62 @@ class QuestEditorTest {
                     entries.map(path -> path.getFileName().toString()).sorted().toList());
         }
     }
+
+    @Test
+    @DisplayName("an undo only puts back the files its own edit touched")
+    void undoLeavesLaterEditsToOtherFilesAlone() {
+        // **The narrowing, pinned.** An entry records what its op changed and nothing else, so
+        // undoing the second of two edits must leave the first one's file exactly as edited — and
+        // redoing must bring the second one's back without touching the first's either. Saved
+        // throughout, as production does: one save per op and per undo is what keeps every file
+        // an entry does not cover clean, and clean is what lets the re-read leave them alone.
+        QuestEditor editor = open();
+        com.mojang.serialization.DynamicOps<com.google.gson.JsonElement> ops =
+                com.mojang.serialization.JsonOps.INSTANCE;
+        assertTrue(editor.set("one", "title", "One, renamed"));
+        assertTrue(editor.save(ops).ok());
+        assertTrue(editor.set("two", "title", "Two, renamed"));
+        assertTrue(editor.save(ops).ok());
+
+        assertTrue(editor.undo(), "the second edit is undone");
+        assertTrue(editor.save(ops).ok());
+        assertEquals("Two", editor.quest("two").text("title", ""),
+                "its file is back");
+        assertEquals("One, renamed", editor.quest("one").text("title", ""),
+                "and the first edit's file is untouched by it");
+
+        assertTrue(editor.undo(), "then the first");
+        assertTrue(editor.save(ops).ok());
+        assertEquals("One", editor.quest("one").text("title", ""));
+        assertEquals("Two", editor.quest("two").text("title", ""),
+                "which the second undo did not disturb");
+
+        assertTrue(editor.redo(), "forward again");
+        assertTrue(editor.save(ops).ok());
+        assertEquals("One, renamed", editor.quest("one").text("title", ""));
+        assertEquals("Two", editor.quest("two").text("title", ""),
+                "which the first redo did not disturb either");
+        assertTrue(editor.redo(), "and the second");
+        assertEquals("Two, renamed", editor.quest("two").text("title", ""));
+        assertFalse(editor.canRedo(), "with nothing left to repeat");
+
+        assertTrue(editor.undo(), "the second edit is undone");
+        assertEquals("Two", editor.quest("two").text("title", ""),
+                "its file is back");
+        assertEquals("One, renamed", editor.quest("one").text("title", ""),
+                "and the first edit's file is untouched by it");
+
+        assertTrue(editor.undo(), "then the first");
+        assertEquals("One", editor.quest("one").text("title", ""));
+        assertEquals("Two", editor.quest("two").text("title", ""),
+                "which the second undo did not disturb");
+
+        assertTrue(editor.redo(), "forward again");
+        assertEquals("One, renamed", editor.quest("one").text("title", ""));
+        assertEquals("Two", editor.quest("two").text("title", ""),
+                "which the first redo did not disturb either");
+        assertTrue(editor.redo(), "and the second");
+        assertEquals("Two, renamed", editor.quest("two").text("title", ""));
+        assertFalse(editor.canRedo(), "with nothing left to repeat");
+    }
 }

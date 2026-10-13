@@ -47,9 +47,22 @@ public final class EditorSession {
         return epoch;
     }
 
-    /** Remembers where a node was moved to, until a tree arrives that says the same thing. */
+    /**
+     * Remembers where a node was moved to, until a tree arrives that says the same thing.
+     *
+     * <p>Reuses the slot rather than allocating per mousemove: a drag reports every motion event,
+     * and a fresh array per event is pure churn for coordinates that land in the same two doubles.
+     * Exact values, not packed — a packed long would quantise sub-pixel positions that the files
+     * then keep, and there is nothing to gain by rounding what nobody asked to round.
+     */
     public void moved(String id, double x, double y, long revision) {
-        moved.put(id, new double[] {x, y});
+        double[] at = moved.get(id);
+        if (at == null) {
+            at = new double[2];
+            moved.put(id, at);
+        }
+        at[0] = x;
+        at[1] = y;
         movedAtRevision = revision;
         epoch++;
     }

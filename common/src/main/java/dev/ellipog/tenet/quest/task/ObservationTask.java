@@ -28,7 +28,10 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -135,20 +138,34 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
             case BLOCK -> target.equals(String.valueOf(BuiltInRegistries.BLOCK.getKey(state.getBlock())));
             case BLOCK_TAG -> {
                 ResourceLocation id = ResourceLocation.tryParse(target);
-                yield id != null && state.is(TagKey.create(Registries.BLOCK, id));
+                yield id != null && state.is(dev.ellipog.tenet.quest.TagKeys.of(Registries.BLOCK, id));
             }
-            case BLOCK_STATE -> {
-                try {
-                    var parsed = net.minecraft.commands.arguments.blocks.BlockStateParser
-                            .parseForBlock(BuiltInRegistries.BLOCK.asLookup(), target, false);
-                    yield parsed.blockState().equals(state);
-                }
-                catch (CommandSyntaxException e) {
-                    yield false;
-                }
-            }
+            case BLOCK_STATE -> blockStateOf(target).map(wanted -> wanted.equals(state)).orElse(false);
             default -> false;
         };
+    }
+
+    /**
+     * A parsed blockstate predicate, by target string: empty when it does not parse, which matches
+     * nothing — the fail-closed fallback, decided once rather than per break.
+     *
+     * <p>Bounded by the pack rather than by a cap: one entry per distinct predicate string in the
+     * loaded files. Blockstates are canonical and immutable, so a remembered one cannot stale.
+     */
+    private static final Map<String, Optional<BlockState>> BLOCK_STATES = new ConcurrentHashMap<>();
+
+    /** The parsed predicate, remembered; empty when it does not parse. See {@link #matchesBlock}. */
+    private static Optional<BlockState> blockStateOf(String target) {
+        return BLOCK_STATES.computeIfAbsent(target, text -> {
+            try {
+                var parsed = net.minecraft.commands.arguments.blocks.BlockStateParser
+                        .parseForBlock(BuiltInRegistries.BLOCK.asLookup(), text, false);
+                return Optional.of(parsed.blockState());
+            }
+            catch (CommandSyntaxException unparsable) {
+                return Optional.empty();
+            }
+        });
     }
 
     /** Whether an entity answers the filter. Pure for the same reason as {@link #matchesBlock}. */
@@ -161,7 +178,9 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
             case ENTITY_TYPE -> target.equals(String.valueOf(id));
             case ENTITY_TYPE_TAG -> {
                 ResourceLocation tag = ResourceLocation.tryParse(target);
-                yield tag != null && entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, tag));
+                yield tag != null
+                        && entity.getType().is(dev.ellipog.tenet.quest.TagKeys.of(Registries.ENTITY_TYPE,
+                                tag));
             }
             default -> false;
         };
@@ -216,6 +235,6 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
 
     /** The tag the block filter names, for a message; unused by matching itself. */
     static TagKey<Block> blockTag(String target) {
-        return TagKey.create(Registries.BLOCK, ResourceLocation.parse(target));
+        return dev.ellipog.tenet.quest.TagKeys.of(Registries.BLOCK, ResourceLocation.parse(target));
     }
 }

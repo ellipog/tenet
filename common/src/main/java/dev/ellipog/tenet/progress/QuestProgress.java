@@ -83,8 +83,11 @@ public record QuestProgress(QuestState state,
         }
         Map<Integer, Integer> next = new LinkedHashMap<>(taskProgress);
         next.put(index, amount);
-        return new QuestProgress(state, next, claims, rewardsClaimed, legacySettled, timesCompleted,
-                lastCompletedAt);
+        // Handed over already-immutable so the compact constructor's defensive copy has nothing
+        // to do: it copies again only if some future JDK stops returning immutable maps as-is,
+        // which would cost one copy rather than correctness. One copy either way instead of two.
+        return new QuestProgress(state, Map.copyOf(next), claims, rewardsClaimed,
+                legacySettled, timesCompleted, lastCompletedAt);
     }
 
     /**
@@ -175,6 +178,13 @@ public record QuestProgress(QuestState state,
 
     /** Whether any task has been touched. Used to decide between UNLOCKED and STARTED. */
     public boolean anyTaskProgress() {
-        return taskProgress.values().stream().anyMatch(value -> value > 0);
+        // A loop rather than a stream: asked per quest per pass, and a pipeline per call is an
+        // allocation for a question a counter answers.
+        for (int value : taskProgress.values()) {
+            if (value > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 }

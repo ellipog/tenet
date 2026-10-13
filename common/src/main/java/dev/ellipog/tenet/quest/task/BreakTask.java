@@ -8,6 +8,7 @@ import dev.ellipog.armature.api.ArmatureApi;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.QuestTask;
+import dev.ellipog.tenet.quest.TagKeys;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
@@ -15,7 +16,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.Optional;
@@ -88,7 +88,7 @@ public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
     public boolean matches(BlockState state) {
         boolean blockMatches;
         if (blockTag().isPresent()) {
-            blockMatches = state.is(TagKey.create(Registries.BLOCK, blockTag().get()));
+            blockMatches = state.is(TagKeys.of(Registries.BLOCK, blockTag().get()));
         }
         else if (block().isPresent()) {
             blockMatches = block().get().equals(BuiltInRegistries.BLOCK.getKey(state.getBlock()));

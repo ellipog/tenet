@@ -87,7 +87,9 @@ public record ItemTask(TaskCommon common, ItemRef item, Optional<Boolean> consum
 
         @Override
         public int current(ItemTask task, TaskContext context) {
-            ItemStack template = task.item().toStack();
+            // The shared template: counting reads it and never keeps it, so rebuilding it per
+            // evaluation is one stack per member per task for an answer that cannot move.
+            ItemStack template = task.item().template();
             if (template.isEmpty()) {
                 return 0;
             }
@@ -135,7 +137,9 @@ public record ItemTask(TaskCommon common, ItemRef item, Optional<Boolean> consum
 
         @Override
         public int take(ItemTask task, ServerPlayer player, int count) {
-            ItemStack template = task.item().toStack();
+            // The shared template: matching reads it, and the shrinking below touches the
+            // inventory's stacks, never this one.
+            ItemStack template = task.item().template();
             if (template.isEmpty()) {
                 return 0;
             }

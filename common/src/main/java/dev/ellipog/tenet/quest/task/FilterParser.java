@@ -2,7 +2,6 @@ package dev.ellipog.tenet.quest.task;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -220,7 +219,8 @@ public final class FilterParser {
             @Override
             public boolean test(ItemStack stack) {
                 return !stack.isEmpty()
-                        && stack.is(TagKey.create(net.minecraft.core.registries.Registries.ITEM, id));
+                        && stack.is(dev.ellipog.tenet.quest.TagKeys.of(
+                                net.minecraft.core.registries.Registries.ITEM, id));
             }
 
             @Override

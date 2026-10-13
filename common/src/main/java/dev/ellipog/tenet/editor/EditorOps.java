@@ -727,7 +727,17 @@ public final class EditorOps {
         if (path == null || path.isEmpty()) {
             return TreeRefresh.Touch.CONTENT;
         }
-        for (String step : path.split("\\.")) {
+        String[] steps = path.split("\\.");
+        // A task or reward label is display-only like a title: the sentence rows draw, keyed by an
+        // index stored progress never moves under. Exactly these two leaves, never a subtree — a
+        // deeper path is malformed and falls through to the CONTENT rule below, and every other
+        // field under tasks/rewards keeps it: counts, items and gates move resolved states, labels
+        // only move words. See EditReachTest for both the carve-out and the guardrails.
+        if (steps.length == 3 && (steps[0].equals("tasks") || steps[0].equals("rewards"))
+                && (steps[2].equals("label") || steps[2].equals("labelArg"))) {
+            return TreeRefresh.Touch.COSMETIC;
+        }
+        for (String step : steps) {
             if (step.equals("tasks") || step.equals("rewards")) {
                 return TreeRefresh.Touch.CONTENT;
             }
