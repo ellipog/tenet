@@ -68,6 +68,16 @@ public final class SidebarLayout {
     /** What a chapter row's key starts with. */
     public static final String CHAPTER_PREFIX = "chapter:";
 
+    /**
+     * What an inline-edit row's key starts with.
+     *
+     * <p>The sidebar's create and rename happen in the list itself now: the row being typed is a
+     * synthetic row the screen splices into the rows below, keyed apart from both namespaces above
+     * so it can never collide with a real group or chapter. The layout places it like any row; what
+     * goes in it — a field, a drawn status line — is the screen's.
+     */
+    public static final String INLINE_PREFIX = "inline:";
+
     /** Drawn before a heading whose chapters are showing. */
     public static final String OPEN_MARKER = "\u25bc ";
 
@@ -289,6 +299,11 @@ public final class SidebarLayout {
         return key != null && key.startsWith(GROUP_PREFIX);
     }
 
+    /** Whether a row key names the inline-edit scaffolding rather than a group or a chapter. */
+    public static boolean isInlineKey(String key) {
+        return key != null && key.startsWith(INLINE_PREFIX);
+    }
+
     /**
      * The id a row key was built from, with its namespace prefix removed.
      *
@@ -359,7 +374,67 @@ public final class SidebarLayout {
      * once under a different name.
      */
     public Layout stack(int width) {
-        return composition().build(Math.max(0, width), UNUSED_MEASURE);
+        return stack(rows(), width);
+    }
+
+    /**
+     * A stack from the given rows rather than this layout's own: for a caller that spliced an
+     * inline-edit row into {@link #rows()}.
+     *
+     * <p>The rows are values, so splicing is the caller's list work and this stays the one place
+     * that turns rows into slots. A synthetic row is placed exactly like a real one — same pitch,
+     * same indent rule — which is what keeps the scrollbar honest while an edit is open.
+     */
+    public Layout stack(List<Row> rows, int width) {
+        return composition(rows).build(Math.max(0, width), UNUSED_MEASURE);
+    }
+
+    /**
+     * The visible index of the row with this key, or -1 when no row carries it.
+     *
+     * <p>Where the screen replaces a row with its inline editor: a rename edits in place, so the
+     * field takes the row's own index rather than being appended somewhere the author has to find.
+     */
+    public int indexOfKey(String key) {
+        List<Row> rows = rows();
+        for (int i = 0; i < rows.size(); i++) {
+            if (rows.get(i).key().equals(key)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * The visible index one past the last row of the named group's section: where a chapter created
+     * into that group is inserted. Empty names the ungrouped section at the top; an unknown group
+     * answers the end of the list, and the server appends there too.
+     *
+     * <p>Sections are contiguous — a heading followed by its chapters — so the end of one is the next
+     * heading or the list. A collapsed group's chapters are absent from the rows, which puts the
+     * insertion point directly under its heading: exactly where the new row will appear once the
+     * broadcast arrives and the group opens onto it.
+     */
+    public int endOfSection(String groupId) {
+        List<Row> rows = rows();
+        if (groupId == null || groupId.isEmpty()) {
+            int i = 0;
+            while (i < rows.size() && !rows.get(i).group()) {
+                i++;
+            }
+            return i;
+        }
+        String want = groupKey(groupId);
+        for (int i = 0; i < rows.size(); i++) {
+            if (want.equals(rows.get(i).key())) {
+                int j = i + 1;
+                while (j < rows.size() && !rows.get(j).group()) {
+                    j++;
+                }
+                return j;
+            }
+        }
+        return rows.size();
     }
 
     /**
@@ -385,8 +460,16 @@ public final class SidebarLayout {
      * past its own last row, giving a scrollbar a range with nothing in it.
      */
     public Stack composition() {
+        return composition(rows());
+    }
+
+    /**
+     * A composition from the given rows rather than this layout's own, for the same caller as
+     * {@link #stack(List, int)}: the gap rule is the composition's, so it moves with the loop
+     * rather than being reimplemented beside it.
+     */
+    public Stack composition(List<Row> rows) {
         Stack stack = Stack.stack();
-        List<Row> rows = rows();
         for (int i = 0; i < rows.size(); i++) {
             if (i > 0) {
                 stack.gap(BookGeometry.SIDEBAR_ROW_GAP);

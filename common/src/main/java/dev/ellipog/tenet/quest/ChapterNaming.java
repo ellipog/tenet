@@ -111,6 +111,41 @@ public final class ChapterNaming {
     }
 
     /**
+     * A title as an id: lowercased, spaces to underscores, everything outside the id alphabet
+     * stripped, with no leading underscore left and nothing past the length limit.
+     *
+     * <p>What the sidebar's inline create types into the id the new chapter or group will carry, so
+     * typing only a title yields an id {@link #problemWith} accepts: the caller dedupes the result
+     * with {@link #suggested} against the live ids, and falls back to {@code new_chapter} or
+     * {@code new_group} numbering when the title slugs to nothing. An empty string out means the
+     * title said nothing an id can spell, which is the fallback's cue rather than a second rule.
+     *
+     * @param title what the author typed, or null
+     * @return the id the title spells, possibly empty
+     */
+    public static String slug(String title) {
+        if (title == null) {
+            return "";
+        }
+        StringBuilder kept = new StringBuilder(title.length());
+        for (int i = 0; i < title.length(); i++) {
+            char c = Character.toLowerCase(title.charAt(i));
+            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+                kept.append(c);
+            }
+            else if (c == ' ') {
+                kept.append('_');
+            }
+        }
+        int start = 0;
+        while (start < kept.length() && kept.charAt(start) == '_') {
+            start++;
+        }
+        int end = Math.min(kept.length(), start + MAX_LENGTH);
+        return kept.substring(start, end);
+    }
+
+    /**
      * The first free {@code base + suffix}, {@code base + suffix 2}, ... not in {@code taken}.
      *
      * <p>What a duplicate is pre-filled with, so the card opens on a name that will work rather than on

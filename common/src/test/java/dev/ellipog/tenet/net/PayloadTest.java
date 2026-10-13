@@ -126,6 +126,7 @@ class PayloadTest {
                 "tenet:claim_reward_entry",
                 "tenet:claim_summary",
                 "tenet:click",
+                "tenet:complete_quest",
                 "tenet:edit_history",
                 "tenet:edit_problems",
                 "tenet:editor_op",
@@ -219,6 +220,9 @@ class PayloadTest {
         assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:reset_quest"));
         assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:reset_chapter"));
         assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:reset_all"));
+        // The author's Complete press: a request like the resets above — the other way round a
+        // Complete press would do nothing at all, and the server would never hear it.
+        assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:complete_quest"));
         assertEquals(ArmatureNetwork.Direction.TO_SERVER, directionOf("tenet:table_roll_request"));
         assertEquals(ArmatureNetwork.Direction.TO_CLIENT, directionOf("tenet:table_roll"));
         // A table a command told the editor to open, and an import asked for by a panel: one is the
@@ -400,6 +404,27 @@ class PayloadTest {
         assertEquals(0, empty.writerIndex(), "the whole-book press carries no bytes at all");
         assertEquals(new ResetAllPayload(), ResetAllPayload.CODEC.decode(empty),
                 "and no bytes still decode to the press rather than to null");
+    }
+
+    @Test
+    @DisplayName("the editor's two complete presses survive the wire: one quest, one quest with its chain")
+    void completePayloadsRoundTrip() {
+        // The press names one quest by id or alias and whether its chain comes with it: a codec
+        // that dropped the id would complete nothing from a menu that promised one quest, and a
+        // codec that dropped the flag would silently complete — or silently not — a whole chain.
+        CompleteQuestPayload single = roundTrip(CompleteQuestPayload.CODEC,
+                new CompleteQuestPayload("punch_a_tree", false));
+        assertEquals("punch_a_tree", single.questId());
+        assertFalse(single.withDependencies());
+
+        CompleteQuestPayload chain = roundTrip(CompleteQuestPayload.CODEC,
+                new CompleteQuestPayload("punch_a_tree", true));
+        assertEquals("punch_a_tree", chain.questId());
+        assertTrue(chain.withDependencies(), "the flag is the whole difference between the two rows");
+
+        CompleteQuestPayload blank = new CompleteQuestPayload(null, false);
+        assertEquals("", blank.questId(),
+                "a missing id is blank rather than null, which matches no quest and completes nothing");
     }
 
     private static ArmatureNetwork.Direction directionOf(String id) {

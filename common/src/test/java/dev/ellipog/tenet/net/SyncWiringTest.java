@@ -156,6 +156,12 @@ class SyncWiringTest {
                 // the server reads what the press does from its own index. The message is needed because
                 // no existing one carries a press — a click is not a task submission, a claim, or an edit.
                 "tenet:click",
+                // Not a viewer message either: the author's Complete press, one quest or one quest
+                // with its chain. Needed because no existing message grants progress — a reset
+                // clears, a claim collects, and SubmitTaskPayload asserts client-side progress,
+                // which is the cheat vector its own javadoc names. None of those is "mark this
+                // complete for playtesting" with the server's guards deciding.
+                "tenet:complete_quest",
                 // Not a viewer message either: the undo history being discarded, which `/tenet reload`
                 // sends because the client's undo *button* is drawn from counters of its own and would
                 // otherwise keep offering an undo over a history the server had thrown away.

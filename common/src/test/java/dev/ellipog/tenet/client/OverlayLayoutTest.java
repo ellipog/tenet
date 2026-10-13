@@ -80,19 +80,26 @@ class OverlayLayoutTest {
      * the parameter below is documented as ordinary prose — and they differ on three inputs that no
      * fixture here contains: a blank paragraph, a word wider than the column, and a run of spaces.
      * {@link OverlayLayout}'s javadoc states those three and why they are acceptable.
+     *
+     * <p>One deliberate departure from the transcription: the old screen reserved twelve pixels for an
+     * empty description's placeholder row, and the eight-pixel gap below the sections belonged to that
+     * row's block. A quest with no description now has no description block at all, so both terms are
+     * gone for an empty description and the TASKS term below lost the eight it carried.
      */
     private static int oldMeasure(List<String> description, int taskCount, int rewardCount,
                                   int dependencyCount, int width) {
         int height = 0;
-        if (description.isEmpty()) {
-            height += 12;
-        }
         for (OverlayLayout.Prose paragraph : prose(description, width)) {
             // The lines, not the strings: the wrap is the producer's now, and this arithmetic is the one
             // the old screen kept by hand -- so it counts the lines the producer handed over.
             height += paragraph.lines().size() * 10 + 5;
         }
-        height += 8 + 16;                                          // TASKS heading
+        if (!description.isEmpty()) {
+            // The gap that moved down with the prose: part of the description block, so a quest with
+            // no description does not pay it.
+            height += 8;
+        }
+        height += 16;                                               // TASKS heading
         height += Math.max(1, taskCount) * 24;
         height += 10 + 16;                                         // REWARDS heading
         height += Math.max(1, rewardCount) * 24;
@@ -221,15 +228,23 @@ class OverlayLayoutTest {
 
     @Test
     void everyInteriorSectionIsAlwaysThereEvenWhenEmpty() {
-        // The other two are the opposite of REQUIRES: present with an empty state, because a quest
-        // always has tasks and rewards to report on. Asserted as a pair with the test above so a
-        // change that made all three conditional, or none of them, fails something.
+        // Tasks and rewards are the opposite of REQUIRES: present with an empty state, because a
+        // quest always has tasks and rewards to report on. Asserted as a pair with the test above
+        // so a change that made all three conditional, or none of them, fails something. The
+        // description sits on the REQUIRES side now: a reader's card with no description has no
+        // description block at all, not an empty one.
         Layout layout = build(NOTHING, 0, 0, 0, 120);
         assertNotNull(layout.slot(OverlayLayout.TASKS_HEADING));
         assertNotNull(layout.slot(OverlayLayout.REWARDS_HEADING));
-        assertNotNull(layout.slot(OverlayLayout.NO_DESCRIPTION));
+        assertNull(layout.slot(OverlayLayout.NO_DESCRIPTION),
+                "no description means no description block, not an empty one");
         assertNotNull(layout.slot(OverlayLayout.NO_TASKS));
         assertNotNull(layout.slot(OverlayLayout.NO_REWARDS));
+
+        // The editor still places its empty-description row: the field's click target.
+        Layout editing = OverlayLayout.stack(prose(NOTHING, 120), 0, 0, 0, true,
+                OverlayLayout.Reveal.ALL).build(120, FONT);
+        assertNotNull(editing.slot(OverlayLayout.NO_DESCRIPTION));
     }
 
     @Test
@@ -297,7 +312,8 @@ class OverlayLayoutTest {
 
         // The empty states are rows too, and indented the same. They are not in the layout above,
         // because an empty state is only placed when its list is empty -- which is the rule asserted
-        // in everyInteriorSectionIsAlwaysThereEvenWhenEmpty.
+        // in everyInteriorSectionIsAlwaysThereEvenWhenEmpty. (The description has no empty state on
+        // a reader's card anymore; the editor's surviving row is asserted there too.)
         Layout empty = build(NOTHING, 0, 0, 0, width);
         for (Object key : List.of(OverlayLayout.NO_TASKS, OverlayLayout.NO_REWARDS)) {
             Slot slot = empty.slot(key);
@@ -305,10 +321,6 @@ class OverlayLayoutTest {
             assertEquals(OverlayLayout.ROW_INDENT, slot.x(), key + " is a row, so it is indented too");
             assertEquals(width - OverlayLayout.ROW_INDENT * 2, slot.width());
         }
-
-        // The *description's* empty state is not indented, because prose is not. It sits at the body's
-        // left edge like every paragraph, so toggling a description on and off does not shift the text.
-        assertEquals(0, empty.slot(OverlayLayout.NO_DESCRIPTION).x());
 
         // Prose and headings start at the body's left edge, not at the indent: they are the body's own
         // text, and indenting them would put a description's first line out of line with its sections.
@@ -458,7 +470,7 @@ class OverlayLayoutTest {
     @Test
     void aMissingDescriptionIsRefusedRatherThanTreatedAsEmpty() {
         // Empty and absent are different: absent means the caller has a bug upstream -- a null from a
-        // cache entry that was not found -- and drawing "No description." over it would hide it.
+        // cache entry that was not found -- and placing an empty state over it would hide it.
         assertThrows(NullPointerException.class, () -> OverlayLayout.stack(null, 0, 0, 0));
     }
 
@@ -613,7 +625,10 @@ class OverlayLayoutTest {
                 "it grows to the prose, not to the column");
 
         // The empty state gets the same frame: the one row, the whole column, padded the same way.
-        Layout empty = build(NOTHING, 0, 0, 0, width);
+        // Built editing, which is the only mode that still places the row: a reader's card has no
+        // description block at all when there is no description.
+        Layout empty = OverlayLayout.stack(prose(NOTHING, width), 0, 0, 0, true,
+                OverlayLayout.Reveal.ALL).build(width, FONT);
         Slot line = empty.slot(OverlayLayout.NO_DESCRIPTION);
         assertNotNull(line);
         Slot emptyFrame = OverlayLayout.proseFrame(line, line.bottom(), line.right(), width);

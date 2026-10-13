@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.ellipog.tenet.Constants;
 import dev.ellipog.tenet.QuestAuthority;
+import dev.ellipog.tenet.TenetCommand;
 import dev.ellipog.tenet.client.ClientChapterReplica;
 import dev.ellipog.tenet.client.ClientEditReplies;
 import dev.ellipog.tenet.client.ClientLocale;
@@ -16,6 +17,8 @@ import dev.ellipog.tenet.editor.EditorOp;
 import dev.ellipog.tenet.editor.EditorOps;
 import dev.ellipog.tenet.client.ClientTicker;
 import dev.ellipog.tenet.progress.ProgressService;
+import dev.ellipog.tenet.progress.ProgressionEngine;
+import dev.ellipog.tenet.progress.QuestState;
 import dev.ellipog.tenet.quest.CanvasElement;
 import dev.ellipog.tenet.quest.ClickAction;
 import dev.ellipog.tenet.quest.QuestIndex;
@@ -273,6 +276,18 @@ public final class TenetNetworking {
                 ArmatureNetwork.Direction.TO_SERVER,
                 null,
                 TenetNetworking::handleResetAll));
+
+        // --- marking quests complete for playtesting, client to server ---
+        //
+        // One message with a flag rather than two: the scope is one quest either way, and the flag
+        // only chooses whether its required dependencies complete with it. See the payload for why
+        // the ids travel but the progress never does.
+        ArmatureNetwork.register(new ArmatureNetwork.Registration<>(
+                CompleteQuestPayload.TYPE,
+                CompleteQuestPayload.CODEC,
+                ArmatureNetwork.Direction.TO_SERVER,
+                null,
+                TenetNetworking::handleCompleteQuest));
 
         // --- a choice reward's entries, and the player's answer ---
 
@@ -1045,6 +1060,76 @@ public final class TenetNetworking {
                 ? new RewardToastPayload("tenet.screen.reset_done", true, "Progress cleared")
                 : new RewardToastPayload("tenet.command.reset.nothing", true,
                         "There was no progress to clear"));
+    }
+
+    /**
+     * An author pressed Complete on quests in the book.
+     *
+     * <h2>The same trust shape as a reset, granting rather than clearing</h2>
+     *
+     * <p>The payload names ids only, so the server resolves each one against its own index,
+     * re-checks {@link QuestAuthority#mayEdit} — the menu is gated by the same level, and a
+     * refusal here means the permission moved mid-session — and walks the command's own guards
+     * before anything lands. No client-asserted progress crosses this handler, which is the rule
+     * {@code SubmitTaskPayload} exists to state.
+     *
+     * <p>The sentences are literals, like the menu rows that sent them: the node menu is
+     * English-only throughout, and one translatable toast among literal rows would be a promise
+     * the menu does not keep. They follow the command's own wording, minus the arguments a toast
+     * cannot carry.
+     */
+    private static void handleCompleteQuest(CompleteQuestPayload payload, ServerPlayer sender) {
+        MinecraftServer server = sender.getServer();
+        if (server == null || TenetQuests.index().isEmpty()) {
+            return;
+        }
+        if (!QuestAuthority.mayEdit(sender)) {
+            Constants.LOG.warn("{} asked to complete quest '{}' without edit permission",
+                    sender.getScoreboardName(), payload.questId());
+            return;
+        }
+
+        // The index resolves aliases, so a client holding a stale id after a rename still works.
+        var entry = TenetQuests.index().quest(payload.questId());
+        if (entry.isEmpty()) {
+            Constants.LOG.warn("{} asked to complete unknown quest '{}'",
+                    sender.getScoreboardName(), payload.questId());
+            return;
+        }
+
+        if (payload.withDependencies()) {
+            int done = TenetCommand.completeClosure(server, sender, entry.get());
+            ArmatureNetwork.sendToPlayer(sender, new RewardToastPayload(
+                    "Completed " + done + " quest(s) up to \"" + payload.questId() + "\"", false, ""));
+            sendToTeam(sender, ProgressSyncPayload.REASON_CHANGED);
+            return;
+        }
+
+        switch (TenetCommand.completeSingle(server, sender, entry.get())) {
+            case DONE -> {
+                ArmatureNetwork.sendToPlayer(sender, new RewardToastPayload(
+                        "Completed \"" + payload.questId() + "\"", false, ""));
+                sendToTeam(sender, ProgressSyncPayload.REASON_CHANGED);
+            }
+            case LOCKED -> {
+                // The label is messaging only: the guard already refused above, this names why.
+                QuestState state = ProgressionEngine.resolve(TenetQuests.index(),
+                        ProgressService.progressFor(server,
+                                ProgressService.progressOwner(server, sender)),
+                        server.overworld().getGameTime()).stateOf(entry.get().quest());
+                ArmatureNetwork.sendToPlayer(sender, new RewardToastPayload("Cannot complete \""
+                        + payload.questId() + "\": it is " + state.label() + ", not unlocked",
+                        false, ""));
+            }
+            case PENDING -> ArmatureNetwork.sendToPlayer(sender, new RewardToastPayload(
+                    "Cannot complete \"" + payload.questId()
+                            + "\" again while its rewards are still waiting",
+                    false, ""));
+            case GATED -> ArmatureNetwork.sendToPlayer(sender, new RewardToastPayload(
+                    "Cannot complete \"" + payload.questId() + "\": it requires the stage "
+                            + entry.get().quest().requiresStage().map(Object::toString).orElse(""),
+                    false, ""));
+        }
     }
 
     /**

@@ -16,9 +16,12 @@ import dev.ellipog.tenet.quest.QuestLayout;
 import dev.ellipog.tenet.quest.QuestShape;
 import dev.ellipog.tenet.quest.TagLabels;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -480,12 +483,12 @@ public final class ClientQuestCache {
 
     /**
      * What a quest draws for its picture when it names none: its first task's with a picture,
-     * cycling when that task is a filter. The legacy {@code IconAnimation} rule, resolved at draw
-     * time rather than at conversion, so a filter's rotation survives the trip.
+     * cycling when that task rotates through several. The legacy {@code IconAnimation} rule,
+     * resolved at draw time rather than at conversion, so a filter's rotation survives the trip.
      *
-     * <p>The priority is deliberate: a cycling filter frame first, then an author or
-     * type-resolved picture (a kill task's egg arrives here), then an item requirement, and
-     * only then the task type's own glyph — a knowledge book says "things to do" where paper
+     * <p>The priority is deliberate: a rotation frame first (a filter's matches, or a tag's
+     * items), then an author or type-resolved picture (a kill task's egg arrives here), then an
+     * item requirement, and only then the task type's own glyph — a knowledge book says "things to do" where paper
      * says nothing. Glyphs speak last because a requirement names the quest better than its
      * kind does, but they speak now: a quest of bare checkmarks used to keep the paper
      * default, like a quest of nothing.
@@ -663,32 +666,96 @@ public final class ClientQuestCache {
      * One frame of a filter task's rotation, at the legacy one-picture-a-second cadence: what every
      * surface showing that task draws with.
      *
-     * <p>Empty for every non-filter task and for a filter nothing answers to — those draw the
-     * still rule ({@code picture}, then requirement, then glyph) instead. One helper for the
-     * book's rows, the quest adoption above and the HUD pins, because three spellings of the
-     * cadence is how two of them would freeze while the third cycled.
+     * <p>Empty for tasks with nothing to rotate — no filter, an unresolvable tag, a filter nothing
+     * answers to — which draw the still rule ({@code picture}, then requirement, then glyph)
+     * instead. One helper for the book's rows, the quest adoption above and the HUD pins, because
+     * three spellings of the cadence is how two of them would freeze while the third cycled.
      */
     public static ItemStack filterFrame(TaskEntry task) {
-        if (task.filter().isEmpty()) {
+        List<ItemStack> frames = rotationFrames(task);
+        if (frames.isEmpty()) {
             return ItemStack.EMPTY;
         }
-        FilterMatches.Matches matches = FilterMatches.of(task.filter());
-        if (matches.shown().isEmpty()) {
-            return ItemStack.EMPTY;
+        return frames.get(
+                (int) ((net.minecraft.Util.getMillis() / 1000) % frames.size()));
+    }
+
+    /**
+     * The pictures a task's icon rotation serves, in order: a filter's matches, or a tag's items.
+     *
+     * <p>A {@code tenet:item_tag} task names many items yet draws one, so it rotates through the
+     * tag's contents at the same cadence and on the same clock as a filter — rows, nodes and HUD
+     * pins cycle together, with no second clock invented. Explicit pictures still win: this only
+     * fills the slot the adoption would otherwise fill still.
+     */
+    static List<ItemStack> rotationFrames(TaskEntry task) {
+        if (!task.filter().isEmpty()) {
+            return FilterMatches.of(task.filter()).shown();
         }
-        return matches.shown().get(
-                (int) ((net.minecraft.Util.getMillis() / 1000) % matches.shown().size()));
+        if (!task.tagId().isEmpty()) {
+            return tagFrames(task.tagId());
+        }
+        return List.of();
+    }
+
+    /** How many of a tag's items the rotation serves: enough to read as many, few enough to cache. */
+    static final int TAG_FRAMES = 10;
+
+    /** One tag's rotation frames, by tag id. Cleared with the tree: tags belong to a datapack. */
+    private static final Map<String, List<ItemStack>> tagFrames = new LinkedHashMap<>();
+
+    /**
+     * An item tag's first items, resolved against this client's registry and kept.
+     *
+     * <p>Resolved once per distinct tag and kept: like {@link FilterMatches}, registries do not
+     * change while a client is connected, so a resolution can be made once. Empty for a tag id
+     * that does not parse and for a tag nothing declares — an unresolvable tag keeps today's
+     * fallback (the glyph), never an empty draw.
+     */
+    public static List<ItemStack> tagFrames(String tagId) {
+        if (tagId == null || tagId.isEmpty()) {
+            return List.of();
+        }
+        List<ItemStack> cached = tagFrames.get(tagId);
+        if (cached != null) {
+            return cached;
+        }
+        List<ItemStack> frames = new ArrayList<>();
+        ResourceLocation id = ResourceLocation.tryParse(tagId);
+        if (id != null) {
+            TagKey<Item> tag = TagKey.create(Registries.ITEM, id);
+            var named = BuiltInRegistries.ITEM.getTag(tag);
+            if (named.isPresent()) {
+                for (Holder<Item> holder : named.get()) {
+                    if (holder.value() == Items.AIR) {
+                        continue;
+                    }
+                    frames.add(new ItemStack(holder.value(), 1));
+                    if (frames.size() >= TAG_FRAMES) {
+                        break;
+                    }
+                }
+            }
+        }
+        List<ItemStack> resolved = List.copyOf(frames);
+        tagFrames.put(tagId, resolved);
+        return resolved;
+    }
+
+    /** Drops every cached tag enumeration, beside {@link FilterMatches#forget}. */
+    static void forgetTagFrames() {
+        tagFrames.clear();
     }
 
     /**
      * Whether this quest's adopted icon cycles: no icon of its own, and the first task
-     * with anything to lend lends a filter naming more than one frame.
+     * with anything to lend lends more than one frame.
      *
      * <p>The same priority walk as {@link #adoptedQuestIcon}, asked as a question rather
      * than for the picture — and the two must stay the same walk, or the stamp that
      * restamps for animation restamps for icons that never move. A single-frame filter
-     * is still (its one frame draws always), a picture or requirement ahead of any
-     * filter wins still, and the glyph second loop never cycles.
+     * or a single-item tag is still (its one frame draws always), a picture or
+     * requirement ahead of any rotation wins still, and the glyph second loop never cycles.
      *
      * <p>What the canvas stamp reads to decide whether the second is part of its key:
      * a cycling icon advances once a second, and a stamp that could not see the clock
@@ -700,8 +767,11 @@ public final class ClientQuestCache {
             return false;
         }
         for (TaskEntry task : entry.tasks()) {
+            if (rotationFrames(task).size() > 1) {
+                return true;
+            }
             if (!filterFrame(task).isEmpty()) {
-                return FilterMatches.of(task.filter()).shown().size() > 1;
+                return false;
             }
             if (!task.picture().isEmpty() || !task.item().isEmpty()) {
                 return false;
@@ -2663,6 +2733,9 @@ public final class ClientQuestCache {
         // drawing that tree's rows for a cache that has nothing in it.
         // And the filter enumerations, which name this registry's items for that tree's expressions.
         FilterMatches.forget();
+        // And the tag enumerations beside them: tags belong to a datapack, so last world's
+        // block tags must not lend this world's quests their pictures.
+        forgetTagFrames();
         treeRevision++;
         // And the progress counter, for the same reason again: an empty cache is not the progress that
         // was there a moment ago, and a panel holding a Claim button for it is holding a button for a

@@ -115,7 +115,7 @@ public final class OverlayLayout {
      */
     public static final int LINE_HEIGHT = 10;
 
-    /** What an empty description says, and how much room saying it takes. */
+    /** What an empty description reserves: the editor's click-target row, and nothing said in it. */
     public static final int DESCRIPTION_ADVANCE = 12;
 
     /** The space under a description paragraph. After the last one too — see {@link #stack}. */
@@ -384,7 +384,8 @@ public final class OverlayLayout {
      * details are withheld keeps the description first, because the two sections above it are absent
      * entirely.
      *
-     * @param description      the prose paragraphs, in order. Empty means the empty state is placed.
+     * @param description      the prose paragraphs, in order. Empty places no prose on a reader's
+     *                           card; the editor keeps one row as the description field's click target.
      * @param taskCount        how many tasks. Zero means the empty state is placed.
      * @param rewardCount      how many rewards. Zero means the empty state is placed.
      * @param dependencyCount  how many prerequisites. Zero places no REQUIRES section at all.
@@ -522,16 +523,25 @@ public final class OverlayLayout {
         // prose used to sit *after* (SECTION_GAP), so the card's total height is unchanged and only the
         // order moved. When the details are withheld the sections above are absent and the prose is
         // still first, which is what a locked quest's card has always looked like.
-        if (reveal.details()) {
-            stack.gap(SECTION_GAP);
-        }
         if (!reveal.text()) {
-            // Nothing at all, not even the empty state: "No description." is a statement about the
-            // quest, and a quest whose text is withheld has one.
+            // Nothing at all, not even the empty state: a quest whose text is withheld still has a
+            // description, and the layout must not place a row that claims otherwise.
             description = List.of();
         }
-        else if (description.isEmpty()) {
-            stack.row(NO_DESCRIPTION, DESCRIPTION_ADVANCE);
+        // Revealed but empty, on a reader's card, the block is absent entirely -- no placeholder
+        // row and no leading gap -- the way REQUIRES is absent when there is nothing to require.
+        // The editor keeps its row below as the description field's click target.
+        boolean collapses = description.isEmpty() && reveal.text() && !editing;
+        if (!collapses) {
+            if (reveal.details()) {
+                stack.gap(SECTION_GAP);
+            }
+            if (description.isEmpty() && editing) {
+                // The editor's empty description: the row stays as the field's click target (see
+                // QuestBookScreen.descriptionBox) with nothing drawn in it. A withheld description
+                // keeps the gap it has always had, and nothing else.
+                stack.row(NO_DESCRIPTION, DESCRIPTION_ADVANCE);
+            }
         }
         for (int i = 0; i < description.size(); i++) {
             Prose paragraph = description.get(i);

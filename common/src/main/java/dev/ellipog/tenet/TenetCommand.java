@@ -936,25 +936,64 @@ public final class TenetCommand {
     }
 
     /**
-     * Attempts one quest's completion without reporting why not: the sweep's workhorse.
+     * What a guarded completion attempt finds: done, or which refusal.
      *
-     * <p>Same three guards as {@link #completeOne}, silent. A sweep that stopped to explain every
-     * skipped node would bury the count that is its answer.
+     * <p>The verdict travels without its sentence: the command words each one for chat, the book's
+     * menu words its own for toasts, and the guards are asked once, here, for both roads.
      */
-    private static boolean tryComplete(MinecraftServer server, ServerPlayer target,
-                                       QuestIndex.QuestEntry entry) {
+    public enum CompleteVerdict {
+        DONE,
+        LOCKED,
+        PENDING,
+        GATED
+    }
+
+    /**
+     * Forces one quest complete for one player, on the command's own three guards.
+     *
+     * <p>The menu's road to the command's path: the quest book's Complete press names ids only,
+     * and this resolves, guards and grants exactly as {@code /tenet complete} does — playable,
+     * completable, stage gate open — through the same {@link ProgressService#complete} the engine
+     * uses, so rewards land as waiting-to-claim and never handed over. Silent: the caller words
+     * the verdict for wherever its author is looking.
+     */
+    public static CompleteVerdict completeSingle(MinecraftServer server, ServerPlayer target,
+                                                 QuestIndex.QuestEntry entry) {
         java.util.UUID owner = ProgressService.progressOwner(server, target);
         var progress = ProgressService.progressFor(server, owner);
         QuestState state = ProgressionEngine.resolve(TenetQuests.index(), progress,
                 server.overworld().getGameTime()).stateOf(entry.quest());
-        if (!state.isPlayable() || !ProgressService.canComplete(entry.quest(), progress)
-                || !ProgressService.stageGateOpen(server, entry.quest(), target.getUUID())) {
-            return false;
+        if (!state.isPlayable()) {
+            return CompleteVerdict.LOCKED;
         }
-        var before = progress.progressOf(entry.quest()).state();
+        if (!ProgressService.canComplete(entry.quest(), progress)) {
+            return CompleteVerdict.PENDING;
+        }
+        if (!ProgressService.stageGateOpen(server, entry.quest(), target.getUUID())) {
+            return CompleteVerdict.GATED;
+        }
         ProgressService.complete(server, owner, target, entry, progress);
-        return ProgressService.progressFor(server, owner).progressOf(entry.quest()).state()
-                != before;
+        return CompleteVerdict.DONE;
+    }
+
+    /**
+     * A quest and everything it waits on, completed dependencies-first with the same guards.
+     *
+     * <p>The menu's road to {@code /tenet complete ... with-dependencies}: one sweep over
+     * {@link #dependencyClosure}, refusing nodes silently and counting what changed — the same
+     * count the command reports, arrived at the same way.
+     *
+     * @return how many quests changed state
+     */
+    public static int completeClosure(MinecraftServer server, ServerPlayer target,
+                                      QuestIndex.QuestEntry entry) {
+        int done = 0;
+        for (QuestIndex.QuestEntry each : dependencyClosure(entry)) {
+            if (tryComplete(server, target, each)) {
+                done++;
+            }
+        }
+        return done;
     }
 
     /**
@@ -993,6 +1032,23 @@ public final class TenetCommand {
                         target.getScoreboardName()),
                 false);
         return done;
+    }
+
+    /**
+     * Attempts one quest's completion without reporting why not: the sweep's workhorse.
+     *
+     * <p>Same three guards as {@link #completeOne}, silent — asked once, in {@link #completeSingle}.
+     * A sweep that stopped to explain every skipped node would bury the count that is its answer.
+     */
+    private static boolean tryComplete(MinecraftServer server, ServerPlayer target,
+                                       QuestIndex.QuestEntry entry) {
+        java.util.UUID owner = ProgressService.progressOwner(server, target);
+        var before = ProgressService.progressFor(server, owner).progressOf(entry.quest()).state();
+        if (completeSingle(server, target, entry) != CompleteVerdict.DONE) {
+            return false;
+        }
+        return ProgressService.progressFor(server, owner).progressOf(entry.quest()).state()
+                != before;
     }
 
     /**

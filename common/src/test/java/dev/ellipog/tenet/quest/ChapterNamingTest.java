@@ -96,4 +96,25 @@ class ChapterNamingTest {
         assertNotEquals(first, second, "a second candidate is a different name, not the first truncated");
         assertNull(ChapterNaming.problemWith(second), second);
     }
+
+    @Test
+    @DisplayName("a title slugs to the id it spells, and the id is always usable")
+    void slugsATitleToAnId() {
+        assertEquals("first_steps", ChapterNaming.slug("First Steps"));
+        assertEquals("my_new_chapter_", ChapterNaming.slug("My New Chapter "),
+                "edges the alphabet cannot spell are stripped, the rest is literal");
+        assertEquals("", ChapterNaming.slug("... !!! ..."),
+                "a title with nothing spellable slugs to nothing, which is the fallback's cue");
+        assertEquals("", ChapterNaming.slug(""), "empty in, empty out");
+        assertEquals("", ChapterNaming.slug(null), "null in, empty out");
+        // Whatever comes out must satisfy the rule on its own: the inline create sends it
+        // without asking again.
+        for (String title : List.of("Fresh Start", " déjà vu! ", "  padded  ", "UPPER lower 123",
+                "a".repeat(200))) {
+            String slugged = ChapterNaming.slug(title);
+            if (!slugged.isEmpty()) {
+                assertNull(ChapterNaming.problemWith(slugged, TAKEN), title + " -> " + slugged);
+            }
+        }
+    }
 }

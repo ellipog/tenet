@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -492,6 +493,87 @@ class SidebarLayoutTest {
                                 || id.startsWith("first") || id.startsWith("second"),
                         row.key() + " leaked a namespace prefix into its id: " + id);
             }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // The inline-edit row
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("the inline-edit row")
+    class InlineEdit {
+
+        @Test
+        @DisplayName("isInlineKey names only the edit scaffolding")
+        void isInlineKeyNamesOnlyTheScaffolding() {
+            assertTrue(SidebarLayout.isInlineKey("inline:edit"));
+            assertTrue(SidebarLayout.isInlineKey("inline:status"));
+            assertFalse(SidebarLayout.isInlineKey(SidebarLayout.groupKey("g")));
+            assertFalse(SidebarLayout.isInlineKey(SidebarLayout.chapterKey("c")));
+            assertFalse(SidebarLayout.isInlineKey(""), "and neither is nothing");
+            assertFalse(SidebarLayout.isInlineKey(null));
+        }
+
+        @Test
+        @DisplayName("indexOfKey is the row's visible position, or -1")
+        void indexOfKeyIsTheVisiblePosition() {
+            SidebarLayout sidebar = twoGroups();
+
+            assertEquals(0, sidebar.indexOfKey("group:zzz_tools"));
+            assertEquals(1, sidebar.indexOfKey("group:aaa_start"));
+            assertEquals(2, sidebar.indexOfKey("chapter:first_steps"));
+            assertEquals(3, sidebar.indexOfKey("chapter:second_steps"));
+            assertEquals(-1, sidebar.indexOfKey("chapter:missing"),
+                    "a rename replaces a row that is there; anything else is a caller bug");
+        }
+
+        @Test
+        @DisplayName("endOfSection is one past the section's last row")
+        void endOfSectionIsOnePastTheLastRow() {
+            SidebarLayout sidebar = twoGroups();
+
+            // group:zzz_tools, group:aaa_start, chapter:first_steps, chapter:second_steps.
+            assertEquals(1, sidebar.endOfSection("zzz_tools"),
+                    "an empty group's section is just its heading");
+            assertEquals(4, sidebar.endOfSection("aaa_start"),
+                    "a chapter created here lands after its last sibling");
+            assertEquals(0, sidebar.endOfSection(""),
+                    "with no ungrouped chapters the ungrouped section is empty, at the top");
+            assertEquals(4, sidebar.endOfSection("missing"),
+                    "an unknown group appends, and the server appends there too");
+        }
+
+        @Test
+        @DisplayName("the ungrouped section ends where the first heading begins")
+        void theUngroupedSectionEndsAtTheFirstHeading() {
+            SidebarLayout sidebar = SidebarLayout.of(
+                    List.of(new SidebarLayout.Group("g", "G", false)),
+                    List.of(new SidebarLayout.ChapterRow("loose", "Loose", ""),
+                            new SidebarLayout.ChapterRow("kept", "Kept", "g")));
+
+            assertEquals(List.of("chapter:loose", "group:g", "chapter:kept"), keys(sidebar));
+            assertEquals(1, sidebar.endOfSection(""),
+                    "a chapter created ungrouped lands after the last loose one");
+            assertEquals(3, sidebar.endOfSection("g"));
+        }
+
+        @Test
+        @DisplayName("a spliced edit row is placed like a real one, at its index")
+        void aSplicedEditRowIsPlacedLikeARealOne() {
+            SidebarLayout sidebar = twoGroups();
+            List<SidebarLayout.Row> rows = new ArrayList<>(sidebar.rows());
+            rows.add(sidebar.endOfSection("aaa_start"),
+                    new SidebarLayout.Row("inline:edit", "", "", 1, false, false, false));
+
+            Layout layout = sidebar.stack(rows, 200);
+            Slot edit = layout.slot("inline:edit");
+            assertNotNull(edit, "the edit row is placed, so the screen has somewhere to put the field");
+            assertEquals(8, edit.x(), "indented like the chapter it will become");
+            assertEquals(200 - 8, edit.width());
+            assertEquals(sidebar.stack(200).height() + BookGeometry.SIDEBAR_ROW_HEIGHT
+                            + BookGeometry.SIDEBAR_ROW_GAP, layout.height(),
+                    "one row and its gap more than the list without it");
         }
     }
 
