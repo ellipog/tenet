@@ -33738,6 +33738,13 @@ public final class QuestBookScreen extends ArmatureScreen
         // claim-only — it carries no recipe target, so one press is never two answers — while
         // anything else keeps today's behaviour, recipes included.
         boolean claimable = strings.actionable();
+        // Whether this player already collected it: claimed rows wear their mark below and,
+        // like claimable ones, carry no recipe target. A collected reward is not an ingredient
+        // to look up, and a press on one must not open recipes for something already owned.
+        // The entry overload, not the id lookup: the lookup walks the whole tree, and this runs
+        // per reward row per frame (see ClientQuestCache#rewardClaimedBy for why both exist).
+        java.util.UUID self = selfId();
+        boolean claimed = self != null && ClientQuestCache.rewardClaimedBy(self, entry, index);
 
         int contentRight = x + ROW_ICON + 5 + r.textWidth(text);
         if (count != null) {
@@ -33749,15 +33756,26 @@ public final class QuestBookScreen extends ArmatureScreen
             // instead left the tag floating outside its own highlight.
             contentRight = Math.max(contentRight, x + slot.width());
         }
+        else if (claimed) {
+            // Claimed rows wear the fact the way locked rows wear theirs: right-aligned, in the
+            // dim ink, where the claim button used to be. The button is gone (nothing left to
+            // collect) and so is the recipe target above — a collected reward is looked at, not
+            // looked up.
+            contentRight = Math.max(contentRight, x + slot.width());
+        }
 
         // The row's own box rather than its slot: see `rowBox` for the six pixels of gap between them.
         // Registered exactly as the task row's is, one member over: the same box answers the hover and
         // carries the explanation.
         Slot row = rowBox(slot);
         // The row's target, from the same rule the task row uses: an item reward, and nothing for a
-        // reward with no item — and nothing at all while the row is claimable, when the press
-        // collects instead. Collected from the drawing pass, like the rowTooltips below.
-        RecipeLookups.Target target = claimable ? null : BookRowTargets.ofReward(reward);
+        // reward with no item — nothing while the row is claimable, when the press collects instead,
+        // and nothing once it is claimed, when there is nothing left to collect. An unclaimed row
+        // that is not claimable keeps its lookup: a locked reward is still something to identify.
+        // (In a viewer, reward icons never open recipes at all — see the adapters — because there
+        // a reward is display-only; here the row carries the conditions that explain the gate.)
+        // Collected from the drawing pass, like the rowTooltips below.
+        RecipeLookups.Target target = (claimable || claimed) ? null : BookRowTargets.ofReward(reward);
         if (target != null) {
             rowItems.add(new RowItem(row, target));
         }
@@ -33820,6 +33838,9 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         if (locked) {
             r.text("locked", x + slot.width() - r.textWidth("locked"), textY, ArmatureTheme.blocked());
+        }
+        else if (claimed) {
+            r.text("claimed", x + slot.width() - r.textWidth("claimed"), textY, ArmatureTheme.faint());
         }
     }
 

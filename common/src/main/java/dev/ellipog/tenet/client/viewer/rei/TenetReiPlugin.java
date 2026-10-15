@@ -288,6 +288,8 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
             widgets.add(Widgets.createLabel(new Point(badge.x(), badge.y()),
                             Component.literal(content.stateText(page.quest().id())))
                     .color(content.stateColour(page.quest().id())).leftAligned().noShadow());
+            QuestPageLayout.Box headerIcon = shift(layout.headerIcon(), bounds);
+            widgets.add(new IconWidget(page.quest(), headerIcon));
 
             if (!page.tasks().isEmpty()) {
                 QuestPageLayout.Box heading = shift(layout.tasksHeading(page), bounds);
@@ -300,7 +302,7 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
                 QuestPageLayout.Box row = shift(layout.taskRow(i), bounds);
                 widgets.add(new RowWidget(content, page.quest().id(), true,
                         page.tasks().get(i).sourceIndex(), layout, row));
-                addSlot(widgets, page.tasks().get(i), layout, layout.taskRow(i), bounds);
+                addSlot(widgets, page.tasks().get(i), layout, layout.taskRow(i), bounds, true);
             }
             if (!page.rewards().isEmpty()) {
                 QuestPageLayout.Box heading = shift(layout.rewardsHeading(page), bounds);
@@ -313,27 +315,78 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
                 QuestPageLayout.Box row = shift(layout.rewardRow(page, i), bounds);
                 widgets.add(new RowWidget(content, page.quest().id(), false,
                         page.rewards().get(i).sourceIndex(), layout, row));
-                addSlot(widgets, page.rewards().get(i), layout, layout.rewardRow(page, i), bounds);
+                addSlot(widgets, page.rewards().get(i), layout, layout.rewardRow(page, i), bounds, false);
             }
             return widgets;
         }
 
+        /**
+         * One slot widget: an input for tasks, display-only for rewards.
+         *
+         * <p>A reward is something to collect, not an ingredient to look up, so its slot must not
+         * answer clicks with recipes — same rule as JEI, where reward rows have no slots at all.
+         * Tooltips stay on either way: the icon still names its item.
+         */
         private static void addSlot(List<Widget> widgets, QuestRow row, QuestPageLayout layout,
-                                    QuestPageLayout.Box rowBox, Rectangle bounds) {
+                                    QuestPageLayout.Box rowBox, Rectangle bounds, boolean task) {
             if (row.icon().isEmpty()) {
                 // A tag row's members are not known here -- the index resolved them; drawing a
                 // representative item would be picking one arbitrarily. The label carries the tag.
                 return;
             }
             QuestPageLayout.Box icon = shift(layout.icon(rowBox), bounds);
-            widgets.add(Widgets.createSlot(new Point(icon.x(), icon.y()))
-                    .entry(EntryStacks.of(row.icon()))
-                    .markInput());
+            var slot = Widgets.createSlot(new Point(icon.x(), icon.y()))
+                    .entry(EntryStacks.of(row.icon()));
+            widgets.add(task ? slot.markInput() : slot.notInteractable());
         }
 
         private static QuestPageLayout.Box shift(QuestPageLayout.Box box, Rectangle bounds) {
             return new QuestPageLayout.Box(box.x() + bounds.x, box.y() + bounds.y,
                     box.width(), box.height());
+        }
+    }
+
+    /**
+     * The quest's own icon in the header: what {@link QuestPageLayout#headerIcon} has always
+     * reserved, drawn for the same reason as JEI's — a page without its quest's face is anonymous
+     * in a list of pages.
+     */
+    private static final class IconWidget extends Widget {
+
+        private final QuestRef quest;
+        private final QuestPageLayout.Box box;
+
+        IconWidget(QuestRef quest, QuestPageLayout.Box box) {
+            this.quest = quest;
+            this.box = box;
+        }
+
+        /** No children: the icon is one drawn picture, and REI's event dispatch asks for them. */
+        @Override
+        public List<? extends GuiEventListener> children() {
+            return List.of();
+        }
+
+        @Override
+        public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+            GuiRenderer renderer = new GuiGraphicsRenderer(graphics);
+            if (!quest.icon().isEmpty()) {
+                renderer.icon(quest.icon(), box.x(), box.y(), QuestPageLayout.ITEM);
+                return;
+            }
+            if (!quest.textureIcon().isEmpty()) {
+                ResourceLocation id = ResourceLocation.tryParse(quest.textureIcon());
+                if (id != null) {
+                    renderer.texture(id, box.x(), box.y(), box.width(), box.height());
+                    return;
+                }
+            }
+            if (!quest.spriteIcon().isEmpty()) {
+                ResourceLocation id = ResourceLocation.tryParse(quest.spriteIcon());
+                if (id != null) {
+                    renderer.sprite(id, box.x(), box.y(), box.width(), box.height(), 0xFFFFFFFF);
+                }
+            }
         }
     }
 

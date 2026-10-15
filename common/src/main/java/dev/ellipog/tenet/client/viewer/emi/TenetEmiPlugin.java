@@ -325,14 +325,11 @@ public final class TenetEmiPlugin implements dev.emi.emi.api.EmiPlugin, Integrat
                 QuestPageLayout.Box box = layout.rewardRow(page, i);
                 widgets.add(new RowWidget(content, page.quest().id(), false,
                         page.rewards().get(i).sourceIndex(), layout, box));
-                dev.emi.emi.api.widget.SlotWidget slot =
-                        addSlot(widgets, page.rewards().get(i), layout, box);
-                if (i == 0 && slot != null) {
-                    // The primary output — the stack the sidebar entry draws — carries the quest's
-                    // own line, read live at hover like every other number on the page.
-                    slot.appendTooltip(() -> ClientTooltipComponent.create(
-                            questLine(content, page).getVisualOrderText()));
-                }
+                // Display-only: a reward is something to collect, not an ingredient to look up,
+                // so it gets a drawn icon rather than a slot widget — same rule as JEI (no slots)
+                // and REI (unmarked slots). The quest line lives on the first icon's tooltip.
+                widgets.add(new RewardIconWidget(page.rewards().get(i), layout, box,
+                        i == 0 ? questLine(content, page) : null));
             }
         }
 
@@ -379,6 +376,61 @@ public final class TenetEmiPlugin implements dev.emi.emi.api.EmiPlugin, Integrat
                         icon.x(), icon.y());
             }
             return null;
+        }
+        /**
+         * A reward's icon, drawn rather than slotted.
+         *
+         * <p>A reward is something to collect, not an ingredient to look up, so it gets no slot
+         * widget: a slot is a recipe link in EMI, and these must have none — same rule as JEI
+         * (no slots) and REI (unmarked slots). The icon draws through the game's own item
+         * renderer at the slot box the layout reserves; a tag row has no single item and draws
+         * nothing, its label carrying the tag. Clicks fall through dead: this widget answers
+         * neither mouse nor keys, so neither opens recipes.
+         */
+        private static final class RewardIconWidget extends dev.emi.emi.api.widget.Widget {
+
+            private final QuestRow row;
+            private final QuestPageLayout.Box icon;
+            private final Component questLine;
+
+            RewardIconWidget(QuestRow row, QuestPageLayout layout,
+                             QuestPageLayout.Box rowBox, Component questLine) {
+                this.row = row;
+                QuestPageLayout.Box slot = layout.icon(rowBox);
+                this.icon = slot;
+                this.questLine = questLine;
+            }
+
+            @Override
+            public dev.emi.emi.api.widget.Bounds getBounds() {
+                return new dev.emi.emi.api.widget.Bounds(icon.x(), icon.y(),
+                        icon.width(), icon.height());
+            }
+
+            @Override
+            public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+                if (!row.icon().isEmpty()) {
+                    graphics.renderItem(row.icon(), icon.x() + 1, icon.y() + 1);
+                }
+            }
+
+            @Override
+            public List<ClientTooltipComponent> getTooltip(int mouseX, int mouseY) {
+                List<ClientTooltipComponent> lines = new ArrayList<>();
+                if (!row.icon().isEmpty()) {
+                    lines.add(ClientTooltipComponent.create(
+                            row.icon().getHoverName().getVisualOrderText()));
+                }
+                if (questLine != null) {
+                    lines.add(ClientTooltipComponent.create(questLine.getVisualOrderText()));
+                }
+                return lines;
+            }
+
+            @Override
+            public boolean mouseClicked(int mouseX, int mouseY, int button) {
+                return false;
+            }
         }
     }
 

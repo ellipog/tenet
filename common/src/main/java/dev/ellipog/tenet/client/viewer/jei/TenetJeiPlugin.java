@@ -287,13 +287,14 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
 
         @Override
         public void setRecipe(IRecipeLayoutBuilder builder, QuestPage page, IFocusGroup focuses) {
+            // Tasks are JEI inputs: pressing R or U on one, or clicking it, looks its item up,
+            // which is what an input slot is for. Rewards are display-only: a reward is something
+            // to collect, not an ingredient to look up, so they get no slots at all — a slot is
+            // a recipe link, and these must have none. Their icons are drawn by hand in draw(),
+            // from the same boxes the slots would have taken.
             for (int i = 0; i < page.tasks().size(); i++) {
                 QuestPageLayout.Box icon = layout.icon(layout.taskRow(i));
                 addIngredient(builder.addInputSlot(icon.x(), icon.y()), page.tasks().get(i));
-            }
-            for (int i = 0; i < page.rewards().size(); i++) {
-                QuestPageLayout.Box icon = layout.icon(layout.rewardRow(page, i));
-                addIngredient(builder.addOutputSlot(icon.x(), icon.y()), page.rewards().get(i));
             }
         }
 
@@ -330,6 +331,7 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
             PageArt.pill(renderer,
                     PageArt.fit(renderer, content.stateText(page.quest().id()), badge.width()),
                     badge.x(), badge.y(), content.stateColour(page.quest().id()));
+            drawQuestIcon(renderer, page);
 
             if (!page.tasks().isEmpty()) {
                 QuestPageLayout.Box heading = layout.tasksHeading(page);
@@ -349,7 +351,61 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
                 drawRow(renderer, layout.rewardRow(page, i),
                         content.liveReward(page.quest().id(), page.rewards().get(i).sourceIndex()),
                         false);
+                drawRewardIcon(renderer, layout.rewardRow(page, i), page.rewards().get(i));
             }
+        }
+
+        /**
+         * The quest's own icon, top-left in the header.
+         *
+         * <p>The layout has always reserved the box ({@link QuestPageLayout#headerIcon} — "the quest's
+         * icon and title on one line"), but no adapter drew into it: the title started at the text
+         * column and the icon's box sat empty. A page without its quest's face is anonymous in a
+         * list of pages, so this draws what the layout always meant to hold.
+         */
+        private void drawQuestIcon(GuiRenderer renderer, QuestPage page) {
+            QuestPageLayout.Box box = layout.headerIcon();
+            QuestRef quest = page.quest();
+            if (!quest.icon().isEmpty()) {
+                renderer.icon(quest.icon(), box.x(), box.y(), QuestPageLayout.ITEM);
+                return;
+            }
+            drawPictureIcon(renderer, box, quest.textureIcon(), quest.spriteIcon());
+        }
+
+        /** A picture icon from an author's file or atlas region, or nothing when there is none. */
+        private void drawPictureIcon(GuiRenderer renderer, QuestPageLayout.Box box,
+                                     String texture, String sprite) {
+            if (!texture.isEmpty()) {
+                net.minecraft.resources.ResourceLocation id =
+                        net.minecraft.resources.ResourceLocation.tryParse(texture);
+                if (id != null) {
+                    renderer.texture(id, box.x(), box.y(), box.width(), box.height());
+                    return;
+                }
+            }
+            if (!sprite.isEmpty()) {
+                net.minecraft.resources.ResourceLocation id =
+                        net.minecraft.resources.ResourceLocation.tryParse(sprite);
+                if (id != null) {
+                    renderer.sprite(id, box.x(), box.y(), box.width(), box.height(), 0xFFFFFFFF);
+                }
+            }
+        }
+
+        /**
+         * A reward row's icon, drawn by hand because the row has no slot anymore.
+         *
+         * <p>Tags have no single item, so there is nothing to draw for them — the label carries
+         * the tag, exactly as it does where the slot version drew nothing either (see REI's
+         * shared skip, and the empty-icon arm below).
+         */
+        private void drawRewardIcon(GuiRenderer renderer, QuestPageLayout.Box row, QuestRow quest) {
+            if (quest.hasTag() || quest.icon().isEmpty()) {
+                return;
+            }
+            QuestPageLayout.Box item = layout.item(row);
+            renderer.icon(quest.icon(), item.x(), item.y(), QuestPageLayout.ITEM);
         }
 
         private void drawRow(GuiRenderer renderer, QuestPageLayout.Box row, QuestRow live,
@@ -404,6 +460,19 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
                                double mouseX, double mouseY) {
             if (layout.header().contains((int) mouseX, (int) mouseY)) {
                 tooltip.add(Component.translatable("tenet.viewer.open"));
+            }
+            // Reward icons have no slots anymore (they must not open recipes), so they have no
+            // slot tooltip either: the full label, for rows the column cut short. Task icons keep
+            // their slots' tooltips, which is the other half of why only rewards are handled here.
+            for (int i = 0; i < page.rewards().size(); i++) {
+                QuestPageLayout.Box icon = layout.item(layout.rewardRow(page, i));
+                if (icon.x() <= mouseX && mouseX < icon.x() + icon.width()
+                        && icon.y() <= mouseY && mouseY < icon.y() + icon.height()) {
+                    String label = page.rewards().get(i).label();
+                    if (!label.isEmpty()) {
+                        tooltip.add(Component.literal(label));
+                    }
+                }
             }
         }
 

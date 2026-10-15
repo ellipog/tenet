@@ -370,9 +370,12 @@ installed the first in that order wins outright, while the others register nothi
 dependencies: a client without any of them loses nothing.
 
 Traffic goes both ways. Pressing a quest in the viewer opens the book on that quest, while a press for a
-quest the tree no longer holds opens nothing rather than an empty card. Pressing a task or reward
-row in the book opens the viewer's recipes for what the row names, tags included where the viewer
-supports them; with no viewer installed the press is inert. Which quests a viewer may list is the
+quest the tree no longer holds opens nothing rather than an empty card. Pressing a task row in the
+book opens the viewer's recipes for what the row names, tags included where the viewer supports them;
+with no viewer installed the press is inert. Reward icons in a viewer never open recipes: a reward is
+something to collect, and once collected it wears its claimed mark instead of a lookup. In the book,
+a claimed reward likewise offers no lookup; an unclaimed one still links, so a locked reward can be
+identified. Which quests a viewer may list is the
 `disableRecipeMod` flag above: a hidden quest never reaches the viewer, because the server resolves
 it onto the wire and the client holds no file record to second-guess.
 
