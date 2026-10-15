@@ -6,7 +6,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A client asking the server to fill a table from an inventory.
@@ -28,7 +28,7 @@ public record TableImportRequestPayload(TableAddress address, boolean container)
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<TableImportRequestPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "table_import_request"));
+                    Identifier.fromNamespaceAndPath("tenet", "table_import_request"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, TableImportRequestPayload> CODEC =
             StreamCodec.composite(

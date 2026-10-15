@@ -3,7 +3,7 @@ package dev.ellipog.tenet.quest;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * What each {@link EditorField.Source} is: the registry it reads, and the grammar its values are written in.
@@ -134,7 +134,7 @@ public final class EditorSources {
      * Whether the field's own grammar takes this text -- what "the value resolves" means for a picker.
      *
      * <p>Asked about the value a field already holds, because a picker that decides "known" by
-     * {@code ResourceLocation.tryParse} alone reports a valid {@code #minecraft:village} as <i>missing</i>;
+     * {@code Identifier.tryParse} alone reports a valid {@code #minecraft:village} as <i>missing</i>;
      * and asked about what an author has typed, so the row that keeps a typed value is offered only when
      * the field could actually hold it.
      */
@@ -143,9 +143,9 @@ public final class EditorSources {
             return false;
         }
         return switch (valueKind(source, observeType)) {
-            case ID -> ResourceLocation.tryParse(value) != null;
-            // The `#` is the whole of the difference, and a ResourceLocation cannot hold one.
-            case ID_OR_TAG -> ResourceLocation.tryParse(
+            case ID -> Identifier.tryParse(value) != null;
+            // The `#` is the whole of the difference, and a Identifier cannot hold one.
+            case ID_OR_TAG -> Identifier.tryParse(
                     value.startsWith("#") ? value.substring(1) : value) != null;
             case FREE -> !value.isBlank();
         };

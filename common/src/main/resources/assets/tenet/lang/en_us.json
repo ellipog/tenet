@@ -1,6 +1,6 @@
 {
     "item.tenet.quest_book": "Quest Book",
-    "key.categories.tenet": "Tenet",
+    "key.category.tenet.main": "Tenet",
     "key.tenet.quest_book": "Open Quest Book",
     "key.tenet.hud_edit": "Edit HUD",
     "tenet.hud.inventory_button": "Inventory button",
@@ -33,10 +33,7 @@
     "tenet.viewer.ready": "Ready",
     "tenet.viewer.locked": "Locked",
     "tenet.viewer.claimed": "Claimed",
-    "emi.category.tenet.quests": "Quests",
     "tenet.viewer.open": "Click to open this quest in the book",
-    "tenet.viewer.pin": "Pin quest to sidebar (A)",
-    "tenet.viewer.unpin": "Unpin from sidebar",
     "tenet.command.version": "Tenet %s, on Armature %s",
     "tenet.command.echo": "Tenet echo %s",
     "tenet.command.reload.summary": "Reloaded quests: %s of %s file(s) with no problems, %s error(s), %s warning(s)",

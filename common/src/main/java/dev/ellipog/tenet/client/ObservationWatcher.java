@@ -118,7 +118,8 @@ public final class ObservationWatcher {
             HELD.clear();
             return;
         }
-        if (minecraft.screen != null || minecraft.hitResult == null) {
+        // The open screen moved to `Gui.screen()`: `Minecraft.screen` is gone.
+        if (minecraft.gui.screen() != null || minecraft.hitResult == null) {
             // A menu open means the crosshair is stale; looking away is not watching, and the count
             // restarts rather than being kept warm.
             HELD.clear();

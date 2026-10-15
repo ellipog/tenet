@@ -2,6 +2,7 @@ package dev.ellipog.tenet.client.viewer;
 
 import dev.ellipog.tenet.client.render.RecordingRenderer;
 
+import dev.ellipog.tenet.quest.ItemStacks;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -148,9 +149,9 @@ class PageArtTest {
     @Test
     @DisplayName("a quest's outputs are its item rewards, or its icon when it has none")
     void outputsFallBackToTheQuestIcon() {
-        ItemStack icon = new ItemStack(Items.STONE);
-        ItemStack reward = new ItemStack(Items.DIAMOND);
-        ItemStack category = new ItemStack(Items.WRITABLE_BOOK);
+        ItemStack icon = ItemStacks.stackOf(Items.STONE);
+        ItemStack reward = ItemStacks.stackOf(Items.DIAMOND);
+        ItemStack category = ItemStacks.stackOf(Items.WRITABLE_BOOK);
 
         QuestRef quest = new QuestRef("q", "Title", "Chapter", icon, "");
         QuestPage withReward = new QuestPage(quest, List.of(),

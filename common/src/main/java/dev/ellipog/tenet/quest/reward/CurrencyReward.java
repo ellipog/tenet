@@ -6,7 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.tenet.Constants;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.QuestReward;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Optional;
@@ -27,7 +27,7 @@ import java.util.function.Function;
  */
 public record CurrencyReward(RewardCommon common, int amount) implements QuestReward {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "currency");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "currency");
 
     public static final Set<String> FIELDS = Set.of("amount");
 
@@ -37,7 +37,7 @@ public record CurrencyReward(RewardCommon common, int amount) implements QuestRe
     ).apply(instance, CurrencyReward::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

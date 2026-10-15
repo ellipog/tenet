@@ -9,7 +9,7 @@ import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
 import net.minecraft.advancements.AdvancementProgress;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Optional;
 import java.util.Set;
@@ -23,21 +23,21 @@ import java.util.function.Function;
  * <p>Polled every five ticks, as legacy packs do: an advancement task is cheap to ask and the player
  * expects the book to notice the moment the toast appears.
  */
-public record AdvancementTask(TaskCommon common, ResourceLocation advancement, Optional<String> criterion)
+public record AdvancementTask(TaskCommon common, Identifier advancement, Optional<String> criterion)
         implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "advancement");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "advancement");
 
     public static final Set<String> FIELDS = Set.of("advancement", "criterion");
 
     public static final MapCodec<AdvancementTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(5).forGetter(AdvancementTask::common),
-            ResourceLocation.CODEC.fieldOf("advancement").forGetter(AdvancementTask::advancement),
+            Identifier.CODEC.fieldOf("advancement").forGetter(AdvancementTask::advancement),
             com.mojang.serialization.Codec.STRING.optionalFieldOf("criterion").forGetter(AdvancementTask::criterion)
     ).apply(instance, AdvancementTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -50,7 +50,7 @@ public record AdvancementTask(TaskCommon common, ResourceLocation advancement, O
 
         @Override
         public int current(AdvancementTask task, TaskContext context) {
-            var holder = context.player().serverLevel().getServer().getAdvancements()
+            var holder = context.player().level().getServer().getAdvancements()
                     .get(task.advancement());
             if (holder == null) {
                 // An advancement this build does not have. The validator reports it at the file's own

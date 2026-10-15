@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.client.viewer;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The item-to-quest lookup every viewer reads: roles kept apart, order kept stable, one quest once.
  *
- * <p>No Minecraft is booted: an index entry needs a {@link ResourceLocation} and a {@link QuestRef},
+ * <p>No Minecraft is booted: an index entry needs a {@link Identifier} and a {@link QuestRef},
  * and a reference's icon is allowed to be {@link ItemStack#EMPTY} -- which is also the shape a pack
  * with a missing item produces, so the empty-stack case is exercised rather than avoided.
  */
@@ -29,8 +29,8 @@ class ItemQuestIndexTest {
         MinecraftTestBootstrap.boot();
     }
 
-    private static final ResourceLocation STONE = ResourceLocation.parse("minecraft:stone");
-    private static final ResourceLocation DIAMOND = ResourceLocation.parse("minecraft:diamond");
+    private static final Identifier STONE = Identifier.parse("minecraft:stone");
+    private static final Identifier DIAMOND = Identifier.parse("minecraft:diamond");
 
     private static QuestRef quest(String id) {
         return new QuestRef(id, "Quest " + id, "Chapter", ItemStack.EMPTY, "");
@@ -165,7 +165,7 @@ class ItemQuestIndexTest {
         ItemQuestIndex index = ItemQuestIndex.builder()
                 .add(STONE, quest("a"), true, false)
                 .build();
-        ResourceLocation unknown = ResourceLocation.parse("minecraft:iron_ingot");
+        Identifier unknown = Identifier.parse("minecraft:iron_ingot");
 
         assertFalse(index.uses(unknown), "the common case, and the one worth never allocating for");
         assertFalse(index.awards(unknown));

@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.client.dev;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,14 +25,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("the texture picker's rules")
 class TexturePickerTest {
 
-    private static final ResourceLocation BUTTON =
-            ResourceLocation.parse("minecraft:textures/gui/button.png");
-    private static final ResourceLocation WIDGETS =
-            ResourceLocation.parse("minecraft:textures/gui/widgets.png");
-    private static final ResourceLocation PACK_BUTTON =
-            ResourceLocation.parse("somepack:textures/gui/button.png");
-    private static final ResourceLocation MODEL =
-            ResourceLocation.parse("minecraft:models/block/stone.json");
+    private static final Identifier BUTTON =
+            Identifier.parse("minecraft:textures/gui/button.png");
+    private static final Identifier WIDGETS =
+            Identifier.parse("minecraft:textures/gui/widgets.png");
+    private static final Identifier PACK_BUTTON =
+            Identifier.parse("somepack:textures/gui/button.png");
+    private static final Identifier MODEL =
+            Identifier.parse("minecraft:models/block/stone.json");
 
     private static List<ItemPicker.Entry> catalogue() {
         return TexturePicker.catalogue(List.of(WIDGETS, MODEL, PACK_BUTTON, BUTTON));

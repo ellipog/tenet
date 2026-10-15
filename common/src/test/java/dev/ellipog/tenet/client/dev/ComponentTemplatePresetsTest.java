@@ -1,7 +1,7 @@
 package dev.ellipog.tenet.client.dev;
 
 import com.google.gson.JsonObject;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class ComponentTemplatePresetsTest {
     @DisplayName("every preset names a registered type and only its fields")
     void everyPresetDecodesInPrinciple() {
         for (ComponentTemplate.Template preset : ComponentTemplatePresets.builtIns()) {
-            ResourceLocation id = ResourceLocation.tryParse(preset.typeId());
+            Identifier id = Identifier.tryParse(preset.typeId());
             assertTrue(id != null && known(preset.kind(), id),
                     preset.id() + " names " + preset.typeId() + ", which this build does not know");
             Set<String> allowed = new HashSet<>(fields(preset.kind(), id));
@@ -72,7 +72,7 @@ class ComponentTemplatePresetsTest {
                             + decoded.error().map(Object::toString).orElse("unknown"));
         }
     }
-    private static boolean known(ComponentTemplate.Kind kind, ResourceLocation id) {
+    private static boolean known(ComponentTemplate.Kind kind, Identifier id) {
         return switch (kind) {
             case TASK -> dev.ellipog.tenet.quest.task.TaskTypes.ids().contains(id);
             case REWARD -> dev.ellipog.tenet.quest.reward.RewardTypes.ids().contains(id);
@@ -80,7 +80,7 @@ class ComponentTemplatePresetsTest {
         };
     }
 
-    private static Set<String> fields(ComponentTemplate.Kind kind, ResourceLocation id) {
+    private static Set<String> fields(ComponentTemplate.Kind kind, Identifier id) {
         return switch (kind) {
             case TASK -> dev.ellipog.tenet.quest.task.TaskTypes.fieldsOf(id);
             case REWARD -> dev.ellipog.tenet.quest.reward.RewardTypes.fieldsOf(id);

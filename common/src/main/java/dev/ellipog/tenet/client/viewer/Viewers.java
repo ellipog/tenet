@@ -12,10 +12,11 @@ import java.util.function.Predicate;
  * <h2>One registers, and it is the first one in this list</h2>
  *
  * <p>A player can run two viewers at once, and two sets of the same quest entries is worse than one
- * set in the lesser viewer. So the rule is priority, not suppression: EMI carries the full
- * integration, JEI and REI carry the shared fallback, and each adapter asks
- * {@link #mayInstall} before it registers anything. The loser registers nothing at all -- not a
- * category with its recipes filtered out, which is the same duplicate with extra steps.
+ * set in the lesser viewer. So the rule is priority, not suppression: JEI first, REI second, and
+ * each adapter asks {@link #mayInstall} before it registers anything. The loser registers nothing
+ * at all -- not a category with its recipes filtered out, which is the same duplicate with extra
+ * steps. (EMI was first until the 26.3 port removed it: no 26.x EMI exists. When it ports, it goes
+ * back at the head -- it renders full pages where the other two share the item-lookup fallback.)
  *
  * <p>The order is the enum's declaration order, which is why the enum is declared in the order it is
  * and why the comment on it says so. Adding a viewer means adding it in the right place, and that is
@@ -30,12 +31,10 @@ import java.util.function.Predicate;
 public final class Viewers {
 
     /**
-     * The viewers, in priority order. EMI is first-class: its API renders arbitrary pages, so a quest
-     * can be a real page there. JEI and REI take the shared fallback -- the same item lookup as plain
-     * rows -- which is a decision rather than a ranking, and is why there are only two tiers.
+     * The viewers, in priority order. Both carry the shared fallback -- the same item lookup as
+     * plain rows -- so the order between them is precedence, not capability: JEI first, REI second.
      */
     public enum Viewer {
-        EMI("emi"),
         JEI("jei"),
         REI("roughlyenoughitems");
 

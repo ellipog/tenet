@@ -4,7 +4,7 @@ import dev.ellipog.tenet.api.TenetEvents;
 import dev.ellipog.tenet.quest.Fixtures;
 import dev.ellipog.tenet.quest.QuestIndex;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -100,7 +100,7 @@ class ClickDispatchTest {
         TenetNetworking.ClickEventFire resolved = TenetNetworking
                 .resolveClickEvent(index(), "chapter", "signaller").orElseThrow();
 
-        assertEquals(ResourceLocation.fromNamespaceAndPath("my_pack", "sounded"), resolved.event());
+        assertEquals(Identifier.fromNamespaceAndPath("my_pack", "sounded"), resolved.event());
         assertEquals("chapter", resolved.chapterId());
         assertEquals("signaller", resolved.elementId());
 
@@ -132,7 +132,7 @@ class ClickDispatchTest {
                 seen.add(id + "@" + chapter + ":" + element));
 
         TenetEvents.CLICK_EVENT.invoker().onClickEvent(null,
-                ResourceLocation.fromNamespaceAndPath("my_pack", "sounded"), "first_steps", "sounder");
+                Identifier.fromNamespaceAndPath("my_pack", "sounded"), "first_steps", "sounder");
 
         assertEquals(List.of("my_pack:sounded@first_steps:sounder"), seen,
                 "the id, the chapter and the element travel: two pictures firing one id are still two");

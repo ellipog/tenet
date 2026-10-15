@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -33,7 +33,7 @@ public record ChapterReplicaChunk(String chapter, SyncChunk chunk, byte[] data)
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<ChapterReplicaChunk> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "chapter_replica_chunk"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "chapter_replica_chunk"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ChapterReplicaChunk> CODEC =
             StreamCodec.composite(

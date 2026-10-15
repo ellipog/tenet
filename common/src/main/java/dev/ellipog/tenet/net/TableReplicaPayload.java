@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A reward table's file, whole, on its way to a client that asked for it.
@@ -31,7 +31,7 @@ public record TableReplicaPayload(String table, String json, java.util.List<Stri
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<TableReplicaPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "table_replica"));
+                    Identifier.fromNamespaceAndPath("tenet", "table_replica"));
 
     /**
      * The referrers, as the short sentences the server's own guard already composes.

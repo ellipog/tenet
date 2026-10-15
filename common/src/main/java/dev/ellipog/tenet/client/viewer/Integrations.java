@@ -1,7 +1,6 @@
 package dev.ellipog.tenet.client.viewer;
 
 import dev.ellipog.tenet.Constants;
-import dev.ellipog.tenet.client.viewer.emi.EmiViewer;
 
 import java.util.List;
 import java.util.Objects;
@@ -26,10 +25,10 @@ import java.util.function.Supplier;
  * {@code MOD_ID} constant for the probe, a supplier for the factory so the holder is not loaded
  * before it is asked for, and the instance field typed as {@link ViewerAdapter} so resolving the
  * field needs no viewer type either. That is the same three-part arrangement a soft adapter uses,
- * and it is the difference between "a client without EMI loses nothing" and a
+ * and it is the difference between "a client without the viewer loses nothing" and a
  * {@code NoClassDefFoundError} at construction. The list is hand-written and ordered like
  * {@link Viewers.Viewer}; it starts empty because the first adapter that needs a tick adds its own
- * entry (EMI does -- its registration is static, so it is the one viewer with a tick to run).
+ * entry.
  */
 public final class Integrations {
 
@@ -52,13 +51,12 @@ public final class Integrations {
     /**
      * The tickers, in the same order as {@link Viewers.Viewer}'s priority.
      *
-     * <p>EMI is the one viewer with a tick of its own: its registration is static, so when the quest
-     * tree changes after it has registered, something has to ask it to rebuild — see
-     * {@code TenetEmiPlugin#tick}. JEI and REI ask for their content at lookup time and have
-     * nothing to keep in step.
+     * <p>Empty today: JEI and REI ask for their content at lookup time and have nothing to keep in
+     * step. (EMI was the one viewer with a tick of its own -- its registration is static -- and its
+     * entry went with the adapter on the 26.3 port. If a tick-needing adapter returns, its entry
+     * goes back here.)
      */
-    private static final List<Ticker> TICKERS = List.of(
-            new Ticker(Viewers.Viewer.EMI, EmiViewer.MOD_ID, () -> EmiViewer.INSTANCE));
+    private static final List<Ticker> TICKERS = List.of();
 
     private static volatile QuestContent content;
 

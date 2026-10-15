@@ -5,7 +5,7 @@ import dev.ellipog.tenet.quest.reward.RewardDisplay;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -76,7 +76,7 @@ public final class RewardText {
     }
 
     private static ItemStack stackOf(String id) {
-        ResourceLocation at = ResourceLocation.tryParse(id);
+        Identifier at = Identifier.tryParse(id);
         return at == null ? ItemStack.EMPTY : new ItemRef(at, 1).toStack();
     }
 }

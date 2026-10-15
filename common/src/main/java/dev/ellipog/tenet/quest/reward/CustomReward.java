@@ -8,7 +8,7 @@ import dev.ellipog.tenet.Constants;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.QuestReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Map;
@@ -31,7 +31,7 @@ import java.util.function.Function;
  */
 public record CustomReward(RewardCommon common, String id) implements QuestReward {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "custom");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "custom");
 
     public static final Set<String> FIELDS = Set.of("id");
 
@@ -41,7 +41,7 @@ public record CustomReward(RewardCommon common, String id) implements QuestRewar
     ).apply(instance, CustomReward::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

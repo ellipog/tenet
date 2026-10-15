@@ -33,9 +33,6 @@
         "client": [
             "dev.ellipog.tenet.fabric.TenetFabricClient"
         ],
-        "emi": [
-            "dev.ellipog.tenet.client.viewer.emi.TenetEmiPlugin"
-        ],
         "jei_mod_plugin": [
             "dev.ellipog.tenet.client.viewer.jei.TenetJeiPlugin"
         ],
@@ -51,7 +48,6 @@
         "armature": ">=${armature_version}"
     },
     "suggests": {
-        "emi": "*",
         "jei": "*",
         "roughlyenoughitems": "*"
     }

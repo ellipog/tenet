@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A player pressing Claim in the quest book.
@@ -34,7 +34,7 @@ public record ClaimRewardPayload(String questId) implements CustomPacketPayload 
      * {@link QuestSyncPayload#TYPE} for why that method silently rewrites the namespace.
      */
     public static final CustomPacketPayload.Type<ClaimRewardPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "claim_reward"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "claim_reward"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ClaimRewardPayload> CODEC =
             StreamCodec.composite(

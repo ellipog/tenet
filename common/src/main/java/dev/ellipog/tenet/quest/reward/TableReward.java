@@ -11,7 +11,7 @@ import dev.ellipog.tenet.quest.QuestReward;
 import dev.ellipog.tenet.quest.TenetQuests;
 import dev.ellipog.tenet.quest.loot.RewardTable;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
 
 import java.util.List;
@@ -41,14 +41,14 @@ import java.util.Set;
 public record TableReward(RewardCommon common, Mode mode, Optional<String> table,
                           Optional<RewardTable> inline) implements QuestReward {
 
-    public static final ResourceLocation TYPE_RANDOM =
-            ResourceLocation.fromNamespaceAndPath(dev.ellipog.tenet.Tenet.MOD_ID, "random");
-    public static final ResourceLocation TYPE_LOOT =
-            ResourceLocation.fromNamespaceAndPath(dev.ellipog.tenet.Tenet.MOD_ID, "loot");
-    public static final ResourceLocation TYPE_ALL_TABLE =
-            ResourceLocation.fromNamespaceAndPath(dev.ellipog.tenet.Tenet.MOD_ID, "all_table");
-    public static final ResourceLocation TYPE_CHOICE =
-            ResourceLocation.fromNamespaceAndPath(dev.ellipog.tenet.Tenet.MOD_ID, "choice");
+    public static final Identifier TYPE_RANDOM =
+            Identifier.fromNamespaceAndPath(dev.ellipog.tenet.Tenet.MOD_ID, "random");
+    public static final Identifier TYPE_LOOT =
+            Identifier.fromNamespaceAndPath(dev.ellipog.tenet.Tenet.MOD_ID, "loot");
+    public static final Identifier TYPE_ALL_TABLE =
+            Identifier.fromNamespaceAndPath(dev.ellipog.tenet.Tenet.MOD_ID, "all_table");
+    public static final Identifier TYPE_CHOICE =
+            Identifier.fromNamespaceAndPath(dev.ellipog.tenet.Tenet.MOD_ID, "choice");
 
     public static final Set<String> FIELDS = Set.of("table", "inline");
 
@@ -129,7 +129,7 @@ public record TableReward(RewardCommon common, Mode mode, Optional<String> table
      * validator would eventually disagree about what a table may hold — and the picker is the one an
      * author believes, because it is the one that looks like it knows.
      */
-    public static String entryRefusal(ResourceLocation type) {
+    public static String entryRefusal(Identifier type) {
         if (TYPE_CHOICE.equals(type)) {
             return "a choice reward cannot be an entry in a table: a roll hands its entries out rather "
                     + "than offering them, so this entry would be skipped - move it out of the table, or "
@@ -157,7 +157,7 @@ public record TableReward(RewardCommon common, Mode mode, Optional<String> table
     }
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return switch (mode) {
             case RANDOM -> TYPE_RANDOM;
             case LOOT -> TYPE_LOOT;

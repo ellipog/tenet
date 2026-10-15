@@ -17,7 +17,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.TagParser;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -42,29 +42,29 @@ import java.util.function.Function;
  * makes it survive a restart, pool across a party and reset with a repeatable round, without this
  * type owning a single counter of its own.
  */
-public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
-                       Optional<ResourceLocation> entityTypeTag, int value,
+public record KillTask(TaskCommon common, Optional<Identifier> entity,
+                       Optional<Identifier> entityTypeTag, int value,
                        Optional<String> customName, Optional<String> nbtFilter) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "kill");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "kill");
 
     public static final Set<String> FIELDS =
             Set.of("entity", "entityTypeTag", "value", "customName", "nbtFilter");
 
     public static final MapCodec<KillTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(20).forGetter(KillTask::common),
-            ResourceLocation.CODEC.optionalFieldOf("entity").forGetter(KillTask::entity),
+            Identifier.CODEC.optionalFieldOf("entity").forGetter(KillTask::entity),
             // Its own field rather than a `#` inside `entity`, as the legacy format has it: a tag written
             // where an id is expected is a validator error in every other Tenet field, and this one
             // being the exception is how a pack author learns the wrong rule.
-            ResourceLocation.CODEC.optionalFieldOf("entityTypeTag").forGetter(KillTask::entityTypeTag),
+            Identifier.CODEC.optionalFieldOf("entityTypeTag").forGetter(KillTask::entityTypeTag),
             Codec.intRange(1, 1_000_000).optionalFieldOf("value", 1).forGetter(KillTask::value),
             Codec.STRING.optionalFieldOf("customName").forGetter(KillTask::customName),
             Codec.STRING.optionalFieldOf("nbtFilter").forGetter(KillTask::nbtFilter)
     ).apply(instance, KillTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -72,7 +72,10 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
     public boolean matches(LivingEntity killed) {
         boolean typeMatches;
         if (entityTypeTag().isPresent()) {
-            typeMatches = killed.getType().is(TagKeys.of(Registries.ENTITY_TYPE, entityTypeTag().get()));
+            // The type check goes through a holder now: `EntityType.is` is gone, and a registry
+            // wraps any value as one.
+            typeMatches = BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(killed.getType())
+                    .is(TagKeys.of(Registries.ENTITY_TYPE, entityTypeTag().get()));
         }
         else if (entity().isPresent()) {
             typeMatches = entity().get().equals(BuiltInRegistries.ENTITY_TYPE.getKey(killed.getType()));
@@ -86,7 +89,7 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
 
         if (customName().isPresent()) {
             String name = killed instanceof Player player
-                    ? player.getGameProfile().getName()
+                    ? player.getGameProfile().name()
                     : killed.getCustomName() == null ? "" : killed.getCustomName().getString();
             if (!customName().get().equals(name)) {
                 return false;
@@ -103,7 +106,13 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
             if (filter.isEmpty()) {
                 return false;
             }
-            CompoundTag actual = killed.saveWithoutId(new CompoundTag());
+            // The save writes into an output now rather than onto a tag: a discarding output
+            // collects it, and the comparison still reads a plain tag.
+            net.minecraft.world.level.storage.TagValueOutput saved =
+                    net.minecraft.world.level.storage.TagValueOutput.createWithoutContext(
+                            net.minecraft.util.ProblemReporter.DISCARDING);
+            killed.saveWithoutId(saved);
+            CompoundTag actual = saved.buildResult();
             if (!NbtUtils.compareNbt(filter.get(), actual, true)) {
                 return false;
             }
@@ -124,7 +133,9 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
     private static Optional<CompoundTag> filterOf(String filter) {
         return FILTERS.computeIfAbsent(filter, text -> {
             try {
-                return Optional.of(TagParser.parseTag(text));
+                // The lenient tag parser is gone; the strict compound one throws the same
+                // exception on the same bad input, which is all this needs.
+                return Optional.of(TagParser.parseCompoundFully(text));
             }
             catch (CommandSyntaxException unparsable) {
                 return Optional.empty();
@@ -176,7 +187,7 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
     /** The target alone — the entity id, its tag, or the word for "any" — for the row's subject. */
     public String target() {
         return entityTypeTag().map(tag -> "#" + tag)
-                .or(() -> entity().map(ResourceLocation::toString))
+                .or(() -> entity().map(Identifier::toString))
                 .orElse("anything");
     }
 

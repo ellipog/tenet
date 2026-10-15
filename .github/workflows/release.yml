@@ -35,20 +35,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 21
+      - name: Set up JDK 25
         uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # The tag and the built version have to name the same version, and Armature's version has to
-      # come out of the same file -- it is the tag the next step checks out. A jar called
-      # `tenet-fabric-1.21.1-0.1.0.jar` published under tag v0.1.1 is a release whose download does
-      # not match its name, and nothing else here would notice. Runs before the build, so a mismatch
-      # fails in seconds instead of after twenty minutes.
+      # The tag and the built version have to name the same version, *including the Minecraft
+      # version*: v1.0.1+1.21.1, v1.0.1+26.3. The same mod version ships once per MC line (the Maven
+      # coordinates differ by MC), so a bare v1.0.1 tag could not say which line it releases. And
+      # Armature's version has to come out of the same file -- it is the tag the next step checks
+      # out. A jar called `tenet-fabric-26.3-1.0.0.jar` published under a tag naming another version
+      # is a release whose download does not match its name, and nothing else here would notice.
+      # Runs before the build, so a mismatch fails in seconds instead of after twenty minutes.
       - name: Resolve the versions and check the tag against them
         id: version
         run: |
@@ -69,9 +71,9 @@ jobs:
             echo "::error::no minecraft_version= line in gradle.properties"
             exit 1
           fi
-          tag="v$version"
+          tag="v$version+$minecraft_version"
           if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "$tag" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} does not match version=$version in gradle.properties"
+            echo "::error::tag ${GITHUB_REF_NAME} does not match version=$version minecraft_version=$minecraft_version in gradle.properties (expected $tag)"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"

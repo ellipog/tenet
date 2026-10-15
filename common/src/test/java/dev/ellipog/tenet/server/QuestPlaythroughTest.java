@@ -20,6 +20,7 @@ import dev.ellipog.tenet.progress.ClaimFilter;
 import dev.ellipog.tenet.progress.ProgressService;
 import dev.ellipog.tenet.progress.QuestState;
 import dev.ellipog.tenet.progress.StageService;
+import dev.ellipog.tenet.quest.ItemStacks;
 import dev.ellipog.tenet.quest.QuestIndex;
 import dev.ellipog.tenet.quest.QuestLoader;
 import dev.ellipog.tenet.quest.QuestFiles;
@@ -32,7 +33,7 @@ import dev.ellipog.tenet.party.PartyMode;
 import dev.ellipog.tenet.party.PartyStore;
 
 import net.minecraft.core.Registry;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -652,7 +653,7 @@ class QuestPlaythroughTest {
         // The friend holds them, and only the friend. Giving them to the member that a first-in-the-
         // player-list rule would *not* pick is what makes this fail loudly if that rule comes back.
         server.onServerThread(() -> {
-            friend.getInventory().add(new ItemStack(Items.OAK_LOG, 8));
+            friend.getInventory().add(ItemStacks.stackOf(Items.OAK_LOG, 8));
             friend.getInventory().setChanged();
         });
 
@@ -716,7 +717,7 @@ class QuestPlaythroughTest {
         clearInventories();
 
         server.onServerThread(() -> {
-            player.getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
+            player.getInventory().add(ItemStacks.stackOf(Items.CRAFTING_TABLE, 1));
             player.getInventory().setChanged();
         });
 
@@ -1191,9 +1192,9 @@ class QuestPlaythroughTest {
 
         clearInventories();
         server.onServerThread(() -> {
-            player.getInventory().add(new ItemStack(Items.OAK_LOG, 4));
+            player.getInventory().add(ItemStacks.stackOf(Items.OAK_LOG, 4));
             player.getInventory().setChanged();
-            friend.getInventory().add(new ItemStack(Items.OAK_LOG, 4));
+            friend.getInventory().add(ItemStacks.stackOf(Items.OAK_LOG, 4));
             friend.getInventory().setChanged();
         });
 
@@ -1244,7 +1245,7 @@ class QuestPlaythroughTest {
 
         clearInventories();
         server.onServerThread(() -> {
-            friend.getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
+            friend.getInventory().add(ItemStacks.stackOf(Items.CRAFTING_TABLE, 1));
             friend.getInventory().setChanged();
         });
 
@@ -1261,7 +1262,7 @@ class QuestPlaythroughTest {
                         + recordedTaskFor(player, "make_a_table", 0));
 
         server.onServerThread(() -> {
-            player.getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
+            player.getInventory().add(ItemStacks.stackOf(Items.CRAFTING_TABLE, 1));
             player.getInventory().setChanged();
         });
 
@@ -1447,8 +1448,8 @@ class QuestPlaythroughTest {
     // ------------------------------------------------------------------
 
     /** The flag the induction chapter grants: one player's, not the team's. */
-    private static final ResourceLocation THE_MARK =
-            ResourceLocation.fromNamespaceAndPath("the_induction", "marked");
+    private static final Identifier THE_MARK =
+            Identifier.fromNamespaceAndPath("the_induction", "marked");
 
     @Test
     @Order(25)
@@ -1602,8 +1603,8 @@ class QuestPlaythroughTest {
     // ------------------------------------------------------------------
 
     /** The flag the gallery's shopping list hands out, and the two quests beside it ask for. */
-    private static final ResourceLocation THE_PASSWORD =
-            ResourceLocation.fromNamespaceAndPath("condition_gallery", "password");
+    private static final Identifier THE_PASSWORD =
+            Identifier.fromNamespaceAndPath("condition_gallery", "password");
 
     /**
      * Sets a stage on the test player, either way, without asserting the result.
@@ -1611,7 +1612,7 @@ class QuestPlaythroughTest {
      * <p>Setup rather than a check: adding a stage a player already has, or removing one they do not,
      * both return 0, and both leave the world in the state the caller wanted.
      */
-    private static void setStage(ResourceLocation stage, boolean present) {
+    private static void setStage(Identifier stage, boolean present) {
         asOperator((present ? "/tenet stage add tenet-tester " : "/tenet stage remove tenet-tester ")
                 + stage);
     }
@@ -2064,7 +2065,7 @@ class QuestPlaythroughTest {
 
         clearInventories();
         server.onServerThread(() -> {
-            friend.getInventory().add(new ItemStack(Items.OAK_LOG, 8));
+            friend.getInventory().add(ItemStacks.stackOf(Items.OAK_LOG, 8));
             friend.getInventory().setChanged();
         });
         assertTrue(tickUntil(() -> stateFor(player, "punch_a_tree") == QuestState.COMPLETED,
@@ -2241,7 +2242,7 @@ class QuestPlaythroughTest {
             var inventory = player.getInventory();
             inventory.clearContent();
             for (int slot = 0; slot < 35; slot++) {
-                inventory.setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+                inventory.setItem(slot, ItemStacks.stackOf(Items.COBBLESTONE, 64));
             }
             inventory.setChanged();
         });
@@ -2288,7 +2289,7 @@ class QuestPlaythroughTest {
             var inventory = player.getInventory();
             inventory.clearContent();
             for (int slot = 0; slot < 36; slot++) {
-                inventory.setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+                inventory.setItem(slot, ItemStacks.stackOf(Items.COBBLESTONE, 64));
             }
             inventory.setChanged();
         });
@@ -2701,11 +2702,15 @@ class QuestPlaythroughTest {
         // The cheat boundary, pressed for real: the wire's two ids resolve through the loaded index
         // to the file's own words, and neither a forged press nor a command press fires the bus.
         // The listener is permanent for the session, like every bus listener a mod registers — it
-        // records into a list this order owns, and nothing else in the suite fires this event.
+        // records into a list this order owns. It ignores player-less fires: the bus unit test
+        // fires one with a null player, and either order has to work.
         List<String> fired = new ArrayList<>();
-        dev.ellipog.tenet.api.TenetEvents.CLICK_EVENT.register((firedPlayer, id, chapter, element) ->
+        dev.ellipog.tenet.api.TenetEvents.CLICK_EVENT.register((firedPlayer, id, chapter, element) -> {
+            if (firedPlayer != null) {
                 fired.add(id + "@" + chapter + ":" + element + " by "
-                        + firedPlayer.getScoreboardName()));
+                        + firedPlayer.getScoreboardName());
+            }
+        });
 
         server.callOnServerThread(() -> {
             TenetNetworking.handleClick(
@@ -2823,11 +2828,11 @@ class QuestPlaythroughTest {
     /** Torches holding half a bucket of water each: the fake the charge orders measure through. */
     private static dev.ellipog.tenet.inventory.FluidAccess torchWater() {
         return new dev.ellipog.tenet.inventory.FluidAccess() {
-            private static final net.minecraft.resources.ResourceLocation WATER =
-                    net.minecraft.resources.ResourceLocation.withDefaultNamespace("water");
+            private static final net.minecraft.resources.Identifier WATER =
+                    net.minecraft.resources.Identifier.withDefaultNamespace("water");
 
             @Override
-            public int storedOf(ServerPlayer player, net.minecraft.resources.ResourceLocation fluid,
+            public int storedOf(ServerPlayer player, net.minecraft.resources.Identifier fluid,
                                net.minecraft.world.item.Item bucketToSkip) {
                 if (!fluid.equals(WATER)) {
                     return 0;
@@ -2849,7 +2854,7 @@ class QuestPlaythroughTest {
             }
 
             @Override
-            public int drainFrom(ServerPlayer player, net.minecraft.resources.ResourceLocation fluid,
+            public int drainFrom(ServerPlayer player, net.minecraft.resources.Identifier fluid,
                                 int mb, net.minecraft.world.item.Item bucketToSkip) {
                 if (!fluid.equals(WATER) || mb <= 0) {
                     return 0;
@@ -3011,11 +3016,11 @@ class QuestPlaythroughTest {
     }
 
     /** The flag the team gallery grants: the party's, not whoever claimed it. */
-    private static final ResourceLocation TEAM_OATH =
-            ResourceLocation.fromNamespaceAndPath("the_induction", "team_oath");
+    private static final Identifier TEAM_OATH =
+            Identifier.fromNamespaceAndPath("the_induction", "team_oath");
 
     /** Whether a team holds a stage, read on the server thread like every other read here. */
-    private static boolean teamHasStage(UUID team, ResourceLocation stage) {
+    private static boolean teamHasStage(UUID team, Identifier stage) {
         return server.callOnServerThread(
                 () -> dev.ellipog.tenet.progress.StageService.hasTeam(server.server(), team, stage));
     }
@@ -3328,14 +3333,17 @@ class QuestPlaythroughTest {
         try {
             clearInventories();
             server.onServerThread(() -> {
-                player.getInventory().offhand.set(0, new ItemStack(Items.WATER_BUCKET));
-                player.getInventory().armor.set(0, new ItemStack(Items.WATER_BUCKET));
+                // Container slot indices now: the raw armor/offhand lists are private.
+                player.getInventory().setItem(net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND,
+                        ItemStacks.stackOf(Items.WATER_BUCKET));
+                player.getInventory().setItem(net.minecraft.world.entity.player.Inventory.SLOT_BODY_ARMOR,
+                        ItemStacks.stackOf(Items.WATER_BUCKET));
                 player.getInventory().setChanged();
             });
             dev.ellipog.tenet.quest.task.FluidTask task =
                     new dev.ellipog.tenet.quest.task.FluidTask(
                             new dev.ellipog.tenet.quest.TaskCommon(false, 20),
-                            net.minecraft.resources.ResourceLocation.withDefaultNamespace("water"),
+                            net.minecraft.resources.Identifier.withDefaultNamespace("water"),
                             2000, false);
             int measured = server.callOnServerThread(() ->
                     dev.ellipog.tenet.quest.task.FluidTask.BEHAVIOUR.current(task,
@@ -3364,7 +3372,7 @@ class QuestPlaythroughTest {
                 new dev.ellipog.tenet.inventory.FluidAccess() {
                     @Override
                     public int storedOf(ServerPlayer player,
-                                        net.minecraft.resources.ResourceLocation fluid,
+                                        net.minecraft.resources.Identifier fluid,
                                         net.minecraft.world.item.Item bucketToSkip) {
                         seen.set(bucketToSkip);
                         return inner.storedOf(player, fluid, bucketToSkip);
@@ -3372,7 +3380,7 @@ class QuestPlaythroughTest {
 
                     @Override
                     public int drainFrom(ServerPlayer player,
-                                         net.minecraft.resources.ResourceLocation fluid, int mb,
+                                         net.minecraft.resources.Identifier fluid, int mb,
                                          net.minecraft.world.item.Item bucketToSkip) {
                         seen.set(bucketToSkip);
                         return inner.drainFrom(player, fluid, mb, bucketToSkip);
@@ -3413,11 +3421,11 @@ class QuestPlaythroughTest {
         assertEquals(1, asOperator("/give @s minecraft:torch 2").result(),
                 () -> "the torches should have arrived");
         assertEquals(0, server.callOnServerThread(() -> access.storedOf(player,
-                        net.minecraft.resources.ResourceLocation.withDefaultNamespace("water"),
+                        net.minecraft.resources.Identifier.withDefaultNamespace("water"),
                         net.minecraft.world.item.Items.TORCH)),
                 "two torches read as the skip item are no vessels at all");
         assertEquals(1000, server.callOnServerThread(() -> access.storedOf(player,
-                        net.minecraft.resources.ResourceLocation.withDefaultNamespace("water"),
+                        net.minecraft.resources.Identifier.withDefaultNamespace("water"),
                         net.minecraft.world.item.Items.WATER_BUCKET)),
                 "the same two torches measure a thousand millibuckets against any other skip");
         note("the skip excluded the skip item and nothing else");
@@ -3434,8 +3442,11 @@ class QuestPlaythroughTest {
         try {
             clearInventories();
             server.onServerThread(() -> {
-                player.getInventory().offhand.set(0, new ItemStack(Items.COAL));
-                player.getInventory().armor.set(0, new ItemStack(Items.COAL));
+                // Container slot indices now: the raw armor/offhand lists are private.
+                player.getInventory().setItem(net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND,
+                        ItemStacks.stackOf(Items.COAL));
+                player.getInventory().setItem(net.minecraft.world.entity.player.Inventory.SLOT_BODY_ARMOR,
+                        ItemStacks.stackOf(Items.COAL));
                 player.getInventory().setChanged();
             });
             dev.ellipog.tenet.quest.task.EnergyTask task =
@@ -4394,7 +4405,7 @@ class QuestPlaythroughTest {
     }
 
     /** Whether one player holds a stage, read on the server thread like every other read here. */
-    private static boolean hasStage(ServerPlayer who, ResourceLocation stage) {
+    private static boolean hasStage(ServerPlayer who, Identifier stage) {
         return server.callOnServerThread(() -> StageService.has(server.server(), who.getUUID(), stage));
     }
 
@@ -4744,7 +4755,7 @@ class QuestPlaythroughTest {
         }
 
         @Override
-        public <T> void register(Registry<T> registry, ResourceLocation id, Supplier<? extends T> value) {
+        public <T> void register(Registry<T> registry, Identifier id, Supplier<? extends T> value) {
             throw new UnsupportedOperationException("the playthrough does not run Tenet.init(), so "
                     + "nothing here should be registering " + id + ". Something started depending on "
                     + "an item or a payload existing, and this test needs to know which.");

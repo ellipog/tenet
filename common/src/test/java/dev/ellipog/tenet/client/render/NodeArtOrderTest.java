@@ -2,6 +2,7 @@ package dev.ellipog.tenet.client.render;
 
 import dev.ellipog.tenet.client.CanvasSettings;
 import dev.ellipog.tenet.client.QuestNodeArt;
+import dev.ellipog.tenet.quest.ItemStacks;
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestShape;
 
@@ -19,20 +20,23 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The order a node's furniture is drawn in: panel, then icon, then wash.
+ * The order a node's furniture is drawn in: panel (wash composited in), then icon.
  *
  * <h2>Why the order is the thing to test</h2>
  *
- * <p>Because it is what the drawing means. The panel is drawn first so the icon sits on it; the wash is
- * drawn **after** the icon because dimming the item is what the wash is for. Get that order wrong and the
- * picture is wrong in a way no assertion about fills or pixels notices — which is exactly what happened: the
- * flat-icon path drew nothing at all while reporting that it had drawn an item, and the only instrument that
- * saw it was a screenshot.
+ * <p>Because it is what the drawing means. The panel is drawn first so the icon sits on it; the wash
+ * is composited <i>into</i> the panel's fill rather than drawn over the icon, so the item stays
+ * readable over the dimmed shape. Get that order wrong and the picture is wrong in a way no
+ * assertion about fills or pixels notices — which is exactly what happened twice: the flat-icon
+ * path drew nothing while reporting an item, and the port kept the wash-over-icon order whose
+ * flush-based reasoning died with 1.21.1, burying every locked node's item under its own dim.
+ * Both times the screenshot was the only instrument that saw it.
  *
- * <p>So this asserts the **interleaving**, not the membership: an ordered log of every call, with the icon's
- * position between the panel's fills and the wash. Nothing here needs a client, and that matters, because the
- * preview harness draws no item icons at all — it has no item registry — so the drawn result of an icon is
- * not observable in any automated way in this project.
+ * <p>So this asserts the **interleaving**, not the membership: an ordered log of every call, with the
+ * icon's position after the panel's fills — and the wash's colour appearing in no fill of its own.
+ * Nothing here needs a client, and that matters, because the preview harness draws no item icons at
+ * all — it has no item registry — so the drawn result of an icon is not observable in any automated
+ * way in this project.
  *
  * <h2>Which recording renderer, and why it is worth saying</h2>
  *
@@ -45,8 +49,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("the order a node is drawn in")
 class NodeArtOrderTest {
 
-    /** The wash's colour, which is how the one fill that must follow the icon is recognised. */
-    private static final int WASH = 0xFF203040;
+    /**
+     * The wash's colour, which is how the one fill that must not exist is recognised. Translucent,
+     * like every real state wash: an opaque wash composites to itself, which would make "no raw
+     * wash fill" true without exercising the merge at all.
+     */
+    private static final int WASH = 0x9C203040;
 
     @BeforeAll
     static void bootstrapMinecraft() {
@@ -62,7 +70,7 @@ class NodeArtOrderTest {
     /** The same, at a size and icon scale of the caller's choosing: the icon box follows both. */
     private static QuestNodeArt.Look look(int wash, int size, double iconScale) {
         return new QuestNodeArt.Look(size, QuestShape.ROUNDED, QuestShape.ROUNDED.geometry(),
-                new ItemStack(Items.STICK), iconScale, 0xFF1069B4, 0, wash);
+                ItemStacks.stackOf(Items.STICK), iconScale, 0xFF1069B4, 0, wash);
     }
 
     /** The index of the first fill in this colour, or -1: the wash is the only fill drawn in its own. */
@@ -77,8 +85,8 @@ class NodeArtOrderTest {
     }
 
     @Test
-    @DisplayName("the icon is drawn after the panel and before the wash")
-    void theIconIsDrawnBetweenThePanelAndTheWash() {
+    @DisplayName("the icon is drawn after the panel, and the wash is composited, not drawn")
+    void theIconIsDrawnAfterThePanelAndTheWashIsMerged() {
         RecordingRenderer r = RecordingRenderer.create();
         QuestNodeArt.draw(r, 0, 0, look(WASH));
 
@@ -88,11 +96,10 @@ class NodeArtOrderTest {
         assertTrue(r.firstIndex(RecordingRenderer.Op.FILL) < icon,
                 "the panel must be drawn *before* the icon, or the icon is behind its own node's border");
 
-        // The wash is drawn after the icon on purpose: dimming the item is what it is for, and a wash drawn
-        // first would be painted over by the very thing it exists to dim.
-        int wash = firstFillIn(r, WASH);
-        assertTrue(wash >= 0, "the wash was not drawn");
-        assertTrue(wash > icon, "the wash must land *after* the icon");
+        // The wash never appears as its own fill: it is composited into the panel's fill (see
+        // Colour.over), so a locked node costs one shape fill rather than two. A wash drawn as
+        // its own fill after the panel would paint over the icon it exists to frame.
+        assertTrue(firstFillIn(r, WASH) < 0, "the wash was drawn raw instead of composited");
     }
 
     @Test

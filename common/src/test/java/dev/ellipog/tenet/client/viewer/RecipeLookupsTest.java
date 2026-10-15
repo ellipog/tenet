@@ -1,7 +1,8 @@
 package dev.ellipog.tenet.client.viewer;
 
+import dev.ellipog.tenet.quest.ItemStacks;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -35,7 +36,7 @@ class RecipeLookupsTest {
     }
 
     private static TagKey<Item> logs() {
-        return TagKey.create(Registries.ITEM, ResourceLocation.fromNamespaceAndPath("minecraft", "logs"));
+        return TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath("minecraft", "logs"));
     }
 
     /** A lookup that records what it was asked for, and answers the tag question however it is told. */
@@ -64,7 +65,7 @@ class RecipeLookupsTest {
     void theDecisionIsTheFeature() {
         Fake noTags = new Fake(false);
         Fake withTags = new Fake(true);
-        RecipeLookups.Target item = RecipeLookups.Target.of(new ItemStack(Items.STONE));
+        RecipeLookups.Target item = RecipeLookups.Target.of(ItemStacks.stackOf(Items.STONE));
         RecipeLookups.Target tag = RecipeLookups.Target.ofTag(logs());
 
         assertFalse(RecipeLookups.accepts(null, item), "no viewer installed means nothing to open");
@@ -83,7 +84,7 @@ class RecipeLookupsTest {
     void openDeliversTheTarget() {
         Fake lookup = new Fake(true);
         RecipeLookups.install(lookup);
-        ItemStack stack = new ItemStack(Items.STONE);
+        ItemStack stack = ItemStacks.stackOf(Items.STONE);
 
         assertTrue(RecipeLookups.open(RecipeLookups.Target.of(stack)));
         assertTrue(RecipeLookups.open(RecipeLookups.Target.ofTag(logs())));
@@ -108,13 +109,13 @@ class RecipeLookupsTest {
 
         assertFalse(RecipeLookups.canOpen(RecipeLookups.Target.ofTag(logs())),
                 "and the hint is gated on the same answer");
-        assertTrue(RecipeLookups.canOpen(RecipeLookups.Target.of(new ItemStack(Items.STONE))));
+        assertTrue(RecipeLookups.canOpen(RecipeLookups.Target.of(ItemStacks.stackOf(Items.STONE))));
     }
 
     @Test
     @DisplayName("a target carries exactly one of an item and a tag")
     void aTargetIsOneOfTwo() {
-        ItemStack stack = new ItemStack(Items.STONE);
+        ItemStack stack = ItemStacks.stackOf(Items.STONE);
 
         RecipeLookups.Target item = RecipeLookups.Target.of(stack);
         assertFalse(item.isTag());

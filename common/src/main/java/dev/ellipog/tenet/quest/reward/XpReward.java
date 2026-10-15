@@ -5,7 +5,7 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.QuestReward;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 
@@ -20,7 +20,7 @@ import java.util.Set;
  */
 public record XpReward(RewardCommon common, int amount, boolean levels) implements QuestReward {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "xp");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "xp");
 
     /** The type's own fields; {@link RewardCommon#FIELDS} is unioned in at registration. */
     public static final Set<String> FIELDS = Set.of("amount", "levels");
@@ -32,7 +32,7 @@ public record XpReward(RewardCommon common, int amount, boolean levels) implemen
     ).apply(instance, XpReward::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

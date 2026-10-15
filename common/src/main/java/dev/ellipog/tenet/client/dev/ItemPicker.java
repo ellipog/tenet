@@ -150,7 +150,7 @@ public final class ItemPicker {
             // an id nobody typed. A deliberate missing item always names its namespace.
             return null;
         }
-        if (net.minecraft.resources.ResourceLocation.tryParse(id) == null) {
+        if (net.minecraft.resources.Identifier.tryParse(id) == null) {
             return null;
         }
         for (Entry entry : matches) {

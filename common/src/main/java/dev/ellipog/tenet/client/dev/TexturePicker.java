@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.client.dev;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -57,12 +57,12 @@ public final class TexturePicker {
      * {@code gui/button} are told apart by that and by nothing else in the row. The count is zero --
      * nothing here is carried.
      */
-    public static List<ItemPicker.Entry> catalogue(Collection<ResourceLocation> resources) {
+    public static List<ItemPicker.Entry> catalogue(Collection<Identifier> resources) {
         if (resources == null || resources.isEmpty()) {
             return List.of();
         }
         List<ItemPicker.Entry> entries = new ArrayList<>();
-        for (ResourceLocation id : resources) {
+        for (Identifier id : resources) {
             if (id == null) {
                 continue;
             }

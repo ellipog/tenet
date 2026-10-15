@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
@@ -46,7 +46,7 @@ public record ServerListsPayload(List<String> dimensions, List<String> structure
      */
     public static final CustomPacketPayload.Type<ServerListsPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "server_lists"));
+                    Identifier.fromNamespaceAndPath("tenet", "server_lists"));
 
     /**
      * Both lists as one codec.

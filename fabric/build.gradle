@@ -1,6 +1,6 @@
 plugins {
     id 'multiloader-loader'
-    id 'fabric-loom'
+    id 'net.fabricmc.fabric-loom'
 }
 // No KubeJS here, and it is not an omission: KubeJS 7 -- the 1.21 line -- is NeoForge-only. The Fabric
 // artifact on its maven (`dev.latvian.mods:kubejs-fabric`) stops at 2001.* (1.20.1), while
@@ -9,12 +9,15 @@ plugins {
 // half that would be reused if a Fabric KubeJS ever returns.
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
-    mappings loom.layered {
-        officialMojangMappings()
-        parchment("org.parchmentmc.data:parchment-${parchment_minecraft}:${parchment_version}@zip")
-    }
-    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    // No mappings block: 26.x is unobfuscated (official Mojang names are the names), and Loom
+    // refuses layered mappings in a non-obfuscated environment.
+    implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    // No separate creative-tab pin: the 26.3 aggregator bundles fabric-creative-tab-api-v1
+    // (which owns CreativeModeTabEvents, the hook TenetFabric uses), and the old
+    // fabric-item-group-api-v1 module is gone from it — pinning it separately compiles but
+    // is absent in production and crashes boot, besides conflicting with the aggregator's
+    // own CreativeModeTab mixins in dev.
 
     // Armature's common API. Declared here too, and not inherited from :common, because
     // compileOnly does not travel through apiElements -- and this project's sources genuinely

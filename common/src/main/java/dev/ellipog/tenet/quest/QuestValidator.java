@@ -15,7 +15,7 @@ import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.BreakTask;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -119,7 +119,7 @@ public final class QuestValidator {
         int count = TaskTypes.count();
         if (taskFieldsMemo == null || count != taskFieldsCount) {
             Set<String> fields = new LinkedHashSet<>();
-            for (ResourceLocation id : TaskTypes.ids()) {
+            for (Identifier id : TaskTypes.ids()) {
                 fields.addAll(TaskTypes.fieldsOf(id));
             }
             taskFieldsMemo = fields;
@@ -138,7 +138,7 @@ public final class QuestValidator {
         int count = RewardTypes.count();
         if (rewardFieldsMemo == null || count != rewardFieldsCount) {
             Set<String> fields = new LinkedHashSet<>();
-            for (ResourceLocation id : RewardTypes.ids()) {
+            for (Identifier id : RewardTypes.ids()) {
                 fields.addAll(RewardTypes.fieldsOf(id));
             }
             rewardFieldsMemo = fields;
@@ -165,7 +165,7 @@ public final class QuestValidator {
         int count = ConditionTypes.count();
         if (conditionFieldsMemo == null || count != conditionFieldsCount) {
             Set<String> fields = new LinkedHashSet<>();
-            for (ResourceLocation id : ConditionTypes.ids()) {
+            for (Identifier id : ConditionTypes.ids()) {
                 fields.addAll(ConditionTypes.fieldsOf(id));
             }
             conditionFieldsMemo = fields;
@@ -1001,8 +1001,8 @@ public final class QuestValidator {
         if (!isObject(document, path, problems)) {
             return;
         }
-        Set<ResourceLocation> known = TaskTypes.ids();
-        Optional<ResourceLocation> type = readType(document, path, known, "quest task", problems);
+        Set<Identifier> known = TaskTypes.ids();
+        Optional<Identifier> type = readType(document, path, known, "quest task", problems);
         if (type.isEmpty()) {
             // Already reported as an error — a missing or malformed "type". Fall back to the union of
             // every task type's fields, so that one bad type does not then produce a complaint about
@@ -1103,8 +1103,9 @@ public final class QuestValidator {
         if (document.has(path + ".blockState")) {
             Checks.string(document, path + ".blockState", problems).ifPresent(raw -> {
                 try {
+                    // The registry is its own lookup now: `asLookup()` is gone (see ObservationTask).
                     net.minecraft.commands.arguments.blocks.BlockStateParser.parseForBlock(
-                            BuiltInRegistries.BLOCK.asLookup(), raw, false);
+                            BuiltInRegistries.BLOCK, raw, false);
                 }
                 catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
                     problems.error(document, path + ".blockState", "\"" + raw
@@ -1129,7 +1130,7 @@ public final class QuestValidator {
                 catch (dev.ellipog.tenet.quest.task.FilterParser.FilterException e) {
                     return;
                 }
-                for (ResourceLocation id : parsed.itemIds()) {
+                for (Identifier id : parsed.itemIds()) {
                     if (!BuiltInRegistries.ITEM.containsKey(id)) {
                         String hint = id.getNamespace().equals("minecraft")
                                 ? " - check the spelling; minecraft: has no such item"
@@ -1177,10 +1178,10 @@ public final class QuestValidator {
                 dev.ellipog.tenet.quest.reward.CustomReward.CustomRewards::ids);
 
         private final String word;
-        private final ResourceLocation type;
+        private final Identifier type;
         private final java.util.function.Supplier<java.util.Set<String>> handlers;
 
-        CustomType(String word, ResourceLocation type,
+        CustomType(String word, Identifier type,
                    java.util.function.Supplier<java.util.Set<String>> handlers) {
             this.word = word;
             this.type = type;
@@ -1193,7 +1194,7 @@ public final class QuestValidator {
         }
 
         /** The type id a document has to name for this check to apply. */
-        ResourceLocation type() {
+        Identifier type() {
             return type;
         }
 
@@ -1212,7 +1213,7 @@ public final class QuestValidator {
      * task sits at zero progress forever with nothing on screen saying why.
      */
     private static void checkCustomHandler(JsonDocument document, String path,
-                                           Optional<ResourceLocation> type, CustomType kind,
+                                           Optional<Identifier> type, CustomType kind,
                                            Problems problems) {
         if (type.isEmpty() || !type.get().equals(kind.type())) {
             return;
@@ -1245,8 +1246,8 @@ public final class QuestValidator {
         if (!isObject(document, path, problems)) {
             return;
         }
-        Set<ResourceLocation> known = RewardTypes.ids();
-        Optional<ResourceLocation> type = readType(document, path, known, "quest reward", problems);
+        Set<Identifier> known = RewardTypes.ids();
+        Optional<Identifier> type = readType(document, path, known, "quest reward", problems);
         if (type.isEmpty()) {
             Checks.rejectUnknown(document, path, union(allRewardFields(), Set.of("type")), problems);
             return;
@@ -1363,8 +1364,8 @@ public final class QuestValidator {
         // words -- cannot describe the rule differently from the loader that enforces it.
         if (document.has(rewardPath + ".type")) {
             Checks.optionalString(document, rewardPath + ".type", problems).ifPresent(type -> {
-                net.minecraft.resources.ResourceLocation id =
-                        net.minecraft.resources.ResourceLocation.tryParse(type);
+                net.minecraft.resources.Identifier id =
+                        net.minecraft.resources.Identifier.tryParse(type);
                 String refusal = id == null ? ""
                         : dev.ellipog.tenet.quest.reward.TableReward.entryRefusal(id);
                 if (!refusal.isEmpty()) {
@@ -1440,8 +1441,8 @@ public final class QuestValidator {
         if (!isObject(document, path, problems)) {
             return;
         }
-        Set<ResourceLocation> known = ConditionTypes.ids();
-        Optional<ResourceLocation> type = readType(document, path, known, "quest condition", problems);
+        Set<Identifier> known = ConditionTypes.ids();
+        Optional<Identifier> type = readType(document, path, known, "quest condition", problems);
         if (type.isEmpty()) {
             Checks.rejectUnknown(document, path, union(allConditionFields(), Set.of("type")), problems);
             return;
@@ -1484,7 +1485,7 @@ public final class QuestValidator {
      * decode an unknown type at all and that case has its own message above; this asks the narrower
      * question on purpose, so an addon's type is not double-reported.
      */
-    private static void decodeEntry(JsonDocument document, String path, ResourceLocation id,
+    private static void decodeEntry(JsonDocument document, String path, Identifier id,
                                     MapCodec<?> codec, Problems problems, DynamicOps<JsonElement> ops) {
         // Through Checks.parse, so an addon's codec that throws is reported against this entry rather
         // than escaping the validator -- which runs inside the load, and inside the editor's save.
@@ -1525,8 +1526,8 @@ public final class QuestValidator {
      * unreadable ones, and reporting each of them would be a page of noise about a node already
      * reported once at its own line.
      */
-    private static Optional<ResourceLocation> readType(JsonDocument document, String path,
-                                                       Set<ResourceLocation> known, String kind,
+    private static Optional<Identifier> readType(JsonDocument document, String path,
+                                                       Set<Identifier> known, String kind,
                                                        Problems problems) {
         String typePath = path + ".type";
         Optional<String> raw = Checks.optionalString(document, typePath, problems);
@@ -1535,7 +1536,7 @@ public final class QuestValidator {
             return Optional.empty();
         }
 
-        ResourceLocation id = ResourceLocation.tryParse(raw.get());
+        Identifier id = Identifier.tryParse(raw.get());
         if (id == null) {
             problems.error(document, typePath, "\"" + raw.get()
                     + "\" is not a valid id; expected something like \"tenet:item\"");
@@ -1545,7 +1546,7 @@ public final class QuestValidator {
         if (!known.contains(id)) {
             problems.warn(document, typePath, "unknown " + kind + " type \"" + raw.get() + "\"\n"
                     + "    known types: " + String.join(", ",
-                            known.stream().map(ResourceLocation::toString).sorted().toList())
+                            known.stream().map(Identifier::toString).sorted().toList())
                     + "\n    the node is kept and drawn as an unknown " + kind + ", and nothing in it"
                     + " can make progress until the mod that provides \"" + raw.get() + "\" is loaded");
             return Optional.of(id);
@@ -1620,7 +1621,7 @@ public final class QuestValidator {
                             "a texture path may not be empty - write the file's path,"
                                     + " e.g. \"my_pack:textures/gui/emblem.png\"");
                 }
-                else if (net.minecraft.resources.ResourceLocation.tryParse(raw) == null) {
+                else if (net.minecraft.resources.Identifier.tryParse(raw) == null) {
                     problems.error(document, path + ".texture", "\"" + raw
                             + "\" is not a namespaced path;"
                             + " expected something like \"my_pack:textures/gui/emblem.png\"");
@@ -1637,7 +1638,7 @@ public final class QuestValidator {
                     problems.error(document, path + ".sprite",
                             "a sprite id may not be empty - write e.g. \"minecraft:block/sculk\"");
                 }
-                else if (net.minecraft.resources.ResourceLocation.tryParse(raw) == null) {
+                else if (net.minecraft.resources.Identifier.tryParse(raw) == null) {
                     problems.error(document, path + ".sprite", "\"" + raw
                             + "\" is not a namespaced id;"
                             + " expected something like \"minecraft:block/sculk\"");
@@ -1652,8 +1653,8 @@ public final class QuestValidator {
                             "an entity id may not be empty - write e.g. \"minecraft:creeper\"");
                     return;
                 }
-                net.minecraft.resources.ResourceLocation id =
-                        net.minecraft.resources.ResourceLocation.tryParse(raw);
+                net.minecraft.resources.Identifier id =
+                        net.minecraft.resources.Identifier.tryParse(raw);
                 if (id == null) {
                     problems.error(document, path + ".entity", "\"" + raw
                             + "\" is not a valid entity id;"
@@ -1704,7 +1705,7 @@ public final class QuestValidator {
             return;
         }
 
-        ResourceLocation id = ResourceLocation.tryParse(raw.get());
+        Identifier id = Identifier.tryParse(raw.get());
         if (id == null) {
             problems.error(document, itemPath, "\"" + raw.get()
                     + "\" is not a valid item id; expected something like \"minecraft:oak_log\"");
@@ -1745,7 +1746,7 @@ public final class QuestValidator {
             return;
         }
 
-        ResourceLocation id = ResourceLocation.tryParse(raw.get());
+        Identifier id = Identifier.tryParse(raw.get());
         if (id == null) {
             problems.error(document, blockPath, "\"" + raw.get()
                     + "\" is not a valid block id; expected something like \"minecraft:stone\"");
@@ -2350,7 +2351,7 @@ public final class QuestValidator {
                 if (data.isBlank()) {
                     problems.error(document, at + ".data", "show_recipe needs an item id to look up");
                 }
-                else if (ResourceLocation.tryParse(data) == null) {
+                else if (Identifier.tryParse(data) == null) {
                     problems.error(document, at + ".data", "\"" + data + "\" is not an id this game can"
                             + " resolve - write namespace:path in lowercase, e.g. minecraft:blast_furnace");
                 }
@@ -2379,7 +2380,7 @@ public final class QuestValidator {
                     problems.error(document, at + ".data",
                             "custom_event needs an event id, namespace:path");
                 }
-                else if (ResourceLocation.tryParse(data) == null) {
+                else if (Identifier.tryParse(data) == null) {
                     problems.error(document, at + ".data", "\"" + data + "\" is not an event id -"
                             + " write namespace:path in lowercase, e.g. my_pack:gate_opened");
                 }
@@ -2426,7 +2427,7 @@ public final class QuestValidator {
         if (value.isEmpty()) {
             return;
         }
-        if (ResourceLocation.tryParse(value.get()) == null) {
+        if (Identifier.tryParse(value.get()) == null) {
             problems.error(document, path, "\"" + value.get() + "\" is not an id this game can resolve -"
                     + " write namespace:path in lowercase, e.g. minecraft:textures/gui/star.png for a file"
                     + " or minecraft:block/sculk for a sprite");

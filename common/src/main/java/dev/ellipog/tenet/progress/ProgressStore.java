@@ -3,13 +3,13 @@ package dev.ellipog.tenet.progress;
 import dev.ellipog.tenet.Constants;
 import dev.ellipog.tenet.Tenet;
 
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
+import net.minecraft.world.level.storage.LevelResource;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -67,8 +67,6 @@ import java.util.UUID;
  */
 public final class ProgressStore extends SavedData {
 
-    private static final String DATA_NAME = "tenet_progress";
-
     private final Map<UUID, TeamProgress> byTeam = new LinkedHashMap<>();
 
     /**
@@ -78,7 +76,7 @@ public final class ProgressStore extends SavedData {
      * is stable between saves: a diff of two saves is then a diff of what actually changed, which is worth
      * the two lines it costs for anyone debugging a pack by reading the file.
      */
-    private final Map<UUID, Set<ResourceLocation>> stagesByPlayer = new LinkedHashMap<>();
+    private final Map<UUID, Set<Identifier>> stagesByPlayer = new LinkedHashMap<>();
 
     /**
      * Each team's stages, by team id.
@@ -88,19 +86,62 @@ public final class ProgressStore extends SavedData {
      * rather than colliding — the two sets are asked about separately, and only together when the
      * sync builds what one member sees.
      */
-    private final Map<UUID, Set<ResourceLocation>> stagesByTeam = new LinkedHashMap<>();
+    private final Map<UUID, Set<Identifier>> stagesByTeam = new LinkedHashMap<>();
+
+    /**
+     * The store's serialised form. A plain tag codec over {@link #save} and {@link #load} rather
+     * than a field-by-field codec: the format is versioned by hand, with readers for older
+     * shapes a generated codec could not express, and the {@code registries} neither side takes
+     * mean there is nothing a fancier codec would use.
+     */
+    public static final com.mojang.serialization.Codec<ProgressStore> CODEC =
+            CompoundTag.CODEC.xmap(ProgressStore::load, store -> store.save(new CompoundTag()));
+
+    private static final SavedDataType<ProgressStore> TYPE = new SavedDataType<>(
+            Identifier.fromNamespaceAndPath("tenet", "progress"),
+            ProgressStore::new,
+            CODEC,
+            // Null, deliberately: DataFixTypes is vanilla's migration table, and this is our own
+            // format with its own version key, so there is nothing for it to migrate. Same null the
+            // 1.21.1 `SavedData.Factory` took, for the same reason.
+            null);
+
+    /** The 1.21.1 file name, flat under the data folder. Only used once, to move it (see below). */
+    private static final String LEGACY_FILE = "tenet_progress.dat";
 
     /** The store for this server. */
     public static ProgressStore of(MinecraftServer server) {
-        // Overworld, so the data is global rather than per-dimension. Verified by javap against
-        // the actual 1.21.1 artefact (see .utils/find_savedata.py): SavedData.Factory in this
-        // version takes THREE arguments -- the constructor, the loader, and a nullable
-        // DataFixTypes. Two arguments is the older shape and does not compile.
-        //
-        // The null is deliberate: DataFixTypes is the vanilla datafixer's migration table, and
-        // this is our own format with our own version key, so there is nothing for it to migrate.
-        return server.overworld().getDataStorage()
-                .computeIfAbsent(new SavedData.Factory<>(ProgressStore::new, ProgressStore::load, null), DATA_NAME);
+        // Overworld, so the data is global rather than per-dimension.
+        moveLegacyStoreIfPresent(server);
+        return server.overworld().getDataStorage().computeIfAbsent(TYPE);
+    }
+
+    /**
+     * Moves a 1.21.1 store file into the namespaced place 26.x reads from, once.
+     *
+     * <p>The old storage wrote {@code data/tenet_progress.dat}; the new one resolves the type id to
+     * {@code data/tenet/progress.dat}. Without this, a server upgrading versions would start with no
+     * progress while the old file sat beside the new one looking intact. A move rather than a copy,
+     * so there is never a moment with two live files; if it throws, the legacy file is untouched and
+     * the next boot tries again.
+     */
+    private static void moveLegacyStoreIfPresent(MinecraftServer server) {
+        java.nio.file.Path data = server.getWorldPath(LevelResource.ROOT).resolve("data");
+        java.nio.file.Path legacy = data.resolve(LEGACY_FILE);
+        java.nio.file.Path current = data.resolve("tenet").resolve("progress.dat");
+        try {
+            if (java.nio.file.Files.isRegularFile(legacy)
+                    && !java.nio.file.Files.isRegularFile(current)) {
+                java.nio.file.Files.createDirectories(current.getParent());
+                java.nio.file.Files.move(legacy, current);
+                Constants.LOG.info("moved stored progress from {} to {} (1.21.1 to 26.x storage layout)",
+                        legacy.getFileName(), current);
+            }
+        }
+        catch (java.io.IOException e) {
+            Constants.LOG.warn("could not move stored progress from {} (leaving it for the next boot): {}",
+                    legacy, e.toString());
+        }
     }
 
     /** The progress of one team. Never null — an unknown team has no completed quests, which is a valid state. */
@@ -133,11 +174,11 @@ public final class ProgressStore extends SavedData {
     // ------------------------------------------------------------------
 
     /** Every stage this player has, in the order they were granted. Empty for a player with none. */
-    public Set<ResourceLocation> stagesOf(UUID player) {
+    public Set<Identifier> stagesOf(UUID player) {
         return Set.copyOf(stagesByPlayer.getOrDefault(player, Set.of()));
     }
 
-    public boolean hasStage(UUID player, ResourceLocation stage) {
+    public boolean hasStage(UUID player, Identifier stage) {
         return stagesByPlayer.getOrDefault(player, Set.of()).contains(stage);
     }
 
@@ -147,7 +188,7 @@ public final class ProgressStore extends SavedData {
      * @return whether it changed anything -- false when the player already had it, which is what makes a
      *         reward idempotent and what the event firing is gated on
      */
-    public boolean addStage(UUID player, ResourceLocation stage) {
+    public boolean addStage(UUID player, Identifier stage) {
         if (!stagesByPlayer.computeIfAbsent(player, id -> new java.util.LinkedHashSet<>()).add(stage)) {
             return false;
         }
@@ -156,8 +197,8 @@ public final class ProgressStore extends SavedData {
     }
 
     /** Takes a stage away. False when the player did not have it. */
-    public boolean removeStage(UUID player, ResourceLocation stage) {
-        Set<ResourceLocation> held = stagesByPlayer.get(player);
+    public boolean removeStage(UUID player, Identifier stage) {
+        Set<Identifier> held = stagesByPlayer.get(player);
         if (held == null || !held.remove(stage)) {
             return false;
         }
@@ -180,11 +221,11 @@ public final class ProgressStore extends SavedData {
     // ------------------------------------------------------------------
 
     /** Every stage this team holds, in the order they were granted. Empty for a team with none. */
-    public Set<ResourceLocation> stagesOfTeam(UUID team) {
+    public Set<Identifier> stagesOfTeam(UUID team) {
         return Set.copyOf(stagesByTeam.getOrDefault(team, Set.of()));
     }
 
-    public boolean hasTeamStage(UUID team, ResourceLocation stage) {
+    public boolean hasTeamStage(UUID team, Identifier stage) {
         return stagesByTeam.getOrDefault(team, Set.of()).contains(stage);
     }
 
@@ -193,7 +234,7 @@ public final class ProgressStore extends SavedData {
      *
      * @return whether it changed anything -- false when the team already held it
      */
-    public boolean addTeamStage(UUID team, ResourceLocation stage) {
+    public boolean addTeamStage(UUID team, Identifier stage) {
         if (!stagesByTeam.computeIfAbsent(team, id -> new java.util.LinkedHashSet<>()).add(stage)) {
             return false;
         }
@@ -202,8 +243,8 @@ public final class ProgressStore extends SavedData {
     }
 
     /** Takes a team stage away. False when the team did not hold it. */
-    public boolean removeTeamStage(UUID team, ResourceLocation stage) {
-        Set<ResourceLocation> held = stagesByTeam.get(team);
+    public boolean removeTeamStage(UUID team, Identifier stage) {
+        Set<Identifier> held = stagesByTeam.get(team);
         if (held == null || !held.remove(stage)) {
             return false;
         }
@@ -222,37 +263,37 @@ public final class ProgressStore extends SavedData {
 
     // ------------------------------------------------------------------
 
-    static ProgressStore load(CompoundTag tag, HolderLookup.Provider registries) {
+    static ProgressStore load(CompoundTag tag) {
         ProgressStore store = new ProgressStore();
 
-        ListTag list = tag.getList("teams", Tag.TAG_COMPOUND);
+        ListTag list = tag.getListOrEmpty("teams");
         for (int i = 0; i < list.size(); i++) {
-            CompoundTag entry = list.getCompound(i);
-            UUID teamId = readUuid(entry.getString("team"));
+            CompoundTag entry = list.getCompoundOrEmpty(i);
+            UUID teamId = readUuid(entry.getStringOr("team", ""));
             if (teamId == null) {
                 Constants.LOG.warn("skipping stored progress with no team id");
                 continue;
             }
-            store.byTeam.put(teamId, TeamProgress.load(entry, registries));
+            store.byTeam.put(teamId, TeamProgress.load(entry));
         }
 
         // Absent in a file written before stages existed, which is why nothing checks the version: a missing
         // section is a player with no stages, and that is a valid state rather than something to migrate.
         // The same holds for the team section a file written before team stages existed: absent means none.
-        ListTag stages = tag.getList("stages", Tag.TAG_COMPOUND);
+        ListTag stages = tag.getListOrEmpty("stages");
         for (int i = 0; i < stages.size(); i++) {
-            CompoundTag entry = stages.getCompound(i);
-            UUID player = readUuid(entry.getString("player"));
+            CompoundTag entry = stages.getCompoundOrEmpty(i);
+            UUID player = readUuid(entry.getStringOr("player", ""));
             if (player == null) {
                 Constants.LOG.warn("skipping stored stages with no player id");
                 continue;
             }
-            Set<ResourceLocation> held = new java.util.LinkedHashSet<>();
-            ListTag ids = entry.getList("ids", Tag.TAG_STRING);
+            Set<Identifier> held = new java.util.LinkedHashSet<>();
+            ListTag ids = entry.getListOrEmpty("ids");
             for (int j = 0; j < ids.size(); j++) {
-                ResourceLocation stage = ResourceLocation.tryParse(ids.getString(j));
+                Identifier stage = Identifier.tryParse(ids.getStringOr(j, ""));
                 if (stage == null) {
-                    Constants.LOG.warn("'{}' is not a valid stage id in stored stages", ids.getString(j));
+                    Constants.LOG.warn("'{}' is not a valid stage id in stored stages", ids.getStringOr(j, ""));
                     continue;
                 }
                 held.add(stage);
@@ -260,21 +301,21 @@ public final class ProgressStore extends SavedData {
             store.stagesByPlayer.put(player, held);
         }
 
-        ListTag teamStages = tag.getList("team_stages", Tag.TAG_COMPOUND);
+        ListTag teamStages = tag.getListOrEmpty("team_stages");
         for (int i = 0; i < teamStages.size(); i++) {
-            CompoundTag entry = teamStages.getCompound(i);
-            UUID team = readUuid(entry.getString("team"));
+            CompoundTag entry = teamStages.getCompoundOrEmpty(i);
+            UUID team = readUuid(entry.getStringOr("team", ""));
             if (team == null) {
                 Constants.LOG.warn("skipping stored team stages with no team id");
                 continue;
             }
-            Set<ResourceLocation> held = new java.util.LinkedHashSet<>();
-            ListTag ids = entry.getList("ids", Tag.TAG_STRING);
+            Set<Identifier> held = new java.util.LinkedHashSet<>();
+            ListTag ids = entry.getListOrEmpty("ids");
             for (int j = 0; j < ids.size(); j++) {
-                ResourceLocation stage = ResourceLocation.tryParse(ids.getString(j));
+                Identifier stage = Identifier.tryParse(ids.getStringOr(j, ""));
                 if (stage == null) {
                     Constants.LOG.warn("'{}' is not a valid stage id in stored team stages",
-                            ids.getString(j));
+                            ids.getStringOr(j, ""));
                     continue;
                 }
                 held.add(stage);
@@ -285,8 +326,11 @@ public final class ProgressStore extends SavedData {
         return store;
     }
 
-    @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+    /**
+     * Writes the store. Called by {@link #CODEC}, not overridden from anywhere: 26.x storage
+     * serialises through the type's codec, and this is the encoder half.
+     */
+    public CompoundTag save(CompoundTag tag) {
         // 3 since team stages were added. The version is written for anyone reading the file; nothing reads it
         // back, because every section is additive and a missing one means "none" rather than "old shape".
         tag.putInt("version", 3);
@@ -307,7 +351,7 @@ public final class ProgressStore extends SavedData {
             CompoundTag entry = new CompoundTag();
             entry.putString("player", player.toString());
             ListTag ids = new ListTag();
-            for (ResourceLocation stage : held) {
+            for (Identifier stage : held) {
                 ids.add(net.minecraft.nbt.StringTag.valueOf(stage.toString()));
             }
             entry.put("ids", ids);
@@ -320,7 +364,7 @@ public final class ProgressStore extends SavedData {
             CompoundTag entry = new CompoundTag();
             entry.putString("team", team.toString());
             ListTag ids = new ListTag();
-            for (ResourceLocation stage : held) {
+            for (Identifier stage : held) {
                 ids.add(net.minecraft.nbt.StringTag.valueOf(stage.toString()));
             }
             entry.put("ids", ids);

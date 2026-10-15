@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.inventory;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 
@@ -35,7 +35,7 @@ public interface FluidAccess {
      *
      * <p>Pure read: measures, changes nothing, and never throws for an ordinary stack.
      */
-    int storedOf(ServerPlayer player, ResourceLocation fluid, Item bucketToSkip);
+    int storedOf(ServerPlayer player, Identifier fluid, Item bucketToSkip);
 
     /**
      * Drains up to {@code mb} millibuckets of this fluid from carried containers, bucket stacks
@@ -45,5 +45,5 @@ public interface FluidAccess {
      * slot, the way a drained bucket would if buckets went through here. They do not — see the
      * interface note — so there is no empty-bucket overflow to place or drop.
      */
-    int drainFrom(ServerPlayer player, ResourceLocation fluid, int mb, Item bucketToSkip);
+    int drainFrom(ServerPlayer player, Identifier fluid, int mb, Item bucketToSkip);
 }

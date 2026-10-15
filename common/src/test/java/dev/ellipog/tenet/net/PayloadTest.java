@@ -31,11 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * noticed. The code was:
  *
  * <pre>{@code
- * CustomPacketPayload.createType(ResourceLocation.fromNamespaceAndPath("tenet", "quest_sync").toString())
+ * CustomPacketPayload.createType(Identifier.fromNamespaceAndPath("tenet", "quest_sync").toString())
  * }</pre>
  *
  * <p>which reads as though it names the payload {@code tenet:quest_sync}. It does not.
- * {@code createType} is {@code new Type(ResourceLocation.withDefaultNamespace(name))} — it takes a
+ * {@code createType} is {@code new Type(Identifier.withDefaultNamespace(name))} — it takes a
  * <i>path</i> and hardcodes the {@code minecraft} namespace. So the location became
  * {@code minecraft:tenet:quest_sync}, and the colon left inside the path threw from a static
  * initialiser:
@@ -95,7 +95,7 @@ class PayloadTest {
             String path = registration.type().id().getPath();
             assertFalse(path.contains(":"),
                     "the path of " + registration.type().id() + " contains a colon, which no "
-                            + "ResourceLocation path may. The namespace has leaked into the path.");
+                            + "Identifier path may. The namespace has leaked into the path.");
         }
     }
 

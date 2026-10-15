@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * One edit, from a client that wants it to a server that decides.
@@ -28,7 +28,7 @@ public record EditorOpPayload(String chapter, String op, long requestId) impleme
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<EditorOpPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "editor_op"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "editor_op"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, EditorOpPayload> CODEC =
             StreamCodec.composite(

@@ -8,7 +8,7 @@ import dev.ellipog.tenet.quest.condition.ConditionTypes;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,7 +70,7 @@ class PlayerTooltipLanguageTest {
     @Test
     @DisplayName("every player tooltip is plain words: no ids, no field names, no file vocabulary")
     void playerTooltipsArePlainWords() {
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             for (boolean byHand : new boolean[] {false, true}) {
                 for (boolean takes : new boolean[] {false, true}) {
                     assertPlain("the task tooltip for " + id,
@@ -78,7 +78,7 @@ class PlayerTooltipLanguageTest {
                 }
             }
         }
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             assertPlain("the reward tooltip for " + id,
                     QuestPanelLayout.playerTooltip("rewards", id.toString(), false, false));
         }
@@ -104,14 +104,14 @@ class PlayerTooltipLanguageTest {
     @Test
     @DisplayName("an editor tooltip is two lines at most, and names the id only when nothing else does")
     void editorTooltipsStayShort() {
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             assertShort("the task picker's hover for " + id, QuestPanelLayout.typeTooltip("tasks", id.toString()));
         }
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             assertShort("the reward picker's hover for " + id,
                     QuestPanelLayout.typeTooltip("rewards", id.toString()));
         }
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             assertShort("the condition picker's hover for " + id,
                     QuestPanelLayout.conditionTypeTooltip(id.toString()));
         }

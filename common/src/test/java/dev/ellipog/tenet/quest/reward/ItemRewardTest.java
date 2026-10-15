@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Items;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -36,7 +36,7 @@ class ItemRewardTest {
 
     private static ItemReward reward(String item, int count) {
         return new ItemReward(RewardCommon.DEFAULT,
-                new ItemRef(ResourceLocation.parse(item), count), 0, false);
+                new ItemRef(Identifier.parse(item), count), 0, false);
     }
 
     private static QuestReward decoded(String text) {

@@ -10,7 +10,7 @@ import dev.ellipog.tenet.inventory.VanillaInventory;
 import dev.ellipog.tenet.net.TenetNetworking;
 
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.CreativeModeTab;
 
@@ -40,6 +40,19 @@ public final class TenetFabric implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        // Armature first, through the loader rather than by calling it: `main` order between
+        // mods is not dependency-ordered (loader 0.19 runs this entry point before Armature's,
+        // nondeterministically — seen both ways across back-to-back boots), and everything
+        // below needs its platform installed. Its entry point tolerates running twice, so
+        // whichever of this trigger and the loader's own invocation comes second is a no-op.
+        // Loader API only — no reflection into Armature's loader module, which common code
+        // must not name.
+        for (var container : net.fabricmc.loader.api.FabricLoader.getInstance()
+                .getEntrypointContainers("main", net.fabricmc.api.ModInitializer.class)) {
+            if (container.getProvider().getMetadata().getId().equals("armature")) {
+                ((net.fabricmc.api.ModInitializer) container.getEntrypoint()).onInitialize();
+            }
+        }
         // Declares the payloads. Must precede the install below.
         Tenet.init();
 
@@ -61,10 +74,15 @@ public final class TenetFabric implements ModInitializer {
         // from breaking tab population. Once per tab in QuestBookTabs, and only in this
         // initialiser — the client one runs too on a client, and a second registration would
         // list the book twice.
+        //
+        // `CreativeModeTabEvents`: on 26.x the old `ItemGroupEvents` module is gone from the
+        // aggregator (a separate pin compiles but is absent in production and crashes boot
+        // with NoClassDefFoundError), and the creative-tab module owns the same hook under
+        // this name. The output accepts an ItemLike exactly as before.
         for (ResourceKey<CreativeModeTab> tab : QuestBookTabs.TABS) {
-            ItemGroupEvents.modifyEntriesEvent(tab).register(entries -> {
+            CreativeModeTabEvents.modifyOutputEvent(tab).register(output -> {
                 if (QuestBook.ITEM != null) {
-                    entries.accept(QuestBook.ITEM);
+                    output.accept(QuestBook.ITEM);
                 }
             });
         }

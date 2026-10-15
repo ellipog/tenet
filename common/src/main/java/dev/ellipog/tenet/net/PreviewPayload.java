@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * An operator asking to see the quest book as a normal player sees it.
@@ -26,7 +26,7 @@ public record PreviewPayload(boolean toggle, boolean on) implements CustomPacket
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<PreviewPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "preview"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "preview"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, PreviewPayload> CODEC =
             StreamCodec.composite(

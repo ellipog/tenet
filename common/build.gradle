@@ -10,10 +10,7 @@ neoForge {
     if (at.exists()) {
         accessTransformers.from(at.absolutePath)
     }
-    parchment {
-        minecraftVersion = parchment_minecraft
-        mappingsVersion = parchment_version
-    }
+    // No parchment block: 26.x is unobfuscated, Parchment publishes nothing for it.
 }
 
 dependencies {

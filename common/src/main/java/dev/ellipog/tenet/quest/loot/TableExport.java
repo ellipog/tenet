@@ -189,7 +189,7 @@ public final class TableExport {
                 toInventory++;
                 continue;
             }
-            player.drop(stack.copy(), false);
+            player.drop(stack.copy(), false, net.minecraft.util.Prediction.SERVER_ONLY);
             dropped++;
         }
         if (container != null) {

@@ -2,10 +2,8 @@ package dev.ellipog.tenet.progress;
 
 import dev.ellipog.tenet.quest.Quest;
 
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -133,7 +131,7 @@ public final class TeamProgress {
 
     /** The load counterpart of {@link #toTag}. */
     public static TeamProgress fromTag(CompoundTag tag) {
-        return load(tag, null);
+        return load(tag);
     }
 
     /** Removes a quest's progress entirely, aliases included. */
@@ -207,62 +205,62 @@ public final class TeamProgress {
         return tag;
     }
 
-    public static TeamProgress load(CompoundTag tag, HolderLookup.Provider registries) {
+    public static TeamProgress load(CompoundTag tag) {
         TeamProgress progress = new TeamProgress();
-        progress.rewardsBlocked = tag.getBoolean("rewardsBlocked");
+        progress.rewardsBlocked = tag.getBooleanOr("rewardsBlocked", false);
         // A file written before per-player claims recorded "collected" as a single team-wide fact.
         // It is preserved as legacySettled -- collected for everyone, for good -- so the one thing a
         // migration must never do, pay an old quest's rewards a second time, cannot happen.
-        int version = tag.getInt("version");
+        int version = tag.getIntOr("version", 0);
 
-        ListTag list = tag.getList("quests", Tag.TAG_COMPOUND);
+        ListTag list = tag.getListOrEmpty("quests");
         for (int i = 0; i < list.size(); i++) {
-            CompoundTag entry = list.getCompound(i);
-            String id = entry.getString("quest");
+            CompoundTag entry = list.getCompoundOrEmpty(i);
+            String id = entry.getStringOr("quest", "");
             if (id.isEmpty()) {
                 continue;
             }
 
             Map<Integer, Integer> tasks = new LinkedHashMap<>();
-            ListTag taskList = entry.getList("tasks", Tag.TAG_COMPOUND);
+            ListTag taskList = entry.getListOrEmpty("tasks");
             for (int t = 0; t < taskList.size(); t++) {
-                CompoundTag task = taskList.getCompound(t);
-                tasks.put(task.getInt("index"), task.getInt("amount"));
+                CompoundTag task = taskList.getCompoundOrEmpty(t);
+                tasks.put(task.getIntOr("index", 0), task.getIntOr("amount", 0));
             }
 
             java.util.LinkedHashSet<Integer> teamClaims = new java.util.LinkedHashSet<>();
             // Version 2's flat array was team-wide claims; it reads as exactly that.
-            for (int index : entry.getIntArray("claimedRewards")) {
+            for (int index : entry.getIntArray("claimedRewards").orElse(new int[0])) {
                 teamClaims.add(index);
             }
             Map<java.util.UUID, java.util.Set<Integer>> playerClaims = new java.util.LinkedHashMap<>();
-            CompoundTag claims = entry.getCompound("claims");
-            for (int index : claims.getIntArray("team")) {
+            CompoundTag claims = entry.getCompoundOrEmpty("claims");
+            for (int index : claims.getIntArray("team").orElse(new int[0])) {
                 teamClaims.add(index);
             }
-            ListTag players = claims.getList("players", Tag.TAG_COMPOUND);
+            ListTag players = claims.getListOrEmpty("players");
             for (int p = 0; p < players.size(); p++) {
-                CompoundTag one = players.getCompound(p);
-                java.util.UUID player = parseUuid(one.getString("player"));
+                CompoundTag one = players.getCompoundOrEmpty(p);
+                java.util.UUID player = parseUuid(one.getStringOr("player", ""));
                 if (player == null) {
                     continue;
                 }
                 java.util.LinkedHashSet<Integer> indices = new java.util.LinkedHashSet<>();
-                for (int index : one.getIntArray("rewards")) {
+                for (int index : one.getIntArray("rewards").orElse(new int[0])) {
                     indices.add(index);
                 }
                 playerClaims.put(player, indices);
             }
 
-            boolean settled = entry.getBoolean("rewardsClaimed");
+            boolean settled = entry.getBooleanOr("rewardsClaimed", false);
             progress.quests.put(id, new QuestProgress(
-                    readState(entry.getString("state")),
+                    readState(entry.getStringOr("state", "")),
                     tasks,
                     new QuestClaims(teamClaims, playerClaims),
                     settled,
-                    version < 3 ? settled : entry.getBoolean("legacySettled"),
-                    entry.getInt("timesCompleted"),
-                    entry.getLong("lastCompletedAt")));
+                    version < 3 ? settled : entry.getBooleanOr("legacySettled", false),
+                    entry.getIntOr("timesCompleted", 0),
+                    entry.getLongOr("lastCompletedAt", 0L)));
         }
 
         return progress;

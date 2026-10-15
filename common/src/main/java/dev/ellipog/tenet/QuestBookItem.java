@@ -3,7 +3,7 @@ package dev.ellipog.tenet;
 import dev.ellipog.armature.api.client.ArmatureClient;
 
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -30,18 +30,15 @@ public final class QuestBookItem extends Item {
     }
 
     @Override
-    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-        ItemStack stack = player.getItemInHand(hand);
-
-        if (level.isClientSide) {
+    public InteractionResult use(Level level, Player player, InteractionHand hand) {
+        if (level.isClientSide()) {
             // Refused with the pack's sentence when the pack disabled its book, like every other
             // open. Read off the synced tree rather than through the screen — this class runs on a
             // dedicated server too, where no screen class may load. See
             // `QuestBookScreen.checkOpenAllowed` for the choke the client-only paths share.
             if (dev.ellipog.tenet.client.ClientQuestCache.guiDisabled()) {
-                player.displayClientMessage(
-                        net.minecraft.network.chat.Component.translatable("tenet.screen.book_disabled"),
-                        false);
+                player.sendSystemMessage(
+                        net.minecraft.network.chat.Component.translatable("tenet.screen.book_disabled"));
             }
             else {
                 ArmatureClient.openScreen(Tenet.QUEST_BOOK_SCREEN);
@@ -51,6 +48,6 @@ public final class QuestBookItem extends Item {
         // sidedSuccess: the client is told the interaction succeeded so the swing animation
         // plays, and the server is told the same without duplicating the effect. Returning
         // SUCCESS on both sides is how you get an animation that fires twice.
-        return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
+        return level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.CONSUME;
     }
 }

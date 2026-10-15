@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +40,7 @@ class ItemTagTaskTest {
 
     private static ItemTagTask task(int count, Optional<Boolean> consume) {
         return new ItemTagTask(new TaskCommon(false, 20),
-                ResourceLocation.parse("minecraft:logs"), count, consume, false, false);
+                Identifier.parse("minecraft:logs"), count, consume, false, false);
     }
 
     private static QuestTask decoded(String text) {
@@ -70,7 +70,7 @@ class ItemTagTaskTest {
         assertTrue(ItemTagTask.BEHAVIOUR.waitsForSubmit(consuming, false));
 
         ItemTagTask manual = new ItemTagTask(new TaskCommon(false, 20),
-                ResourceLocation.parse("minecraft:logs"), 8, Optional.empty(), false, true);
+                Identifier.parse("minecraft:logs"), 8, Optional.empty(), false, true);
         assertTrue(ItemTagTask.BEHAVIOUR.manualOnly(manual));
         assertTrue(ItemTagTask.BEHAVIOUR.canSubmitByHand(manual, false));
         assertTrue(ItemTagTask.BEHAVIOUR.waitsForSubmit(manual, false));

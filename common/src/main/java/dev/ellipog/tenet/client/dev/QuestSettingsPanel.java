@@ -520,8 +520,8 @@ public final class QuestSettingsPanel {
             r.icon(view.icon(), strip.x(), strip.y() + (strip.height() - 16) / 2, 16);
         }
         else if (view.textureIcon() != null && !view.textureIcon().isEmpty()) {
-            net.minecraft.resources.ResourceLocation texture =
-                    net.minecraft.resources.ResourceLocation.tryParse(view.textureIcon());
+            net.minecraft.resources.Identifier texture =
+                    net.minecraft.resources.Identifier.tryParse(view.textureIcon());
             if (texture != null) {
                 r.texture(texture, strip.x(), strip.y() + (strip.height() - 16) / 2, 16, 16);
             }
@@ -529,8 +529,8 @@ public final class QuestSettingsPanel {
         else if (view.spriteIcon() != null && !view.spriteIcon().isEmpty()) {
             // An atlas region, drawn from the atlas like the node's own: the stack is empty for a
             // sprite for the same reason it is for a texture.
-            net.minecraft.resources.ResourceLocation sprite =
-                    net.minecraft.resources.ResourceLocation.tryParse(view.spriteIcon());
+            net.minecraft.resources.Identifier sprite =
+                    net.minecraft.resources.Identifier.tryParse(view.spriteIcon());
             if (sprite != null) {
                 r.sprite(sprite, strip.x(), strip.y() + (strip.height() - 16) / 2, 16, 16, 0xFFFFFFFF);
             }

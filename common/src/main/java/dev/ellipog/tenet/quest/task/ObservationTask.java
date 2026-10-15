@@ -16,7 +16,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.TagParser;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
@@ -52,7 +52,7 @@ import java.util.function.Function;
 public record ObservationTask(TaskCommon common, ObserveType observeType, String toObserve, int timer)
         implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "observation");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "observation");
 
     public static final Set<String> FIELDS = Set.of("observeType", "toObserve", "timer");
 
@@ -93,7 +93,7 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
     ).apply(instance, ObservationTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -113,7 +113,7 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
                 if (entity == null) {
                     return false;
                 }
-                ResourceLocation id = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(entity.getType());
+                Identifier id = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(entity.getType());
                 if (type == ObserveType.BLOCK_ENTITY_TYPE) {
                     return target.equals(String.valueOf(id));
                 }
@@ -137,7 +137,7 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
         return switch (type) {
             case BLOCK -> target.equals(String.valueOf(BuiltInRegistries.BLOCK.getKey(state.getBlock())));
             case BLOCK_TAG -> {
-                ResourceLocation id = ResourceLocation.tryParse(target);
+                Identifier id = Identifier.tryParse(target);
                 yield id != null && state.is(dev.ellipog.tenet.quest.TagKeys.of(Registries.BLOCK, id));
             }
             case BLOCK_STATE -> blockStateOf(target).map(wanted -> wanted.equals(state)).orElse(false);
@@ -158,8 +158,10 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
     private static Optional<BlockState> blockStateOf(String target) {
         return BLOCK_STATES.computeIfAbsent(target, text -> {
             try {
+                // The registry is its own lookup now: `asLookup()` is gone, and `Registry` extends
+                // `HolderLookup.RegistryLookup`, which extends the lookup the parser takes.
                 var parsed = net.minecraft.commands.arguments.blocks.BlockStateParser
-                        .parseForBlock(BuiltInRegistries.BLOCK.asLookup(), text, false);
+                        .parseForBlock(BuiltInRegistries.BLOCK, text, false);
                 return Optional.of(parsed.blockState());
             }
             catch (CommandSyntaxException unparsable) {
@@ -173,14 +175,16 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
         if (entity == null) {
             return false;
         }
-        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        Identifier id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         return switch (type) {
             case ENTITY_TYPE -> target.equals(String.valueOf(id));
             case ENTITY_TYPE_TAG -> {
-                ResourceLocation tag = ResourceLocation.tryParse(target);
+                Identifier tag = Identifier.tryParse(target);
+                // The type check goes through a holder now: `EntityType.is` is gone, and a registry
+                // wraps any value as one.
                 yield tag != null
-                        && entity.getType().is(dev.ellipog.tenet.quest.TagKeys.of(Registries.ENTITY_TYPE,
-                                tag));
+                        && BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()).is(
+                                dev.ellipog.tenet.quest.TagKeys.of(Registries.ENTITY_TYPE, tag));
             }
             default -> false;
         };
@@ -189,7 +193,9 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
     /** A target's NBT filter against a block entity's saved tag: subset match, like the kill task's. */
     private static boolean nbtSubset(String filterText, CompoundTag actual) {
         try {
-            return NbtUtils.compareNbt(TagParser.parseTag(filterText), actual, true);
+            // The lenient tag parser is gone; the strict compound one throws the same exception
+            // on the same bad input, which is all this needs.
+            return NbtUtils.compareNbt(TagParser.parseCompoundFully(filterText), actual, true);
         }
         catch (CommandSyntaxException e) {
             return false;
@@ -235,6 +241,6 @@ public record ObservationTask(TaskCommon common, ObserveType observeType, String
 
     /** The tag the block filter names, for a message; unused by matching itself. */
     static TagKey<Block> blockTag(String target) {
-        return dev.ellipog.tenet.quest.TagKeys.of(Registries.BLOCK, ResourceLocation.parse(target));
+        return dev.ellipog.tenet.quest.TagKeys.of(Registries.BLOCK, Identifier.parse(target));
     }
 }

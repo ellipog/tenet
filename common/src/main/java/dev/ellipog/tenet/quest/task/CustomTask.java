@@ -10,7 +10,7 @@ import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Map;
 import java.util.Optional;
@@ -41,7 +41,7 @@ import java.util.function.Function;
  */
 public record CustomTask(TaskCommon common, String id, int value) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "custom");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "custom");
 
     public static final Set<String> FIELDS = Set.of("id", "value");
 
@@ -52,7 +52,7 @@ public record CustomTask(TaskCommon common, String id, int value) implements Que
     ).apply(instance, CustomTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

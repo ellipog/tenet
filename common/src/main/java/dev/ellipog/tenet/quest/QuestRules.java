@@ -6,7 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import dev.ellipog.tenet.quest.reward.RewardAutoClaim;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Optional;
 import java.util.Set;
@@ -87,7 +87,7 @@ public record QuestRules(boolean repeatable,
                           * integration is the shape being matched -- it is how a pack writes "this chapter
                           * follows that one" when the thing linking them is not a dependency edge.
                           */
-                         Optional<ResourceLocation> requiresStage,
+                         Optional<Identifier> requiresStage,
                          /**
                           * Whether this quest's rewards are handed over the moment it completes, with the
                           * chapter's default for a quest that says nothing.
@@ -214,7 +214,7 @@ public record QuestRules(boolean repeatable,
             // The stage gate: an id, like every other name in this format, and nothing checks that the
             // stage exists -- one exists by being granted, so a validator would be guessing about a grant a
             // script may make tomorrow.
-            ResourceLocation.CODEC.optionalFieldOf("requiresStage").forGetter(QuestRules::requiresStage),
+            Identifier.CODEC.optionalFieldOf("requiresStage").forGetter(QuestRules::requiresStage),
             // The middle rung of the auto-claim ladder; see the component's javadoc. Absent means the
             // chapter decides.
             RewardAutoClaim.CODEC.optionalFieldOf("autoClaim").forGetter(QuestRules::autoClaim)

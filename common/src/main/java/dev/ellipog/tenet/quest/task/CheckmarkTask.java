@@ -6,7 +6,7 @@ import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 
@@ -29,7 +29,7 @@ import java.util.Set;
  */
 public record CheckmarkTask(TaskCommon common) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "checkmark");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "checkmark");
 
     public static final Set<String> FIELDS = Set.of();
 
@@ -38,7 +38,7 @@ public record CheckmarkTask(TaskCommon common) implements QuestTask {
     ).apply(instance, CheckmarkTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

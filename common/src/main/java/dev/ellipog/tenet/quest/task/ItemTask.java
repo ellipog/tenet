@@ -8,7 +8,7 @@ import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.item.ItemStack;
@@ -34,7 +34,7 @@ import java.util.Set;
 public record ItemTask(TaskCommon common, ItemRef item, Optional<Boolean> consumeItems,
                        ComponentMatch match, boolean onlyFromCrafting, boolean manualOnly) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "item");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "item");
 
     /** This type's own fields, for the validator. {@code "type"} and the common fields are added by it. */
     public static final Set<String> FIELDS =
@@ -55,7 +55,7 @@ public record ItemTask(TaskCommon common, ItemRef item, Optional<Boolean> consum
     ).apply(instance, ItemTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

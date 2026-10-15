@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.CreativeModeTab;
 
 import org.junit.jupiter.api.DisplayName;
@@ -68,11 +68,11 @@ class QuestBookTabsTest {
     void setAndPredicateAgree() {
         for (ResourceKey<CreativeModeTab> tab : QuestBookTabs.TABS) {
             assertTrue(QuestBookTabs.shouldInclude(tab),
-                    "every listed tab is included: " + tab.location());
+                    "every listed tab is included: " + tab.identifier());
         }
     }
 
     private static ResourceKey<CreativeModeTab> vanillaKey(String path) {
-        return ResourceKey.create(Registries.CREATIVE_MODE_TAB, ResourceLocation.withDefaultNamespace(path));
+        return ResourceKey.create(Registries.CREATIVE_MODE_TAB, Identifier.withDefaultNamespace(path));
     }
 }

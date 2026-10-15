@@ -2,7 +2,7 @@ package dev.ellipog.tenet.quest.reward;
 
 import dev.ellipog.tenet.quest.QuestReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A reward whose type this build has no codec for, kept rather than thrown away.
@@ -22,10 +22,10 @@ import net.minecraft.resources.ResourceLocation;
  *
  * <p>{@link RewardCommon#DEFAULT} rather than null, for the reason given on {@code UnknownTask.of}.
  */
-public record UnknownReward(RewardCommon common, ResourceLocation type) implements QuestReward {
+public record UnknownReward(RewardCommon common, Identifier type) implements QuestReward {
 
     /** The shape a decoded unknown reward takes: no settings of its own, since none can be read. */
-    public static UnknownReward of(ResourceLocation type) {
+    public static UnknownReward of(Identifier type) {
         return new UnknownReward(RewardCommon.DEFAULT, type);
     }
 

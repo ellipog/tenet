@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.client;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 import java.util.Set;
@@ -21,13 +21,13 @@ public final class ClientStages {
     private ClientStages() {
     }
 
-    private static volatile Set<ResourceLocation> stages = Set.of();
+    private static volatile Set<Identifier> stages = Set.of();
 
     /** Takes the server's list from the wire. Anything unparsable is dropped rather than poisoning the set. */
     public static void accept(List<String> ids) {
-        Set<ResourceLocation> parsed = new TreeSet<>(java.util.Comparator.comparing(ResourceLocation::toString));
+        Set<Identifier> parsed = new TreeSet<>(java.util.Comparator.comparing(Identifier::toString));
         for (String id : ids) {
-            ResourceLocation stage = ResourceLocation.tryParse(id);
+            Identifier stage = Identifier.tryParse(id);
             if (stage != null) {
                 parsed.add(stage);
             }
@@ -36,12 +36,12 @@ public final class ClientStages {
     }
 
     /** Every stage this player has. */
-    public static Set<ResourceLocation> all() {
+    public static Set<Identifier> all() {
         return stages;
     }
 
     /** Whether this player has the stage, by id. */
-    public static boolean has(ResourceLocation stage) {
+    public static boolean has(Identifier stage) {
         return stages.contains(stage);
     }
 

@@ -11,7 +11,7 @@ import dev.ellipog.tenet.quest.condition.ConditionTypes;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -184,17 +184,17 @@ class AdvancedTest {
         // The direction that catches a rename: a field marked "nbtFilter" on a type that no longer declares
         // it is a key that hides nothing, and nothing else in the suite would say so.
         Set<String> declared = new TreeSet<>();
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             for (EditorField field : TaskTypes.editorOf(id)) {
                 declared.add(field.path());
             }
         }
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             for (EditorField field : RewardTypes.editorOf(id)) {
                 declared.add(field.path());
             }
         }
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             for (EditorField field : ConditionTypes.editorOf(id)) {
                 declared.add(field.path());
             }
@@ -280,7 +280,7 @@ class AdvancedTest {
 
         List<String> empty = new ArrayList<>();
         for (boolean tasks : new boolean[] {true, false}) {
-            for (ResourceLocation id : tasks ? TaskTypes.ids() : RewardTypes.ids()) {
+            for (Identifier id : tasks ? TaskTypes.ids() : RewardTypes.ids()) {
                 List<EditorField> form = tasks ? TaskTypes.editorOf(id) : RewardTypes.editorOf(id);
                 assertFalse(form.isEmpty(), id + " has no form at all, which is a different fault");
                 if (Advanced.fields(form).isEmpty()) {
@@ -288,7 +288,7 @@ class AdvancedTest {
                 }
             }
         }
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             List<EditorField> form = ConditionTypes.editorOf(id);
             assertFalse(form.isEmpty(), id + " has no form at all");
             if (Advanced.fields(form).isEmpty()) {

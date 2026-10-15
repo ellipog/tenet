@@ -44,10 +44,10 @@ public final class FabricNetworking implements NetworkBackend {
         // The format half, on both sides. A payload registered only on the server could be sent and
         // never serialised by the client, which surfaces as a disconnect rather than an error.
         if (registration.direction().reachesClient()) {
-            PayloadTypeRegistry.playS2C().register(registration.type(), registration.codec());
+            PayloadTypeRegistry.clientboundPlay().register(registration.type(), registration.codec());
         }
         if (registration.direction().reachesServer()) {
-            PayloadTypeRegistry.playC2S().register(registration.type(), registration.codec());
+            PayloadTypeRegistry.serverboundPlay().register(registration.type(), registration.codec());
         }
         Constants.LOG.debug("registered payload format {} ({})",
                 registration.type().id(), registration.direction());

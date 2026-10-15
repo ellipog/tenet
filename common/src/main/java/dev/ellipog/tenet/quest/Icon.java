@@ -5,7 +5,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.DynamicOps;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -58,7 +58,7 @@ public sealed interface Icon permits Icon.Item, Icon.Texture, Icon.Sprite, Icon.
      * image element writes it. Drawn stretched into the icon's box. A path nothing holds draws
      * nothing, like an image element's missing file.
      */
-    record Texture(ResourceLocation texture) implements Icon {
+    record Texture(Identifier texture) implements Icon {
 
         public Texture {
             Objects.requireNonNull(texture, "texture arm needs its path");
@@ -69,7 +69,7 @@ public sealed interface Icon permits Icon.Item, Icon.Texture, Icon.Sprite, Icon.
      * An atlas region by its id — drawn from the atlas, like a chapter element's sprite.
      * A region nothing holds draws the missing mark, like an unheld file.
      */
-    record Sprite(ResourceLocation sprite) implements Icon {
+    record Sprite(Identifier sprite) implements Icon {
 
         public Sprite {
             Objects.requireNonNull(sprite, "sprite arm needs its id");
@@ -81,7 +81,7 @@ public sealed interface Icon permits Icon.Item, Icon.Texture, Icon.Sprite, Icon.
      * An entity with no egg (or from a mod that names its eggs unconventionally) draws the
      * missing-item mark, which names the entity rather than pretending it drew.
      */
-    record Entity(ResourceLocation entity) implements Icon {
+    record Entity(Identifier entity) implements Icon {
 
         public Entity {
             Objects.requireNonNull(entity, "entity arm needs its id");
@@ -104,13 +104,13 @@ public sealed interface Icon permits Icon.Item, Icon.Texture, Icon.Sprite, Icon.
             return switch (icon) {
                 case Item item -> ItemRef.CODEC.encode(item.ref(), ops, prefix);
                 case Texture texture -> ops.mapBuilder()
-                        .add("texture", ResourceLocation.CODEC.encodeStart(ops, texture.texture()))
+                        .add("texture", Identifier.CODEC.encodeStart(ops, texture.texture()))
                         .build(prefix);
                 case Sprite sprite -> ops.mapBuilder()
-                        .add("sprite", ResourceLocation.CODEC.encodeStart(ops, sprite.sprite()))
+                        .add("sprite", Identifier.CODEC.encodeStart(ops, sprite.sprite()))
                         .build(prefix);
                 case Entity entity -> ops.mapBuilder()
-                        .add("entity", ResourceLocation.CODEC.encodeStart(ops, entity.entity()))
+                        .add("entity", Identifier.CODEC.encodeStart(ops, entity.entity()))
                         .build(prefix);
             };
         }
@@ -125,19 +125,19 @@ public sealed interface Icon permits Icon.Item, Icon.Texture, Icon.Sprite, Icon.
             }
             Optional<T> texture = ops.get(input, "texture").result();
             if (texture.isPresent()) {
-                return ResourceLocation.CODEC.decode(ops, texture.get())
+                return Identifier.CODEC.decode(ops, texture.get())
                         .map(pair -> pair.mapFirst(id -> (Icon) new Texture(id))
                                 .mapSecond(rest -> input));
             }
             Optional<T> sprite = ops.get(input, "sprite").result();
             if (sprite.isPresent()) {
-                return ResourceLocation.CODEC.decode(ops, sprite.get())
+                return Identifier.CODEC.decode(ops, sprite.get())
                         .map(pair -> pair.mapFirst(id -> (Icon) new Sprite(id))
                                 .mapSecond(rest -> input));
             }
             Optional<T> entity = ops.get(input, "entity").result();
             if (entity.isPresent()) {
-                return ResourceLocation.CODEC.decode(ops, entity.get())
+                return Identifier.CODEC.decode(ops, entity.get())
                         .map(pair -> pair.mapFirst(id -> (Icon) new Entity(id))
                                 .mapSecond(rest -> input));
             }

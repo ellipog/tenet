@@ -238,7 +238,7 @@ class AuthoringFlagsTest {
 
             assertTrue(parsed.common().disableToast());
             assertTrue(RewardTypes.fieldsOf(
-                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("tenet", "xp"))
+                    net.minecraft.resources.Identifier.fromNamespaceAndPath("tenet", "xp"))
                     .contains("disableToast"));
             assertTrue(RewardCommon.FIELDS.contains("disableToast"));
         }

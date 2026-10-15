@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +40,7 @@ class KillTaskTest {
 
     private static KillTask byId(String entity, int value) {
         return new KillTask(new TaskCommon(false, 20),
-                Optional.of(ResourceLocation.parse(entity)), Optional.empty(), value,
+                Optional.of(Identifier.parse(entity)), Optional.empty(), value,
                 Optional.empty(), Optional.empty());
     }
 
@@ -71,7 +71,7 @@ class KillTaskTest {
         assertEquals("10 x minecraft:zombie", byId("minecraft:zombie", 10).description());
 
         var tagged = new KillTask(new TaskCommon(false, 20), Optional.empty(),
-                Optional.of(ResourceLocation.parse("minecraft:skeletons")), 5,
+                Optional.of(Identifier.parse("minecraft:skeletons")), 5,
                 Optional.empty(), Optional.empty());
         assertEquals("#minecraft:skeletons", tagged.target());
 
@@ -92,7 +92,7 @@ class KillTaskTest {
                 id.picture().orElseThrow().item().toString());
 
         var tagged = TaskTypes.displayOf(new KillTask(new TaskCommon(false, 20),
-                Optional.empty(), Optional.of(ResourceLocation.parse("minecraft:skeletons")), 5,
+                Optional.empty(), Optional.of(Identifier.parse("minecraft:skeletons")), 5,
                 Optional.empty(), Optional.empty()));
         assertTrue(tagged.picture().isEmpty(),
                 "a tag takes precedence in matching, so no egg may name the wrong mob");

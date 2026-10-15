@@ -12,7 +12,7 @@ import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.QuestText;
 import dev.ellipog.tenet.quest.RegistryRef;
 import dev.ellipog.tenet.quest.TaskCommon;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 import java.util.Map;
@@ -115,9 +115,9 @@ public final class TaskTypes {
                     EditorField.flag("manualOnly", "Manual only")
                             .hint("never count from the inventory on its own; only a submit press counts")),
             ItemTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("chest"), 1), ItemTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("chest"), 1), ItemTask.DISPLAY,
             () -> new ItemTask(TaskCommon.DEFAULT,
-                    new ItemRef(ResourceLocation.withDefaultNamespace("paper"), 1), Optional.empty(),
+                    new ItemRef(Identifier.withDefaultNamespace("paper"), 1), Optional.empty(),
                     ComponentMatch.STRICT, false, false));
 
     /** {@code tenet:item_tag} — have enough of any item in a tag. */
@@ -134,9 +134,9 @@ public final class TaskTypes {
                     EditorField.flag("manualOnly", "Manual only")
                             .hint("never count from the inventory on its own; only a submit press counts")),
             ItemTagTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("barrel"), 1), ItemTagTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("barrel"), 1), ItemTagTask.DISPLAY,
             () -> new ItemTagTask(new TaskCommon(false, 20),
-                    ResourceLocation.withDefaultNamespace("logs"), 1, Optional.empty(), false, false));
+                    Identifier.withDefaultNamespace("logs"), 1, Optional.empty(), false, false));
 
     /** {@code tenet:filter} — have enough of whatever a filter expression matches. */
     public static final QuestTaskType<FilterTask> FILTER = register(
@@ -152,7 +152,7 @@ public final class TaskTypes {
                     EditorField.flag("manualOnly", "Manual only")
                             .hint("never count from the inventory on its own; only a submit press counts")),
             FilterTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("hopper"), 1), FilterTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("hopper"), 1), FilterTask.DISPLAY,
             () -> new FilterTask(new TaskCommon(false, 20),
                     FilterParser.parse("item_tag(minecraft:logs)"), 1, Optional.empty(), false));
 
@@ -160,7 +160,7 @@ public final class TaskTypes {
     public static final QuestTaskType<CheckmarkTask> CHECKMARK = register(
             "checkmark", CheckmarkTask.MAP_CODEC, CheckmarkTask.FIELDS, java.util.List.of(),
             CheckmarkTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("knowledge_book"), 1), CheckmarkTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("knowledge_book"), 1), CheckmarkTask.DISPLAY,
             () -> new CheckmarkTask(new TaskCommon(false, 20, java.util.List.of(), false,
                     java.util.Optional.of(QuestText.literal("Did it")), java.util.Optional.empty(),
                     java.util.List.of())));
@@ -171,9 +171,9 @@ public final class TaskTypes {
                     EditorField.search("dimension", "Dimension", EditorField.Source.DIMENSION)
                             .hint("the dimension the player has to be in")),
             DimensionTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("ender_pearl"), 1), DimensionTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("ender_pearl"), 1), DimensionTask.DISPLAY,
             () -> new DimensionTask(new TaskCommon(false, 100),
-                    ResourceLocation.withDefaultNamespace("overworld")));
+                    Identifier.withDefaultNamespace("overworld")));
 
     /** {@code tenet:biome} — be in a biome, or any biome of a tag. */
     public static final QuestTaskType<BiomeTask> BIOME = register(
@@ -181,7 +181,7 @@ public final class TaskTypes {
                     EditorField.search("biome", "Biome", EditorField.Source.BIOME)
                             .hint("the biome to stand in; a #tag counts any biome of it")),
             BiomeTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("oak_sapling"), 1), BiomeTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("oak_sapling"), 1), BiomeTask.DISPLAY,
             () -> new BiomeTask(new TaskCommon(false, 20), RegistryRef.parse("minecraft:plains")));
 
     /** {@code tenet:structure} — be inside a structure, or one of a structure tag. */
@@ -190,7 +190,7 @@ public final class TaskTypes {
                     EditorField.search("structure", "Structure", EditorField.Source.STRUCTURE)
                             .hint("the structure to be inside; a #tag counts any of them")),
             StructureTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("filled_map"), 1), StructureTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("filled_map"), 1), StructureTask.DISPLAY,
             () -> new StructureTask(new TaskCommon(false, 20),
                     RegistryRef.parse("minecraft:village_plains")));
 
@@ -203,9 +203,9 @@ public final class TaskTypes {
                                     "leave empty for the whole advancement")
                             .hint("count one criterion of it instead of the whole advancement")),
             AdvancementTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("book"), 1), AdvancementTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("book"), 1), AdvancementTask.DISPLAY,
             () -> new AdvancementTask(new TaskCommon(false, 5),
-                    ResourceLocation.withDefaultNamespace("story/root"), Optional.empty()));
+                    Identifier.withDefaultNamespace("story/root"), Optional.empty()));
 
     /** {@code tenet:stat} — reach a vanilla statistic value. */
     public static final QuestTaskType<StatTask> STAT = register(
@@ -215,9 +215,9 @@ public final class TaskTypes {
                     EditorField.number("value", "Reach", "")
                             .hint("the number that statistic has to reach")),
             StatTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("comparator"), 1), StatTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("comparator"), 1), StatTask.DISPLAY,
             () -> new StatTask(new TaskCommon(false, 3),
-                    ResourceLocation.withDefaultNamespace("walk_one_cm"), 1000));
+                    Identifier.withDefaultNamespace("walk_one_cm"), 1000));
 
     /** {@code tenet:location} — stand in a box, in a dimension or in any. */
     public static final QuestTaskType<LocationTask> LOCATION = register(
@@ -232,7 +232,7 @@ public final class TaskTypes {
                     EditorField.size("size", "Box size")
                             .hint("how far the box reaches from that corner")),
             LocationTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("compass"), 1), LocationTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("compass"), 1), LocationTask.DISPLAY,
             () -> new LocationTask(new TaskCommon(false, 3), Optional.empty(), false,
                     java.util.List.of(0, 0, 0), java.util.List.of(8, 8, 8)));
 
@@ -244,7 +244,7 @@ public final class TaskTypes {
                     EditorField.flag("points", "Points")
                             .hint("count experience points rather than whole levels")),
             XpTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("experience_bottle"), 1), XpTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("experience_bottle"), 1), XpTask.DISPLAY,
             () -> new XpTask(new TaskCommon(false, 20), 100, true));
 
     /** {@code tenet:fluid} — hand over fluid, carried in buckets and containers. */
@@ -257,9 +257,9 @@ public final class TaskTypes {
                     EditorField.flag("manualOnly", "Manual only")
                             .hint("never count from the inventory on its own; only a submit press counts")),
             FluidTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("water_bucket"), 1), FluidTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("water_bucket"), 1), FluidTask.DISPLAY,
             () -> new FluidTask(new TaskCommon(false, 20),
-                    ResourceLocation.withDefaultNamespace("water"), 1000, false));
+                    Identifier.withDefaultNamespace("water"), 1000, false));
 
     /** {@code tenet:energy} — hand over stored energy, carried in charged items. */
     public static final QuestTaskType<EnergyTask> ENERGY = register(
@@ -271,7 +271,7 @@ public final class TaskTypes {
                     EditorField.flag("manualOnly", "Manual only")
                             .hint("never count from the inventory on its own; only a submit press counts")),
             EnergyTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("redstone"), 1), EnergyTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("redstone"), 1), EnergyTask.DISPLAY,
             () -> new EnergyTask(new TaskCommon(false, 20), 1000, 0, false));
 
     /** {@code tenet:observation} — look at a block or entity for long enough. */
@@ -286,7 +286,7 @@ public final class TaskTypes {
                     EditorField.number("timer", "For", "ticks")
                             .hint("how long to look at it; ticks, twenty to the second")),
             ObservationTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("spyglass"), 1), ObservationTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("spyglass"), 1), ObservationTask.DISPLAY,
             () -> new ObservationTask(new TaskCommon(false, 20), ObservationTask.ObserveType.BLOCK,
                     "minecraft:beacon", 40));
 
@@ -304,9 +304,9 @@ public final class TaskTypes {
                     EditorField.text("nbtFilter", "NBT", "an SNBT filter, for what an id cannot say")
                             .hint("an SNBT filter, for the mobs an id cannot pick out")),
             KillTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("iron_sword"), 1), KillTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("iron_sword"), 1), KillTask.DISPLAY,
             () -> new KillTask(new TaskCommon(false, 20),
-                    Optional.of(ResourceLocation.withDefaultNamespace("zombie")), Optional.empty(), 1,
+                    Optional.of(Identifier.withDefaultNamespace("zombie")), Optional.empty(), 1,
                     Optional.empty(), Optional.empty()));
 
     /** {@code tenet:break} — break blocks, by id, tag or state, optionally filtered. */
@@ -323,9 +323,9 @@ public final class TaskTypes {
                     EditorField.flag("countFakePlayers", "Automation counts")
                             .hint("a contraption's breaks count too, for the farm-the-thousand-wheat quest")),
             BreakTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("iron_pickaxe"), 1), BreakTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("iron_pickaxe"), 1), BreakTask.DISPLAY,
             () -> new BreakTask(new TaskCommon(false, 20),
-                    Optional.of(ResourceLocation.withDefaultNamespace("stone")), Optional.empty(),
+                    Optional.of(Identifier.withDefaultNamespace("stone")), Optional.empty(),
                     Optional.empty(), 1, false));
 
     /**
@@ -342,7 +342,7 @@ public final class TaskTypes {
                     EditorField.number("value", "Count", "")
                             .hint("how many the handler has to count to")),
             CustomTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("jigsaw"), 1), CustomTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("jigsaw"), 1), CustomTask.DISPLAY,
             () -> new CustomTask(new TaskCommon(false, 20), "example:custom", 1));
 
     /**
@@ -359,9 +359,9 @@ public final class TaskTypes {
                     EditorField.flag("teamStage", "Team stage")
                             .hint("ask about the team's stages rather than the player's own")),
             StageTask.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("lever"), 1), StageTask.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("lever"), 1), StageTask.DISPLAY,
             () -> new StageTask(new TaskCommon(false, 20),
-                    ResourceLocation.fromNamespaceAndPath("example", "stage"), false));
+                    Identifier.fromNamespaceAndPath("example", "stage"), false));
 
     private TaskTypes() {
     }
@@ -427,7 +427,7 @@ public final class TaskTypes {
                                                                   ItemRef icon,
                                                                   Function<T, TaskDisplay> display,
                                                                   Supplier<T> defaults) {
-        return register(ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, path), codec, fields, editor,
+        return register(Identifier.fromNamespaceAndPath(Tenet.MOD_ID, path), codec, fields, editor,
                 behaviour, icon, display, defaults);
     }
 
@@ -435,7 +435,7 @@ public final class TaskTypes {
      * Adds a task type under an id you choose — which is how an addon registers its own, so the id is
      * namespaced to that mod rather than to Tenet.
      */
-    public static <T extends QuestTask> QuestTaskType<T> register(ResourceLocation id,
+    public static <T extends QuestTask> QuestTaskType<T> register(Identifier id,
                                                                   MapCodec<T> codec,
                                                                   Set<String> fields,
                                                                   TaskBehaviour<T> behaviour,
@@ -446,7 +446,7 @@ public final class TaskTypes {
     }
 
     /** The same, under an id you choose, with the type's own editor form. */
-    public static <T extends QuestTask> QuestTaskType<T> register(ResourceLocation id,
+    public static <T extends QuestTask> QuestTaskType<T> register(Identifier id,
                                                                   MapCodec<T> codec,
                                                                   Set<String> fields,
                                                                   java.util.List<dev.ellipog.tenet.quest.EditorField> editor,
@@ -479,7 +479,7 @@ public final class TaskTypes {
      * back. Empty for an unregistered type, which is a refusal the picker reports rather than a task
      * the file cannot load.
      */
-    public static Optional<com.google.gson.JsonObject> defaultTree(ResourceLocation id) {
+    public static Optional<com.google.gson.JsonObject> defaultTree(Identifier id) {
         return REGISTRY.get(id).flatMap(entry -> Dispatch.CODEC
                 // Through the *dispatch* codec, not the type's own: the dispatch is what writes the
                 // "type" field, and a tree without it is a task the loader cannot read back.
@@ -550,9 +550,9 @@ public final class TaskTypes {
      * computed where the registries live, so the wire carries the picture rather than the question.
      * Package-visible for the kill display, which wears the egg of its own target.
      */
-    static ItemRef eggOf(net.minecraft.resources.ResourceLocation entity) {
-        net.minecraft.resources.ResourceLocation egg =
-                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(entity.getNamespace(),
+    static ItemRef eggOf(net.minecraft.resources.Identifier entity) {
+        net.minecraft.resources.Identifier egg =
+                net.minecraft.resources.Identifier.fromNamespaceAndPath(entity.getNamespace(),
                         entity.getPath() + "_spawn_egg");
         if (!net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(egg)) {
             return null;
@@ -561,7 +561,7 @@ public final class TaskTypes {
     }
 
     /** Every registered id, sorted. For messages, the validator, and {@code /tenet types}. */
-    public static Set<ResourceLocation> ids() {
+    public static Set<Identifier> ids() {
         return REGISTRY.ids();
     }
 
@@ -574,7 +574,7 @@ public final class TaskTypes {
      *
      * <p>An empty set for an unknown type, which by then the validator has already complained about.
      */
-    public static Set<String> fieldsOf(ResourceLocation id) {
+    public static Set<String> fieldsOf(Identifier id) {
         return REGISTRY.get(id).map(entry -> entry.spec().fields()).orElse(Set.of());
     }
 
@@ -588,7 +588,7 @@ public final class TaskTypes {
      *
      * <p>Empty for an unregistered type, which by then the validator has already refused.
      */
-    public static Optional<MapCodec<QuestTask>> codecOf(ResourceLocation id) {
+    public static Optional<MapCodec<QuestTask>> codecOf(Identifier id) {
         return REGISTRY.get(id).map(entry -> entry.spec().codec());
     }
 
@@ -622,11 +622,11 @@ public final class TaskTypes {
      * twice throws, so an id's behaviour cannot change under a remembered answer — and a type
      * registered after the first lookup simply misses once and is kept.
      */
-    private static final Map<ResourceLocation, Optional<TaskBehaviour<QuestTask>>> BEHAVIOURS =
+    private static final Map<Identifier, Optional<TaskBehaviour<QuestTask>>> BEHAVIOURS =
             new ConcurrentHashMap<>();
 
     /** One registry read, for the miss half of {@link #behaviourOf}. */
-    private static Optional<TaskBehaviour<QuestTask>> lookupBehaviour(ResourceLocation id) {
+    private static Optional<TaskBehaviour<QuestTask>> lookupBehaviour(Identifier id) {
         return REGISTRY.get(id).map(Entry::behaviour);
     }
 
@@ -636,7 +636,7 @@ public final class TaskTypes {
      * <p>Falls back to paper for an unregistered type. That is reachable only from a listing command
      * run against a quest that failed to decode, which the validator has already reported.
      */
-    public static ItemRef iconOf(ResourceLocation id) {
+    public static ItemRef iconOf(Identifier id) {
         return REGISTRY.get(id).map(Entry::icon).orElse(ItemRef.DEFAULT_ICON);
     }
 
@@ -648,7 +648,7 @@ public final class TaskTypes {
      * editor. Empty for an id this build does not know, which is the same refusal every other accessor
      * here makes.
      */
-    public static java.util.List<dev.ellipog.tenet.quest.EditorField> editorOf(ResourceLocation id) {
+    public static java.util.List<dev.ellipog.tenet.quest.EditorField> editorOf(Identifier id) {
         return REGISTRY.get(id)
                 .map(entry -> entry.editor().isEmpty()
                         ? dev.ellipog.tenet.quest.EditorSpecs.derive(entry.spec().fields())
@@ -660,7 +660,7 @@ public final class TaskTypes {
     private static <T extends QuestTask> TypeSpec<QuestTask> widenSpec(QuestTaskType<T> type) {
         return new TypeSpec<>() {
             @Override
-            public ResourceLocation id() {
+            public Identifier id() {
                 return type.id();
             }
 
@@ -762,7 +762,7 @@ public final class TaskTypes {
     }
 
     private record SimpleQuestTaskType<T extends QuestTask>(
-            ResourceLocation id, MapCodec<T> codec, Set<String> fields,
+            Identifier id, MapCodec<T> codec, Set<String> fields,
             java.util.List<dev.ellipog.tenet.quest.EditorField> editor,
             TaskBehaviour<T> behaviour, ItemRef icon, Function<T, TaskDisplay> display,
             Supplier<T> defaultsSupplier

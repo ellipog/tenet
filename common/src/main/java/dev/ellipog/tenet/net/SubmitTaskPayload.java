@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A player pressing a task in the quest book.
@@ -34,7 +34,7 @@ public record SubmitTaskPayload(String questId, int taskIndex) implements Custom
      * {@link QuestSyncPayload#TYPE} for why that method silently rewrites the namespace.
      */
     public static final CustomPacketPayload.Type<SubmitTaskPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "submit_task"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "submit_task"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, SubmitTaskPayload> CODEC =
             StreamCodec.composite(

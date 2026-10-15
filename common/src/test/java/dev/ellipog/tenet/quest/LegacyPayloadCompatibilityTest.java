@@ -19,7 +19,7 @@ import dev.ellipog.tenet.quest.reward.UnknownReward;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 import dev.ellipog.tenet.quest.task.UnknownTask;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -377,7 +377,7 @@ class LegacyPayloadCompatibilityTest {
 
         UnknownTask unknown = assertInstanceOf(UnknownTask.class, parsed,
                 "an unregistered type must decode to UnknownTask rather than failing");
-        assertEquals(ResourceLocation.fromNamespaceAndPath("someothermod", "reticulate"), unknown.type(),
+        assertEquals(Identifier.fromNamespaceAndPath("someothermod", "reticulate"), unknown.type(),
                 "the id survives, which is what lets the author see which mod is missing");
         assertFalse(unknown.optional(), "the placeholder carries the common defaults, not null");
         assertEquals(20, unknown.common().autoSubmitTicks());
@@ -389,7 +389,7 @@ class LegacyPayloadCompatibilityTest {
         QuestReward parsed = reward("{\"type\": \"someothermod:windfall\", \"amount\": 7}");
 
         UnknownReward unknown = assertInstanceOf(UnknownReward.class, parsed);
-        assertEquals(ResourceLocation.fromNamespaceAndPath("someothermod", "windfall"), unknown.type());
+        assertEquals(Identifier.fromNamespaceAndPath("someothermod", "windfall"), unknown.type());
         assertFalse(unknown.autoGrantable(),
                 "an unknown reward must NOT be auto-grantable: an automatic path marks a reward "
                         + "collected and then grants it, so this would lose it while granting nothing");
@@ -401,7 +401,7 @@ class LegacyPayloadCompatibilityTest {
         QuestCondition parsed = condition("{\"type\": \"someothermod:whenever\", \"phase\": \"moon\"}");
 
         UnknownCondition unknown = assertInstanceOf(UnknownCondition.class, parsed);
-        assertEquals(ResourceLocation.fromNamespaceAndPath("someothermod", "whenever"), unknown.type());
+        assertEquals(Identifier.fromNamespaceAndPath("someothermod", "whenever"), unknown.type());
         // The safe direction for a gate, and the reason UnknownCondition registers no behaviour: a
         // condition that cannot be read must not read as satisfied, or a lock silently opens.
         assertFalse(Conditions.passes(List.of(unknown), null),
@@ -449,7 +449,7 @@ class LegacyPayloadCompatibilityTest {
 
         assertEquals(2, parsed.tasks().size(), "both tasks must survive the unknown one");
         assertInstanceOf(UnknownTask.class, parsed.tasks().get(0));
-        assertEquals(ResourceLocation.fromNamespaceAndPath("tenet", "checkmark"),
+        assertEquals(Identifier.fromNamespaceAndPath("tenet", "checkmark"),
                 parsed.tasks().get(1).type(),
                 "the task after the unknown one is untouched");
     }
@@ -854,7 +854,7 @@ class LegacyPayloadCompatibilityTest {
         assertInstanceOf(UnknownTask.class,
                 Fixtures.quest(result.index(), "one").tasks().get(0),
                 "the unknown node is present as a placeholder rather than missing");
-        assertEquals(ResourceLocation.fromNamespaceAndPath("tenet", "checkmark"),
+        assertEquals(Identifier.fromNamespaceAndPath("tenet", "checkmark"),
                 Fixtures.quest(result.index(), "two").tasks().get(0).type(),
                 "and the readable quest is untouched");
         assertEquals(DataProblem.Severity.WARNING,

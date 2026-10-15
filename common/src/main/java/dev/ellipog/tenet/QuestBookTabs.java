@@ -2,7 +2,7 @@ package dev.ellipog.tenet;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.CreativeModeTab;
 
 import java.util.Set;
@@ -11,7 +11,7 @@ import java.util.Set;
  * Which creative tabs hold the quest book.
  *
  * <p>One set rather than one per loader, because the answer is Tenet's and the mechanism is
- * each loader's: Fabric's {@code ItemGroupEvents} and NeoForge's
+ * each loader's: Fabric's {@code CreativeModeTabEvents} and NeoForge's
  * {@code BuildCreativeModeTabContentsEvent} both read this. A future tab move edits one set,
  * not two entry points that have to agree.
  *
@@ -50,6 +50,6 @@ public final class QuestBookTabs {
     }
 
     private static ResourceKey<CreativeModeTab> key(String path) {
-        return ResourceKey.create(Registries.CREATIVE_MODE_TAB, ResourceLocation.withDefaultNamespace(path));
+        return ResourceKey.create(Registries.CREATIVE_MODE_TAB, Identifier.withDefaultNamespace(path));
     }
 }

@@ -6,7 +6,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -89,7 +89,7 @@ public record TableRollPayload(String subject, String mode, int rolls, int empty
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<TableRollPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "table_roll"));
+                    Identifier.fromNamespaceAndPath("tenet", "table_roll"));
 
     /** The rows, and the notes beside them, as list codecs. */
     private static final StreamCodec<RegistryFriendlyByteBuf, List<Row>> ROWS =

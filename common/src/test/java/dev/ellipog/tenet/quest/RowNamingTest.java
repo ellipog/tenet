@@ -13,7 +13,7 @@ import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.TaskDisplay;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -84,7 +84,7 @@ class RowNamingTest {
         Map<String, String> lang = lang();
         Set<String> used = new TreeSet<>();
 
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             List<JsonObject> trees = new ArrayList<>();
             trees.add(TaskTypes.defaultTree(id).orElseThrow(() ->
                     new AssertionError(id + " has no default tree")));
@@ -107,7 +107,7 @@ class RowNamingTest {
             }
         }
 
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             List<JsonObject> trees = new ArrayList<>();
             trees.add(RewardTypes.defaultTree(id).orElseThrow(() ->
                     new AssertionError(id + " has no default tree")));
@@ -140,7 +140,7 @@ class RowNamingTest {
             }
         }
 
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             JsonObject tree = ConditionTypes.defaultTree(id).orElseThrow(() ->
                     new AssertionError(id + " has no default tree"));
             QuestCondition condition = ConditionTypes.dispatchCodec().parse(JsonOps.INSTANCE, tree)
@@ -183,7 +183,7 @@ class RowNamingTest {
      * (the original report), and the key takes exactly the one argument the client supplies (a key with
      * no placeholder would silently drop the subject, which is the same "1" from the other side).
      */
-    private static void assertSentence(ResourceLocation type, String key, String fallback, String supplied,
+    private static void assertSentence(Identifier type, String key, String fallback, String supplied,
                                        Map<String, String> lang) {
         String template = lang.get(key);
         if (template != null) {
@@ -212,7 +212,7 @@ class RowNamingTest {
      * so a display that forgot to pass one reads as a number no matter how the key is written. The two
      * count-shaped keys are the only ones that mean it.
      */
-    private static void assertSendsItsSubject(ResourceLocation type, String key, String labelArg) {
+    private static void assertSendsItsSubject(Identifier type, String key, String labelArg) {
         if (!COUNT_KEYS.contains(key)) {
             assertFalse(labelArg.isEmpty(), type + " sends no subject, so " + key
                     + " would be formatted with the count");

@@ -29,7 +29,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -700,7 +700,7 @@ public final class TenetNetworking {
         }
 
         ServerPlayer server = sender;
-        boolean changed = ProgressService.submit(server.getServer(), server, entry.get(), payload.taskIndex());
+        boolean changed = ProgressService.submit(server.level().getServer(), server, entry.get(), payload.taskIndex());
         if (changed) {
             // Everyone in the team needs the new state, not just the player who pressed it: progress
             // is shared, so a party member watching the same quest would otherwise not see it move.
@@ -723,7 +723,7 @@ public final class TenetNetworking {
      * on screen until something else happened to push progress.
      */
     private static void handleClaim(ClaimRewardPayload payload, ServerPlayer sender) {
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || TenetQuests.index().isEmpty()) {
             return;
         }
@@ -762,7 +762,7 @@ public final class TenetNetworking {
      */
     public static void handleClick(ClickPayload payload, ServerPlayer sender) {
         QuestIndex index = TenetQuests.index();
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || index.isEmpty()) {
             return;
         }
@@ -797,7 +797,7 @@ public final class TenetNetworking {
     }
 
     /** A press that fires a script event: what the server read, and where the press landed. */
-    record ClickEventFire(String chapterId, String elementId, ResourceLocation event) {
+    record ClickEventFire(String chapterId, String elementId, Identifier event) {
     }
 
     /**
@@ -829,8 +829,8 @@ public final class TenetNetworking {
         if (click == null || click.type() != ClickAction.Type.CUSTOM_EVENT) {
             return Optional.empty();
         }
-        ResourceLocation event =
-                click.data() == null ? null : ResourceLocation.tryParse(click.data());
+        Identifier event =
+                click.data() == null ? null : Identifier.tryParse(click.data());
         if (event == null) {
             return Optional.empty();
         }
@@ -858,9 +858,11 @@ public final class TenetNetworking {
 
     /** Runs a resolved click command as the pressing player, at the resolved level. */
     private static void runClickCommand(MinecraftServer server, ServerPlayer sender, ClickCommand resolved) {
+        // Level 0 runs as-is (the old `if (level > 0)` guard): a click with no level elevates
+        // nothing, while the reward below strips at 0 by construction. See `QuestAuthority`.
         net.minecraft.commands.CommandSourceStack source = sender.createCommandSourceStack();
         if (resolved.level() > 0) {
-            source = source.withPermission(resolved.level());
+            source = dev.ellipog.tenet.QuestAuthority.atLevel(source, resolved.level());
         }
         var pos = sender.blockPosition();
         server.getCommands().performPrefixedCommand(source, substituteClick(resolved.command(),
@@ -897,7 +899,7 @@ public final class TenetNetworking {
      * button the server disagrees with is corrected by the progress it already knows how to read.
      */
     private static void handleClaimRewardEntry(ClaimRewardEntryPayload payload, ServerPlayer sender) {
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || TenetQuests.index().isEmpty()) {
             return;
         }
@@ -923,7 +925,7 @@ public final class TenetNetworking {
      * payload carries is the panel's active filter chip, and it only ever narrows the sweep.
      */
     private static void handleClaimAll(ClaimAllPayload payload, ServerPlayer sender) {
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || TenetQuests.index().isEmpty()) {
             return;
         }
@@ -945,7 +947,7 @@ public final class TenetNetworking {
      * pressed in.
      */
     private static void handleClaimChapter(ClaimChapterPayload payload, ServerPlayer sender) {
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || TenetQuests.index().isEmpty()) {
             return;
         }
@@ -970,7 +972,7 @@ public final class TenetNetworking {
      * reset that clears nothing is otherwise indistinguishable from a button that did nothing.
      */
     private static void handleResetQuest(ResetQuestPayload payload, ServerPlayer sender) {
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || TenetQuests.index().isEmpty()) {
             return;
         }
@@ -1005,7 +1007,7 @@ public final class TenetNetworking {
      * that chapter actually holds.
      */
     private static void handleResetChapter(ResetChapterPayload payload, ServerPlayer sender) {
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || TenetQuests.index().isEmpty()) {
             return;
         }
@@ -1029,7 +1031,7 @@ public final class TenetNetworking {
      * the check. An empty book clears nothing, which is the honest outcome rather than an error.
      */
     private static void handleResetAll(ResetAllPayload payload, ServerPlayer sender) {
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || TenetQuests.index().isEmpty()) {
             return;
         }
@@ -1079,7 +1081,7 @@ public final class TenetNetworking {
      * cannot carry.
      */
     private static void handleCompleteQuest(CompleteQuestPayload payload, ServerPlayer sender) {
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || TenetQuests.index().isEmpty()) {
             return;
         }
@@ -1140,7 +1142,7 @@ public final class TenetNetworking {
      * pick entry 2 instead of entry 1 of a table it was legitimately offered.
      */
     private static void handleClaimChoice(ClaimChoicePayload payload, ServerPlayer sender) {
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null || TenetQuests.index().isEmpty()) {
             return;
         }
@@ -1204,7 +1206,7 @@ public final class TenetNetworking {
 
     /** Pushes the tree and this player's progress. Called on join. */
     public static void sendEverythingTo(ServerPlayer player) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server == null) {
             return;
         }
@@ -1235,7 +1237,7 @@ public final class TenetNetworking {
     /** Every dimension this server has, by id: vanilla, modded and datapack alike. */
     private static List<String> dimensionIds(MinecraftServer server) {
         return server.levelKeys().stream()
-                .map(key -> key.location().toString())
+                .map(key -> key.identifier().toString())
                 .sorted()
                 .toList();
     }
@@ -1261,13 +1263,13 @@ public final class TenetNetworking {
      * worth less than the player it would otherwise drop.
      */
     public static List<String> structureIds(RegistryAccess access) {
-        Registry<Structure> registry = access.registry(Registries.STRUCTURE).orElse(null);
+        Registry<Structure> registry = access.lookup(Registries.STRUCTURE).orElse(null);
         if (registry == null) {
             return List.of();
         }
         List<String> out = new ArrayList<>();
         registry.keySet().forEach(id -> out.add(id.toString()));
-        registry.getTagNames().forEach(tag -> out.add("#" + tag.location()));
+        registry.getTags().forEach(tag -> out.add("#" + tag.key().location()));
         out.sort(java.util.Comparator.naturalOrder());
         return List.copyOf(out);
     }
@@ -1543,7 +1545,7 @@ public final class TenetNetworking {
         // int rather than byte, matching the payload. A byte here and an int there meant three
         // silent narrowing conversions the compiler refused -- which is the good outcome, but the
         // reason field is a code, not a value with a width, so int is the honest type for it.
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server == null) {
             return;
         }
@@ -1665,12 +1667,12 @@ public final class TenetNetworking {
      * {@code StageService.effective}.
      */
     public static void sendStagesTo(ServerPlayer player) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server == null) {
             return;
         }
         List<String> ids = dev.ellipog.tenet.progress.StageService.effective(server, player.getUUID()).stream()
-                .map(net.minecraft.resources.ResourceLocation::toString)
+                .map(net.minecraft.resources.Identifier::toString)
                 .sorted()
                 .toList();
         ArmatureNetwork.sendToPlayer(player, new StageSyncPayload(ids));
@@ -1823,7 +1825,7 @@ public final class TenetNetworking {
      */
     private static com.mojang.serialization.DynamicOps<com.google.gson.JsonElement> serverOps(
             ServerPlayer sender) {
-        return serverOps(sender.getServer());
+        return serverOps(sender.level().getServer());
     }
 
     /** The same, where only the server is at hand: the refresh flush owns no player. */
@@ -2288,7 +2290,7 @@ public final class TenetNetworking {
      * cache that is never told otherwise describes the previous world's party.
      */
     public static void sendOwnRosterTo(ServerPlayer player) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server == null) {
             return;
         }

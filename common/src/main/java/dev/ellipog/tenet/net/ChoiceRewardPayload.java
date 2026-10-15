@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
@@ -50,7 +50,7 @@ public record ChoiceRewardPayload(String questId, int rewardIndex, List<Entry> e
 
     public static final CustomPacketPayload.Type<ChoiceRewardPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "choice_reward"));
+                    Identifier.fromNamespaceAndPath("tenet", "choice_reward"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ChoiceRewardPayload> CODEC =
             StreamCodec.composite(

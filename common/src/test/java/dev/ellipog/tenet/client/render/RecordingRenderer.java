@@ -5,7 +5,7 @@ import dev.ellipog.armature.client.render.GuiRenderer;
 import dev.ellipog.armature.client.ui.kit.Slot;
 import dev.ellipog.armature.client.ui.kit.Viewport;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -290,7 +290,7 @@ public final class RecordingRenderer implements GuiRenderer {
      * recording that dropped it could not tell the pinned star from the empty one.
      */
     @Override
-    public void texture(ResourceLocation texture, int x, int y, int width, int height) {
+    public void texture(Identifier texture, int x, int y, int width, int height) {
         calls.add(new Call(Op.TEXTURE, x, y, x + width, y + height, 0, texture.toString()));
     }
 
@@ -301,7 +301,7 @@ public final class RecordingRenderer implements GuiRenderer {
      * and a test that needs a size stands in for the answer itself.
      */
     @Override
-    public Optional<TextureSize> textureSize(ResourceLocation texture) {
+    public Optional<TextureSize> textureSize(Identifier texture) {
         return Optional.empty();
     }
 
@@ -313,7 +313,7 @@ public final class RecordingRenderer implements GuiRenderer {
      * exactly as it reads a plain {@link #texture}.
      */
     @Override
-    public void scaled(ResourceLocation texture, int x, int y, int width, int height,
+    public void scaled(Identifier texture, int x, int y, int width, int height,
                        float u, float v, int sourceWidth, int sourceHeight,
                        int textureWidth, int textureHeight, int argb) {
         calls.add(new Call(Op.TEXTURE, x, y, x + width, y + height, 0, texture.toString()));
@@ -328,7 +328,7 @@ public final class RecordingRenderer implements GuiRenderer {
      * either behaviour: an absent file draws nothing, where an unknown sprite draws the game's own marker.
      */
     @Override
-    public void sprite(ResourceLocation atlasSprite, int x, int y, int width, int height, int argb) {
+    public void sprite(Identifier atlasSprite, int x, int y, int width, int height, int argb) {
         calls.add(new Call(Op.SPRITE, x, y, x + width, y + height, argb,
                 atlasSprite == null ? "" : atlasSprite.toString()));
     }
@@ -341,7 +341,7 @@ public final class RecordingRenderer implements GuiRenderer {
      * either lookup's behaviour. No tint to carry: a GUI sprite draws as authored.
      */
     @Override
-    public void guiSprite(ResourceLocation guiSprite, int x, int y, int width, int height) {
+    public void guiSprite(Identifier guiSprite, int x, int y, int width, int height) {
         calls.add(new Call(Op.GUI_SPRITE, x, y, x + width, y + height, 0,
                 guiSprite == null ? "" : guiSprite.toString()));
     }

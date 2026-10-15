@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.quest.condition;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A condition whose type this build has no codec for, kept rather than thrown away.
@@ -26,5 +26,5 @@ import net.minecraft.resources.ResourceLocation;
  * class-initialisation cycle that caused — so this record implements exactly one accessor and holds no
  * static state.
  */
-public record UnknownCondition(ResourceLocation type) implements QuestCondition {
+public record UnknownCondition(Identifier type) implements QuestCondition {
 }

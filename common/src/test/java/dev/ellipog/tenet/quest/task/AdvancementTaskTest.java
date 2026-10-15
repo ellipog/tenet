@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +37,7 @@ class AdvancementTaskTest {
 
     private static AdvancementTask task(Optional<String> criterion) {
         return new AdvancementTask(new TaskCommon(false, 5),
-                ResourceLocation.parse("minecraft:story/mine_stone"), criterion);
+                Identifier.parse("minecraft:story/mine_stone"), criterion);
     }
 
     private static QuestTask decoded(String text) {

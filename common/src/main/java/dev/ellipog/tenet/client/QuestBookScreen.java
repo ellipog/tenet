@@ -110,20 +110,20 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import net.minecraft.client.Minecraft;
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.gui.GuiGraphics;
+import org.joml.Matrix3x2fStack;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.Util;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Util;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -2314,7 +2314,7 @@ public final class QuestBookScreen extends ArmatureScreen
         for (net.minecraft.client.gui.components.AbstractWidget widget : colourPopover.widgets()) {
             popoverBaseX.put(widget, widget.getX());
         }
-        popoverOpenedAt = net.minecraft.Util.getMillis();
+        popoverOpenedAt = net.minecraft.util.Util.getMillis();
     }
 
     /**
@@ -2326,7 +2326,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * reads through here.
      */
     private double pickerPointerX(double mouseX) {
-        return colourPopover.isOpen() ? mouseX - popoverOffset(net.minecraft.Util.getMillis()) : mouseX;
+        return colourPopover.isOpen() ? mouseX - popoverOffset(net.minecraft.util.Util.getMillis()) : mouseX;
     }
 
     /**
@@ -3135,7 +3135,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * file per session. It lives with the screen rather than the drawing for the reason every other
      * piece of state does -- the drawing is a pure function of what it is handed.
      */
-    private final Map<ResourceLocation, Optional<GuiRenderer.TextureSize>> textureSizes =
+    private final Map<Identifier, Optional<GuiRenderer.TextureSize>> textureSizes =
             new LinkedHashMap<>();
 
     /**
@@ -3772,13 +3772,13 @@ public final class QuestBookScreen extends ArmatureScreen
                 r.icon(stack, left + BookGeometry.HEADER_INSET, iconY, icon);
             }
             else if (!texture.isEmpty()
-                    && net.minecraft.resources.ResourceLocation.tryParse(texture) != null) {
-                r.texture(net.minecraft.resources.ResourceLocation.parse(texture),
+                    && net.minecraft.resources.Identifier.tryParse(texture) != null) {
+                r.texture(net.minecraft.resources.Identifier.parse(texture),
                         left + BookGeometry.HEADER_INSET, iconY, icon, icon);
             }
             else if (!sprite.isEmpty()
-                    && net.minecraft.resources.ResourceLocation.tryParse(sprite) != null) {
-                r.sprite(net.minecraft.resources.ResourceLocation.parse(sprite),
+                    && net.minecraft.resources.Identifier.tryParse(sprite) != null) {
+                r.sprite(net.minecraft.resources.Identifier.parse(sprite),
                         left + BookGeometry.HEADER_INSET, iconY, icon, icon, 0xFFFFFFFF);
             }
             else {
@@ -3919,7 +3919,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * next frame.
      */
     private void drawDepartedSidebar(GuiRenderer renderer) {
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         if (!sidebarSliding(now) || sidebarDepartAnchor == null) {
             return;
         }
@@ -3979,7 +3979,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * travel nowhere and hold the list inert for its duration.
      */
     private void beginSidebarSlide() {
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         // From where the list is drawn right now, not from where it is going: reversing mid-wipe
         // starts the way back from mid-wipe rather than jumping to the far end first. The
         // departure's own filings — anchor box and overhang — measure in `orphanSidebarRows`,
@@ -4380,7 +4380,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * {@code long now} parameter on eight methods whose only other use for it would be passing it along.
      */
     private static void drawBar(GuiRenderer r, ScrollBar bar, int mouseX, int mouseY) {
-        bar.draw(r, ArmatureScrollStyle.skin(), mouseX, mouseY, net.minecraft.Util.getMillis());
+        bar.draw(r, ArmatureScrollStyle.skin(), mouseX, mouseY, net.minecraft.util.Util.getMillis());
     }
 
     /**
@@ -4397,7 +4397,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * @return whether the bar took the press
      */
     private boolean pressBar(ScrollBar bar, double mouseX, double mouseY) {
-        if (!bar.press(mouseX, mouseY, net.minecraft.Util.getMillis())) {
+        if (!bar.press(mouseX, mouseY, net.minecraft.util.Util.getMillis())) {
             return false;
         }
         heldBar = bar;
@@ -4593,19 +4593,19 @@ public final class QuestBookScreen extends ArmatureScreen
     private record SidebarIcon(ItemStack stack, String id, String texture, String sprite) {
 
         /** The button's texture, or null when the row wears an item, a sprite or nothing. */
-        net.minecraft.resources.ResourceLocation textureId() {
+        net.minecraft.resources.Identifier textureId() {
             if (texture == null || texture.isEmpty()) {
                 return null;
             }
-            return net.minecraft.resources.ResourceLocation.tryParse(texture);
+            return net.minecraft.resources.Identifier.tryParse(texture);
         }
 
         /** The button's atlas region, or null when the row wears an item, a texture or nothing. */
-        net.minecraft.resources.ResourceLocation spriteId() {
+        net.minecraft.resources.Identifier spriteId() {
             if (sprite == null || sprite.isEmpty()) {
                 return null;
             }
-            return net.minecraft.resources.ResourceLocation.tryParse(sprite);
+            return net.minecraft.resources.Identifier.tryParse(sprite);
         }
     }
 
@@ -5119,7 +5119,7 @@ public final class QuestBookScreen extends ArmatureScreen
         java.util.List<PanelKind> before = PanelStack.presented(columns(), panelFolded());
         java.util.List<PanelKind> afterNext = PanelStack.presented(next, panelFoldedFor(next));
         arrangementEpoch++;
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         int enterMs = panelRevealMillis();
         // Snapshotted from the rails as they stand — fields still hold the old arrangement, so the rails
         // are valid — and shown rather than whole: a rail closed mid-enter leaves from where it stood,
@@ -5397,7 +5397,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * so the author's tools do not slide in again on every click.
      */
     private List<PanelLayout.PanelColumn> panelColumns() {
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         int duration = panelRevealMillis();
         List<PanelLayout.PanelColumn> out = new ArrayList<>(3);
         for (PanelKind kind : PanelStack.presented(columns(), panelFolded())) {
@@ -6246,7 +6246,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (game == null || game.options == null) {
             return;
         }
-        boolean hidden = game.screen instanceof QuestBookScreen book
+        boolean hidden = game.gui.screen() instanceof QuestBookScreen book
                 && book.previewing() && book.previewFromCommand;
         var chat = game.options.chatVisibility();
         if (hidden) {
@@ -6386,7 +6386,7 @@ public final class QuestBookScreen extends ArmatureScreen
         glideQuest = null;
         zoomGlideFrom = viewport().scale();
         zoomGlideTo = zoomGlideFrom * factor;
-        zoomGlideStart = net.minecraft.Util.getMillis();
+        zoomGlideStart = net.minecraft.util.Util.getMillis();
     }
 
     /** How long a zoom button's glide takes: felt as a settle rather than watched as a move. */
@@ -7334,14 +7334,14 @@ public final class QuestBookScreen extends ArmatureScreen
                                 pick.icon(worn);
                             }
                             else if (!wornTexture.isEmpty()
-                                    && net.minecraft.resources.ResourceLocation.tryParse(wornTexture)
+                                    && net.minecraft.resources.Identifier.tryParse(wornTexture)
                                             != null) {
-                                pick.texture(net.minecraft.resources.ResourceLocation.parse(wornTexture));
+                                pick.texture(net.minecraft.resources.Identifier.parse(wornTexture));
                             }
                             else if (!wornSprite.isEmpty()
-                                    && net.minecraft.resources.ResourceLocation.tryParse(wornSprite)
+                                    && net.minecraft.resources.Identifier.tryParse(wornSprite)
                                             != null) {
-                                pick.sprite(net.minecraft.resources.ResourceLocation.parse(wornSprite));
+                                pick.sprite(net.minecraft.resources.Identifier.parse(wornSprite));
                             }
                         }
                         toolsView.put(row.key(), pick, InspectLayout::controlBand);
@@ -7550,7 +7550,7 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void openMenu(List<MenuItem> items) {
         menu = List.copyOf(items);
-        menuOpenedAt = net.minecraft.Util.getMillis();
+        menuOpenedAt = net.minecraft.util.Util.getMillis();
     }
 
     /**
@@ -7566,7 +7566,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return 0;
         }
         float arrived =
-                PanelLayout.revealed(net.minecraft.Util.getMillis() - menuOpenedAt, MENU_RISE_MILLIS);
+                PanelLayout.revealed(net.minecraft.util.Util.getMillis() - menuOpenedAt, MENU_RISE_MILLIS);
         return Math.round(MENU_RISE_PX * (1F - arrived));
     }
 
@@ -7589,7 +7589,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (!tableImportOpen || tableImportOpenedAt < 0) {
             return 0;
         }
-        float arrived = PanelLayout.revealed(net.minecraft.Util.getMillis() - tableImportOpenedAt,
+        float arrived = PanelLayout.revealed(net.minecraft.util.Util.getMillis() - tableImportOpenedAt,
                 MENU_RISE_MILLIS);
         return Math.round(MENU_RISE_PX * (1F - arrived));
     }
@@ -8093,7 +8093,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         pendingChapterTheme = patch;
         fieldDraft.set(chapter, dev.ellipog.tenet.client.dev.FieldDraft.CHAPTER_OWNER, "themePatch",
-                patch, ClientQuestCache.treeRevision(), net.minecraft.Util.getMillis());
+                patch, ClientQuestCache.treeRevision(), net.minecraft.util.Util.getMillis());
     }
 
     private void previewRadius(int radius) {
@@ -9037,7 +9037,7 @@ public final class QuestBookScreen extends ArmatureScreen
             game.keyboardHandler.setClipboard(file);
         }
         if (game != null && game.player != null) {
-            game.player.displayClientMessage(Component.literal(line), false);
+            game.player.sendSystemMessage(Component.literal(line));
         }
         status(Labels.of("tenet.dev.chapter.problem_copied", file), false);
     }
@@ -9056,7 +9056,7 @@ public final class QuestBookScreen extends ArmatureScreen
         Minecraft game = Minecraft.getInstance();
         if (!lines.isEmpty() && game != null && game.player != null) {
             for (String line : lines) {
-                game.player.displayClientMessage(Component.literal(line), false);
+                game.player.sendSystemMessage(Component.literal(line));
             }
         }
         status(Labels.of("tenet.dev.chapter.problems_to_chat", lines.size()), false);
@@ -9516,10 +9516,10 @@ public final class QuestBookScreen extends ArmatureScreen
         if (prefix == null || editTarget() == null) {
             return;
         }
-        com.google.gson.JsonObject fresh = net.minecraft.resources.ResourceLocation.tryParse(typeId) == null
+        com.google.gson.JsonObject fresh = net.minecraft.resources.Identifier.tryParse(typeId) == null
                 ? null
                 : dev.ellipog.tenet.quest.condition.ConditionTypes
-                        .defaultTree(net.minecraft.resources.ResourceLocation.tryParse(typeId)).orElse(null);
+                        .defaultTree(net.minecraft.resources.Identifier.tryParse(typeId)).orElse(null);
         if (fresh == null) {
             status("This build cannot add a " + typeId + " here", true);
             return;
@@ -9860,7 +9860,9 @@ public final class QuestBookScreen extends ArmatureScreen
             status("tenet.status.only_http_and_https_links_open", true);
             return;
         }
-        net.minecraft.Util.getPlatform().openUri(uri);
+        // The opener moved with the platform code: `Util.OS` is an enum again, and links open
+        // through Blaze3D.
+        com.mojang.blaze3d.Blaze3D.openUri(uri);
     }
 
     /**
@@ -10304,7 +10306,7 @@ public final class QuestBookScreen extends ArmatureScreen
             status("\"" + raw + "\" is not a texture id - try mymod:textures/gui/bg.png", true);
             return false;
         }
-        ResourceLocation id = ResourceLocation.tryParse(canonical);
+        Identifier id = Identifier.tryParse(canonical);
         if (id == null || minecraft == null || minecraft.getResourceManager() == null
                 || minecraft.getResourceManager().getResource(id).isEmpty()) {
             status("No texture at " + canonical, true);
@@ -10734,7 +10736,7 @@ public final class QuestBookScreen extends ArmatureScreen
             openPartyPhase(PartyPhase.CONFIRM_DISBAND, null);
             return;
         }
-        if (disbandPress.press(net.minecraft.Util.getMillis())) {
+        if (disbandPress.press(net.minecraft.util.Util.getMillis())) {
             runPartyCommand("/tenet party disband");
             return;
         }
@@ -11192,7 +11194,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // length of its slide, and the close rebuild is what would take them. Skipped while departing —
         // an open panel rebuilds them below, a settled close has no exit reading them, and a reopen
         // recomputes before anything draws.
-        if (!panelDeparting(PanelKind.PARTY, net.minecraft.Util.getMillis())) {
+        if (!panelDeparting(PanelKind.PARTY, net.minecraft.util.Util.getMillis())) {
             partyLeftLines = new ArrayList<>();
             partyRightLines = new ArrayList<>();
             partyLeftFace = null;
@@ -11610,7 +11612,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * names it -- and the day the rule changes, the command is where it should change.
      */
     private boolean mayEdit() {
-        return minecraft != null && minecraft.player != null && minecraft.player.hasPermissions(QuestAuthority.EDIT_LEVEL);
+        return dev.ellipog.tenet.QuestAuthority.mayEditClient(minecraft);
     }
 
     /**
@@ -12606,7 +12608,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return box;
         }
         int offset = PanelLayout.slideOffset(panelRail(surfaceKind),
-                panelRevealElapsed(surfaceKind, net.minecraft.Util.getMillis()), panelRevealMillis());
+                panelRevealElapsed(surfaceKind, net.minecraft.util.Util.getMillis()), panelRevealMillis());
         if (offset == 0) {
             return box;
         }
@@ -12856,8 +12858,8 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** A condition type's registered icon, or nothing for one this build does not know. */
     private static ItemStack conditionIcon(String typeId) {
-        net.minecraft.resources.ResourceLocation id =
-                net.minecraft.resources.ResourceLocation.tryParse(typeId);
+        net.minecraft.resources.Identifier id =
+                net.minecraft.resources.Identifier.tryParse(typeId);
         return id == null ? ItemStack.EMPTY
                 : dev.ellipog.tenet.quest.condition.ConditionTypes.iconOf(id).toStack();
     }
@@ -13445,7 +13447,7 @@ public final class QuestBookScreen extends ArmatureScreen
         JsonElement found = QuestPanelLayout.get(quest, target.path());
         int current = found != null && found.isJsonPrimitive() && found.getAsJsonPrimitive().isNumber()
                 ? found.getAsInt() : 0;
-        int step = direction * (Screen.hasShiftDown() ? 10 : 1);
+        int step = direction * (shiftDown() ? 10 : 1);
         sendField(questId, target.path(), new JsonPrimitive(Math.max(0, current + step)));
     }
 
@@ -13545,7 +13547,7 @@ public final class QuestBookScreen extends ArmatureScreen
                         .anyMatch(field -> field.path().equals("dimension"));
         if (hasDimension && minecraft.level != null) {
             sendField(editTarget(), container + ".dimension",
-                    new JsonPrimitive(minecraft.level.dimension().location().toString()));
+                    new JsonPrimitive(minecraft.level.dimension().identifier().toString()));
         }
     }
 
@@ -13791,8 +13793,8 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** A task or reward type's registered icon, or paper for one this build does not know. */
     private static ItemStack typeIcon(String member, String type) {
-        net.minecraft.resources.ResourceLocation id =
-                net.minecraft.resources.ResourceLocation.tryParse(type);
+        net.minecraft.resources.Identifier id =
+                net.minecraft.resources.Identifier.tryParse(type);
         if (id == null) {
             return ItemStack.EMPTY;
         }
@@ -13832,8 +13834,8 @@ public final class QuestBookScreen extends ArmatureScreen
         if (overlay != PanelKind.TABLE_EDITOR) {
             return "";
         }
-        net.minecraft.resources.ResourceLocation id =
-                net.minecraft.resources.ResourceLocation.tryParse(typeId);
+        net.minecraft.resources.Identifier id =
+                net.minecraft.resources.Identifier.tryParse(typeId);
         return id == null ? "" : dev.ellipog.tenet.quest.reward.TableReward.entryRefusal(id);
     }
 
@@ -14063,8 +14065,8 @@ public final class QuestBookScreen extends ArmatureScreen
                     typeId.substring(TEMPLATE_ROW_PREFIX.length())).orElse(null);
             return template == null ? ItemStack.EMPTY : templateIcon(template);
         }
-        net.minecraft.resources.ResourceLocation id =
-                net.minecraft.resources.ResourceLocation.tryParse(typeId);
+        net.minecraft.resources.Identifier id =
+                net.minecraft.resources.Identifier.tryParse(typeId);
         if (id == null) {
             return ItemStack.EMPTY;
         }
@@ -14097,8 +14099,8 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     private static ItemStack itemStack(String id) {
-        net.minecraft.resources.ResourceLocation location =
-                net.minecraft.resources.ResourceLocation.tryParse(id);
+        net.minecraft.resources.Identifier location =
+                net.minecraft.resources.Identifier.tryParse(id);
         return location == null ? ItemStack.EMPTY : new dev.ellipog.tenet.quest.ItemRef(location, 1).toStack();
     }
 
@@ -14266,10 +14268,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // widget's box in every case: the description's box *is* its frame, and a row's field is its
         // mark opened out by its padding.
         if (inlineArea != null) {
-            inlineArea.mouseClicked(mouseX, mouseY, 0);
+            inlineArea.mouseClicked(clickAsLeft(mouseX, mouseY), false);
         }
         else if (inlineField != null) {
-            inlineField.mouseClicked(mouseX, mouseY, 0);
+            inlineField.mouseClicked(clickAsLeft(mouseX, mouseY), false);
         }
     }
 
@@ -14399,14 +14401,51 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private boolean moveOpenCaret(double mouseX, double mouseY) {
         if (inlineArea != null) {
-            inlineArea.mouseClicked(mouseX, mouseY, 0);
+            inlineArea.mouseClicked(clickAsLeft(mouseX, mouseY), false);
             return true;
         }
         if (inlineField != null) {
-            inlineField.mouseClicked(mouseX, mouseY, 0);
+            inlineField.mouseClicked(clickAsLeft(mouseX, mouseY), false);
             return true;
         }
         return false;
+    }
+
+    /**
+     * A press replayed as a left click, for the inline editors: the opening press is definitionally
+     * left (it focuses for editing), so the replay carries the left button with no modifiers rather
+     * than whatever the press that opened the editor happened to be.
+     */
+    private static net.minecraft.client.input.MouseButtonEvent clickAsLeft(double mouseX, double mouseY) {
+        return new net.minecraft.client.input.MouseButtonEvent(mouseX, mouseY,
+                new net.minecraft.client.input.MouseButtonInfo(
+                        com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT, 0));
+    }
+
+    /**
+     * Whether either Shift is down right now, for the three call sites with no input event to ask:
+     * two stepper presses and a weight nudge, all reading live state. Everywhere else the event's
+     * own {@code hasShiftDown} is used instead, which reads the press's modifiers rather than the
+     * moment.
+     */
+    private static boolean shiftDown() {
+        return InputConstants.isKeyDown(InputConstants.KEY_LSHIFT)
+                || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
+    }
+
+    /** Live Alt, for the call sites with no event: the same reason as {@link #shiftDown}. */
+    private static boolean altDown() {
+        return InputConstants.isKeyDown(InputConstants.KEY_LALT)
+                || InputConstants.isKeyDown(InputConstants.KEY_RALT);
+    }
+
+    /**
+     * A press moved into the picker's shifted frame, keeping its button and modifiers: the picker
+     * slides, so the coordinates it is hit-tested against are not the screen's.
+     */
+    private static net.minecraft.client.input.MouseButtonEvent shiftedClick(double x, double y,
+            net.minecraft.client.input.MouseButtonEvent event) {
+        return new net.minecraft.client.input.MouseButtonEvent(x, y, event.buttonInfo());
     }
 
     /**
@@ -15034,7 +15073,7 @@ public final class QuestBookScreen extends ArmatureScreen
             status(Labels.of("tenet.dev.picker.sprite_hint"), true);
             return;
         }
-        if (net.minecraft.resources.ResourceLocation.tryParse(raw) == null) {
+        if (net.minecraft.resources.Identifier.tryParse(raw) == null) {
             status(Labels.of("tenet.dev.picker.sprite_bad"), true);
             return;
         }
@@ -15570,8 +15609,8 @@ public final class QuestBookScreen extends ArmatureScreen
         int y = bodyRect.y() + 6;
         int box = 48;
         r.fill(x, y, x + box, y + box, ArmatureTheme.recessed());
-        net.minecraft.resources.ResourceLocation id =
-                value.isEmpty() ? null : net.minecraft.resources.ResourceLocation.tryParse(value);
+        net.minecraft.resources.Identifier id =
+                value.isEmpty() ? null : net.minecraft.resources.Identifier.tryParse(value);
         if (id != null) {
             r.sprite(id, x, y, box, box, 0xFFFFFFFF);
         }
@@ -15778,12 +15817,13 @@ public final class QuestBookScreen extends ArmatureScreen
     private static List<ItemPicker.Entry> catalogue() {
         List<ItemPicker.Entry> entries = new ArrayList<>();
         var registry = net.minecraft.core.registries.BuiltInRegistries.ITEM;
-        for (net.minecraft.resources.ResourceLocation id : registry.keySet()) {
-            net.minecraft.world.item.Item item = registry.get(id);
+        for (net.minecraft.resources.Identifier id : registry.keySet()) {
+            net.minecraft.world.item.Item item =
+                    registry.get(id).map(holder -> holder.value()).orElse(net.minecraft.world.item.Items.AIR);
             if (item == net.minecraft.world.item.Items.AIR) {
                 continue;
             }
-            entries.add(new ItemPicker.Entry(id.toString(), new ItemStack(item).getHoverName().getString(),
+            entries.add(new ItemPicker.Entry(id.toString(), dev.ellipog.tenet.quest.ItemStacks.stackOf(item).getHoverName().getString(),
                     0));
         }
         return List.copyOf(entries);
@@ -16297,7 +16337,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private void rememberSidebarPress(double mouseX, double mouseY, int button) {
         // The row drag is armed for an author, and nothing takes it away any more: a panel used to make the
         // whole book inert, and now a rail covers nothing the sidebar was using.
-        if (button != 0 || !mayEditNow()
+        if (button != InputConstants.MOUSE_BUTTON_LEFT || !mayEditNow()
                 || !sidebarViewport().containsScreen(mouseX, mouseY)) {
             return;
         }
@@ -17811,7 +17851,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private boolean pressImportPopover(double mouseX, double mouseY, int button) {
         BookGeometry.Rect box = tableImportBox;
         boolean onRow = false;
-        if (button == 0 && box != null && box.contains(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && box != null && box.contains(mouseX, mouseY)) {
             for (EditTarget target : editTargets) {
                 boolean mine = target.action() == EditAction.TABLE_IMPORT
                         || target.action() == EditAction.TABLE_IMPORT_CHEST;
@@ -17884,7 +17924,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (menu.isEmpty() || menuOpenedAt < 0) {
             return 1F;
         }
-        return PanelLayout.revealed(net.minecraft.Util.getMillis() - menuOpenedAt, MENU_RISE_MILLIS);
+        return PanelLayout.revealed(net.minecraft.util.Util.getMillis() - menuOpenedAt, MENU_RISE_MILLIS);
     }
 
     private void drawMenu(GuiRenderer r, int mouseX, int mouseY) {
@@ -20852,7 +20892,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         fieldDraft.set(chapter, target, path, new JsonPrimitive(value),
-                ClientQuestCache.treeRevision(), net.minecraft.Util.getMillis());
+                ClientQuestCache.treeRevision(), net.minecraft.util.Util.getMillis());
     }
 
     /** A slider drag: the value under the pointer, remembered for the preview and not yet sent. */
@@ -21112,7 +21152,7 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void startPanelReveal(PanelKind kind) {
         if (kind != null && kind != PanelKind.NONE) {
-            panelRevealStarts.put(kind, net.minecraft.Util.getMillis());
+            panelRevealStarts.put(kind, net.minecraft.util.Util.getMillis());
         }
     }
 
@@ -21406,11 +21446,13 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** An item stack from an id, or empty: a table's icon is an id in a file, not a live stack. */
     private static ItemStack tableIcon(String id) {
-        net.minecraft.resources.ResourceLocation at = net.minecraft.resources.ResourceLocation.tryParse(id);
-        if (at == null || !net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(at)) {
+        net.minecraft.resources.Identifier at = net.minecraft.resources.Identifier.tryParse(id);
+        if (at == null) {
             return ItemStack.EMPTY;
         }
-        return new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(at));
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM.get(at)
+                .map(holder -> dev.ellipog.tenet.quest.ItemStacks.stackOf(holder))
+                .orElse(ItemStack.EMPTY);
     }
 
     /**
@@ -21801,7 +21843,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         tableDraft.set(effectiveChapter(), tableOwnerKey(), path, value, tableCopyRevision(),
-                net.minecraft.Util.getMillis());
+                net.minecraft.util.Util.getMillis());
         sendTableOp(new dev.ellipog.tenet.editor.TableOp.Set(tableAddress, path, value));
     }
 
@@ -21834,7 +21876,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         tableDraft.reconcileOwner(effectiveChapter(), tableOwnerKey(), tableCopyRevision(),
                 (owner, path) -> QuestPanelLayout.get(tableRoot(), path),
-                net.minecraft.Util.getMillis());
+                net.minecraft.util.Util.getMillis());
     }
 
     /**
@@ -21878,7 +21920,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         long revision = ClientQuestCache.treeRevision();
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         switch (tableAddress.owner()) {
             case dev.ellipog.tenet.editor.TableAddress.Owner.Named named -> {
                 if (dev.ellipog.tenet.client.ClientTableReplica.claim(named.id(), revision, now)) {
@@ -22167,7 +22209,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         long revision = tableCopyRevision();
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         fieldDraft.set(quest.chapter(), quest.quest(), tableOwningPath + ".table",
                 tableId == null || tableId.isBlank() ? null : new com.google.gson.JsonPrimitive(tableId),
                 revision, now);
@@ -22499,7 +22541,7 @@ public final class QuestBookScreen extends ArmatureScreen
         return Math.round(TABLE_PAGE_DRIFT_PX * (1F - arrived));
     }
 
-    private void drawTableEditor(GuiRenderer r, PoseStack pose, int mouseX, int mouseY) {
+    private void drawTableEditor(GuiRenderer r, Matrix3x2fStack pose, int mouseX, int mouseY) {
         claimTableData();
         reconcileTableDrafts();
         tableHint = null;
@@ -22730,7 +22772,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // stamped by the openers, because every swap — rolling, picking, nesting — funnels through this
         // draw. Presses read the unshifted rows for the tenth of a second this lasts; the pointer just
         // pressed the toolbar that caused the swap, so no aimed press can land inside the skew.
-        long pageNow = net.minecraft.Util.getMillis();
+        long pageNow = net.minecraft.util.Util.getMillis();
         String pageKey = tablePageKey();
         if (!pageKey.equals(lastTablePageKey)) {
             lastTablePageKey = pageKey;
@@ -22739,15 +22781,15 @@ public final class QuestBookScreen extends ArmatureScreen
         int drift = tablePageDrift(pageNow);
         boolean drifting = drift != 0;
         if (drifting) {
-            pose.pushPose();
-            pose.translate(drift, 0F, 0F);
+            pose.pushMatrix();
+            pose.translate(drift, 0F);
         }
         try {
             drawTableEditorBody(r, table, mouseX, mouseY);
         }
         finally {
             if (drifting) {
-                pose.popPose();
+                pose.popMatrix();
             }
         }
     }
@@ -23633,8 +23675,8 @@ public final class QuestBookScreen extends ArmatureScreen
     /** Whether this build can apply a template: its type is registered, under a parseable id. */
     private static boolean knownTemplateType(
             dev.ellipog.tenet.client.dev.ComponentTemplate.Template template) {
-        net.minecraft.resources.ResourceLocation id =
-                net.minecraft.resources.ResourceLocation.tryParse(template.typeId());
+        net.minecraft.resources.Identifier id =
+                net.minecraft.resources.Identifier.tryParse(template.typeId());
         if (id == null) {
             return false;
         }
@@ -23680,8 +23722,8 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         if (template.kind()
                 == dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION) {
-            net.minecraft.resources.ResourceLocation id =
-                    net.minecraft.resources.ResourceLocation.tryParse(template.typeId());
+            net.minecraft.resources.Identifier id =
+                    net.minecraft.resources.Identifier.tryParse(template.typeId());
             return id == null ? ItemStack.EMPTY
                     : dev.ellipog.tenet.quest.condition.ConditionTypes.iconOf(id).toStack();
         }
@@ -24307,7 +24349,7 @@ public final class QuestBookScreen extends ArmatureScreen
             case TABLE_IMPORT_MENU -> {
                 if (!tableImportOpen) {
                     // Stamped on the way in, like every menu: the popover climbs into place below.
-                    tableImportOpenedAt = net.minecraft.Util.getMillis();
+                    tableImportOpenedAt = net.minecraft.util.Util.getMillis();
                 }
                 tableImportOpen = !tableImportOpen;
             }
@@ -24346,7 +24388,7 @@ public final class QuestBookScreen extends ArmatureScreen
             case TABLE_WEIGHT_UP, TABLE_WEIGHT_DOWN -> {
                 var model = tableModel();
                 if (model.isPresent() && index >= 0 && index < model.get().entryCount()) {
-                    double step = Screen.hasShiftDown() ? 10 : 1;
+                    double step = shiftDown() ? 10 : 1;
                     double next = Math.max(0, model.get().entries().get(index).weight()
                             + (target.action() == EditAction.TABLE_WEIGHT_UP ? step : -step));
                     sendTableValue("entries." + index + ".weight", new com.google.gson.JsonPrimitive(next));
@@ -24603,7 +24645,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // would have started, which is more use than refusing and leaving it stuck.
             value = 0;
         }
-        int step = Screen.hasShiftDown() ? 10 : 1;
+        int step = shiftDown() ? 10 : 1;
         // Zero is the floor for every numeric field a fold has: a count of zero is a legal count, and a
         // permission level of zero is how the format spells "no permission". What it is not is a second
         // clamp of its own per field -- that would be a rule about the format living in a press handler.
@@ -25239,7 +25281,7 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void submit(String questId, int taskIndex) {
         if (!pendingClaims.mark(PendingClaims.taskKey(questId, taskIndex),
-                net.minecraft.Util.getMillis())) {
+                net.minecraft.util.Util.getMillis())) {
             // Already in flight: a second press for one task is not a second packet.
             return;
         }
@@ -25259,7 +25301,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * refusal, and the refusal still puts the mark back — because a claim always answers.
      */
     private void claim(String questId) {
-        if (!markQuest(questId, net.minecraft.Util.getMillis())) {
+        if (!markQuest(questId, net.minecraft.util.Util.getMillis())) {
             return;
         }
         ArmatureNetwork.sendToServer(new ClaimRewardPayload(questId));
@@ -25339,7 +25381,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * it. See this class's comment for the mechanism and that class's for why it moved.
      */
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+            float partialTick) {
         renderMouseX = mouseX;
         renderMouseY = mouseY;
         // The intro's anchors are re-placed while drawing, so a closed panel cannot leave a stale
@@ -25417,81 +25460,65 @@ public final class QuestBookScreen extends ArmatureScreen
         renderer.fill(0, 0, width, height, ArmatureTheme.dim());
 
         // One region for the whole of the book's own drawing — its panels, its surfaces, its header, the
-        // canvas and the chrome it draws itself.
+        // canvas and the chrome it draws itself. On 1.21.1 this region also turned hundreds of per-fill
+        // submissions into one; extraction submits in order either way, so what is left of it is the
+        // layering boundary the callers mark with it.
         //
-        // Without it, every fill and every label in there is its own GPU submission: `GuiGraphics.fill`
-        // and `GuiGraphics.drawString` both end in `flushIfUnmanaged`, so in an unmanaged context a frame
-        // of chrome is hundreds of `endBatch` calls, each with the state setup that goes with one. That is
-        // the half of the cost that does not care how many nodes are on the canvas — and it is why the
-        // canvas alone being batched was never going to be enough.
-        //
-        // The regions nest harmlessly: `GuiGraphicsRenderer.batched` counts its depth, because
-        // `drawManaged` ends whatever region it is inside. The canvas's own region and the controls' are
-        // now inner ones and cost nothing extra.
+        // The regions nest harmlessly: inner regions cost nothing extra.
         // The canvas caption, carried out of the batch above: what the pointer hovered, for the
-        // TOOLTIP_Z band below. Read here rather than re-derived there, because the hover is this
+        // TOOLTIP band below. Read here rather than re-derived there, because the hover is this
         // frame's and a second hit test could answer differently.
         CanvasCaption captioned =
                 renderer.batched(() -> renderWith(renderer, hoverX, hoverY, partialTick));
 
 
-        // Everything from here on is the **chrome layer**, and it is drawn at a raised Z. Read the
-        // next few paragraphs before moving any of it: this is a fix for a defect that no draw ORDER
-        // can fix, and it was misdiagnosed once already.
+        // Everything from here on is the **chrome layer**, drawn after the book and before the
+        // widgets -- and order is the whole of the mechanism now. Read the next paragraph before
+        // moving any of it: this ordering once needed depth to enforce, and it was misdiagnosed
+        // once already.
         //
-        // An item icon is not a fill. `GuiGraphics.renderItem` translates the pose to Z = 150 and then
-        // calls `flush()` itself, and `flush()` is `disableDepthTest(); endBatch(); enableDepthTest()`
-        // -- so depth testing is switched back ON the moment an icon is drawn, and the icon has
-        // written depth 150. GUI fills draw at Z = 0 and do not write depth at all.
+        // On 1.21.1 an item icon wrote depth 150 while fills drew at depth 0 without writing any,
+        // so a fill drawn *after* an icon failed the depth test where the icon was and was never
+        // drawn there, however late it was drawn. The chrome therefore rode 400 units up and beat
+        // icons by depth rather than by order. Extraction records every draw in call order, so a
+        // later draw is simply on top: the layers below hold by sequence alone, and the Z the old
+        // code pushed here is gone with the pipeline that needed it. Verified the only way the new
+        // model allows: vanilla's own inventory screens interleave fills and icons with no depth
+        // tricks, so submission order is sufficient -- and the in-game list still asks eyes to
+        // confirm no icon punches through a panel, because this is exactly the fault order cannot
+        // be trusted about without looking.
         //
-        // The consequence is the whole of the bug: a fill drawn *after* an icon at Z = 0 fails the
-        // depth test where the icon is and is **never drawn there**, however late it is drawn. That is
-        // why the node's icon punched through the cluster panel and hid the third view button -- and
-        // why the `flush()` that used to be the fix for this changed nothing, because the ordering was
-        // never wrong. Verified against the compiled bytecode rather than recalled:
-        // `tmp-verify/probe_managed.py` prints both methods.
-        //
-        // So the chrome is translated up instead: at Z = 400 a control beats an icon at Z = 150 by
-        // depth rather than by order, which is what "this is the top layer" actually means. It is not
-        // the *top* layer any more -- the modal's card and the tooltips have bands of their own above
-        // it, because a chrome control can carry an icon of its own; see `POPOVER_Z`.
-        //
-        // The pose is pushed here rather than inside `renderWith` because the pose is a `GuiGraphics`
-        // thing and `renderWith` deliberately sees only a `GuiRenderer` -- that is what lets it be
-        // driven by a RecordingRenderer with no client. This override is the one place that has the
-        // unwrapped context, so it is the one place this can be done.
         // The rails' widgets travel with their surfaces, before either is drawn or hit: the slide is
         // placed here rather than in the drawing because the widget pass below reads the positions, and
         // here rather than in `tick` because the positions belong to this frame's clock, not the last
         // tick's. See `slidePanelWidgets` for the inert-while-travelling half of the arrangement.
-        long slideNow = net.minecraft.Util.getMillis();
+        long slideNow = net.minecraft.util.Util.getMillis();
         slidePanelWidgets(slideNow);
         slidePopoverWidgets(slideNow);
 
-        PoseStack pose = graphics.pose();
-        pose.pushPose();
-        pose.translate(0F, 0F, CHROME_Z);
-        try {
+        // The chrome band draws in plain order now (see above): no Z push, because there is no Z
+        // left to push on a 2D pose. The pose itself stays for the popover's slide below, which is a
+        // real 2D travel.
+        var pose = graphics.pose();
+        {
             // **One call for every rail on screen** -- the dock, the panel and the child it opened -- drawn
             // in this band rather than in `drawBook` for the same reason as the cluster panel below: they
-            // float over a canvas whose nodes write depth at Z = 150, so a rail drawn at Z = 0 loses the
-            // depth test wherever an icon sits and the icon stands in the middle of the panel -- the report
-            // was "items from nodes render over the tools panel". No draw order can fix that; see the block
-            // above the pose push for the arithmetic.
+            // float over the canvas, and a rail drawn before the nodes would disappear behind them. No draw
+            // order can fix that the other way round; see the chrome note above for why order is the whole
+            // mechanism now.
             //
             // Before the widget pass (further down), so a rail's own controls sit on its surface -- which is
             // why nothing on a rail needs a redraw of its own. `drawPanels` asks `presented` what to draw, so
             // this needs no guard of its own: an empty arrangement draws nothing.
             //
-            // The chapter tab draws an item icon of its own, which writes depth CHROME_Z + 150 -- the same
-            // band the sidebar's rows already leave behind, and the reason POPOVER_Z and TOOLTIP_Z are stepped
-            // above the chrome rather than beside it.
+            // The chapter tab draws an item icon of its own; icons draw late like everything else here,
+            // so it lands with the band rather than punching through it.
             //
             // The chapter list's own surface first, so the rails stay above it: a maximally wide rail
             // may reach the floating list, and the quest it carries is what the press is about. See
             // `drawSidebarChrome` for why the surface lives up here rather than in `drawBook`.
-            drawSidebarChrome(renderer, hoverX, hoverY, net.minecraft.Util.getMillis());
-            drawPanels(renderer, pose, hoverX, hoverY, net.minecraft.Util.getMillis());
+            drawSidebarChrome(renderer, hoverX, hoverY, net.minecraft.util.Util.getMillis());
+            drawPanels(renderer, pose, hoverX, hoverY, net.minecraft.util.Util.getMillis());
 
             // The view cluster's backing panel, and it is drawn here rather than in `drawBook` for
             // exactly this reason: it has to be inside the raised Z, and `drawBook` cannot raise it.
@@ -25511,7 +25538,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 // Riding the sidebar's wipe like its buttons below: a backing drawn at its landing
                 // while the three buttons travel would frame empty air for 160 milliseconds. Same
                 // anchor the buttons read, so the mat and its controls never disagree mid-slide.
-                long clusterNow = net.minecraft.Util.getMillis();
+                long clusterNow = net.minecraft.util.Util.getMillis();
                 if (sidebarSlideStart >= 0 && sidebarSliding(clusterNow)
                         && (geometry().sidebarState().expanded() || sidebarDeparting)) {
                     BookGeometry.Rect wipe = sidebarWipeRect(clusterNow);
@@ -25632,7 +25659,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     // The hover pointer for the pass and the rows' marks, and the real one for the menu:
                     // see `overlayOwnsPointer`. The menu *is* the overlay, so it is the one thing here that
                     // is still aimed at where the pointer really is.
-                    super.render(graphics, hoverX, hoverY, partialTick);
+                    super.extractRenderState(graphics, hoverX, hoverY, partialTick);
                     // The departed rows over the sliding card, drawn by hand: they left the screen
                     // when the collapse started, so the pass above cannot draw them — and the wipe's
                     // own clip inside is what keeps them on the card, which is the whole of this
@@ -25766,49 +25793,37 @@ public final class QuestBookScreen extends ArmatureScreen
                 // while its four fields travel by their own slide, so both land together. Two scopes
                 // rather than one, because the fields are already moved — translating them again here
                 // would double-shift every box they type into.
-                int arrival = popoverOffset(net.minecraft.Util.getMillis());
-                pose.pushPose();
-                pose.translate(arrival, 0F, POPOVER_Z - CHROME_Z);
+                int arrival = popoverOffset(net.minecraft.util.Util.getMillis());
+                pose.pushMatrix();
+                pose.translate(arrival, 0F);
                 try {
                     // Aimed where it is drawn: the hover washes and the arrow-key part read the pointer
                     // through the same shift the presses do.
                     colourPopover.render(renderer, (int) pickerPointerX(renderMouseX), renderMouseY);
                 }
                 finally {
-                    pose.popPose();
+                    pose.popMatrix();
                 }
-                pose.pushPose();
-                pose.translate(0F, 0F, POPOVER_Z - CHROME_Z);
-                try {
-                    for (net.minecraft.client.gui.components.AbstractWidget widget
-                            : colourPopover.widgets()) {
-                        if (widget instanceof dev.ellipog.tenet.client.dev.ScrubField field) {
-                            field.render(renderer, renderMouseX, renderMouseY);
-                        }
-                        else if (widget instanceof dev.ellipog.armature.client.ArmatureTextField text) {
-                            text.render(renderer);
-                        }
+                for (net.minecraft.client.gui.components.AbstractWidget widget
+                        : colourPopover.widgets()) {
+                    if (widget instanceof dev.ellipog.tenet.client.dev.ScrubField field) {
+                        field.render(renderer, renderMouseX, renderMouseY);
                     }
-                }
-                finally {
-                    pose.popPose();
+                    else if (widget instanceof dev.ellipog.armature.client.ArmatureTextField text) {
+                        text.render(renderer);
+                    }
                 }
             }
 
-            // Inside the raised Z as well, and one level above *it* -- not tidiness, and it took a report
-            // to learn the size of the step. A tooltip is a panel and some text; an item's own render
-            // writes depth, so a box at the same Z as the card's contents can lose to the icon it is
-            // covering, however much later it is drawn. That is "items render over tooltips", and the same
-            // is true of the type label beside an icon. Both are drawn here, at TOOLTIP_Z.
+            // Tooltips last, because they describe what is under the pointer: a tooltip is a panel
+            // and some text, drawn after everything it could cover, and order is what keeps it on
+            // top now (see the chrome note above -- there is no Z left to raise).
             //
             // Outside the clip, deliberately: a tooltip belongs over everything, including the edge it
             // happens to reach past.
-            pose.pushPose();
-            pose.translate(0F, 0F, TOOLTIP_Z - CHROME_Z);
             // The canvas captions first, outside the themed block below: a caption is a label about
-            // a node, not part of it, so it keeps the book's own ink rather than the chapter's —
-            // and at this Z it beats depth-writing pictures by the same arithmetic tooltips do,
-            // instead of losing to them however much later it is drawn.
+            // a node, not part of it, so it keeps the book's own ink rather than the chapter's --
+            // and drawn late it stays over pictures by submission order, the same as tooltips.
             if (captioned != null) {
                 if (captioned.quest() != null) {
                     drawNodeCaption(renderer, captioned.quest());
@@ -25818,8 +25833,8 @@ public final class QuestBookScreen extends ArmatureScreen
                 }
                 // The hovered line names itself at the pointer: a line brightens where the menu
                 // opens, and the caption says which line that is. A tooltip rather than a caption
-                // box, because a line has no box to sit under -- and here, at TOOLTIP_Z, item icons
-                // cannot cover it however they are drawn.
+                // box, because a line has no box to sit under -- and drawn late, no icon covers it
+                // however it is drawn.
                 if (captioned.line() != null) {
                     drawTooltip(renderer, List.of(captioned.line()), hoverX, hoverY);
                 }
@@ -25839,7 +25854,6 @@ public final class QuestBookScreen extends ArmatureScreen
                 // beat theirs, while owning no press but its own three buttons.
                 drawIntroGuide(renderer, hoverX, hoverY);
             }
-            pose.popPose();
 
             // Consumed, because they are drawn here rather than where they are collected: the card fills
             // the list while it draws, and a frame that draws no card (the overlay closed, a chapter
@@ -25847,21 +25861,14 @@ public final class QuestBookScreen extends ArmatureScreen
             pendingLabels.clear();
             rowTooltips.clear();
         }
-        finally {
-            pose.popPose();
-        }
         // The frame is over: the counting renderer (dev mode only) logs its totals at most once a second.
         // Here rather than anywhere earlier because the tooltips above are the last thing a frame draws.
         dev.ellipog.tenet.client.dev.CountingRenderer.endFrame(renderer);
 
         // And the overlay, after that call and through the plain renderer: after, so this frame's
         // numbers are the frame's own; through the plain one, so the overlay is not counted by the
-        // instrument it exists to display. Its own Z, because the header can carry a pack icon and a
-        // fill at Z = 0 loses the depth test wherever an icon wrote depth 150.
-        pose.pushPose();
-        pose.translate(0F, 0F, TOOLTIP_Z);
+        // instrument it exists to display. Last of all, so nothing covers it.
         drawDevOverlay(plain);
-        pose.popPose();
     }
 
     /** How far the dev overlay's panel sits from the frame's top-left corner. */
@@ -25969,58 +25976,22 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * How far above the canvas the chrome layer is drawn.
+     * The frame's layer order, latest drawn on top.
      *
-     * <h2>Why a Z at all, in a 2D interface</h2>
+     * <p>On 1.21.1 these were three Z bands ({@code CHROME_Z}, {@code POPOVER_Z},
+     * {@code TOOLTIP_Z}): item icons wrote depth 150 while fills drew at 0 without writing any,
+     * so a later fill lost the depth test wherever an icon sat, and only height separated the
+     * bands. Extraction records every draw in call order, so draw order <i>is</i> the layering
+     * now: the book, then the chrome, then the picker, then tooltips, then the dev overlay. The
+     * constants are gone with the depth buffer they were measured against; what remains is the
+     * sequence in {@code extractRenderState}, which is the thing to keep in order.
      *
-     * <p>Because vanilla's GUI is not flat: {@code GuiGraphics.renderItem} puts item icons at <b>150</b>
-     * precisely so they render over text and fills, and it writes that depth. Every other GUI primitive
-     * is at 0 and does not write depth. So an icon and a control are ordered by depth whether anybody
-     * asked for that or not — and a control drawn afterwards at 0 loses to the icon.
-     *
-     * <p>400 is above the item layer, and the layers that sit above <i>it</i> are named below: the colour
-     * picker at {@code POPOVER_Z} and the tooltips at {@code TOOLTIP_Z}. Vanilla's own tooltips sit
-     * around the same figure, which is a coincidence rather than a dependency; what matters is only that
-     * it is greater than 150, and the value is a named constant so that the two figures can be compared
-     * by reading rather than by recalling.
-     *
-     * <p>It would be better if this were not needed, and the honest alternative is worse: clip the
-     * canvas around the cluster, which means drawing the canvas twice, splitting any node that straddles
-     * the boundary, and re-rendering every item icon for the privilege. Raising the chrome's Z costs a
-     * pose push.
+     * <p>Kept as a named idea rather than deleted outright, because the ordering constraints are
+     * still real: tooltips describe what is under the pointer and must come after it, the picker
+     * floats over panels whose controls can carry icons, and the dev overlay reads last so its
+     * numbers are the frame's own. A reorder that breaks one of those reads as a layering bug,
+     * and this is where that is written down.
      */
-    static final float CHROME_Z = 400F;
-
-    /**
-     * How far above the chrome the colour picker is drawn.
-     *
-     * <h2>Why it is not at {@code CHROME_Z}</h2>
-     *
-     * <p>Because the chrome is not flat: a control drawn in it can carry an item icon -- the sidebar's
-     * rows do -- and item rendering writes depth <b>150 above the pose it inherits</b>, the same fact
-     * that made the chrome a band of its own. So the chrome's layer can leave depth {@code CHROME_Z +
-     * 150} sitting in the buffer, and the picker, which floats over everything including the panels, has
-     * to be above that rather than beside it. At the chrome's own Z its fills would fail the depth test
-     * at every icon pixel and the sidebar's icons would stand in the middle of it.
-     *
-     * <p><b>It was the modal's band</b>, and the name changed with the card: the picker is the only thing
-     * left that is drawn over a rail rather than beside it, which is why one band still exists at all.
-     *
-     * <p>Two hundred rather than 151, for the same reason as {@code TOOLTIP_Z}: the step only has to
-     * clear the icon layer, and a round number puts all three bands on one line to be read together.
-     */
-    static final float POPOVER_Z = CHROME_Z + 200F;
-
-    /**
-     * How far above the picker the two things that belong over <b>everything</b> are drawn: a control's
-     * tooltip, and the type label beside a hovered icon.
-     *
-     * <p>A step above {@code POPOVER_Z} rather than the same Z, because a panel's own controls hold item
-     * icons too: item rendering writes depth, so "drawn later" is not "on top" at equal Z. That is the
-     * same arithmetic {@code POPOVER_Z} explains, and the tooltip has to clear the icons it is drawn over
-     * exactly as the picker had to clear the chrome's.
-     */
-    static final float TOOLTIP_Z = POPOVER_Z + 200F;
 
     /** The whole book, as a rectangle. Used by the render clip and by nothing else. */
     private BookGeometry.Rect panelRect() {
@@ -27256,7 +27227,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * work, it never works for them.
      */
     private boolean pressIntroGuide(double mouseX, double mouseY, int button) {
-        if (button != 0) {
+        if (button != InputConstants.MOUSE_BUTTON_LEFT) {
             return false;
         }
         if (introKeepBox != null && introKeepBox.contains(mouseX, mouseY)) {
@@ -28000,6 +27971,12 @@ public final class QuestBookScreen extends ArmatureScreen
                              dev.ellipog.armature.client.ui.shape.Shape geometry,
                              ItemStack icon, String texture, String sprite, double iconScale,
                              int edge, int wash, boolean hideLock) {
+
+        /** The same node with a new icon: the cycling-icon refresh below. */
+        FrameNode withIcon(ItemStack icon) {
+            return new FrameNode(id, chapterId, x, y, size, state, shape, geometry, icon,
+                    texture, sprite, iconScale, edge, wash, hideLock);
+        }
     }
 
     /**
@@ -28255,6 +28232,34 @@ public final class QuestBookScreen extends ArmatureScreen
         // second is part of the key's world, and the stamp re-runs when it turns.
         long nowSecond = Util.getMillis() / 1000L;
         if (key.equals(canvasState) && (!canvasCycling || canvasAnimSecond == nowSecond)) {
+            return;
+        }
+        if (key.equals(canvasState)) {
+            // Only the second turned: a cycling adopted icon advances, and nothing else moves.
+            // Refresh the icons in place rather than rebuilding the canvas. Edges, labels,
+            // elements and links all ride state the key already names — re-running them is a
+            // line re-walk and a label re-place every second for answers that cannot have
+            // changed, which is exactly the periodic spike the frame overlay showed. States,
+            // sizes and boxes are untouched: a progress or tree change moves the key and takes
+            // the full path below, so by the time this runs the only thing stale is icon
+            // frames. Not published as a rebuild, because nothing was rebuilt.
+            java.util.Map<String, ItemStack> fresh = new java.util.HashMap<>();
+            for (ClientQuestCache.Entry entry : quests) {
+                ItemStack icon = entry.icon();
+                if (icon.isEmpty()) {
+                    ItemStack adopted = ClientQuestCache.adoptedQuestIcon(entry);
+                    if (!adopted.isEmpty()) {
+                        icon = adopted;
+                    }
+                }
+                fresh.put(entry.id(), icon);
+            }
+            List<FrameNode> refreshed = new ArrayList<>(frameNodes.size());
+            for (FrameNode node : frameNodes) {
+                refreshed.add(node.withIcon(fresh.getOrDefault(node.id(), node.icon())));
+            }
+            frameNodes = List.copyOf(refreshed);
+            canvasAnimSecond = nowSecond;
             return;
         }
         canvasEdges = frameEdges(quests);
@@ -29282,7 +29287,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * is nothing travelling to place — and the live target list is snapshotted around them, because their
      * listings clear before they fill and a press must never land on a panel that is already gone.
      */
-    private void drawPanels(GuiRenderer r, PoseStack pose, int mouseX, int mouseY, long now) {
+    private void drawPanels(GuiRenderer r, Matrix3x2fStack pose, int mouseX, int mouseY, long now) {
         editTargets.clear();
         int duration = panelRevealMillis();
         for (PanelKind kind : PanelStack.presented(columns(), panelFolded())) {
@@ -29298,13 +29303,13 @@ public final class QuestBookScreen extends ArmatureScreen
             int offset = PanelLayout.slideOffset(rail, panelRevealElapsed(kind, now), duration);
             try (GuiRenderer.Scoped clip = r.clip(shown.x(), shown.y(), shown.right(), shown.bottom())) {
                 if (offset != 0) {
-                    pose.pushPose();
-                    pose.translate(offset, 0F, 0F);
+                    pose.pushMatrix();
+                    pose.translate(offset, 0F);
                     try {
                         drawSurface(r, pose, kind, mouseX, mouseY, now);
                     }
                     finally {
-                        pose.popPose();
+                        pose.popMatrix();
                     }
                 }
                 else {
@@ -29329,7 +29334,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * answering the snapshot) is scoped to each draw and cleared after, so a throw cannot leak one
      * kind's rectangle into another's.
      */
-    private void drawDepartedPanels(GuiRenderer r, PoseStack pose, int mouseX, int mouseY, long now) {
+    private void drawDepartedPanels(GuiRenderer r, Matrix3x2fStack pose, int mouseX, int mouseY, long now) {
         int exitMs = panelExitMillis();
         if (exitMs <= 0 || panelDepartStarts.isEmpty()) {
             return;
@@ -29359,13 +29364,13 @@ public final class QuestBookScreen extends ArmatureScreen
                 try (GuiRenderer.Scoped clip =
                         r.clip(shown.x(), shown.y(), shown.right(), shown.bottom())) {
                     if (offset != 0) {
-                        pose.pushPose();
-                        pose.translate(offset, 0F, 0F);
+                        pose.pushMatrix();
+                        pose.translate(offset, 0F);
                         try {
                             drawSurface(r, pose, kind, mouseX, mouseY, now);
                         }
                         finally {
-                            pose.popPose();
+                            pose.popMatrix();
                         }
                     }
                     else {
@@ -29560,7 +29565,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * That is the seam the whole arrangement rests on, and it is why this is a parameter rather than a read
      * of {@code overlay}.
      */
-    private void drawSurface(GuiRenderer r, PoseStack pose, PanelKind kind, int mouseX, int mouseY,
+    private void drawSurface(GuiRenderer r, Matrix3x2fStack pose, PanelKind kind, int mouseX, int mouseY,
                              long now) {
         // What the four accessors answer for, for the whole of this kind's drawing: its body's clip, its
         // rows, its footer. Set here rather than by the caller, so a second caller cannot forget it.
@@ -30149,7 +30154,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * the tick that settles it. See the inline note for what is consumed meanwhile.
      */
     private void refreshRewardCard() {
-        if (panelRevealing(PanelKind.REWARDS, net.minecraft.Util.getMillis())) {
+        if (panelRevealing(PanelKind.REWARDS, net.minecraft.util.Util.getMillis())) {
             // The build is deferred to the tick that settles the slide, so the marks are consumed here:
             // the deferred build will place controls that already know about them. Without this the tick
             // would see the same change on every frame of the slide and rebuild for each one.
@@ -30497,7 +30502,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * to lack.
      */
     private void claimAllRewards(ClaimFilter filter) {
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         UUID self = selfId();
         // A choices sweep marks nothing, and that is the rule `markPending` states one row down: a choice
         // is not collected by a press, it is collected by an answer, so a row that read collected while its
@@ -30540,7 +30545,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * view would send, and that view draws no pressable banner to send it from.
      */
     private void claimChapterFromInbox(String chapterId) {
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         if (!pendingClaims.mark(PendingClaims.chapterKey(chapterId), now)) {
             // The banner is already in flight: a second press would be a second packet for one decision.
             return;
@@ -30660,7 +30665,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (pendingClaims.isMarked(PendingClaims.rewardKey(questId, rewardIndex))) {
             return;
         }
-        markPending(questId, rewardIndex, net.minecraft.Util.getMillis());
+        markPending(questId, rewardIndex, net.minecraft.util.Util.getMillis());
         refreshRewardCard();
         ArmatureNetwork.sendToServer(new ClaimRewardEntryPayload(questId, rewardIndex));
         Constants.LOG.debug("asked the server for reward {} of {}", rewardIndex, questId);
@@ -30703,7 +30708,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * disagreeing with itself about one press.
      */
     private void claimQuestFromInbox(String questId) {
-        if (!markQuest(questId, net.minecraft.Util.getMillis())) {
+        if (!markQuest(questId, net.minecraft.util.Util.getMillis())) {
             return;
         }
         refreshRewardCard();
@@ -31047,10 +31052,10 @@ public final class QuestBookScreen extends ArmatureScreen
         int markerWidth = markerRoom(r);
         boolean hasIcon = !chapterIcon(row.chapterId()).isEmpty()
                 || (!chapterTextureIcon(row.chapterId()).isEmpty()
-                        && net.minecraft.resources.ResourceLocation
+                        && net.minecraft.resources.Identifier
                                 .tryParse(chapterTextureIcon(row.chapterId())) != null)
                 || (!chapterSpriteIcon(row.chapterId()).isEmpty()
-                        && net.minecraft.resources.ResourceLocation
+                        && net.minecraft.resources.Identifier
                                 .tryParse(chapterSpriteIcon(row.chapterId())) != null);
         int iconRoom = hasIcon ? ROW_ICON + 5 : 0;
         int avail = Math.max(0, context.width() - markerWidth - iconRoom);
@@ -31289,13 +31294,13 @@ public final class QuestBookScreen extends ArmatureScreen
             return r.icon(stack, x, y, size);
         }
         if (texture != null && !texture.isEmpty()
-                && net.minecraft.resources.ResourceLocation.tryParse(texture) != null) {
-            r.texture(net.minecraft.resources.ResourceLocation.parse(texture), x, y, size, size);
+                && net.minecraft.resources.Identifier.tryParse(texture) != null) {
+            r.texture(net.minecraft.resources.Identifier.parse(texture), x, y, size, size);
             return true;
         }
         if (sprite != null && !sprite.isEmpty()
-                && net.minecraft.resources.ResourceLocation.tryParse(sprite) != null) {
-            r.sprite(net.minecraft.resources.ResourceLocation.parse(sprite), x, y, size, size, 0xFFFFFFFF);
+                && net.minecraft.resources.Identifier.tryParse(sprite) != null) {
+            r.sprite(net.minecraft.resources.Identifier.parse(sprite), x, y, size, size, 0xFFFFFFFF);
             return true;
         }
         return false;
@@ -31723,10 +31728,10 @@ public final class QuestBookScreen extends ArmatureScreen
         int iconBox = HEADER_ICON;
         int iconX = left + 14;
         int iconY = top + (46 - iconBox) / 2;
-        net.minecraft.resources.ResourceLocation pickTextureId =
-                pickTexture.isEmpty() ? null : net.minecraft.resources.ResourceLocation.tryParse(pickTexture);
-        net.minecraft.resources.ResourceLocation pickSpriteId =
-                pickSprite.isEmpty() ? null : net.minecraft.resources.ResourceLocation.tryParse(pickSprite);
+        net.minecraft.resources.Identifier pickTextureId =
+                pickTexture.isEmpty() ? null : net.minecraft.resources.Identifier.tryParse(pickTexture);
+        net.minecraft.resources.Identifier pickSpriteId =
+                pickSprite.isEmpty() ? null : net.minecraft.resources.Identifier.tryParse(pickSprite);
         if (!pickIcon.isEmpty()) {
             r.icon(pickIcon, iconX, iconY, iconBox);
         }
@@ -31950,17 +31955,17 @@ public final class QuestBookScreen extends ArmatureScreen
                     "missing item - the id is kept, so the mod can come back"));
         }
         else if (!entry.textureIcon().isEmpty()
-                && net.minecraft.resources.ResourceLocation.tryParse(entry.textureIcon()) != null) {
+                && net.minecraft.resources.Identifier.tryParse(entry.textureIcon()) != null) {
             // A texture icon draws through the blit rather than the stack: the cache keeps the stack
             // empty for a texture, so the item path below would draw nothing.
-            r.texture(net.minecraft.resources.ResourceLocation.parse(entry.textureIcon()),
+            r.texture(net.minecraft.resources.Identifier.parse(entry.textureIcon()),
                     iconX, iconY, iconBox, iconBox);
         }
         else if (!entry.spriteIcon().isEmpty()
-                && net.minecraft.resources.ResourceLocation.tryParse(entry.spriteIcon()) != null) {
+                && net.minecraft.resources.Identifier.tryParse(entry.spriteIcon()) != null) {
             // An atlas region draws from the atlas: the stack is empty for a sprite for the same
             // reason it is for a texture.
-            r.sprite(net.minecraft.resources.ResourceLocation.parse(entry.spriteIcon()),
+            r.sprite(net.minecraft.resources.Identifier.parse(entry.spriteIcon()),
                     iconX, iconY, iconBox, iconBox, 0xFFFFFFFF);
         }
         else {
@@ -32390,8 +32395,8 @@ public final class QuestBookScreen extends ArmatureScreen
             case "right" -> slot.x() + slot.width() - box.width();
             default -> slot.x() + Math.max(0, (slot.width() - box.width()) / 2);
         };
-        net.minecraft.resources.ResourceLocation id =
-                net.minecraft.resources.ResourceLocation.tryParse(placed.image().src());
+        net.minecraft.resources.Identifier id =
+                net.minecraft.resources.Identifier.tryParse(placed.image().src());
         if (id == null) {
             return;
         }
@@ -32878,16 +32883,20 @@ public final class QuestBookScreen extends ArmatureScreen
      *
      * <p>From the last frame's own drawing, the same contract every other row in the card follows.
      */
-    private boolean pressDependencyRow(double mouseX, double mouseY, int button) {
+    private boolean pressDependencyRow(double mouseX, double mouseY, int button, boolean shift) {
         for (DependencyTarget target : dependencyTargets) {
             if (!target.row().contains(mouseX, mouseY)) {
                 continue;
             }
-            boolean locate = button == 2 || hasShiftDown() || target.locate().contains(mouseX, mouseY);
+            // Middle is 2 on SDL, where right was 2 on GLFW: the port swapped middle and right
+            // throughout this method (and only here — left is the only button other files name).
+            // Each site below is restored to its 1.21.1 meaning; see the canvas press for the one
+            // that broke right-click outright.
+            boolean locate = button == InputConstants.MOUSE_BUTTON_MIDDLE || shift || target.locate().contains(mouseX, mouseY);
             if (locate) {
                 locateOnCanvas(target.questId());
             }
-            else if (button == 0) {
+            else if (button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // Open it, then bring the canvas to it: the order matters, because the camera's target is
                 // computed from the view as it stands and opening a column does not move the canvas.
                 navigateToQuest(target.questId());
@@ -33211,8 +33220,8 @@ public final class QuestBookScreen extends ArmatureScreen
     private record RowStrings(long tree, long progress, long marks, long text, long font,
                               String words, String count, boolean missingItem, RowTag tag,
                               boolean locked, boolean actionable, int progressValue, boolean satisfied,
-                              net.minecraft.resources.ResourceLocation texture,
-                              net.minecraft.resources.ResourceLocation sprite, long cooldownSecond) {
+                              net.minecraft.resources.Identifier texture,
+                              net.minecraft.resources.Identifier sprite, long cooldownSecond) {
 
         /**
          * Whether this bundle was built under this stamp — and, for a cooling row, under this
@@ -33310,9 +33319,9 @@ public final class QuestBookScreen extends ArmatureScreen
                         : task.optional() ? RowTag.OPTIONAL : RowTag.NONE,
                 locked, handIn, progress, progress >= task.count(),
                 task.textureIcon().isEmpty() ? null
-                        : net.minecraft.resources.ResourceLocation.tryParse(task.textureIcon()),
+                        : net.minecraft.resources.Identifier.tryParse(task.textureIcon()),
                 task.spriteIcon().isEmpty() ? null
-                        : net.minecraft.resources.ResourceLocation.tryParse(task.spriteIcon()),
+                        : net.minecraft.resources.Identifier.tryParse(task.spriteIcon()),
                 cooling);
     }
 
@@ -33364,9 +33373,9 @@ public final class QuestBookScreen extends ArmatureScreen
                 missingItem, locked ? RowTag.LOCKED : RowTag.NONE,
                 locked, claimable, 0, false,
                 reward.textureIcon().isEmpty() ? null
-                        : net.minecraft.resources.ResourceLocation.tryParse(reward.textureIcon()),
+                        : net.minecraft.resources.Identifier.tryParse(reward.textureIcon()),
                 reward.spriteIcon().isEmpty() ? null
-                        : net.minecraft.resources.ResourceLocation.tryParse(reward.spriteIcon()),
+                        : net.minecraft.resources.Identifier.tryParse(reward.spriteIcon()),
                 -1);
     }
 
@@ -33530,8 +33539,8 @@ public final class QuestBookScreen extends ArmatureScreen
 
         int textX = x;
         ItemStack toDraw = task.shown();
-        net.minecraft.resources.ResourceLocation taskTexture = strings.texture();
-        net.minecraft.resources.ResourceLocation taskSprite = strings.sprite();
+        net.minecraft.resources.Identifier taskTexture = strings.texture();
+        net.minecraft.resources.Identifier taskSprite = strings.sprite();
         if (!task.filter().isEmpty() && taskTexture == null && taskSprite == null) {
             // A filter task cycles through what it names, one picture a second — the legacy cadence.
             // The author's texture or sprite still wins when set; an empty match list keeps the
@@ -33738,6 +33747,13 @@ public final class QuestBookScreen extends ArmatureScreen
         // claim-only — it carries no recipe target, so one press is never two answers — while
         // anything else keeps today's behaviour, recipes included.
         boolean claimable = strings.actionable();
+        // Whether this player already collected it: claimed rows wear their mark below and,
+        // like claimable ones, carry no recipe target. A collected reward is not an ingredient
+        // to look up, and a press on one must not open recipes for something already owned.
+        // The entry overload, not the id lookup: the lookup walks the whole tree, and this runs
+        // per reward row per frame (see ClientQuestCache#rewardClaimedBy for why both exist).
+        java.util.UUID self = selfId();
+        boolean claimed = self != null && ClientQuestCache.rewardClaimedBy(self, entry, index);
 
         int contentRight = x + ROW_ICON + 5 + r.textWidth(text);
         if (count != null) {
@@ -33749,15 +33765,26 @@ public final class QuestBookScreen extends ArmatureScreen
             // instead left the tag floating outside its own highlight.
             contentRight = Math.max(contentRight, x + slot.width());
         }
+        else if (claimed) {
+            // Claimed rows wear the fact the way locked rows wear theirs: right-aligned, in the
+            // dim ink, where the claim button used to be. The button is gone (nothing left to
+            // collect) and so is the recipe target above — a collected reward is looked at, not
+            // looked up.
+            contentRight = Math.max(contentRight, x + slot.width());
+        }
 
         // The row's own box rather than its slot: see `rowBox` for the six pixels of gap between them.
         // Registered exactly as the task row's is, one member over: the same box answers the hover and
         // carries the explanation.
         Slot row = rowBox(slot);
         // The row's target, from the same rule the task row uses: an item reward, and nothing for a
-        // reward with no item — and nothing at all while the row is claimable, when the press
-        // collects instead. Collected from the drawing pass, like the rowTooltips below.
-        RecipeLookups.Target target = claimable ? null : BookRowTargets.ofReward(reward);
+        // reward with no item — nothing while the row is claimable, when the press collects instead,
+        // and nothing once it is claimed, when there is nothing left to collect. An unclaimed row
+        // that is not claimable keeps its lookup: a locked reward is still something to identify.
+        // (In a viewer, reward icons never open recipes at all — see the adapters — because there
+        // a reward is display-only; here the row carries the conditions that explain the gate.)
+        // Collected from the drawing pass, like the rowTooltips below.
+        RecipeLookups.Target target = (claimable || claimed) ? null : BookRowTargets.ofReward(reward);
         if (target != null) {
             rowItems.add(new RowItem(row, target));
         }
@@ -33792,8 +33819,8 @@ public final class QuestBookScreen extends ArmatureScreen
 
         int textX = x;
         ItemStack toDraw = reward.shown();
-        net.minecraft.resources.ResourceLocation rewardTexture = strings.texture();
-        net.minecraft.resources.ResourceLocation rewardSprite = strings.sprite();
+        net.minecraft.resources.Identifier rewardTexture = strings.texture();
+        net.minecraft.resources.Identifier rewardSprite = strings.sprite();
         if (missingItem) {
             drawItemPlaceholder(r, x, y, ROW_ICON);
             textX = x + ROW_ICON + 5;
@@ -33821,6 +33848,9 @@ public final class QuestBookScreen extends ArmatureScreen
         if (locked) {
             r.text("locked", x + slot.width() - r.textWidth("locked"), textY, ArmatureTheme.blocked());
         }
+        else if (claimed) {
+            r.text("claimed", x + slot.width() - r.textWidth("claimed"), textY, ArmatureTheme.faint());
+        }
     }
 
     // ------------------------------------------------------------------
@@ -33847,7 +33877,7 @@ public final class QuestBookScreen extends ArmatureScreen
      *         the edges and the menus, and a held right press on a panel is neither.
      */
     private boolean startPanelPan(double mouseX, double mouseY, int button) {
-        if (button != 0 && button != 1) {
+        if (button != InputConstants.MOUSE_BUTTON_LEFT && button != InputConstants.MOUSE_BUTTON_RIGHT) {
             return false;
         }
         dragging = true;
@@ -33899,7 +33929,10 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
         // The intro's buttons first, and only they: a press on Skip, Next or the checkbox is the
         // tour's, while every other press — including the press on the + Chapter strip or the
         // canvas the tour is pointing at — falls through to the book untouched. Asked before the
@@ -33931,7 +33964,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // same rectangle for the description (its frame *is* its box), and asking the target is what
         // keeps a press on the border or a pixel out of the widget's own hit test from being read as a
         // press away from the field.
-        if (button == 0 && getFocused() instanceof net.minecraft.client.gui.components.AbstractWidget focused
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && getFocused() instanceof net.minecraft.client.gui.components.AbstractWidget focused
                 && !focused.isMouseOver(mouseX, mouseY) && !onOpenEditor(mouseX, mouseY)) {
             setFocused(null);
         }
@@ -33960,7 +33993,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // it unselects instead of just instantly moving my cursor"* -- the second click was being read as
         // a click off the field, so it committed and closed instead of putting the cursor in the word
         // that was clicked.
-        if (button == 0 && onOpenEditor(mouseX, mouseY) && moveOpenCaret(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && onOpenEditor(mouseX, mouseY) && moveOpenCaret(mouseX, mouseY)) {
             // And the drag that may follow this press belongs to the field: the same press, continued.
             fieldDrag = true;
             return true;
@@ -33982,7 +34015,7 @@ public final class QuestBookScreen extends ArmatureScreen
         //
         // Left button only, on the same terms as every other grip in this screen: the gesture is a drag and
         // a held page, and neither is a thing to hang off a right press.
-        PanelKind grab = button == 0 && !onPicker ? panelColumnAt(mouseX, mouseY) : null;
+        PanelKind grab = button == InputConstants.MOUSE_BUTTON_LEFT && !onPicker ? panelColumnAt(mouseX, mouseY) : null;
         if (grab != null && BookGeometry.panelHandle(panelRail(grab)).contains(mouseX, mouseY)) {
             BookGeometry.Rect rail = panelRail(grab);
             panelDragRail = rail;
@@ -34001,7 +34034,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // list back instead (claimed below, past the widget pass, so a rail row still wins it).
         //
         // Left button only, on the same terms as every other grip in this screen.
-        if (button == 0 && !onPicker && geometry().sidebarState().expanded()
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && !onPicker && geometry().sidebarState().expanded()
                 && sidebarSlideStart < 0
                 && BookGeometry.sidebarHandle(geometry().sidebar()).contains(mouseX, mouseY)) {
             sidebarDragRail = geometry().sidebar();
@@ -34066,7 +34099,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // A description's link, before anything else the panel does with a press: a link inside a panel
             // must not be read as a press on the panel. Opened on release, so a press that turns into a drag
             // is not a click.
-            if (button == 0 && on == PanelKind.QUEST && !mayEditNow()) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && on == PanelKind.QUEST && !mayEditNow()) {
                 for (LinkRect link : linkRects) {
                     if (link.box().contains(mouseX, mouseY)) {
                         pressedLink = link;
@@ -34080,7 +34113,7 @@ public final class QuestBookScreen extends ArmatureScreen
             boolean onDisband = disbandButton != null && disbandButton.isMouseOver(mouseX, mouseY);
             boolean onQuestDelete = questDeleteButton != null
                     && questDeleteButton.isMouseOver(mouseX, mouseY);
-            if (super.mouseClicked(mouseX, mouseY, button)) {
+            if (super.mouseClicked(event, doubleClick)) {
                 // One of the panel's own controls took it.
                 if (!onDisband) {
                     disarmDisband();
@@ -34102,7 +34135,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // A press anywhere else still falls through to the arms, so switching chips mid-picker and
             // dismissing it with a press outside both work as before.
             if (onPicker) {
-                colourPopover.mouseClicked(pickerPointerX(mouseX), mouseY, button);
+                colourPopover.mouseClicked(shiftedClick(pickerPointerX(mouseX), mouseY, event));
                 return true;
             }
 
@@ -34117,12 +34150,12 @@ public final class QuestBookScreen extends ArmatureScreen
             // The bars come first in every arm that has one, and before the tail, for the reason they always
             // did: a bar's grab band is deliberately wider than the three-pixel bar, so a press one pixel off
             // it has to drag the bar rather than start a pan.
-            if (on == PanelKind.PARTY && button == 0
+            if (on == PanelKind.PARTY && button == InputConstants.MOUSE_BUTTON_LEFT
                     && pressBar(partyScrollAt(mouseX).bar(), mouseX, mouseY)) {
                 return true;
             }
             if ((on == PanelKind.TABLE_BROWSER || on == PanelKind.TABLE_EDITOR
-                    || on == PanelKind.ASSETS) && button == 0) {
+                    || on == PanelKind.ASSETS) && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 ScrollBar panelBar = on == PanelKind.ASSETS ? assetsBar
                         : on == PanelKind.TABLE_BROWSER ? tableBrowserBar
                         : tableShowRoll ? rollBar : tableEditorBar;
@@ -34148,7 +34181,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     return true;
                 }
             }
-            else if (on == PanelKind.CHOICE && button == 0) {
+            else if (on == PanelKind.CHOICE && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The rows are drawn by this screen -- see `drawChoiceRow` -- so the press is what answers.
                 if (pressBar(choiceView.bar(), mouseX, mouseY)) {
                     return true;
@@ -34162,7 +34195,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     }
                 }
             }
-            else if (on == PanelKind.REWARDS && button == 0) {
+            else if (on == PanelKind.REWARDS && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // A header's body folds its rewards, and this is the press the strip's widget did not
                 // take -- so a click on Claim Quest can never also fold the row it belongs to. The rows'
                 // buttons are widgets and answer on release.
@@ -34179,7 +34212,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     return true;
                 }
             }
-            else if (on == PanelKind.TEXTURE && button == 0) {
+            else if (on == PanelKind.TEXTURE && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The list's bar before the rows: it is the one control here whose target is a pixel wide
                 // three times over, and a press aimed at it must not start a pan.
                 if (pressBar(textureBar, mouseX, mouseY)) {
@@ -34193,7 +34226,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     return true;
                 }
             }
-            else if (on == PanelKind.FILTER && button == 0) {
+            else if (on == PanelKind.FILTER && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The accepted-items list's bar before its rows, then the rows from the last
                 // frame's own drawing. A press that hits no row is not the panel's, so it reaches
                 // the tail and the canvas stays pannable from over the list's gaps.
@@ -34205,7 +34238,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     return true;
                 }
             }
-            else if ((on == PanelKind.QUEST || on == PanelKind.PICKER) && mayEditNow() && button == 0) {
+            else if ((on == PanelKind.QUEST || on == PanelKind.PICKER) && mayEditNow() && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The type page's bar, then its rows: it is the list on screen, and a press aimed at its
                 // grip is the list's rather than the page's.
                 if (typePageOpen()) {
@@ -34289,7 +34322,7 @@ public final class QuestBookScreen extends ArmatureScreen
                             // Shift on a prerequisite's name is the locate gesture, the same as the
                             // reader's rows: "do not open it, show me where it is". Scoped to this one
                             // target, so the steppers' shift meaning (ten at a time) is untouched.
-                            if (target.action() == EditAction.NAVIGATE_DEP && hasShiftDown()) {
+                            if (target.action() == EditAction.NAVIGATE_DEP && event.hasShiftDown()) {
                                 locateOnCanvas(target.path());
                                 return true;
                             }
@@ -34306,7 +34339,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     }
                 }
             }
-            else if (on == PanelKind.QUEST && !mayEditNow() && (button == 0 || button == 2)) {
+            else if (on == PanelKind.QUEST && !mayEditNow() && (button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_MIDDLE)) {
                 // The reader's panel: a press on a task's or reward's row opens the chosen viewer on that
                 // row's item (or tag) -- "how is this made", the direction the viewer pages do not cover.
                 // From the last frame's own list, so the row that lights up is the row that answers.
@@ -34315,45 +34348,45 @@ public final class QuestBookScreen extends ArmatureScreen
                 // that is not a detail: this arm serves the middle button too -- a middle press on a
                 // prerequisite row is the locate gesture -- so a bar that took any button would swallow the
                 // middle click that was aimed past it.
-                if (button == 0 && pressBar(overlayView.bar(), mouseX, mouseY)) {
+                if (button == InputConstants.MOUSE_BUTTON_LEFT && pressBar(overlayView.bar(), mouseX, mouseY)) {
                     return true;
                 }
                 // A prerequisite row is the panel's own navigation: a plain press opens that quest, and its
                 // locate icon -- or a middle-click or shift-click anywhere on the row -- takes the canvas to
                 // the node instead.
-                if (pressDependencyRow(mouseX, mouseY, button)) {
+                if (pressDependencyRow(mouseX, mouseY, button, event.hasShiftDown())) {
                     return true;
                 }
                 // The recipe-viewer rows answer the left press alone.
-                if (button == 0 && pressRowItem(mouseX, mouseY)) {
+                if (button == InputConstants.MOUSE_BUTTON_LEFT && pressRowItem(mouseX, mouseY)) {
                     return true;
                 }
                 // A filter row previews what it accepts in the second column, after the recipe
                 // rows: a filter row never carries a recipe target, so the two cannot claim one press.
-                if (button == 0 && pressFilterRow(mouseX, mouseY)) {
+                if (button == InputConstants.MOUSE_BUTTON_LEFT && pressFilterRow(mouseX, mouseY)) {
                     return true;
                 }
                 // A checkmark row hands in, after every other row press: it never carries a recipe
                 // target either, and it is registered only while the hand-in is offered, so this
                 // cannot steal a press something else answers.
-                if (button == 0 && pressCheckmarkRow(mouseX, mouseY)) {
+                if (button == InputConstants.MOUSE_BUTTON_LEFT && pressCheckmarkRow(mouseX, mouseY)) {
                     return true;
                 }
                 // A claimable reward row collects, after the checkmark's: it carries no recipe
                 // target while claimable, and it is registered only then, so this cannot steal
                 // a press something else answers either.
-                if (button == 0 && pressRewardClaimRow(mouseX, mouseY)) {
+                if (button == InputConstants.MOUSE_BUTTON_LEFT && pressRewardClaimRow(mouseX, mouseY)) {
                     return true;
                 }
             }
-            else if (on == PanelKind.SETTINGS && button == 0) {
+            else if (on == PanelKind.SETTINGS && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The player's own panel: its one control is a widget and the pass has already offered it
                 // the press, so what is left is the bar.
                 if (pressBar(appearanceView.bar(), mouseX, mouseY)) {
                     return true;
                 }
             }
-            else if (on == PanelKind.PINNED && button == 0) {
+            else if (on == PanelKind.PINNED && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The player's watchlist: the switch is a widget the pass has already offered, so what is
                 // left is the bar and the rows the panel draws itself -- a row opens its quest, its Unpin
                 // end lets go of it. Left only, like the element panel's: the canvas keeps the middle press.
@@ -34365,7 +34398,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     return true;
                 }
             }
-            else if (on == PanelKind.ELEMENT && button == 0) {
+            else if (on == PanelKind.ELEMENT && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The element's form: its rows are widgets and the pass has already offered them the press, so
                 // what is left is the bar -- a form of twenty rows on a rail shorter than they are, which is a
                 // bar somebody will try to drag -- and the chrome's own close chip. Left only, like the
@@ -34419,7 +34452,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // **The dock is exempt**, and it is the one exemption: it is a surface of controls rather than a
             // reading surface, its blank space has always swallowed a press, and its own branch below is where
             // its rows, chips and bar are answered.
-            if (on != null && on != PanelKind.TOOLS && (button == 0 || button == 1)) {
+            if (on != null && on != PanelKind.TOOLS && (button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_RIGHT)) {
                 if (startPanelPan(mouseX, mouseY, button)) {
                     return true;
                 }
@@ -34432,7 +34465,7 @@ public final class QuestBookScreen extends ArmatureScreen
         //
         // And the right-click that opens it. On a row or on the empty list, in edit mode only: the menu
         // is all structural edits, and a reader has none of them.
-        if (button == 1 && mayEditNow() && openSidebarMenuAt(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT && mayEditNow() && openSidebarMenuAt(mouseX, mouseY)) {
             return true;
         }
 
@@ -34463,7 +34496,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // confirm: a press on the armed row itself must not disarm it on the way in.
         boolean onCanvasCopy = canvasCopyButton != null
                 && canvasCopyButton.isMouseOver(mouseX, mouseY);
-        if (super.mouseClicked(mouseX, mouseY, button)) {
+        if (super.mouseClicked(event, doubleClick)) {
             if (!onCanvasCopy) {
                 disarmCanvasCopy();
             }
@@ -34477,7 +34510,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // left is its tracks and swatches -- and a press outside, which closes it and is consumed, so the
         // click that dismisses the picker never also acts on what was behind it.
         if (colourPopover.isOpen()) {
-            if (colourPopover.mouseClicked(pickerPointerX(mouseX), mouseY, button)) {
+            if (colourPopover.mouseClicked(shiftedClick(pickerPointerX(mouseX), mouseY, event))) {
                 return true;
             }
             closeColourPopover();
@@ -34579,7 +34612,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // author is aiming at, and that is still what happens here. It has to swallow rather than fall
             // through, because the dock floats *over* the canvas -- so a press that fell through would open
             // whatever node happens to be under it.
-            if (button == 0) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT) {
                 pressBar(toolsView.bar(), mouseX, mouseY);
             }
             return true;
@@ -34589,7 +34622,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // surface travels, so anything it caught would act a fraction of a second before the list
         // has visibly arrived. The wipe is 160 milliseconds; the press waits for it. Either end
         // of the travel absorbs — the rectangle the wipe left from as well as the one it lands on.
-        long sidebarSlideNow = net.minecraft.Util.getMillis();
+        long sidebarSlideNow = net.minecraft.util.Util.getMillis();
         if (sidebarSlideStart >= 0 && sidebarSlideFromRect != null
                 && sidebarSliding(sidebarSlideNow)
                 && (sidebarSlideFromRect.contains(mouseX, mouseY)
@@ -34601,7 +34634,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // of tab. Past the widget pass on purpose, so a row still wins its own press where rows
         // exist; what reaches here touched no row. Left and right both expand — a right press that
         // opened a menu for a sliver with no rows would be a menu about nothing.
-        if ((button == 0 || button == 1) && geometry().sidebarState().collapsed() && !sidebarPeeking
+        if ((button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_RIGHT) && geometry().sidebarState().collapsed() && !sidebarPeeking
                 && geometry().sidebar().contains(mouseX, mouseY)) {
             setSidebarCollapsed(false);
             return true;
@@ -34612,7 +34645,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // the rows live below the header band, so nothing up here answers first. Left button
         // only, like every grip: pinning is not a thing to hang off a right press. Peeked counts:
         // pinning the preview keeps it, now held open.
-        if (button == 0 && geometry().sidebarState().floating()
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && geometry().sidebarState().floating()
                 && geometry().sidebarState().expanded()
                 && geometry().sidebarBoxPin().contains(mouseX, mouseY)) {
             toggleSidebarPinned();
@@ -34627,7 +34660,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // No guard: the sidebar is drawn and answering in every arrangement, beside a rail or with nothing
         // open, so its bar takes a press in all of them. The guard that used to stand here asked whether a
         // modal was up, and with one presentation the answer is always no.
-        if (button == 0 && pressBar(sidebarView.bar(), mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && pressBar(sidebarView.bar(), mouseX, mouseY)) {
             return true;
         }
 
@@ -34647,7 +34680,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // the list's own rectangle — reaches here. A press on the list's empty padding is the list's:
         // reading it as blank space would slide the panel away from under the hand that just opened
         // it, which is the fault the panel's own `!panelPress` guard exists for.
-        if ((button == 0 || button == 1 || button == 2) && inCanvas(mouseX, mouseY)
+        if ((button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_MIDDLE || button == InputConstants.MOUSE_BUTTON_RIGHT) && inCanvas(mouseX, mouseY)
                 && !geometry().sidebar().contains(mouseX, mouseY)
                 && (sidebarPeeking
                         || (DevMode.isSidebarFloating() && !DevMode.isSidebarCollapsed()
@@ -34679,14 +34712,14 @@ public final class QuestBookScreen extends ArmatureScreen
         // Left, right or middle on the canvas. Left is the selection's and the drag's; middle pans;
         // right is the edge's. The modifiers are read here, at the press, and remembered -- one rule
         // for every gesture, so letting go of a key a moment early cannot change what a press meant.
-        if ((button == 0 || button == 1 || button == 2) && inCanvas(mouseX, mouseY)) {
-            dragging = button != 1;
+        if ((button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_MIDDLE || button == InputConstants.MOUSE_BUTTON_RIGHT) && inCanvas(mouseX, mouseY)) {
+            dragging = button != InputConstants.MOUSE_BUTTON_RIGHT;
             pressMoved = false;
             pressX = mouseX;
             pressY = mouseY;
-            pressedShift = Screen.hasShiftDown();
-            pressedCtrl = Screen.hasControlDown();
-            pressedAlt = Screen.hasAltDown();
+            pressedShift = event.hasShiftDown();
+            pressedCtrl = event.hasControlDown();
+            pressedAlt = event.hasAltDown();
             panContentX = viewport().contentX(mouseX);
             panContentY = viewport().contentY(mouseY);
             // A pan is the hand taking the camera: a glide still in flight must not fight it.
@@ -34707,7 +34740,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
             // A left press on a curve's handle is the handle's: claimed before the node and the pan, so
             // bending a line cannot also pick a node up or start a marquee.
-            if (button == 0 && mayEditNow()) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && mayEditNow()) {
                 String[] bend = handleAt(mouseX, mouseY);
                 if (bend != null) {
                     bendDragFrom = bend[0];
@@ -34761,7 +34794,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
             // Middle-drag is a pan and never a click, so forget the node immediately. Otherwise a
             // middle-click that happens not to move would select whatever it landed on.
-            if (button == 2) {
+            if (button == InputConstants.MOUSE_BUTTON_MIDDLE) {
                 pressedNode = null;
                 pressedQuestLink = null;
             }
@@ -34769,7 +34802,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // Right claims the press for the edge gesture, on a node with an editor open. Anywhere else
             // it is remembered for the release, which decides between the canvas's menus: a right-press
             // that travels is an edge (or nothing, on empty canvas), and one that does not is a menu.
-            if (button == 1) {
+            if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
                 canvasRightPressed = true;
                 if (under != null && mayEditNow()) {
                     edgeDragFrom = under.id();
@@ -34787,7 +34820,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // The press is only the first of the four phases -- press, threshold, follow, release. The
             // node is claimed here but does not follow yet: that starts when the pointer has moved
             // further than a click's jitter, and until then this could still be a click.
-            if (button == 0 && under != null && mayEditNow()) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && under != null && mayEditNow()) {
                 if (pickingDependency) {
                     // **While a pick is armed a press on a node is about the pair, not the node.** It
                     // claims nothing: no drag starts, the selection does not move, and the release lands
@@ -34833,7 +34866,7 @@ public final class QuestBookScreen extends ArmatureScreen
             //
             // Only the selected element's grips are live, so an invisible grip on an unselected element cannot
             // be grabbed by accident.
-            if (button == 0 && mayEditNow() && selectedElement != null) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && mayEditNow() && selectedElement != null) {
                 ElementSlot slot = elementSlot(selectedElement);
                 CanvasElementArt.Handle handle = slot == null ? null
                         : CanvasElementArt.handleAt(slot.element(), slot.box(), mouseX, mouseY);
@@ -34860,7 +34893,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // press so a drag can start from it, with click-versus-drag left to the release. Edit mode only:
             // in play mode a press on a pressable element is its click action and nothing else, and a
             // decoration that could be dragged by a player would be a decoration that moved under them.
-            if (button == 0 && mayEditNow() && pressedElement != null) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && mayEditNow() && pressedElement != null) {
                 CanvasElement held = elementNow(pressedElement);
                 if (held != null) {
                     elementDragging = pressedElement;
@@ -34882,7 +34915,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // Edit mode only: in play mode a press on a marker is its shortcut and nothing else, and a
             // marker that could be dragged by a player would be a shortcut that moved under them. A link
             // has no grips, so the body is the whole of it and the gesture is always a move.
-            if (button == 0 && mayEditNow() && pressedQuestLink != null) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && mayEditNow() && pressedQuestLink != null) {
                 QuestLink held = linkNow(pressedQuestLink);
                 if (held != null) {
                     linkDragging = pressedQuestLink;
@@ -34901,7 +34934,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // left-drag on the canvas is the pan -- in both modes, which is the rule this round bought:
             // navigation does not change with a mode. Ctrl+A and shift-click already collect, so the
             // marquee is the third way to say "add these", and it says it with the same modifier.
-            if (button == 0 && under == null && pressedElement == null && mayEditNow() && pressedShift) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && under == null && pressedElement == null && mayEditNow() && pressedShift) {
                 marqueeActive = true;
                 marqueeX0 = (int) mouseX;
                 marqueeY0 = (int) mouseY;
@@ -34992,7 +35025,10 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event, double dragX, double dragY) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
         // A resize in flight, and it is the whole of what a drag can mean while one is: the column's inner
         // edge follows the pointer, and the chrome, the content **and the controls** all follow it.
         //
@@ -35039,14 +35075,13 @@ public final class QuestBookScreen extends ArmatureScreen
         // A field's label drag is the screen's, because a label is not a widget: the press armed it and
         // this keeps feeding the same field until the release commits it.
         if (labelScrub != null && labelScrub.labelDragged(mouseX, mouseY,
-                net.minecraft.client.gui.screens.Screen.hasShiftDown(),
-                net.minecraft.client.gui.screens.Screen.hasControlDown()
-                        || net.minecraft.client.gui.screens.Screen.hasAltDown())) {
+                event.hasShiftDown(),
+                event.hasControlDown() || event.hasAltDown())) {
             return true;
         }
         // The picker's tracks, before anything behind it: a drag on the hue strip is the picker's, and a
         // drag in one of its fields falls through to the widget pass below.
-        if (colourPopover.mouseDragged(pickerPointerX(mouseX), mouseY, button)) {
+        if (colourPopover.mouseDragged(shiftedClick(pickerPointerX(mouseX), mouseY, event))) {
             return true;
         }
         // The curve handle's follow. The bow is recomputed from the pointer rather than accumulated, so
@@ -35112,10 +35147,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // gesture came from play -- *"allow selecting as well, like dragging the cursor in text fields"*.
         if (fieldDrag) {
             if (inlineArea != null) {
-                inlineArea.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+                inlineArea.mouseDragged(shiftedClick(mouseX, mouseY, event), dragX, dragY);
             }
             else if (inlineField != null) {
-                inlineField.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+                inlineField.mouseDragged(shiftedClick(mouseX, mouseY, event), dragX, dragY);
             }
             return true;
         }
@@ -35316,11 +35351,14 @@ public final class QuestBookScreen extends ArmatureScreen
             viewport().dragTo(mouseX, mouseY, panContentX, panContentY);
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        return super.mouseDragged(event, dragX, dragY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
         // A resize ends here: the width is written, the live override is dropped, and the rail's controls
         // are rebuilt at the width the hand chose. Written once rather than per frame, so the file and the
         // picture cannot disagree about how wide the rail is -- which is the one thing a live override could
@@ -35359,7 +35397,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         // A picker track's release writes once, if the drag changed anything; a release in one of the
         // picker's fields falls through to the widget pass.
-        if (colourPopover.mouseReleased(pickerPointerX(mouseX), mouseY, button)) {
+        if (colourPopover.mouseReleased(shiftedClick(pickerPointerX(mouseX), mouseY, event))) {
             return true;
         }
         // A slider's release: the one commit for the whole drag. Read and cleared before anything else
@@ -35417,7 +35455,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // A link the press landed on, let go on the same rectangle: that is the click it was waiting for.
         LinkRect link = pressedLink;
         pressedLink = null;
-        if (button == 0 && link != null) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && link != null) {
             if (link.box().contains(mouseX, mouseY)) {
                 if (!link.url().isEmpty()) {
                     openLink(link.url());
@@ -35518,7 +35556,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // A right-press on empty canvas never arms an edge, so its release arrives here: a menu for the
         // canvas if the pointer stayed put, and nothing at all if it travelled — a right-drag on empty
         // canvas is not a pan, and it is not a menu either.
-        if (button == 1 && canvasRightPressed) {
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT && canvasRightPressed) {
             canvasRightPressed = false;
             if (!pressMoved) {
                 openCanvasMenuAt(mouseX, mouseY);
@@ -35653,7 +35691,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // Before the node's branch rather than after it, because the two cannot both be under the pointer:
             // `pressedElement` is only set when no node was. And on release rather than on press, for the same
             // reason a node's is: a press that travelled is a pan, and a pan must not select or open anything.
-            if (!pressMoved && pressedElement != null && button == 0) {
+            if (!pressMoved && pressedElement != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 if (mayEditNow()) {
                     // **One click does both jobs**: it selects the element -- which is what puts the ring and
                     // the grips on it -- and it opens the panel that edits it, exactly as a node click selects
@@ -35686,7 +35724,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // Before the node's branch for the same reason the element's is: at most one of the three
             // is ever claimed, so the order is documentation rather than arbitration -- and the pick
             // order is the draw order read backwards, which is what makes a click open what was on top.
-            if (!pressMoved && pressedQuestLink != null && button == 0) {
+            if (!pressMoved && pressedQuestLink != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 LinkSlot slot = linkSlot(pressedQuestLink);
                 pressedQuestLink = null;
                 if (slot == null) {
@@ -35720,7 +35758,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
             // A press that never moved is a click. Selecting on release rather than on press is what
             // makes "hold to pan" and "click to select" one gesture.
-            if (!pressMoved && pressedNode != null && button == 0) {
+            if (!pressMoved && pressedNode != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // A link-target pick in flight names this quest: only a node click lands one, because
                 // only quests resolve -- a click on another marker would name a shortcut, and the file
                 // wants the quest it stands in for.
@@ -35764,7 +35802,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 openOverlay(pressedNode);
                 return true;
             }
-            if (!pressMoved && button == 0 && !panelPress) {
+            if (!pressMoved && button == InputConstants.MOUSE_BUTTON_LEFT && !panelPress) {
                 // A click on the empty canvas unselects everything -- the primary too, not only the
                 // multi-selection: "press blank space to let go" is one gesture and not two. And the element
                 // selection with it, because "everything" is what the sentence says: a decoration left
@@ -35799,7 +35837,7 @@ public final class QuestBookScreen extends ArmatureScreen
             pressedQuestLink = null;
             return true;
         }
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(event);
     }
 
     @Override
@@ -36018,7 +36056,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // A wipe in flight absorbs the wheel over it: the rows are travelling and the viewport
         // already answers for its target, so a notch now would scroll a list that is not where it
         // is drawn. The wipe is 160 milliseconds; the wheel waits for it.
-        long sidebarWheelNow = net.minecraft.Util.getMillis();
+        long sidebarWheelNow = net.minecraft.util.Util.getMillis();
         if (sidebarDeparting && sidebarSliding(sidebarWheelNow)
                 && sidebarWipeRect(sidebarWheelNow).contains(mouseX, mouseY)) {
             return true;
@@ -36073,8 +36111,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * widget is not the storage.
      */
     @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        boolean handled = super.charTyped(codePoint, modifiers);
+    public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
+        boolean handled = super.charTyped(event);
         if (!handled) {
             return false;
         }
@@ -36095,11 +36133,14 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
+        // The int the rest of this method reads: the SDL scancode side, matching the
+        // `InputConstants.KEY_*` constants below (GLFW codes are not SDL scancodes).
+        int keyCode = event.key();
         // **Any other key means "no".** An armed delete names a selection, and a key pressed between the
         // two is the author having moved on: the same "any other press disarms" rule the menus follow.
         // Delete and Backspace are the pair `ArmedDelete` owns, so they are left to answer for themselves.
-        if (keyCode != GLFW.GLFW_KEY_DELETE && keyCode != GLFW.GLFW_KEY_BACKSPACE) {
+        if (keyCode != InputConstants.KEY_DELETE && keyCode != InputConstants.KEY_BACKSPACE) {
             armedDelete.disarm();
         }
         // **The dropdown first, on the press's own rule.** A menu is the innermost thing on screen while it
@@ -36108,7 +36149,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // branches, so with a menu opened over the table editor, Escape took the panel away and left the
         // menu standing over a card that no longer existed. See `pressDropdown` for the press's half of the
         // same rule, and `.utils/check_dropdowns.py` for the guard that holds the two halves together.
-        if (!menu.isEmpty() && keyCode == GLFW.GLFW_KEY_ESCAPE) {
+        if (!menu.isEmpty() && keyCode == InputConstants.KEY_ESCAPE) {
             closeMenu();
             return true;
         }
@@ -36116,7 +36157,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // went in: the roll report first, then one table back, then the panel. A field left focused is
         // blurred by the rebuild that follows, and a blur is a commit -- so a half-typed title is kept
         // rather than dropped, which is the same rule the card's inline editor follows.
-        if (overlay == PanelKind.TABLE_EDITOR && keyCode == GLFW.GLFW_KEY_ESCAPE) {
+        if (overlay == PanelKind.TABLE_EDITOR && keyCode == InputConstants.KEY_ESCAPE) {
             // The innermost thing on screen answers first, in the order the author went in: the picker
             // page, then the roll report, then one table back, then the panel. The picker page had no
             // case here at all, so Escape closed the panel and left the picker armed -- which is how a
@@ -36134,7 +36175,7 @@ public final class QuestBookScreen extends ArmatureScreen
             popTableEditor();
             return true;
         }
-        if (overlay == PanelKind.TABLE_BROWSER && keyCode == GLFW.GLFW_KEY_ESCAPE) {
+        if (overlay == PanelKind.TABLE_BROWSER && keyCode == InputConstants.KEY_ESCAPE) {
             // Rebuild, for the same reason the outside press does: closing nulls the panel's fields
             // while its redraws and its footer buttons live until the next rebuild -- which left the
             // browser's own buttons drawn over the card and still taking presses, aimed at a reward that
@@ -36143,7 +36184,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return true;
         }
         if (overlay == PanelKind.ASSETS) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            if (keyCode == InputConstants.KEY_ESCAPE) {
                 // Escape and the footer's Done are one act, which is the rule every other card follows.
                 closeOverlay();
                 return true;
@@ -36151,28 +36192,35 @@ public final class QuestBookScreen extends ArmatureScreen
             // The wheel's three keys, for the reader who never reaches for the mouse: the two arrows and
             // the page's own bounds. The arrows are one row and the page keys are one screen less that
             // row, which is the same pair the bar's own page-step uses -- so a page by key and a page by
-            // groove land in the same place.
-            int step = switch (keyCode) {
-                case GLFW.GLFW_KEY_DOWN -> dev.ellipog.tenet.client.dev.AssetsLayout.ROW_HEIGHT;
-                case GLFW.GLFW_KEY_UP -> -dev.ellipog.tenet.client.dev.AssetsLayout.ROW_HEIGHT;
-                // The bar's own page, not the band's whole height: one screen less the row that carries
-                // over is what a page means everywhere else in this screen, and a key that landed
-                // somewhere a groove press would not is two answers to one question.
-                case GLFW.GLFW_KEY_PAGE_DOWN -> assetsBar.pageStep();
-                case GLFW.GLFW_KEY_PAGE_UP -> -assetsBar.pageStep();
-                default -> 0;
-            };
+            // groove land in the same place. (An if-chain rather than a switch: the SDL constants are
+            // not compile-time constants, so they cannot be case labels.)
+            int step = 0;
+            if (keyCode == InputConstants.KEY_DOWN) {
+                step = dev.ellipog.tenet.client.dev.AssetsLayout.ROW_HEIGHT;
+            }
+            else if (keyCode == InputConstants.KEY_UP) {
+                step = -dev.ellipog.tenet.client.dev.AssetsLayout.ROW_HEIGHT;
+            }
+            // The bar's own page, not the band's whole height: one screen less the row that carries
+            // over is what a page means everywhere else in this screen, and a key that landed
+            // somewhere a groove press would not is two answers to one question.
+            else if (keyCode == InputConstants.KEY_PAGEDOWN) {
+                step = assetsBar.pageStep();
+            }
+            else if (keyCode == InputConstants.KEY_PAGEUP) {
+                step = -assetsBar.pageStep();
+            }
             if (step != 0) {
                 assetsBody.setScrollY(assetsBody.scrollY() + step);
                 return true;
             }
-            return super.keyPressed(keyCode, scanCode, modifiers);
+            return super.keyPressed(event);
         }
         // Ctrl+T opens the pack's panel: one chord per act, the way Ctrl+Z undoes and Ctrl+S reports that
         // there is nothing left to save. Only with nothing focused, so it cannot fire while a field is
         // being typed into — and never while previewing, where the Assets panel has no button and the
         // chord would open a surface the preview says is not there.
-        if (overlay == PanelKind.NONE && keyCode == GLFW.GLFW_KEY_T && Screen.hasControlDown()
+        if (overlay == PanelKind.NONE && keyCode == InputConstants.KEY_T && event.hasControlDown()
                 && getFocused() == null && mayEdit() && !previewing()) {
             openAssets();
             return true;
@@ -36186,19 +36234,19 @@ public final class QuestBookScreen extends ArmatureScreen
         // Nor under an open menu or picker: the list would travel behind the very press the menu is
         // waiting for. Both no-op where they cannot apply — docked, or pinned for B — so the keys are
         // acceleration that never surprises rather than the only road.
-        if (getFocused() == null && !Screen.hasControlDown() && !Screen.hasAltDown()
-                && keyCode == GLFW.GLFW_KEY_B && overlay != PanelKind.NAMING && !typePageOpen()
+        if (getFocused() == null && !event.hasControlDown() && !event.hasAltDown()
+                && keyCode == InputConstants.KEY_B && overlay != PanelKind.NAMING && !typePageOpen()
                 && pickingItemPath == null && menu.isEmpty() && !colourPopover.isOpen()) {
             toggleSidebarCollapsed();
             return true;
         }
-        if (getFocused() == null && Screen.hasControlDown() && !Screen.hasAltDown()
-                && keyCode == GLFW.GLFW_KEY_B) {
+        if (getFocused() == null && event.hasControlDown() && !event.hasAltDown()
+                && keyCode == InputConstants.KEY_B) {
             toggleSidebarPinned();
             return true;
         }
-        if (overlay == PanelKind.TABLE_BROWSER && (keyCode == GLFW.GLFW_KEY_ENTER
-                || keyCode == GLFW.GLFW_KEY_KP_ENTER)) {
+        if (overlay == PanelKind.TABLE_BROWSER && (keyCode == InputConstants.KEY_RETURN
+                || keyCode == InputConstants.KEY_NUMPADENTER)) {
             // Enter on the browser takes the row the keyboard is on: the same rule the item picker's
             // Enter has, so the two lists are driven the same way.
             pressTableBrowserRow(tableSelected);
@@ -36208,8 +36256,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // nothing could keep: the selection starts at -1 and only a press changed it, so Enter was a key
         // that did nothing until the pointer had already done the work.
         if (overlay == PanelKind.TABLE_BROWSER
-                && (keyCode == GLFW.GLFW_KEY_UP || keyCode == GLFW.GLFW_KEY_DOWN)) {
-            stepTableBrowser(keyCode == GLFW.GLFW_KEY_DOWN ? 1 : -1);
+                && (keyCode == InputConstants.KEY_UP || keyCode == InputConstants.KEY_DOWN)) {
+            stepTableBrowser(keyCode == InputConstants.KEY_DOWN ? 1 : -1);
             return true;
         }
         // The editor's undo and redo, read *before* the focus gate further down. `keysForEditor` is only
@@ -36218,12 +36266,12 @@ public final class QuestBookScreen extends ArmatureScreen
         // an author has just made. So Ctrl+Z did nothing on exactly the table where a mistake is most
         // likely, and the field it went to has no undo of its own. These are the panel's keys, like its
         // Escape branches above, not the focused field's.
-        if (overlay == PanelKind.TABLE_EDITOR && Screen.hasControlDown()) {
-            if (keyCode == GLFW.GLFW_KEY_Z) {
+        if (overlay == PanelKind.TABLE_EDITOR && event.hasControlDown()) {
+            if (keyCode == InputConstants.KEY_Z) {
                 tableUndo();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_Y) {
+            if (keyCode == InputConstants.KEY_Y) {
                 tableRedo();
                 return true;
             }
@@ -36231,11 +36279,11 @@ public final class QuestBookScreen extends ArmatureScreen
         // The naming card's own keys, read before anything else: Enter is the button the card is for,        // and Escape abandons it without touching a file. Handing Enter to the field would blur it,
         // which is not what a form's Enter means.
         if (overlay == PanelKind.NAMING) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            if (keyCode == InputConstants.KEY_ESCAPE) {
                 closeNaming();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
                 submitNaming();
                 return true;
             }
@@ -36245,18 +36293,18 @@ public final class QuestBookScreen extends ArmatureScreen
         // of its fields holds the keyboard. Anywhere else Enter still means what the focused
         // control says it means.
         if (inlineEdit != null && (getFocused() == inlineTitle || getFocused() == inlineId)) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            if (keyCode == InputConstants.KEY_ESCAPE) {
                 cancelInline();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
                 commitInline();
                 return true;
             }
         }
         // F2 renames the selected chapter where it stands. Groups rename from their menu: they
         // are never the selection, so there is nothing for the key to name.
-        if (keyCode == GLFW.GLFW_KEY_F2 && inlineEdit == null && mayEditNow()
+        if (keyCode == InputConstants.KEY_F2 && inlineEdit == null && mayEditNow()
                 && effectiveChapter() != null) {
             startInlineRename("chapter", effectiveChapter());
             return true;
@@ -36269,29 +36317,29 @@ public final class QuestBookScreen extends ArmatureScreen
         // adds the selected row, the arrows walk it, and Escape leaves the page rather than the card
         // (`leaveCardPage` is what the footer's Back runs, so the key and the button are one act).
         if (typePageOpen()) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            if (keyCode == InputConstants.KEY_ESCAPE) {
                 leaveTypePage();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
                 String chosen = selectedType();
                 if (chosen != null) {
                     pressTypeRow(chosen);
                 }
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_UP) {
+            if (keyCode == InputConstants.KEY_UP) {
                 typeSelected = ItemPickerLayout.step(typeRows, typeSelected, -1);
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_DOWN) {
+            if (keyCode == InputConstants.KEY_DOWN) {
                 typeSelected = ItemPickerLayout.step(typeRows, typeSelected, 1);
                 return true;
             }
         }
 
         if (pickingItemPath != null) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            if (keyCode == InputConstants.KEY_ESCAPE) {
                 if (tablePickReturn) {
                     closeTablePick();
                     return true;
@@ -36300,11 +36348,11 @@ public final class QuestBookScreen extends ArmatureScreen
                 rebuildWidgets();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
                 commitFromPicker();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_UP) {
+            if (keyCode == InputConstants.KEY_UP) {
                 // The file tab walks its own rows: the keyboard's row is always the list on
                 // screen, and the item list behind this tab is not.
                 if (pickerTabsVisible() && pickerKind == PickerKind.FILE) {
@@ -36315,7 +36363,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 }
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_DOWN) {
+            if (keyCode == InputConstants.KEY_DOWN) {
                 if (pickerTabsVisible() && pickerKind == PickerKind.FILE) {
                     textureSelected = ItemPickerLayout.step(textureRows, textureSelected, 1);
                 }
@@ -36331,19 +36379,19 @@ public final class QuestBookScreen extends ArmatureScreen
         // was, and the arrows walk the list. Handing Enter or Escape to the search box would blur or
         // submit it, and neither is what a form's key means while a list is open.
         if (overlay == PanelKind.TEXTURE) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            if (keyCode == InputConstants.KEY_ESCAPE) {
                 closeTexturePicker();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
                 commitFromTexturePicker();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_UP) {
+            if (keyCode == InputConstants.KEY_UP) {
                 textureSelected = ItemPickerLayout.step(textureRows, textureSelected, -1);
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_DOWN) {
+            if (keyCode == InputConstants.KEY_DOWN) {
                 textureSelected = ItemPickerLayout.step(textureRows, textureSelected, 1);
                 return true;
             }
@@ -36364,10 +36412,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // committing on the way out -- rather than being answered by nobody. The `visible` test below is
         // that case, and it is why this runs before everything else: a field with the keyboard is the one
         // thing that outranks the key's other meanings.
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE
+        if (keyCode == InputConstants.KEY_ESCAPE
                 && getFocused() instanceof net.minecraft.client.gui.components.AbstractWidget focused
                 && focused.visible) {
-            boolean handled = focused.keyPressed(keyCode, scanCode, modifiers);
+            boolean handled = focused.keyPressed(event);
             if (!focused.isFocused()) {
                 // The widget blurred itself, and the screen's own focus pointer would otherwise stay on
                 // it: a widget that is not focused refuses `charTyped`, so the field read as dead until
@@ -36387,7 +36435,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // The colour picker's Escape, after the focused field's: a field with the keyboard answers first
         // (a scrub field puts its value back), and the next Escape closes the picker and writes whatever
         // its last gesture left unwritten.
-        if (colourPopover.isOpen() && keyCode == GLFW.GLFW_KEY_ESCAPE) {
+        if (colourPopover.isOpen() && keyCode == InputConstants.KEY_ESCAPE) {
             closeColourPopover();
             rebuildWidgets();
             return true;
@@ -36398,7 +36446,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // and the crosshair cannot disagree. Shift is the ten-step. Read before the canvas focus below,
         // which would otherwise walk the nodes while a picker is open over them.
         if (colourPopover.isOpen()
-                && colourPopover.keyPressed(keyCode, Screen.hasShiftDown())) {
+                && colourPopover.keyPressed(keyCode, event.hasShiftDown())) {
             return true;
         }
 
@@ -36406,7 +36454,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // inside the overlay branch below: the author who armed it has no overlay to close, and before
         // this was outside the guard Escape fell through to the screen's own handler and closed the whole
         // book. The field comment said "Escape cancels" and the code could not reach the branch that did.
-        if (pickingDependency && keyCode == GLFW.GLFW_KEY_ESCAPE) {
+        if (pickingDependency && keyCode == InputConstants.KEY_ESCAPE) {
             pickingDependency = false;
             dev.ellipog.tenet.client.dev.DependencyPick pick = pendingPick;
             pendingPick = null;
@@ -36418,7 +36466,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         // And a link-target pick is cancelled the same way: Escape forgets the armed link, and the tab
         // goes back to showing its fields rather than waiting for a click that will never land.
-        if (pendingLinkPick != null && keyCode == GLFW.GLFW_KEY_ESCAPE) {
+        if (pendingLinkPick != null && keyCode == InputConstants.KEY_ESCAPE) {
             pendingLinkPick = null;
             status("tenet.status.add_cancelled", false);
             rebuildWidgets();
@@ -36439,7 +36487,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // the book -- so an author with their tools open pressed Escape and lost the whole book. It is a rail
         // like any other, it is put away by the thing that names it, and a second Escape then closes the
         // book, which is the pair every other arrangement already had.
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE && getFocused() == null) {
+        if (keyCode == InputConstants.KEY_ESCAPE && getFocused() == null) {
             if (sidebarPeeking) {
                 setSidebarPeeking(false);
                 return true;
@@ -36450,7 +36498,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 return true;
             }
         }
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE
+        if (keyCode == InputConstants.KEY_ESCAPE
                 && (overlay != PanelKind.NONE || overlay2 != PanelKind.NONE || dockOpen)) {
             // **Outermost first.** With a child rail open, the first press peels it -- the thing the player
             // was in -- and only the next one closes the panel they opened. That is what "one press, one
@@ -36499,11 +36547,11 @@ public final class QuestBookScreen extends ArmatureScreen
         // its Ctrl+A is a selection; a screen that answered those with "delete the selected quest" and
         // "select every quest" would make typing in the editor a trap. Escape still reaches the card
         // above, and closing the card submits the focused field on the way out.
-        if (mayEditNow() && getFocused() == null && keysForEditor(keyCode)) {
+        if (mayEditNow() && getFocused() == null && keysForEditor(event)) {
             return true;
         }
 
-        boolean handled = super.keyPressed(keyCode, scanCode, modifiers);
+        boolean handled = super.keyPressed(event);
         // A widget that ended its own edit (Enter in a text field blurs it and commits) leaves the
         // screen's focus pointer on it -- `AbstractWidget` and the container's focus are two flags, and
         // only the container's is what input is routed by. Clearing it here is what makes the *next*
@@ -36520,8 +36568,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // them by returning false: a focused field's Backspace is a character and its Ctrl+A is a
         // selection, so the destructive chords stay behind the no-focus guard above. A text field
         // consumes Z and Y itself and keeps that meaning -- see `ArmatureTextField`.
-        if (!handled && getFocused() != null && mayEditNow() && unclaimedEditorChord(keyCode)
-                && keysForEditor(keyCode)) {
+        if (!handled && getFocused() != null && mayEditNow() && unclaimedEditorChord(keyCode, event.hasControlDown())
+                && keysForEditor(event)) {
             return true;
         }
         return handled;
@@ -36534,18 +36582,19 @@ public final class QuestBookScreen extends ArmatureScreen
      * could be about to use for something of its own, and a screen that deleted a selection because a
      * number field had the keyboard would be the trap the guard above exists to prevent.
      */
-    private static boolean unclaimedEditorChord(int keyCode) {
-        if (!Screen.hasControlDown()) {
+    private static boolean unclaimedEditorChord(int keyCode, boolean ctrl) {
+        if (!ctrl) {
             return false;
         }
-        return keyCode == GLFW.GLFW_KEY_Z || keyCode == GLFW.GLFW_KEY_Y || keyCode == GLFW.GLFW_KEY_S;
+        return keyCode == InputConstants.KEY_Z || keyCode == InputConstants.KEY_Y || keyCode == InputConstants.KEY_S;
     }
 
     /** @return whether the key was one of the editor's, and was handled */
-    private boolean keysForEditor(int keyCode) {
-        boolean ctrl = Screen.hasControlDown();
+    private boolean keysForEditor(net.minecraft.client.input.KeyEvent event) {
+        int keyCode = event.key();
+        boolean ctrl = event.hasControlDown();
 
-        if (ctrl && keyCode == GLFW.GLFW_KEY_S) {
+        if (ctrl && keyCode == InputConstants.KEY_S) {
             // Nothing to save, and that is the design rather than an omission: every edit is an operation the
             // server validates and writes as it is made, so there is no unsaved state for this key to reach.
             // Said out loud rather than ignored, because Ctrl+S is the key a person presses when a panel full
@@ -36553,12 +36602,12 @@ public final class QuestBookScreen extends ArmatureScreen
             authorReport("Every edit is saved as it is made");
             return true;
         }
-        if (ctrl && keyCode == GLFW.GLFW_KEY_Z) {
+        if (ctrl && keyCode == InputConstants.KEY_Z) {
             // The table editor's undo is its own frame's: the file it is showing, and no further back
             // than the table the author opened. See `tableApplied` for why that floor exists. Shift is
             // the redo half here as well, which is the pair every editor has.
             if (overlay == PanelKind.TABLE_EDITOR) {
-                if (Screen.hasShiftDown()) {
+                if (event.hasShiftDown()) {
                     tableRedo();
                 }
                 else {
@@ -36566,7 +36615,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 }
                 return true;
             }
-            if (Screen.hasShiftDown()) {
+            if (event.hasShiftDown()) {
                 redoEdit();
             }
             else {
@@ -36574,7 +36623,7 @@ public final class QuestBookScreen extends ArmatureScreen
             }
             return true;
         }
-        if (ctrl && keyCode == GLFW.GLFW_KEY_Y) {
+        if (ctrl && keyCode == InputConstants.KEY_Y) {
             if (overlay == PanelKind.TABLE_EDITOR) {
                 tableRedo();
                 return true;
@@ -36584,37 +36633,37 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         // The shifted pair, read before the plain keys below: `Ctrl+N` is a new *quest*, and on the same
         // key the shift is the difference between "a node in this chapter" and "a chapter in this book".
-        if (ctrl && Screen.hasShiftDown() && keyCode == GLFW.GLFW_KEY_N) {
+        if (ctrl && event.hasShiftDown() && keyCode == InputConstants.KEY_N) {
             newChapterFromToolbar();
             return true;
         }
-        if (ctrl && Screen.hasShiftDown() && keyCode == GLFW.GLFW_KEY_G) {
+        if (ctrl && event.hasShiftDown() && keyCode == InputConstants.KEY_G) {
             newGroupFromToolbar();
             return true;
         }
-        if (ctrl && keyCode == GLFW.GLFW_KEY_N) {
+        if (ctrl && keyCode == InputConstants.KEY_N) {
             createQuest();
             return true;
         }
-        if (ctrl && keyCode == GLFW.GLFW_KEY_A && mayEditNow()) {
+        if (ctrl && keyCode == InputConstants.KEY_A && mayEditNow()) {
             selectAllInChapter();
             return true;
         }
-        if (ctrl && keyCode == GLFW.GLFW_KEY_C) {
+        if (ctrl && keyCode == InputConstants.KEY_C) {
             copySelection();
             return true;
         }
-        if (ctrl && keyCode == GLFW.GLFW_KEY_V && !ClientEditorClipboard.isEmpty()) {
+        if (ctrl && keyCode == InputConstants.KEY_V && !ClientEditorClipboard.isEmpty()) {
             pasteClipboard();
             return true;
         }
-        if (ctrl && keyCode == GLFW.GLFW_KEY_D && selectedQuest != null) {
+        if (ctrl && keyCode == InputConstants.KEY_D && selectedQuest != null) {
             // The whole selection duplicates, as one edit per chapter it spans: seventy quests are one
             // gesture, one history step and one save, and one Ctrl+Z takes them all back. See `sendBulk`.
             duplicateSelection(selection());
             return true;
         }
-        if ((keyCode == GLFW.GLFW_KEY_DELETE || keyCode == GLFW.GLFW_KEY_BACKSPACE)
+        if ((keyCode == InputConstants.KEY_DELETE || keyCode == InputConstants.KEY_BACKSPACE)
                 && selectedQuest != null) {
             // **The first press asks, the second deletes.** This key used to be the one destructive
             // control in the book that acted on a single press — and the one that reaches furthest, since
@@ -36637,22 +36686,29 @@ public final class QuestBookScreen extends ArmatureScreen
         // the keys -- no overlay, no focused widget -- because an arrow key inside a text field is a
         // caret move, and inside a card it belongs to the card. See CanvasFocus.
         if (overlay == PanelKind.NONE && getFocused() == null) {
-            CanvasFocus.Direction direction = switch (keyCode) {
-                case GLFW.GLFW_KEY_LEFT -> CanvasFocus.Direction.LEFT;
-                case GLFW.GLFW_KEY_RIGHT -> CanvasFocus.Direction.RIGHT;
-                case GLFW.GLFW_KEY_UP -> CanvasFocus.Direction.UP;
-                case GLFW.GLFW_KEY_DOWN -> CanvasFocus.Direction.DOWN;
-                default -> null;
-            };
+            CanvasFocus.Direction direction = null;
+            // An if-chain rather than a switch: the SDL constants are not compile-time constants.
+            if (keyCode == InputConstants.KEY_LEFT) {
+                direction = CanvasFocus.Direction.LEFT;
+            }
+            else if (keyCode == InputConstants.KEY_RIGHT) {
+                direction = CanvasFocus.Direction.RIGHT;
+            }
+            else if (keyCode == InputConstants.KEY_UP) {
+                direction = CanvasFocus.Direction.UP;
+            }
+            else if (keyCode == InputConstants.KEY_DOWN) {
+                direction = CanvasFocus.Direction.DOWN;
+            }
             if (direction != null) {
                 canvasFocus.step(canvasNodes(), direction).ifPresent(this::narrateFocus);
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
                 canvasFocus.focused().ifPresent(this::openOverlay);
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE && canvasFocus.focused().isPresent()) {
+            if (keyCode == InputConstants.KEY_ESCAPE && canvasFocus.focused().isPresent()) {
                 canvasFocus.clear();
                 return true;
             }
@@ -36693,7 +36749,10 @@ public final class QuestBookScreen extends ArmatureScreen
         if (entry == null || minecraft == null) {
             return;
         }
-        minecraft.getNarrator().say(Component.translatable("tenet.narrate.quest", titleOf(entry),
+        // `say` is gone; the immediate system narration is its successor. Spoken at once rather
+        // than queued, because a focus that moves twice in a second should narrate where it is, not
+        // where it was.
+        minecraft.getNarrator().saySystemNow(Component.translatable("tenet.narrate.quest", titleOf(entry),
                 stateLabel(ClientQuestCache.stateOf(questId))));
     }
 
@@ -36719,11 +36778,11 @@ public final class QuestBookScreen extends ArmatureScreen
      *
      * <p>Read per event rather than remembered at press, because Alt is the bypass an author reaches
      * for mid-drag — hold it the moment the node is where they want it, and the follow stops rounding.
-     * {@code Screen.hasAltDown()} is the keyboard's own answer; {@link BookGeometry#snap} stays a pure
-     * function by taking this one as its {@code on}.
+     * Live keyboard state is the keyboard's own answer (there is no event in half the call sites);
+     * {@link BookGeometry#snap} stays a pure function by taking this one as its {@code on}.
      */
     private static boolean snappingNow() {
-        return DevMode.snap() && !Screen.hasAltDown();
+        return DevMode.snap() && !altDown();
     }
 
     /** Asks the server for one edit. The client writes nothing: see {@code TenetNetworking.sendEditorOp}. */
@@ -37729,8 +37788,8 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         Minecraft game = Minecraft.getInstance();
         if (game.player != null) {
-            game.player.displayClientMessage(
-                    Component.translatable("tenet.screen.book_disabled"), false);
+            game.player.sendSystemMessage(
+                    Component.translatable("tenet.screen.book_disabled"));
         }
         return false;
     }

@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.inventory;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 
@@ -40,12 +40,12 @@ public final class FluidAccesses {
         INSTANCE;
 
         @Override
-        public int storedOf(ServerPlayer player, ResourceLocation fluid, Item bucketToSkip) {
+        public int storedOf(ServerPlayer player, Identifier fluid, Item bucketToSkip) {
             return 0;
         }
 
         @Override
-        public int drainFrom(ServerPlayer player, ResourceLocation fluid, int mb, Item bucketToSkip) {
+        public int drainFrom(ServerPlayer player, Identifier fluid, int mb, Item bucketToSkip) {
             return 0;
         }
     }

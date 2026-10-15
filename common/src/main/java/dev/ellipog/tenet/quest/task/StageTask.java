@@ -10,7 +10,7 @@ import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 import java.util.function.Function;
@@ -37,20 +37,20 @@ import java.util.function.Function;
  * player's own. One member's induction then satisfies the task for everybody, which is the multiplayer
  * pack's version of "you were there".
  */
-public record StageTask(TaskCommon common, ResourceLocation stage, boolean teamStage) implements QuestTask {
+public record StageTask(TaskCommon common, Identifier stage, boolean teamStage) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "stage");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "stage");
 
     public static final Set<String> FIELDS = Set.of("stage", "teamStage");
 
     public static final MapCodec<StageTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(20).forGetter(StageTask::common),
-            ResourceLocation.CODEC.fieldOf("stage").forGetter(StageTask::stage),
+            Identifier.CODEC.fieldOf("stage").forGetter(StageTask::stage),
             Codec.BOOL.optionalFieldOf("teamStage", false).forGetter(StageTask::teamStage)
     ).apply(instance, StageTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -64,7 +64,7 @@ public record StageTask(TaskCommon common, ResourceLocation stage, boolean teamS
 
         @Override
         public int current(StageTask task, TaskContext context) {
-            net.minecraft.server.MinecraftServer server = context.player().getServer();
+            net.minecraft.server.MinecraftServer server = context.player().level().getServer();
             if (server == null) {
                 // A harness, or a server on its way down: a gate nobody can ask about is not one
                 // that blocks, so an unaskable stage reads as absent rather than failing the read.

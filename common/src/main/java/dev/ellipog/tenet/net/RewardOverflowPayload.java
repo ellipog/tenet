@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * What a grant could not fit into the player's inventory, so the book can say it.
@@ -27,7 +27,7 @@ public record RewardOverflowPayload(int stacks) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<RewardOverflowPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "reward_overflow"));
+                    Identifier.fromNamespaceAndPath("tenet", "reward_overflow"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, RewardOverflowPayload> CODEC =
             StreamCodec.composite(

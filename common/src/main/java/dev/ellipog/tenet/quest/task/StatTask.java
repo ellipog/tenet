@@ -10,7 +10,7 @@ import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.stats.Stats;
 
 import java.util.Set;
@@ -25,20 +25,20 @@ import java.util.function.Function;
  * The legacy format clamps it, so a stat in the millions does not overflow a row. Polled every three ticks:
  * reading a stat is a map lookup, and it is the cadence the legacy format gives it.
  */
-public record StatTask(TaskCommon common, ResourceLocation stat, int value) implements QuestTask {
+public record StatTask(TaskCommon common, Identifier stat, int value) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "stat");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "stat");
 
     public static final Set<String> FIELDS = Set.of("stat", "value");
 
     public static final MapCodec<StatTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(3).forGetter(StatTask::common),
-            ResourceLocation.CODEC.fieldOf("stat").forGetter(StatTask::stat),
+            Identifier.CODEC.fieldOf("stat").forGetter(StatTask::stat),
             Codec.intRange(1, 1_000_000_000).fieldOf("value").forGetter(StatTask::value)
     ).apply(instance, StatTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

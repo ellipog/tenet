@@ -14,7 +14,7 @@ import dev.ellipog.tenet.net.ProgressSyncPayload;
 import dev.ellipog.tenet.net.QuestSync;
 import dev.ellipog.tenet.net.TenetNetworking;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 
 import java.util.Set;
@@ -33,7 +33,7 @@ public final class Tenet {
     public static final String MOD_ID = "tenet";
 
     /** The quest book screen, opened by id so that common code never names a client class. */
-    public static final ResourceLocation QUEST_BOOK_SCREEN = ResourceLocation.fromNamespaceAndPath(MOD_ID, "quest_book");
+    public static final Identifier QUEST_BOOK_SCREEN = Identifier.fromNamespaceAndPath(MOD_ID, "quest_book");
 
     /**
      * The HUD editor, opened by its own key and from the book's settings card.
@@ -43,7 +43,7 @@ public final class Tenet {
      * the thing being moved. That is the same argument that moved the theme picker out of the book, one
      * step further.
      */
-    public static final ResourceLocation HUD_EDIT_SCREEN = ResourceLocation.fromNamespaceAndPath(MOD_ID, "hud_edit");
+    public static final Identifier HUD_EDIT_SCREEN = Identifier.fromNamespaceAndPath(MOD_ID, "hud_edit");
 
     /** Whether {@link #listenToTeams} has run. See its comment for why a flag is needed. */
     private static boolean teamListenersInstalled;
@@ -153,7 +153,7 @@ public final class Tenet {
             Constants.LOG.info("{} joined", player.getScoreboardName());
             // And every party's panel, because a party lists the players who are not in it: somebody
             // arriving is news to panels they are nowhere near. See sendRostersToAllParties.
-            TenetNetworking.sendRostersToAllParties(player.getServer());
+            TenetNetworking.sendRostersToAllParties(player.level().getServer());
             // The whole point of Stage 4: without this the quest book opens on an empty cache and
             // says so, which is indistinguishable from having no quests loaded at all.
             TenetNetworking.sendEverythingTo(player);
@@ -167,7 +167,7 @@ public final class Tenet {
             // Automatic rewards owed from a completion that happened while they were away. A quest
             // finished with the party online hands each member their own copy at completion; this is
             // the member who was not there, collecting on the next join -- as the legacy login check does.
-            var server = player.getServer();
+            var server = player.level().getServer();
             if (server != null && ProgressService.autoClaimFor(server, player)) {
                 TenetNetworking.sendProgressToOwners(server,
                         Set.of(ProgressService.progressOwner(server, player)),
@@ -187,10 +187,10 @@ public final class Tenet {
             Constants.LOG.info("{} left", player.getScoreboardName());
             // The other half: a player leaving takes their Invite row with them, and their dot off
             // every roster they were on.
-            TenetNetworking.sendRostersToAllParties(player.getServer());
+            TenetNetworking.sendRostersToAllParties(player.level().getServer());
             // A pending tree refresh must not wait for a tick that may never come -- this can be the
             // last player, and the reload is the server's own state, not only the broadcast.
-            flushTreeNow(player.getServer());
+            flushTreeNow(player.level().getServer());
         });
 
         // The engine. Runs once per player tick, and dedupes internally -- see
@@ -206,7 +206,7 @@ public final class Tenet {
         // Empty on almost every tick, which is what makes "tell them when it moves" cost nothing
         // rather than costing a packet per player per tick.
         ArmatureEvents.PLAYER_TICK.register(player -> {
-            var server = player.getServer();
+            var server = player.level().getServer();
             if (server == null) {
                 return;
             }
@@ -229,7 +229,7 @@ public final class Tenet {
         // progress and answers which teams to push, because the tick that usually reports movement
         // would see the recorded count already satisfied and say nothing.
         ArmatureEvents.ENTITY_DEATH.register((entity, source) -> {
-            var server = entity.getServer();
+            var server = entity.level().getServer();
             if (server == null) {
                 return;
             }
@@ -244,7 +244,8 @@ public final class Tenet {
             if (entity instanceof net.minecraft.server.level.ServerPlayer player
                     && dev.ellipog.tenet.quest.TenetQuests.settings().dropBookOnDeath()
                     && QuestBook.ITEM != null) {
-                player.drop(new net.minecraft.world.item.ItemStack(QuestBook.ITEM, 1), true);
+                player.drop(new net.minecraft.world.item.ItemStack(QuestBook.ITEM, 1), true,
+                        net.minecraft.util.Prediction.SERVER_ONLY);
             }
         });
 
@@ -253,7 +254,7 @@ public final class Tenet {
         // recorded count already satisfied and say nothing, so the event answers which teams
         // moved and they are told here.
         ArmatureEvents.BLOCK_BROKEN.register((player, state) -> {
-            var server = player.getServer();
+            var server = player.level().getServer();
             if (server == null) {
                 return;
             }

@@ -359,20 +359,24 @@ loads, still counts for progress, and is always shown to the editor.
 | `hideDependentLines` | `false` | The lines leaving this quest for its dependants. The outgoing half of the row above: a quest that fans out to twenty dependants draws twenty lines across the chapter, and the author may want the quest without the clutter. Either silence wins. |
 | `hideTextUntilComplete` | `false` | The description, until the quest is completed, for a quest whose text would give away what it asks for. |
 | `hideDetailsUntilStartable` | `false` | Task and reward details, until the quest can be started. The prerequisites stay: they are what tells the reader how to unlock it. |
-| `disableRecipeMod` | the file's | The quest in recipe viewers (JEI, REI, EMI): with it set, no viewer lists this quest. Three states like the two chapter-defaulted rows above: leave it out and the file's `defaultDisableRecipeMod` decides (see [[tenet:authoring/quest-files]]), `true` hides it, and `false` opts out of a file that hides its quests by default. the legacy mod calls this `disable_recipe_mod`. |
+| `disableRecipeMod` | the file's | The quest in recipe viewers (JEI, REI): with it set, no viewer lists this quest. Three states like the two chapter-defaulted rows above: leave it out and the file's `defaultDisableRecipeMod` decides (see [[tenet:authoring/quest-files]]), `true` hides it, and `false` opts out of a file that hides its quests by default. the legacy mod calls this `disable_recipe_mod`. |
 | `hideLockIcon` | `false` | The quest's own padlock: with it set, this locked quest wears no padlock on the canvas. The quest's half of the file's `showLockIcons` (see [[tenet:authoring/quest-files]]), where either silence wins, and the node still reads locked through its edge and wash. the legacy mod calls this `hide_lock_icon`. |
 
 ## Recipe viewers
 
-A recipe viewer with Tenet's pages shows the questline beside the recipes: EMI renders full quest
-pages, JEI and REI share a fallback over the same item lookup, and where more than one viewer is
-installed the first in that order wins outright, while the others register nothing. All three are soft
-dependencies: a client without any of them loses nothing.
+A recipe viewer with Tenet's pages shows the questline beside the recipes: JEI first, REI second,
+both over the same item lookup, and where more than one viewer is installed the first in that
+order wins outright, while the others register nothing. (EMI rendered full quest pages until the
+26.3 port removed the adapter for want of a 26.x EMI; when EMI ports, it goes back at the head.)
+Both are soft dependencies: a client without either of them loses nothing.
 
 Traffic goes both ways. Pressing a quest in the viewer opens the book on that quest, while a press for a
-quest the tree no longer holds opens nothing rather than an empty card. Pressing a task or reward
-row in the book opens the viewer's recipes for what the row names, tags included where the viewer
-supports them; with no viewer installed the press is inert. Which quests a viewer may list is the
+quest the tree no longer holds opens nothing rather than an empty card. Pressing a task row in the
+book opens the viewer's recipes for what the row names, tags included where the viewer supports them;
+with no viewer installed the press is inert. Reward icons in a viewer never open recipes: a reward is
+something to collect, and once collected it wears its claimed mark instead of a lookup. In the book,
+a claimed reward likewise offers no lookup; an unclaimed one still links, so a locked reward can be
+identified. Which quests a viewer may list is the
 `disableRecipeMod` flag above: a hidden quest never reaches the viewer, because the server resolves
 it onto the wire and the client holds no file record to second-guess.
 

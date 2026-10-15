@@ -8,7 +8,7 @@ import dev.ellipog.tenet.quest.reward.RewardAutoClaim;
 import dev.ellipog.tenet.quest.reward.RewardCommon;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import dev.ellipog.tenet.client.DevMode;
 
@@ -102,7 +102,7 @@ class TableRowFieldsTest {
             "tags");
 
     /** One instance of a registered type: its own defaults, encoded and decoded back. */
-    private static QuestReward instance(ResourceLocation id) {
+    private static QuestReward instance(Identifier id) {
         var tree = RewardTypes.defaultTree(id);
         assertTrue(tree.isPresent(), id + " has no default tree, so it could not be added to a table");
         return RewardTypes.dispatchCodec().parse(JsonOps.INSTANCE, tree.get()).getOrThrow();
@@ -112,8 +112,8 @@ class TableRowFieldsTest {
     private record AddonReward() implements QuestReward {
 
         @Override
-        public ResourceLocation type() {
-            return ResourceLocation.fromNamespaceAndPath("addon", "thing");
+        public Identifier type() {
+            return Identifier.fromNamespaceAndPath("addon", "thing");
         }
 
         @Override
@@ -138,10 +138,10 @@ class TableRowFieldsTest {
     @Test
     @DisplayName("every registered type draws a form rather than an empty band")
     void everyRegisteredTypeHasControls() {
-        Set<ResourceLocation> ids = RewardTypes.ids();
+        Set<Identifier> ids = RewardTypes.ids();
         assertFalse(ids.isEmpty(), "the registry must not be empty for this to mean anything");
 
-        for (ResourceLocation id : ids) {
+        for (Identifier id : ids) {
             List<TableRowFields.Line> lines = TableRowFields.lines(instance(id));
 
             assertFalse(lines.isEmpty(), id + " folds onto nothing, which is the fault this replaced");
@@ -163,7 +163,7 @@ class TableRowFieldsTest {
     @Test
     @DisplayName("every field a type declares has a control that writes it")
     void everyDeclaredFieldIsReachable() {
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             Set<String> drawn = drawnFields(instance(id));
 
             for (String field : RewardTypes.fieldsOf(id)) {
@@ -182,7 +182,7 @@ class TableRowFieldsTest {
         // The other direction. A control naming a field the codec does not know is a control that writes
         // an unknown member, which the validator then refuses at the author's next save -- from a press
         // that looked like it worked.
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             Set<String> declared = RewardTypes.fieldsOf(id);
             for (String field : drawnFields(instance(id))) {
                 assertTrue(declared.contains(field),
@@ -219,7 +219,7 @@ class TableRowFieldsTest {
     void theAutoCycleMatchesTheFormat() {
         // Two descriptions of one ring would drift: the card draws this field as a cycling choice whose
         // options come from the registry, and the fold cycles its own list. So the two are compared.
-        var auto = RewardTypes.editorOf(ResourceLocation.fromNamespaceAndPath("tenet", "item")).stream()
+        var auto = RewardTypes.editorOf(Identifier.fromNamespaceAndPath("tenet", "item")).stream()
                 .filter(field -> "auto".equals(field.path()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("the reward form no longer declares `auto`"));
@@ -274,7 +274,7 @@ class TableRowFieldsTest {
     void controlsArePackedByWidth() {
         // An item's id is a wide control, so it cannot share: half a fold line is not enough to read an
         // id in. The count beside it is a stepper, which can.
-        QuestReward item = instance(ResourceLocation.fromNamespaceAndPath("tenet", "item"));
+        QuestReward item = instance(Identifier.fromNamespaceAndPath("tenet", "item"));
         List<TableRowFields.Line> lines = TableRowFields.lines(item);
 
         TableRowFields.Line first = lines.get(0);
@@ -299,7 +299,7 @@ class TableRowFieldsTest {
     @Test
     @DisplayName("the six base mechanics are on every type, in the registry's own words")
     void baseMechanicsRideOnEveryType() {
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             Set<String> drawn = drawnFields(instance(id));
 
             assertTrue(drawn.contains("auto"), id + " cannot say when it is given");

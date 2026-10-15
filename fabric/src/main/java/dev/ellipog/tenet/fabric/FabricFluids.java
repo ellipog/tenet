@@ -13,7 +13,7 @@ import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
 import net.fabricmc.fabric.api.transfer.v1.storage.base.SingleSlotStorage;
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.material.Fluid;
@@ -36,8 +36,8 @@ import net.minecraft.world.level.material.Fluid;
 public final class FabricFluids implements FluidAccess {
 
     @Override
-    public int storedOf(ServerPlayer player, ResourceLocation fluid, Item bucketToSkip) {
-        Fluid target = BuiltInRegistries.FLUID.get(fluid);
+    public int storedOf(ServerPlayer player, Identifier fluid, Item bucketToSkip) {
+        Fluid target = BuiltInRegistries.FLUID.get(fluid).map(holder -> holder.value()).orElse(null);
         if (target == null) {
             return 0;
         }
@@ -66,8 +66,8 @@ public final class FabricFluids implements FluidAccess {
     }
 
     @Override
-    public int drainFrom(ServerPlayer player, ResourceLocation fluid, int mb, Item bucketToSkip) {
-        Fluid target = BuiltInRegistries.FLUID.get(fluid);
+    public int drainFrom(ServerPlayer player, Identifier fluid, int mb, Item bucketToSkip) {
+        Fluid target = BuiltInRegistries.FLUID.get(fluid).map(holder -> holder.value()).orElse(null);
         if (target == null || mb <= 0) {
             return 0;
         }

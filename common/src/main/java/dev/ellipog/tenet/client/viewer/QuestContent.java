@@ -1,7 +1,7 @@
 package dev.ellipog.tenet.client.viewer;
 
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
@@ -98,7 +98,7 @@ public interface QuestContent {
     void openQuest(String questId);
 
     /** The viewer category id, e.g. a namespace and path the content owns. */
-    ResourceLocation categoryId();
+    Identifier categoryId();
 
     /** The viewer category's title, for the viewers that take a component rather than a key. */
     Component categoryTitle();

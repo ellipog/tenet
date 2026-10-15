@@ -96,10 +96,10 @@ class EditorSourcesTest {
                     continue;
                 }
                 checked.add(entry(source, key));
-                boolean builtIn = BuiltInRegistries.REGISTRY.keySet().contains(key.location());
-                boolean sent = RegistrySynchronization.NETWORKABLE_REGISTRIES.contains(key);
+                boolean builtIn = BuiltInRegistries.REGISTRY.keySet().contains(key.identifier());
+                boolean sent = net.minecraft.core.RegistrySynchronization.isNetworkable(key);
                 assertTrue(builtIn || sent,
-                        source + " (mode \"" + mode + "\") reads " + key.location() + ", and a client is "
+                        source + " (mode \"" + mode + "\") reads " + key.identifier() + ", and a client is "
                                 + "sent neither: it is not one of the registries the game builds at "
                                 + "startup, and 1.21.1 does not send it. The picker would open with no "
                                 + "rows and say nothing about why. Either send the list from the server or "
@@ -126,7 +126,7 @@ class EditorSourcesTest {
 
     /** One line of the sweep, so the assertion and the evidence are spelled the same way. */
     private static String entry(EditorField.Source source, ResourceKey<? extends Registry<?>> key) {
-        return source.name() + " -> " + key.location();
+        return source.name() + " -> " + key.identifier();
     }
 
     @Test
@@ -162,7 +162,7 @@ class EditorSourcesTest {
     @DisplayName("a value is read in the grammar the field's own codec takes")
     void theValueGrammarIsTheFieldsOwn() {
         // The two RegistryRef fields: the format carries an id and a `#tag` in one field, and a
-        // ResourceLocation cannot hold the `#`. This is the grammar that decides whether a picker reports
+        // Identifier cannot hold the `#`. This is the grammar that decides whether a picker reports
         // its own valid value as missing.
         assertEquals(EditorSources.Value.ID_OR_TAG,
                 EditorSources.valueKind(EditorField.Source.BIOME, ""));

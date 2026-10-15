@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.QuestReward;
 import dev.ellipog.tenet.quest.loot.RewardTable;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
 
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +41,7 @@ class AllTableRewardTest {
 
     private static ItemReward item(String id) {
         return new ItemReward(RewardCommon.DEFAULT,
-                new ItemRef(ResourceLocation.parse(id), 1), 0, false);
+                new ItemRef(Identifier.parse(id), 1), 0, false);
     }
 
     @Test

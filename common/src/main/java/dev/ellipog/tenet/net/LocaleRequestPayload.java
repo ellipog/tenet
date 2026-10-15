@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A client telling the server which language it is now reading in.
@@ -37,7 +37,7 @@ public record LocaleRequestPayload(String locale) implements CustomPacketPayload
      */
     public static final CustomPacketPayload.Type<LocaleRequestPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "locale_request"));
+                    Identifier.fromNamespaceAndPath("tenet", "locale_request"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, LocaleRequestPayload> CODEC =
             StreamCodec.composite(

@@ -12,6 +12,12 @@ pluginManagement {
             filter {
                 includeGroup('net.fabricmc')
                 includeGroup('fabric-loom')
+                // The no-remap plugin marker (net.fabricmc.fabric-loom.gradle.plugin) lives under
+                // this group; without it the marker does not resolve (see the 26.3 toolchain spike).
+                includeGroup('net.fabricmc.fabric-loom')
+                // Loom's own transitive deps (unpick etc.) live under this group on the same maven;
+                // without it they fall through to Central and 404.
+                includeGroup('net.fabricmc.unpick')
             }
         }
         exclusiveContent {

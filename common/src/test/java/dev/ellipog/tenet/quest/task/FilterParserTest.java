@@ -1,5 +1,6 @@
 package dev.ellipog.tenet.quest.task;
 
+import dev.ellipog.tenet.quest.ItemStacks;
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -141,9 +142,9 @@ class FilterParserTest {
     @Test
     @DisplayName("leaves match what they name and nothing else")
     void leavesMatch() {
-        ItemStack coal = new ItemStack(Items.COAL);
-        ItemStack stone = new ItemStack(Items.STONE);
-        ItemStack stick = new ItemStack(Items.STICK);
+        ItemStack coal = ItemStacks.stackOf(Items.COAL);
+        ItemStack stone = ItemStacks.stackOf(Items.STONE);
+        ItemStack stick = ItemStacks.stackOf(Items.STICK);
 
         assertTrue(parse("item(minecraft:coal)").test(coal));
         assertFalse(parse("item(minecraft:coal)").test(stone));
@@ -162,8 +163,8 @@ class FilterParserTest {
     @Test
     @DisplayName("and, or and not combine the leaves the way their names say")
     void combinatorsCombine() {
-        ItemStack coal = new ItemStack(Items.COAL);
-        ItemStack stone = new ItemStack(Items.STONE);
+        ItemStack coal = ItemStacks.stackOf(Items.COAL);
+        ItemStack stone = ItemStacks.stackOf(Items.STONE);
 
         assertTrue(parse("or(item(minecraft:coal)item(minecraft:stone))").test(coal));
         assertTrue(parse("or(item(minecraft:coal)item(minecraft:stone))").test(stone));

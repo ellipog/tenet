@@ -7,7 +7,7 @@ import dev.ellipog.tenet.net.RewardToastPayload;
 import dev.ellipog.tenet.quest.QuestReward;
 import dev.ellipog.tenet.quest.QuestText;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 import java.util.function.Function;
@@ -29,7 +29,7 @@ import java.util.function.Function;
  */
 public record ToastReward(RewardCommon common, QuestText description) implements QuestReward {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "toast");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "toast");
 
     public static final Set<String> FIELDS = Set.of("description");
 
@@ -39,7 +39,7 @@ public record ToastReward(RewardCommon common, QuestText description) implements
     ).apply(instance, ToastReward::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -54,7 +54,7 @@ public record ToastReward(RewardCommon common, QuestText description) implements
                     "A message with nothing in it");
             text = description.component();
         }
-        context.player().displayClientMessage(text, false);
+        context.player().sendSystemMessage(text);
         dev.ellipog.armature.api.net.ArmatureNetwork.sendToPlayer(context.player(),
                 new RewardToastPayload(description.value(), description.translatable(),
                         description.fallback().orElse("")));

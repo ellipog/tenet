@@ -8,7 +8,7 @@ import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.task.ComponentMatch;
 import dev.ellipog.tenet.quest.task.ItemCounting;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 import java.util.function.Function;
@@ -25,7 +25,7 @@ import java.util.function.Function;
  */
 public record ItemCondition(ItemRef item, ComponentMatch match) implements QuestCondition {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "item");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "item");
 
     public static final Set<String> FIELDS = Set.of("item", "count", "components", "match");
 
@@ -35,7 +35,7 @@ public record ItemCondition(ItemRef item, ComponentMatch match) implements Quest
     ).apply(instance, ItemCondition::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

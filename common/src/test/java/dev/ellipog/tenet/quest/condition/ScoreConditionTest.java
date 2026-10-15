@@ -5,7 +5,7 @@ import com.mojang.serialization.JsonOps;
 
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -60,7 +60,7 @@ class ScoreConditionTest {
                 .result().orElseThrow(() -> new AssertionError("did not decode")));
         assertEquals("standing", parsed.objective());
         assertEquals(10, parsed.min());
-        assertEquals(ResourceLocation.parse("tenet:score"), parsed.type());
+        assertEquals(Identifier.parse("tenet:score"), parsed.type());
 
         assertTrue(ConditionTypes.dispatchCodec().parse(JsonOps.INSTANCE,
                 JsonParser.parseString("{\"type\": \"tenet:score\", \"objective\": \"standing\"}"))

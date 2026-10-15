@@ -1,5 +1,6 @@
 package dev.ellipog.tenet.progress;
 
+import dev.ellipog.tenet.quest.ItemStacks;
 import dev.ellipog.tenet.server.HeadlessServer;
 
 import net.minecraft.core.HolderLookup;
@@ -102,7 +103,7 @@ class StarterBooksTest {
             var inventory = player.getInventory();
             inventory.clearContent();
             for (int slot = 0; slot < 36; slot++) {
-                inventory.setItem(slot, new ItemStack(Items.STONE, 64));
+                inventory.setItem(slot, ItemStacks.stackOf(Items.STONE, 64));
             }
             inventory.setChanged();
             return null;
@@ -113,10 +114,10 @@ class StarterBooksTest {
         // nothing — which is why the grant reads the remainder instead.)
         assertFalse(server.callOnServerThread(() ->
                 dev.ellipog.tenet.inventory.InventoryAccesses.current().fitsAll(player,
-                        java.util.List.of(new ItemStack(Items.WRITABLE_BOOK, 1)))),
+                        java.util.List.of(ItemStacks.stackOf(Items.WRITABLE_BOOK, 1)))),
                 "a full inventory has no room for the book");
         ItemStack remainder = server.callOnServerThread(() ->
-                StarterBooks.insertOrDrop(player, new ItemStack(Items.WRITABLE_BOOK, 1)));
+                StarterBooks.insertOrDrop(player, ItemStacks.stackOf(Items.WRITABLE_BOOK, 1)));
         assertEquals(1, remainder.getCount(), "what does not fit is handed to the floor, not lost");
         assertTrue(remainder.is(Items.WRITABLE_BOOK), "the whole book, and the right item");
         assertEquals(0, countBooks(player), "with nothing added to a full inventory");
@@ -133,11 +134,10 @@ class StarterBooksTest {
         assertTrue(server.callOnServerThread(() ->
                 StarterBooks.grantIfFirstJoin(server.server(), player, true, Items.WRITABLE_BOOK)),
                 "the first join should have been granted");
-        HolderLookup.Provider registries = server.server().registryAccess();
         StarterBooks reloaded = server.callOnServerThread(() -> {
             StarterBooks books = StarterBooks.of(server.server());
-            CompoundTag tag = books.save(new CompoundTag(), registries);
-            return StarterBooks.load(tag, registries);
+            CompoundTag tag = books.save(new CompoundTag());
+            return StarterBooks.load(tag);
         });
         assertTrue(reloaded.has(player.getUUID()), "a rejoin after a restart still finds its mark");
     }
@@ -146,7 +146,9 @@ class StarterBooksTest {
     private static int countBooks(ServerPlayer player) {
         return server.callOnServerThread(() -> {
             int found = 0;
-            for (ItemStack stack : player.getInventory().items) {
+            // The raw list is private now; the non-equipment view covers every slot a granted
+            // book can land in.
+            for (ItemStack stack : player.getInventory().getNonEquipmentItems()) {
                 if (stack.is(Items.WRITABLE_BOOK)) {
                     found += stack.getCount();
                 }

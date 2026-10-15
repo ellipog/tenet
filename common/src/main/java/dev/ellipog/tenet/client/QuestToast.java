@@ -4,9 +4,9 @@ import dev.ellipog.armature.client.ArmatureTheme;
 import dev.ellipog.armature.client.render.GuiGraphicsRenderer;
 import dev.ellipog.armature.client.ui.kit.Measure;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.toasts.Toast;
-import net.minecraft.client.gui.components.toasts.ToastComponent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
@@ -31,7 +31,7 @@ import net.minecraft.world.item.ItemStack;
  * <h2>The token, and why there is one per kind</h2>
  *
  * <p>{@code tenet:quest/<id>}, {@code tenet:task/<id>/<index>} or {@code tenet:chapter/<id>}, so the
- * notifier can ask whether <i>this</i> notice is already being announced ({@code ToastComponent.getToast})
+ * notifier can ask whether <i>this</i> notice is already being announced ({@code ToastManager.getToast})
  * and a repeatable quest finished twice in quick succession is told once rather than queued twice. Three
  * kinds rather than one because a quest completing and a task of it completing are two different things
  * that happen about a moment apart: one token for both would swallow the second as a duplicate of the
@@ -57,6 +57,7 @@ public final class QuestToast implements Toast {
     private final Component label;
     private final Component title;
     private long bornAt = -1L;
+    private long lastSeenAt = -1L;
 
     public QuestToast(String token, ItemStack icon, Component label, Component title) {
         this(token, icon, "", "", label, title);
@@ -97,21 +98,42 @@ public final class QuestToast implements Toast {
     }
 
     @Override
-    public Visibility render(GuiGraphics graphics, ToastComponent toasts, long now) {
+    public Visibility getWantedVisibility() {
+        // SHOW until the notice has been visible a full lifetime: the draw stamps both ends, so a
+        // toast behind two others does not spend its life waiting in the queue.
+        if (bornAt < 0L || lastSeenAt < 0L) {
+            return Visibility.SHOW;
+        }
+        return lastSeenAt - bornAt >= lifetimeMillis() ? Visibility.HIDE : Visibility.SHOW;
+    }
+
+    @Override
+    public void update(net.minecraft.client.gui.components.toasts.ToastManager manager, long now) {
+        // Nothing to advance: the lifetime is measured in draws, stamped in `extractRenderState`
+        // below, and the manager only asks `getWantedVisibility`. Present because the interface
+        // requires it, empty because the state already moves where it should.
+    }
+
+    private static long lifetimeMillis() {
+        return (long) (ToastStack.LIFETIME_MILLIS
+                * net.minecraft.client.Minecraft.getInstance().gui.toastManager()
+                        .getNotificationDisplayTimeMultiplier());
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor graphics, Font font, long now) {
         if (bornAt < 0L) {
-            // Born when it first draws, not when it was queued: a toast behind two others must not
-            // spend its life waiting in the queue.
             bornAt = now;
         }
-        long life = (long) (ToastStack.LIFETIME_MILLIS * toasts.getNotificationDisplayTimeMultiplier());
+        lastSeenAt = now;
 
         GuiGraphicsRenderer r = new GuiGraphicsRenderer(graphics);
         try (ArmatureTheme.Scope ignored = ArmatureTheme.scope(ClientAppearance.LOOK.main())) {
             ArmatureTheme.panel(r, 0, 0, width(), height());
-            net.minecraft.resources.ResourceLocation textureId =
-                    texture.isEmpty() ? null : net.minecraft.resources.ResourceLocation.tryParse(texture);
-            net.minecraft.resources.ResourceLocation spriteId =
-                    sprite.isEmpty() ? null : net.minecraft.resources.ResourceLocation.tryParse(sprite);
+            net.minecraft.resources.Identifier textureId =
+                    texture.isEmpty() ? null : net.minecraft.resources.Identifier.tryParse(texture);
+            net.minecraft.resources.Identifier spriteId =
+                    sprite.isEmpty() ? null : net.minecraft.resources.Identifier.tryParse(sprite);
             if (textureId != null) {
                 r.texture(textureId, 5, (height() - ICON_BOX) / 2, ICON_BOX, ICON_BOX);
             }
@@ -130,7 +152,6 @@ public final class QuestToast implements Toast {
             r.text(Measure.truncate(title.getString(), room, measure), textX, 6 + r.lineHeight() + 1,
                     ArmatureTheme.title());
         }
-        return now - bornAt >= life ? Visibility.HIDE : Visibility.SHOW;
     }
 
     @Override

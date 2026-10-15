@@ -10,7 +10,7 @@ import dev.ellipog.tenet.quest.reward.RewardCommon;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -163,7 +163,7 @@ class SchemaCoverageTest {
     @DisplayName("every condition field is documented, in both schemas, in the condition definition")
     void theConditionFamilyIsDocumented() throws IOException {
         Set<String> expected = new TreeSet<>();
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             expected.addAll(ConditionTypes.fieldsOf(id));
         }
 
@@ -366,14 +366,14 @@ class SchemaCoverageTest {
     /** Every field any registered type can read: the type's own, and the tail that rides on all of them. */
     private static Set<String> registeredFields() {
         Set<String> fields = new TreeSet<>(TaskCommon.FIELDS);
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             fields.addAll(TaskTypes.fieldsOf(id));
         }
 
         // RewardTypes.fieldsOf already unions RewardCommon in at registration; adding it again is a
         // no-op, and it keeps this test's source of truth the same two constants the codec uses.
         fields.addAll(RewardCommon.FIELDS);
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             fields.addAll(RewardTypes.fieldsOf(id));
         }
         return fields;

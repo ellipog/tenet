@@ -3,6 +3,7 @@ package dev.ellipog.tenet.quest.task;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 
+import dev.ellipog.tenet.quest.ItemStacks;
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
@@ -84,9 +85,9 @@ class FilterTaskTest {
     @Test
     @DisplayName("the leaves match what they name against real stacks")
     void leavesMatch() {
-        ItemStack coal = new ItemStack(Items.COAL);
-        ItemStack stone = new ItemStack(Items.STONE);
-        ItemStack stick = new ItemStack(Items.STICK);
+        ItemStack coal = ItemStacks.stackOf(Items.COAL);
+        ItemStack stone = ItemStacks.stackOf(Items.STONE);
+        ItemStack stick = ItemStacks.stackOf(Items.STICK);
 
         assertTrue(FilterParser.parse("item(minecraft:coal)").test(coal));
         assertFalse(FilterParser.parse("item(minecraft:coal)").test(stone));
@@ -96,7 +97,7 @@ class FilterTaskTest {
         assertFalse(FilterParser.parse("block()").test(stick), "and a stick is not");
         assertFalse(FilterParser.parse("item(minecraft:coal)").test(ItemStack.EMPTY));
         assertFalse(FilterParser.parse("item_tag(minecraft:tag_no_datapack_declares)")
-                        .test(new ItemStack(Items.OAK_LOG)),
+                        .test(ItemStacks.stackOf(Items.OAK_LOG)),
                 "a tag nothing declares matches nothing, whatever the datapack situation");
         assertTrue(FilterParser.parse("not(item(minecraft:coal))").test(stone));
         assertFalse(FilterParser.parse("not(item(minecraft:coal))").test(coal));

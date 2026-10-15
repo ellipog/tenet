@@ -9,7 +9,7 @@ import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,10 +25,10 @@ import java.util.function.Function;
  * a size of one is exactly one block and two adjacent boxes cannot both claim the same block. The
  * dimension is optional and can be ignored, for a box that is meaningful in any world.
  */
-public record LocationTask(TaskCommon common, Optional<ResourceLocation> dimension, boolean ignoreDimension,
+public record LocationTask(TaskCommon common, Optional<Identifier> dimension, boolean ignoreDimension,
                            List<Integer> position, List<Integer> size) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "location");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "location");
 
     public static final Set<String> FIELDS =
             Set.of("dimension", "ignoreDimension", "position", "size");
@@ -38,14 +38,14 @@ public record LocationTask(TaskCommon common, Optional<ResourceLocation> dimensi
 
     public static final MapCodec<LocationTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(3).forGetter(LocationTask::common),
-            ResourceLocation.CODEC.optionalFieldOf("dimension").forGetter(LocationTask::dimension),
+            Identifier.CODEC.optionalFieldOf("dimension").forGetter(LocationTask::dimension),
             Codec.BOOL.optionalFieldOf("ignoreDimension", false).forGetter(LocationTask::ignoreDimension),
             TRIPLE.fieldOf("position").forGetter(LocationTask::position),
             TRIPLE.optionalFieldOf("size", List.of(1, 1, 1)).forGetter(LocationTask::size)
     ).apply(instance, LocationTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -78,7 +78,7 @@ public record LocationTask(TaskCommon common, Optional<ResourceLocation> dimensi
         @Override
         public int current(LocationTask task, TaskContext context) {
             if (!task.ignoreDimension() && task.dimension().isPresent()
-                    && !context.player().level().dimension().location().equals(task.dimension().get())) {
+                    && !context.player().level().dimension().identifier().equals(task.dimension().get())) {
                 return 0;
             }
             var pos = context.player().blockPosition();

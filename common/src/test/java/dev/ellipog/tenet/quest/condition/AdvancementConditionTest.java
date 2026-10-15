@@ -5,7 +5,7 @@ import com.mojang.serialization.JsonOps;
 
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +37,7 @@ class AdvancementConditionTest {
     @Test
     @DisplayName("the type is registered with a behaviour, so the gate can open")
     void behaviourRegistered() {
-        var condition = new AdvancementCondition(ResourceLocation.parse("minecraft:story/root"),
+        var condition = new AdvancementCondition(Identifier.parse("minecraft:story/root"),
                 Optional.empty());
 
         assertTrue(ConditionTypes.behaviourOf(condition).isPresent(),
@@ -47,9 +47,9 @@ class AdvancementConditionTest {
     @Test
     @DisplayName("the row names the advancement, or the one watched criterion of it")
     void display() {
-        var whole = new AdvancementCondition(ResourceLocation.parse("minecraft:story/mine_diamond"),
+        var whole = new AdvancementCondition(Identifier.parse("minecraft:story/mine_diamond"),
                 Optional.empty());
-        var one = new AdvancementCondition(ResourceLocation.parse("minecraft:story/mine_diamond"),
+        var one = new AdvancementCondition(Identifier.parse("minecraft:story/mine_diamond"),
                 Optional.of("diamond"));
 
         assertEquals("tenet.condition.advancement", AdvancementCondition.DISPLAY.apply(whole).label());
@@ -67,9 +67,9 @@ class AdvancementConditionTest {
                 .parse(JsonOps.INSTANCE, JsonParser.parseString(
                         "{\"type\": \"tenet:advancement\", \"advancement\": \"minecraft:story/mine_diamond\"}"))
                 .result().orElseThrow(() -> new AssertionError("did not decode")));
-        assertEquals(ResourceLocation.parse("minecraft:story/mine_diamond"), whole.advancement());
+        assertEquals(Identifier.parse("minecraft:story/mine_diamond"), whole.advancement());
         assertEquals(Optional.empty(), whole.criterion(), "an absent criterion means the whole advancement");
-        assertEquals(ResourceLocation.parse("tenet:advancement"), whole.type());
+        assertEquals(Identifier.parse("tenet:advancement"), whole.type());
 
         var one = assertInstanceOf(AdvancementCondition.class, ConditionTypes.dispatchCodec()
                 .parse(JsonOps.INSTANCE, JsonParser.parseString("{\"type\": \"tenet:advancement\","

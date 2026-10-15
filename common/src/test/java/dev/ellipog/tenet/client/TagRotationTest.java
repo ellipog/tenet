@@ -65,7 +65,7 @@ class TagRotationTest {
     private static final String ONE_FRAME =
             "{\"type\": \"tenet:filter\", \"filter\": \"item(minecraft:stone)\", \"count\": 1}";
     private static final String TAG_TASK =
-            "{\"type\": \"tenet:item_tag\", \"tag\": \"minecraft:logs\", \"count\": 1}";
+            "{\"type\": \"tenet:item_tag\", \"tag\": \"tenet:tag_no_datapack_declares\", \"count\": 1}";
 
     @Test
     @DisplayName("a filter naming many items serves them all in order")
@@ -92,8 +92,9 @@ class TagRotationTest {
     @Test
     @DisplayName("an unresolvable tag falls back to still, never to empty")
     void unresolvableTagFallsBackToStill() {
-        // No datapack binds tags on a bare JVM, so minecraft:logs resolves to nothing here —
-        // which is exactly the unresolvable case: the row keeps the glyph it always drew.
+        // A tag nothing declares, so nothing binds it on any JVM: the row keeps the glyph it
+        // always drew. (Vanilla tags *are* bound after bootstrap now, so `minecraft:logs` would
+        // rotate here — the unresolvable case needs a tag no datapack provides.)
         accept(quest("a", TAG_TASK));
 
         var frames = ClientQuestCache.rotationFrames(entryOf("a").tasks().get(0));

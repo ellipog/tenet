@@ -3,11 +3,12 @@ package dev.ellipog.tenet.quest.condition;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 
+import dev.ellipog.tenet.quest.ItemStacks;
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.task.ItemCounting;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -49,10 +50,10 @@ class ItemTagConditionTest {
     @Test
     @DisplayName("a tag nothing declares matches nothing, whatever is carried")
     void unboundTagMatchesNothing() {
-        Inventory inventory = new Inventory(null);
-        inventory.setItem(0, new ItemStack(Items.OAK_LOG, 64));
+        Inventory inventory = new Inventory(null, new net.minecraft.world.entity.EntityEquipment());
+        inventory.setItem(0, ItemStacks.stackOf(Items.OAK_LOG, 64));
         var condition = new ItemTagCondition(
-                ResourceLocation.parse("tenet:tag_no_datapack_declares"), 1);
+                Identifier.parse("tenet:tag_no_datapack_declares"), 1);
 
         assertFalse(meets(inventory, condition),
                 "sixty-four logs are not one of a tag nothing declares");
@@ -61,8 +62,8 @@ class ItemTagConditionTest {
     @Test
     @DisplayName("the row names the tag and carries the count, which a condition has no chip for")
     void display() {
-        var sixteen = new ItemTagCondition(ResourceLocation.parse("minecraft:logs"), 16);
-        var one = new ItemTagCondition(ResourceLocation.parse("minecraft:logs"), 1);
+        var sixteen = new ItemTagCondition(Identifier.parse("minecraft:logs"), 16);
+        var one = new ItemTagCondition(Identifier.parse("minecraft:logs"), 1);
 
         assertEquals("tenet.condition.item_tag", ItemTagCondition.DISPLAY.apply(sixteen).label());
         assertEquals("Have #minecraft:logs \u00d716",
@@ -79,7 +80,7 @@ class ItemTagConditionTest {
                 .parse(JsonOps.INSTANCE, JsonParser.parseString(
                         "{\"type\": \"tenet:item_tag\", \"tag\": \"minecraft:logs\", \"count\": 16}"))
                 .result().orElseThrow(() -> new AssertionError("did not decode")));
-        assertEquals(ResourceLocation.parse("minecraft:logs"), parsed.tag());
+        assertEquals(Identifier.parse("minecraft:logs"), parsed.tag());
         assertEquals(16, parsed.count());
 
         var plain = assertInstanceOf(ItemTagCondition.class, ConditionTypes.dispatchCodec()
@@ -87,6 +88,6 @@ class ItemTagConditionTest {
                         JsonParser.parseString("{\"type\": \"tenet:item_tag\", \"tag\": \"minecraft:logs\"}"))
                 .result().orElseThrow(() -> new AssertionError("did not decode")));
         assertEquals(1, plain.count(), "an absent count means one");
-        assertEquals(ResourceLocation.parse("tenet:item_tag"), plain.type());
+        assertEquals(Identifier.parse("tenet:item_tag"), plain.type());
     }
 }

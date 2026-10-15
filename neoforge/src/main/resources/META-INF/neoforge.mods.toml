@@ -38,10 +38,15 @@ side = "BOTH"
 # guess: Tenet runs without it, and with it the plugin in this module is loaded (see
 # TenetKubeJsPlugin) and scripts can drive stages, listen to quest events, and register custom task
 # and reward handlers. Nothing requires KubeJS to be present to build or to run.
+#
+# The floor follows the pin: KubeJS's 26.x line versions nothing like its 1.21 line (26.1.2-8.0.6
+# sorts below the old 2101.7.2 floor, so that floor refuses the very version this branch builds
+# against), and the pinned version is the only 26.x line this branch has verified. Moving the pin
+# below carries the floor with it.
 [[dependencies.${mod_id}]]
 modId = "kubejs"
 type = "optional"
-versionRange = "[2101.7.2,)"
+versionRange = "[${kubejs_version},)"
 ordering = "AFTER"
 side = "BOTH"
 

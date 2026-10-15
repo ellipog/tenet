@@ -12,7 +12,7 @@ import dev.ellipog.tenet.quest.TaskContext;
 
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.biome.Biome;
 
 import java.util.Set;
@@ -28,7 +28,7 @@ import java.util.function.Function;
  */
 public record BiomeTask(TaskCommon common, RegistryRef biome) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "biome");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "biome");
 
     public static final Set<String> FIELDS = Set.of("biome");
 
@@ -38,7 +38,7 @@ public record BiomeTask(TaskCommon common, RegistryRef biome) implements QuestTa
     ).apply(instance, BiomeTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -47,7 +47,7 @@ public record BiomeTask(TaskCommon common, RegistryRef biome) implements QuestTa
         if (wanted.tag()) {
             return holder.is(TagKeys.of(Registries.BIOME, wanted.id()));
         }
-        return holder.unwrapKey().map(key -> key.location().equals(wanted.id())).orElse(false);
+        return holder.unwrapKey().map(key -> key.identifier().equals(wanted.id())).orElse(false);
     }
 
     public static final TaskBehaviour<BiomeTask> BEHAVIOUR = new TaskBehaviour<>() {

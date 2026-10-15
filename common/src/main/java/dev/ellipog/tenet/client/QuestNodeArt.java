@@ -2,6 +2,7 @@ package dev.ellipog.tenet.client;
 
 import dev.ellipog.armature.client.ArmatureTheme;
 import dev.ellipog.armature.client.render.GuiRenderer;
+import dev.ellipog.armature.client.ui.kit.Colour;
 import dev.ellipog.armature.client.ui.shape.Shape;
 import dev.ellipog.tenet.progress.QuestState;
 import dev.ellipog.tenet.quest.QuestShape;
@@ -162,7 +163,18 @@ public final class QuestNodeArt {
         if (look.shape().drawsPanel()) {
             // The shape, not its span lookup: `shapePanel` asks the shape for its own eroded layer, and
             // a layer is a table once it has been asked for a size. See ArmatureTheme.shapePanel.
-            ArmatureTheme.shapePanel(r, x, y, size, ArmatureTheme.nodeFill(), look.edge(), geometry);
+            //
+            // The wash is composited into the panel's fill rather than drawn over it: one shape fill
+            // instead of two, for the same pixels — over is associative, so a wash drawn over a panel
+            // shows what drawing the composite shows (see Colour.over). Two fills per node per frame
+            // across seventy nodes is what the frame overlay counted, and on 26.x every fill is its
+            // own extraction record. The edge still draws over the composite, so the border the old
+            // separate wash spared stays crisp.
+            int face = ArmatureTheme.nodeFill();
+            if (look.wash() != 0) {
+                face = Colour.over(face, look.wash());
+            }
+            ArmatureTheme.shapePanel(r, x, y, size, face, look.edge(), geometry);
         }
 
         // The icon's corner and its size, from ONE inset -- `iconBox`, not two numbers here.
@@ -189,8 +201,8 @@ public final class QuestNodeArt {
         // nothing holds draws the game's missing texture, which names the picture nobody can draw.
         boolean drewItem = false;
         if (!look.texture().isEmpty() && iconFits) {
-            net.minecraft.resources.ResourceLocation texture =
-                    net.minecraft.resources.ResourceLocation.tryParse(look.texture());
+            net.minecraft.resources.Identifier texture =
+                    net.minecraft.resources.Identifier.tryParse(look.texture());
             if (texture != null) {
                 r.texture(texture, iconBox[0], iconBox[1], iconBox[2], iconBox[2]);
                 drewItem = true;
@@ -200,8 +212,8 @@ public final class QuestNodeArt {
             // An atlas region, drawn like a chapter element's sprite: the cache keeps the stack
             // empty for a sprite for the same reason it does for a texture. A region nothing
             // holds draws the missing mark through the sprite call itself.
-            net.minecraft.resources.ResourceLocation sprite =
-                    net.minecraft.resources.ResourceLocation.tryParse(look.sprite());
+            net.minecraft.resources.Identifier sprite =
+                    net.minecraft.resources.Identifier.tryParse(look.sprite());
             if (sprite != null) {
                 r.sprite(sprite, iconBox[0], iconBox[1], iconBox[2], iconBox[2], 0xFFFFFFFF);
                 drewItem = true;
@@ -221,29 +233,6 @@ public final class QuestNodeArt {
             int inset = Math.max(1, size / 4);
             ArmatureTheme.fillShape(r, x + inset, y + inset, size - inset * 2,
                     (look.edge() & 0x00FFFFFF) | 0xB0000000, geometry.inner(inset));
-        }
-
-        // The state, as a wash over the node. It used to be a chip with a cross in the node's
-        // bottom-right corner, and at node scale that chip was a black square pasted over the artwork.
-        // Dimming what is already there says "not yet" without hiding what the quest is, which is the
-        // only reason the icon is here.
-        //
-        // The wash FOLLOWS THE SHAPE, and that is the whole point of drawing it here rather than with a
-        // `fill` rectangle over the icon's box. A rectangle over a circular node is a black square on a
-        // round thing -- which reads as a rendering glitch rather than as a style. Inset by one so the
-        // state-coloured border stays crisp; the item is inside this and is dimmed by it, which is
-        // intended.
-        if (look.wash() != 0) {
-            // Drawn after the item, which is safe: every fill in GuiGraphics ends by flushing the buffer
-            // (fill -> flushIfUnmanaged -> flush -> bufferSource.endBatch), so the item is submitted
-            // first and the wash lands on top of it. Verified in Stage 4 rather than assumed -- an
-            // overlay that draws *under* the thing it overlays is invisible, which is a bug that looks
-            // like the overlay was never called.
-            //
-            // The table is the panel's own, one pixel in -- `geometry.inner()` -- rather than the shape
-            // sampled at `size - 2`, which is what used to let a wash spill past the outline it is meant
-            // to be dimming.
-            ArmatureTheme.fillShape(r, x + 1, y + 1, size - 2, look.wash(), geometry.inner());
         }
     }
 

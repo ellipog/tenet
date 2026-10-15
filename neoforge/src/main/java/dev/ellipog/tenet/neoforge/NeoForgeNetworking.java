@@ -61,7 +61,12 @@ public final class NeoForgeNetworking implements NetworkBackend {
 
     @Override
     public void sendToServer(CustomPacketPayload payload) {
-        PacketDistributor.sendToServer(payload);
+        // Delegated, because ClientPacketDistributor is a client-only class and this one is loaded
+        // on both sides. Sending to the server from a dedicated server cannot happen, and routing
+        // through a client-only holder is what keeps the server from ever loading it. Same split
+        // as Fabric's FabricClientNetworking; on 26.x the client send moved out of PacketDistributor
+        // into the client distributor while the server send stayed.
+        NeoForgeClientNetworking.sendToServer(payload);
     }
 
     // ------------------------------------------------------------------

@@ -79,7 +79,7 @@ public final class InventoryQuestBookButton extends ArmatureButton {
         super(x, y, ELEMENT.width(), ELEMENT.height(), label, InventoryQuestBookButton::open);
         // The same icon at the same inset the editor's preview draws, both taken from the element's own
         // entry: the box is the table's, so the sprite that fills it has to be the table's too.
-        icon(new ItemStack(QuestBook.ITEM)).iconInset(ELEMENT.iconInset());
+        icon(dev.ellipog.tenet.quest.ItemStacks.stackOf(QuestBook.ITEM)).iconInset(ELEMENT.iconInset());
         setTooltip(Tooltip.create(label));
     }
 
@@ -152,8 +152,13 @@ public final class InventoryQuestBookButton extends ArmatureButton {
         // only on survival; creative is always centred. An inventory-anchored button is re-based on this
         // corner every time it is placed, which is what carries it across GUI scales and window sizes.
         boolean survival = screen instanceof InventoryScreen;
-        boolean bookOpen = survival
-                && ((InventoryScreen) screen).getRecipeBookComponent().isVisible();
+        // The component's own getter is gone, but it is still one of the screen's children: an open
+        // book shifts the panel, and this is what says so. If a future version stops adding it as a
+        // child, this reads closed and the button sits under the book -- visible in one playtest.
+        boolean bookOpen = survival && screen.children().stream()
+                .filter(net.minecraft.client.gui.screens.recipebook.RecipeBookComponent.class::isInstance)
+                .map(net.minecraft.client.gui.screens.recipebook.RecipeBookComponent.class::cast)
+                .anyMatch(net.minecraft.client.gui.screens.recipebook.RecipeBookComponent::isVisible);
         var panel = InventoryPanel.rect(screen.width, screen.height, survival, bookOpen);
         var box = HudSettings.origin(ELEMENT) == HudElement.Origin.INVENTORY
                 ? HudLayout.boxAtInventory(panel.x(), panel.y(),
@@ -167,8 +172,8 @@ public final class InventoryQuestBookButton extends ArmatureButton {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        boolean handled = super.mouseClicked(mouseX, mouseY, button);
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        boolean handled = super.mouseClicked(event, doubleClick);
         if (handled) {
             // On press, and the screen is replaced a moment later, which is what takes the press state with
             // it -- see the class note.

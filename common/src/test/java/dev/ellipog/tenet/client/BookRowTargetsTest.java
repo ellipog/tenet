@@ -3,6 +3,7 @@ package dev.ellipog.tenet.client;
 import dev.ellipog.tenet.client.viewer.MinecraftTestBootstrap;
 import dev.ellipog.tenet.client.viewer.RecipeLookups;
 
+import dev.ellipog.tenet.quest.ItemStacks;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -66,7 +67,7 @@ class BookRowTargetsTest {
     @Test
     @DisplayName("an item task's target is its item")
     void itemTaskIsAnItemTarget() {
-        ItemStack stack = new ItemStack(Items.STONE);
+        ItemStack stack = ItemStacks.stackOf(Items.STONE);
 
         RecipeLookups.Target target = BookRowTargets.ofTask(task(stack, "minecraft:stone", ""));
 
@@ -86,7 +87,7 @@ class BookRowTargetsTest {
     @Test
     @DisplayName("a tag task wearing a picture still opens the tag, not the picture")
     void tagTaskWithPictureIsATagTarget() {
-        ItemStack picture = new ItemStack(Items.OAK_LOG);
+        ItemStack picture = ItemStacks.stackOf(Items.OAK_LOG);
 
         RecipeLookups.Target target =
                 BookRowTargets.ofTask(picturedTagTask("minecraft:logs", picture));
@@ -98,7 +99,7 @@ class BookRowTargetsTest {
     @Test
     @DisplayName("a tag task from an old server opens the tag even when the picture rode in the item")
     void oldTagTaskWithPictureInItemIsATagTarget() {
-        ItemStack picture = new ItemStack(Items.OAK_LOG);
+        ItemStack picture = ItemStacks.stackOf(Items.OAK_LOG);
 
         RecipeLookups.Target target = BookRowTargets.ofTask(task(picture, "minecraft:oak_log", "minecraft:logs"));
 
@@ -109,7 +110,7 @@ class BookRowTargetsTest {
     @Test
     @DisplayName("a picture on a task with no requirement opens nothing")
     void pictureAloneHasNoTarget() {
-        assertNull(BookRowTargets.ofTask(picturedTask(new ItemStack(Items.TORCH))));
+        assertNull(BookRowTargets.ofTask(picturedTask(ItemStacks.stackOf(Items.TORCH))));
     }
 
     @Test
@@ -129,7 +130,7 @@ class BookRowTargetsTest {
     @DisplayName("a break task's target is its block's item, not its picture")
     void breakTaskIsABlockTarget() {
         RecipeLookups.Target target = BookRowTargets.ofTask(
-                breakTask("minecraft:stone", "", new ItemStack(Items.DIAMOND)));
+                breakTask("minecraft:stone", "", ItemStacks.stackOf(Items.DIAMOND)));
 
         assertFalse(target.isTag());
         assertEquals(Items.STONE, target.item().getItem(),
@@ -140,7 +141,7 @@ class BookRowTargetsTest {
     @DisplayName("a break by block tag has no target: a block tag is not an item tag")
     void breakTagHasNoTarget() {
         assertNull(BookRowTargets.ofTask(
-                breakTask("", "minecraft:logs", new ItemStack(Items.OAK_LOG))),
+                breakTask("", "minecraft:logs", ItemStacks.stackOf(Items.OAK_LOG))),
                 "opening one member's recipes would claim the quest is about that member");
     }
 
@@ -159,7 +160,7 @@ class BookRowTargetsTest {
     @Test
     @DisplayName("an item reward's target is its item; rewards carry no tags")
     void itemRewardIsAnItemTarget() {
-        ItemStack stack = new ItemStack(Items.DIAMOND);
+        ItemStack stack = ItemStacks.stackOf(Items.DIAMOND);
 
         RecipeLookups.Target target = BookRowTargets.ofReward(reward(stack, "minecraft:diamond"));
 

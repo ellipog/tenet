@@ -6,7 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.QuestReward;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
@@ -25,7 +25,7 @@ import java.util.Set;
 public record ItemReward(RewardCommon common, ItemRef item, int randomBonus, boolean onlyOne)
         implements QuestReward {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "item");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "item");
 
     /** The type's own fields; {@link RewardCommon#FIELDS} is unioned in at registration. */
     public static final Set<String> FIELDS =
@@ -43,7 +43,7 @@ public record ItemReward(RewardCommon common, ItemRef item, int randomBonus, boo
     ).apply(instance, ItemReward::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -107,7 +107,8 @@ public record ItemReward(RewardCommon common, ItemRef item, int randomBonus, boo
             ItemStack remainder = dev.ellipog.tenet.inventory.InventoryAccesses.current()
                     .insert(context.player(), give);
             if (!remainder.isEmpty()) {
-                context.player().drop(remainder, false);
+                // Server-side overflow with no client prediction: the server is giving, not the player.
+                context.player().drop(remainder, false, net.minecraft.util.Prediction.SERVER_ONLY);
                 context.feedback().dropped(remainder);
             }
         }

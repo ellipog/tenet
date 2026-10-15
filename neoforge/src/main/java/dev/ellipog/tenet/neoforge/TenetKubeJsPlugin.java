@@ -17,7 +17,7 @@ import dev.latvian.mods.kubejs.script.ScriptManager;
 import dev.latvian.mods.kubejs.script.ScriptType;
 
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
@@ -280,7 +280,7 @@ public final class TenetKubeJsPlugin implements KubeJSPlugin {
         /** The pressed element's id. */
         public final String element;
 
-        ClickEvent(ServerPlayer player, ResourceLocation id, String chapter, String element) {
+        ClickEvent(ServerPlayer player, Identifier id, String chapter, String element) {
             this.player = player;
             this.id = id.toString();
             this.chapter = chapter;

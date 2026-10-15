@@ -1,7 +1,7 @@
 package dev.ellipog.tenet.quest.task;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -43,12 +43,12 @@ public final class FilterParser {
         String summary();
 
         /** Every {@code item()} id this names, for the validator's missing-item warning. */
-        default List<ResourceLocation> itemIds() {
+        default List<Identifier> itemIds() {
             return List.of();
         }
 
         /** Every {@code item_tag()} id this names. */
-        default List<ResourceLocation> tagIds() {
+        default List<Identifier> tagIds() {
             return List.of();
         }
 
@@ -80,8 +80,8 @@ public final class FilterParser {
             }
 
             @Override
-            public List<ResourceLocation> itemIds() {
-                List<ResourceLocation> out = new ArrayList<>();
+            public List<Identifier> itemIds() {
+                List<Identifier> out = new ArrayList<>();
                 for (Expr child : children) {
                     out.addAll(child.itemIds());
                 }
@@ -89,8 +89,8 @@ public final class FilterParser {
             }
 
             @Override
-            public List<ResourceLocation> tagIds() {
-                List<ResourceLocation> out = new ArrayList<>();
+            public List<Identifier> tagIds() {
+                List<Identifier> out = new ArrayList<>();
                 for (Expr child : children) {
                     out.addAll(child.tagIds());
                 }
@@ -130,8 +130,8 @@ public final class FilterParser {
             }
 
             @Override
-            public List<ResourceLocation> itemIds() {
-                List<ResourceLocation> out = new ArrayList<>();
+            public List<Identifier> itemIds() {
+                List<Identifier> out = new ArrayList<>();
                 for (Expr child : children) {
                     out.addAll(child.itemIds());
                 }
@@ -139,8 +139,8 @@ public final class FilterParser {
             }
 
             @Override
-            public List<ResourceLocation> tagIds() {
-                List<ResourceLocation> out = new ArrayList<>();
+            public List<Identifier> tagIds() {
+                List<Identifier> out = new ArrayList<>();
                 for (Expr child : children) {
                     out.addAll(child.tagIds());
                 }
@@ -175,12 +175,12 @@ public final class FilterParser {
             }
 
             @Override
-            public List<ResourceLocation> itemIds() {
+            public List<Identifier> itemIds() {
                 return child.itemIds();
             }
 
             @Override
-            public List<ResourceLocation> tagIds() {
+            public List<Identifier> tagIds() {
                 return child.tagIds();
             }
 
@@ -191,10 +191,11 @@ public final class FilterParser {
         }
 
         /** An {@code item(...)} leaf: this stack is that item. */
-        record Item(ResourceLocation id) implements Expr {
+        record Item(Identifier id) implements Expr {
             @Override
             public boolean test(ItemStack stack) {
-                net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(id);
+                net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(id)
+                        .map(holder -> holder.value()).orElse(net.minecraft.world.item.Items.AIR);
                 return !stack.isEmpty() && stack.is(item);
             }
 
@@ -204,7 +205,7 @@ public final class FilterParser {
             }
 
             @Override
-            public List<ResourceLocation> itemIds() {
+            public List<Identifier> itemIds() {
                 return List.of(id);
             }
 
@@ -215,7 +216,7 @@ public final class FilterParser {
         }
 
         /** An {@code item_tag(...)} leaf: this stack is in that tag. */
-        record Tag(ResourceLocation id) implements Expr {
+        record Tag(Identifier id) implements Expr {
             @Override
             public boolean test(ItemStack stack) {
                 return !stack.isEmpty()
@@ -229,7 +230,7 @@ public final class FilterParser {
             }
 
             @Override
-            public List<ResourceLocation> tagIds() {
+            public List<Identifier> tagIds() {
                 return List.of(id);
             }
 
@@ -296,7 +297,7 @@ public final class FilterParser {
         }
 
         /** An id's last path segment in words: {@code oak_log} reads as "Oak Log". */
-        static String humanize(ResourceLocation id) {
+        static String humanize(Identifier id) {
             String path = id.getPath();
             int slash = path.lastIndexOf('/');
             String name = slash < 0 ? path : path.substring(slash + 1);
@@ -445,11 +446,11 @@ public final class FilterParser {
     }
 
     /** A namespaced id, defaulting the namespace the way resource locations do. */
-    static ResourceLocation id(String arg, String function) {
+    static Identifier id(String arg, String function) {
         if (arg.isEmpty()) {
             throw new FilterException(function + "() takes an id, found nothing");
         }
-        ResourceLocation id = ResourceLocation.tryParse(arg);
+        Identifier id = Identifier.tryParse(arg);
         if (id == null) {
             throw new FilterException("\"" + arg + "\" is not a valid id in " + function + "()");
         }

@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Items;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -38,7 +38,7 @@ class FluidTaskTest {
 
     private static FluidTask task(boolean manualOnly) {
         return new FluidTask(new TaskCommon(false, 20),
-                ResourceLocation.parse("minecraft:water"), 1000, manualOnly);
+                Identifier.parse("minecraft:water"), 1000, manualOnly);
     }
 
     private static QuestTask decoded(String text) {
@@ -67,9 +67,9 @@ class FluidTaskTest {
     @DisplayName("every fluid rides in its own bucket")
     void bucketFor() {
         assertEquals(Items.WATER_BUCKET,
-                FluidTask.bucketFor(ResourceLocation.parse("minecraft:water")));
+                FluidTask.bucketFor(Identifier.parse("minecraft:water")));
         assertEquals(Items.LAVA_BUCKET,
-                FluidTask.bucketFor(ResourceLocation.parse("minecraft:lava")));
+                FluidTask.bucketFor(Identifier.parse("minecraft:lava")));
     }
 
     @Test

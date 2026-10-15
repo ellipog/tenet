@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
@@ -30,7 +30,7 @@ public record StageSyncPayload(List<String> stages) implements CustomPacketPaylo
      * {@link QuestSyncPayload#TYPE} for why that method silently rewrites the namespace.
      */
     public static final CustomPacketPayload.Type<StageSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "stage_sync"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "stage_sync"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, StageSyncPayload> CODEC =
             StreamCodec.composite(

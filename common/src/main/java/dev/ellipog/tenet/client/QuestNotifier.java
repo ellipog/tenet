@@ -10,7 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -260,7 +260,7 @@ public final class QuestNotifier {
             return;   // the tree moved between the sample and here; nothing to name
         }
 
-        if (minecraft.screen instanceof QuestBookScreen book) {
+        if (minecraft.gui.screen() instanceof QuestBookScreen book) {
             book.notifyNotice(said.message());
         }
         else if (HudSettings.on(HudElement.NOTIFICATIONS)) {
@@ -269,11 +269,11 @@ public final class QuestNotifier {
             // duplicate this class exists to prevent, one screen over.
             HudOverlay.notice(said.message().getString(), false, Util.getMillis());
         }
-        else if (minecraft.getToasts().getToast(QuestToast.class, said.token()) == null) {
+        else if (minecraft.gui.toastManager().getToast(QuestToast.class, said.token()) == null) {
             // Not already being announced: a repeatable quest finished twice in quick succession is
             // told once, and the token is what makes the two notices the same notice. One token per kind,
             // so a quest's completion and a task of it are not confused for each other.
-            minecraft.getToasts().addToast(
+            minecraft.gui.toastManager().addToast(
                     new QuestToast(said.token(), said.icon(), said.texture(), said.sprite(), said.label(),
                             said.title()));
         }
@@ -363,7 +363,7 @@ public final class QuestNotifier {
         if (stacks <= 0) {
             return;
         }
-        if (Minecraft.getInstance().screen instanceof QuestBookScreen book) {
+        if (Minecraft.getInstance().gui.screen() instanceof QuestBookScreen book) {
             book.notifyRewardOverflow(stacks);
         }
     }
@@ -376,7 +376,7 @@ public final class QuestNotifier {
      * finished both make rows disappear, so the sentence is what tells them apart.
      */
     public static void claimSummary(int claimed, int total, boolean halted) {
-        if (Minecraft.getInstance().screen instanceof QuestBookScreen book) {
+        if (Minecraft.getInstance().gui.screen() instanceof QuestBookScreen book) {
             book.notifyClaimSummary(claimed, total, halted);
         }
     }
@@ -389,7 +389,7 @@ public final class QuestNotifier {
      * nowhere else. Outside the book the chat is where that sentence belongs.
      */
     public static void rewardToast(Component message) {
-        if (Minecraft.getInstance().screen instanceof QuestBookScreen book) {
+        if (Minecraft.getInstance().gui.screen() instanceof QuestBookScreen book) {
             book.notifyNotice(message);
         }
     }
@@ -404,7 +404,7 @@ public final class QuestNotifier {
      */
     public static void choiceResult(String questId, int rewardIndex,
                                     dev.ellipog.tenet.net.ClaimChoiceResultPayload.Result result) {
-        if (Minecraft.getInstance().screen instanceof QuestBookScreen book) {
+        if (Minecraft.getInstance().gui.screen() instanceof QuestBookScreen book) {
             book.notifyChoiceResult(questId, rewardIndex, result);
         }
     }

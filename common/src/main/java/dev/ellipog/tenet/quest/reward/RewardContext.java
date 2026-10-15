@@ -36,7 +36,7 @@ public record RewardContext(ServerPlayer player, MinecraftServer server, UUID ow
 
     /** The player alone: enough for a reward that gives what it says and needs nothing else. */
     public static RewardContext of(ServerPlayer player) {
-        return new RewardContext(player, player.getServer(), player.getUUID(), "", "", List.of(player),
+        return new RewardContext(player, player.level().getServer(), player.getUUID(), "", "", List.of(player),
                 new RewardFeedback());
     }
 }

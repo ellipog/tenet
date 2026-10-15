@@ -129,7 +129,7 @@ public final class CanvasSettings {
     }
 
     /**
-     * Parses the file's text into the three values, clamped. See the class note for why each clamp is the
+     * Parses the file's text into the values, clamped. See the class note for why each clamp is the
      * only reading under which the ladder means anything.
      *
      * @throws com.google.gson.JsonSyntaxException if the text is not JSON at all; {@link #load} catches it

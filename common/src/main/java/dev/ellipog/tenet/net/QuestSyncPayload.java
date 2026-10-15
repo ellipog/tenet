@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * The quest tree: one chunk of it, plus how many quests and chapters the whole tree holds.
@@ -70,19 +70,19 @@ public record QuestSyncPayload(int questCount, int chapterCount, String packThem
      * The payload's id, <b>not</b> built with {@code CustomPacketPayload.createType}.
      *
      * <p>That method looks like the right one and is not. Its bytecode is
-     * {@code new Type(ResourceLocation.withDefaultNamespace(name))} — it takes a <i>path</i> and
+     * {@code new Type(Identifier.withDefaultNamespace(name))} — it takes a <i>path</i> and
      * hardcodes the {@code minecraft} namespace, because it exists for vanilla's own payloads. So
      * passing it {@code "tenet:quest_sync"} produces the location {@code minecraft:tenet:quest_sync},
      * and the colon inside the path throws:
      *
      * <pre>Non [a-z0-9/._-] character in path of location: minecraft:tenet:quest_sync</pre>
      *
-     * <p>The constructor takes a real {@link ResourceLocation} and accepts a namespace, which is what
+     * <p>The constructor takes a real {@link Identifier} and accepts a namespace, which is what
      * a mod's payload needs. Worth reading as a rule: when a factory method in vanilla takes a string
      * and the error names a location you did not write, check whether it prepends a namespace.
      */
     public static final CustomPacketPayload.Type<QuestSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "quest_sync"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "quest_sync"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, QuestSyncPayload> CODEC =
             StreamCodec.composite(

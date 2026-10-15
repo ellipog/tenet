@@ -1,7 +1,7 @@
 package dev.ellipog.tenet.quest;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 
@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class TagLabelsTest {
 
     private static TagKey<Item> tag(String id) {
-        return TagKey.create(Registries.ITEM, ResourceLocation.parse(id));
+        return TagKey.create(Registries.ITEM, Identifier.parse(id));
     }
 
     @Test
@@ -40,19 +40,19 @@ class TagLabelsTest {
     @Test
     @DisplayName("the id overload takes the same path as the tag overload")
     void theIdOverloadAgrees() {
-        assertEquals("Any Iron Ores", TagLabels.humanize(ResourceLocation.parse("c:ores/iron")));
+        assertEquals("Any Iron Ores", TagLabels.humanize(Identifier.parse("c:ores/iron")));
     }
 
     @Test
     @DisplayName("no tag, no id and an empty path are answered, not thrown")
     void edgeCasesAreAnswered() {
         assertEquals("", TagLabels.humanize((TagKey<Item>) null));
-        assertEquals("", TagLabels.humanize((ResourceLocation) null));
-        assertEquals("#c:", TagLabels.humanize(ResourceLocation.fromNamespaceAndPath("c", "")),
+        assertEquals("", TagLabels.humanize((Identifier) null));
+        assertEquals("#c:", TagLabels.humanize(Identifier.fromNamespaceAndPath("c", "")),
                 "an id with no words falls back to the raw id rather than to 'Any '");
-        assertEquals("Any Ores", TagLabels.humanize(ResourceLocation.parse("c:ores/")),
+        assertEquals("Any Ores", TagLabels.humanize(Identifier.parse("c:ores/")),
                 "a trailing slash reads as flat, because the word it has is better than nothing");
-        assertEquals("Any C A B", TagLabels.humanize(ResourceLocation.parse("c:a/b/c")),
+        assertEquals("Any C A B", TagLabels.humanize(Identifier.parse("c:a/b/c")),
                 "a deeper path keeps every word in the category");
     }
 }

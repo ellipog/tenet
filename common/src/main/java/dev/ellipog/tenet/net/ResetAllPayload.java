@@ -3,7 +3,7 @@ package dev.ellipog.tenet.net;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * An author pressing Reset on the whole book in the quest book.
@@ -29,7 +29,7 @@ public record ResetAllPayload() implements CustomPacketPayload {
      * {@link QuestSyncPayload#TYPE} for why that method silently rewrites the namespace.
      */
     public static final CustomPacketPayload.Type<ResetAllPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "reset_all"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "reset_all"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ResetAllPayload> CODEC =
             StreamCodec.unit(new ResetAllPayload());

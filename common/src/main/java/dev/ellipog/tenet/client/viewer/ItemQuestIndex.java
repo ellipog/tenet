@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.client.viewer;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,7 +40,7 @@ public final class ItemQuestIndex {
      * An entry with neither is a caller bug and is refused at build time -- the alternative is an
      * index that quietly answers "no quests" to a query it was handed the wrong shape for.
      */
-    public record Entry(ResourceLocation item, QuestRef quest, boolean required, boolean awarded) {
+    public record Entry(Identifier item, QuestRef quest, boolean required, boolean awarded) {
 
         public Entry {
             Objects.requireNonNull(item, "an index entry needs an item");
@@ -55,13 +55,13 @@ public final class ItemQuestIndex {
     private static final ItemQuestIndex EMPTY =
             new ItemQuestIndex(Map.of(), Set.of(), Set.of(), Set.of());
 
-    private final Map<ResourceLocation, List<Entry>> byItem;
-    private final Set<ResourceLocation> items;
-    private final Set<ResourceLocation> required;
-    private final Set<ResourceLocation> awarded;
+    private final Map<Identifier, List<Entry>> byItem;
+    private final Set<Identifier> items;
+    private final Set<Identifier> required;
+    private final Set<Identifier> awarded;
 
-    private ItemQuestIndex(Map<ResourceLocation, List<Entry>> byItem, Set<ResourceLocation> items,
-                           Set<ResourceLocation> required, Set<ResourceLocation> awarded) {
+    private ItemQuestIndex(Map<Identifier, List<Entry>> byItem, Set<Identifier> items,
+                           Set<Identifier> required, Set<Identifier> awarded) {
         this.byItem = byItem;
         this.items = items;
         this.required = required;
@@ -82,7 +82,7 @@ public final class ItemQuestIndex {
     }
 
     /** Every item some quest references, in no particular order. */
-    public Set<ResourceLocation> items() {
+    public Set<Identifier> items() {
         return items;
     }
 
@@ -100,12 +100,12 @@ public final class ItemQuestIndex {
      * entries the lists do: a set cannot disagree with the list it was built from, because both come
      * out of one walk over one {@code byItem} map.
      */
-    public boolean uses(ResourceLocation item) {
+    public boolean uses(Identifier item) {
         return required.contains(item);
     }
 
     /** The awarding half of {@link #uses}, and asked the same way. */
-    public boolean awards(ResourceLocation item) {
+    public boolean awards(Identifier item) {
         return awarded.contains(item);
     }
 
@@ -116,12 +116,12 @@ public final class ItemQuestIndex {
      * stating, because the version this replaced answered "awards and does not require" — see
      * {@code pass} for what that cost.
      */
-    public List<QuestRef> questsAwarding(ResourceLocation item) {
+    public List<QuestRef> questsAwarding(Identifier item) {
         return collect(item, false);
     }
 
     /** The quests that require the item, in insertion order, each once. */
-    public List<QuestRef> questsUsing(ResourceLocation item) {
+    public List<QuestRef> questsUsing(Identifier item) {
         return collect(item, true);
     }
 
@@ -130,7 +130,7 @@ public final class ItemQuestIndex {
      * ones that are not already there. The order matters to a row list, which reads top to bottom,
      * and so does the dedupe, which is what stops one quest appearing as both.
      */
-    public List<QuestRef> questsFor(ResourceLocation item) {
+    public List<QuestRef> questsFor(Identifier item) {
         List<Entry> hits = byItem.get(item);
         if (hits == null || hits.isEmpty()) {
             return List.of();
@@ -142,7 +142,7 @@ public final class ItemQuestIndex {
         return List.copyOf(out);
     }
 
-    private List<QuestRef> collect(ResourceLocation item, boolean required) {
+    private List<QuestRef> collect(Identifier item, boolean required) {
         List<Entry> hits = byItem.get(item);
         if (hits == null || hits.isEmpty()) {
             return List.of();
@@ -172,13 +172,13 @@ public final class ItemQuestIndex {
     /** Fills an index. One builder per snapshot; not thread-safe, and never shared. */
     public static final class Builder {
 
-        private final Map<ResourceLocation, List<Entry>> byItem = new HashMap<>();
-        private final Set<ResourceLocation> items = new LinkedHashSet<>();
+        private final Map<Identifier, List<Entry>> byItem = new HashMap<>();
+        private final Set<Identifier> items = new LinkedHashSet<>();
         // The two roles, accumulated as the entries arrive rather than derived at build time: the
         // entries are already being walked here, and a second walk to sort them into two sets would be
         // the same work done twice for the same answer.
-        private final Set<ResourceLocation> required = new LinkedHashSet<>();
-        private final Set<ResourceLocation> awarded = new LinkedHashSet<>();
+        private final Set<Identifier> required = new LinkedHashSet<>();
+        private final Set<Identifier> awarded = new LinkedHashSet<>();
 
         private Builder() {
         }
@@ -197,7 +197,7 @@ public final class ItemQuestIndex {
         }
 
         /** Convenience for the common shape: a quest that uses an item, awards one, or both. */
-        public Builder add(ResourceLocation item, QuestRef quest, boolean required, boolean awarded) {
+        public Builder add(Identifier item, QuestRef quest, boolean required, boolean awarded) {
             return add(new Entry(item, quest, required, awarded));
         }
 
@@ -205,7 +205,7 @@ public final class ItemQuestIndex {
             if (byItem.isEmpty()) {
                 return EMPTY;
             }
-            Map<ResourceLocation, List<Entry>> frozen = new HashMap<>(byItem.size());
+            Map<Identifier, List<Entry>> frozen = new HashMap<>(byItem.size());
             byItem.forEach((item, entries) -> frozen.put(item, List.copyOf(entries)));
             return new ItemQuestIndex(Collections.unmodifiableMap(frozen),
                     Collections.unmodifiableSet(new LinkedHashSet<>(items)),

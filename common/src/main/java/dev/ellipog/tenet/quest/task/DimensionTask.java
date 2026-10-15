@@ -8,7 +8,7 @@ import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 import java.util.function.Function;
@@ -21,19 +21,19 @@ import java.util.function.Function;
  * <p>Check on the type's own slow cadence: a player does not change dimension between two ticks, and
  * Legacy packs poll this one every hundred ticks for the same reason.
  */
-public record DimensionTask(TaskCommon common, ResourceLocation dimension) implements QuestTask {
+public record DimensionTask(TaskCommon common, Identifier dimension) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "dimension");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "dimension");
 
     public static final Set<String> FIELDS = Set.of("dimension");
 
     public static final MapCodec<DimensionTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(100).forGetter(DimensionTask::common),
-            ResourceLocation.CODEC.fieldOf("dimension").forGetter(DimensionTask::dimension)
+            Identifier.CODEC.fieldOf("dimension").forGetter(DimensionTask::dimension)
     ).apply(instance, DimensionTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -46,7 +46,7 @@ public record DimensionTask(TaskCommon common, ResourceLocation dimension) imple
 
         @Override
         public int current(DimensionTask task, TaskContext context) {
-            return context.player().level().dimension().location().equals(task.dimension()) ? 1 : 0;
+            return context.player().level().dimension().identifier().equals(task.dimension()) ? 1 : 0;
         }
 
         @Override
