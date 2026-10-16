@@ -6,9 +6,6 @@ A pack author describes a quest line in JSON, Tenet draws it in a quest book, an
 server decides what counts as done. Tenet ships no quests of its own — it is an engine,
 not content.
 
-> **Before its first stable release.** The format and the API may still break, so read
-> the release notes before upgrading.
-
 ## Why Tenet
 
 - **The server decides what counts.** The client draws what it is told and nothing more, so editing your own game completes nothing.
