@@ -69,7 +69,7 @@ public final class HudElementPreview extends ArmatureButton {
         // Only a control: a drawn element has no widget on anybody's screen to borrow from, and its own
         // drawing is what `draw` delegates to below.
         if (element.kind() == HudElement.Kind.CONTROL) {
-            icon(new ItemStack(QuestBook.ITEM)).iconInset(element.iconInset());
+            icon(dev.ellipog.tenet.quest.ItemStacks.stackOf(QuestBook.ITEM)).iconInset(element.iconInset());
         }
     }
 
@@ -146,11 +146,11 @@ public final class HudElementPreview extends ArmatureButton {
      * press outside the element is not this widget's at all.
      */
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        boolean taken = super.mouseClicked(mouseX, mouseY, button);
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        boolean taken = super.mouseClicked(event, doubleClick);
         if (taken) {
-            grabX = mouseX - getX();
-            grabY = mouseY - getY();
+            grabX = event.x() - getX();
+            grabY = event.y() - getY();
         }
         return taken;
     }
@@ -168,19 +168,19 @@ public final class HudElementPreview extends ArmatureButton {
      * parameters cannot be renamed away because the signature is the base class's.
      */
     @Override
-    protected void onDrag(double mouseX, double mouseY, double dragX, double dragY) {
+    protected void onDrag(net.minecraft.client.input.MouseButtonEvent event, double dragX, double dragY) {
         moved = true;
         // Clamped against the window as it is now -- `screen.width`/`height` are read here, per drag event,
         // not remembered from when the widget was built -- and by the same rule the resting position uses, so
         // a drag cannot put the element anywhere a later frame would refuse to draw it. The grab survives a
         // clamp, so an element dragged past an edge comes back with the pointer rather than sticking to it.
-        setX(HudLayout.dragged(mouseX, grabX, screen.width - width));
-        setY(HudLayout.dragged(mouseY, grabY, screen.height - height));
+        setX(HudLayout.dragged(event.x(), grabX, screen.width - width));
+        setY(HudLayout.dragged(event.y(), grabY, screen.height - height));
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        boolean acted = super.mouseReleased(mouseX, mouseY, button);
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        boolean acted = super.mouseReleased(event);
         if (moved) {
             moved = false;
             screen.drop(element);

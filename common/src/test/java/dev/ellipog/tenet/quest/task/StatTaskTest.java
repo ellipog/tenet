@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +35,7 @@ class StatTaskTest {
     }
 
     private static StatTask task(String stat, int value) {
-        return new StatTask(new TaskCommon(false, 3), ResourceLocation.parse(stat), value);
+        return new StatTask(new TaskCommon(false, 3), Identifier.parse(stat), value);
     }
 
     private static QuestTask decoded(String text) {

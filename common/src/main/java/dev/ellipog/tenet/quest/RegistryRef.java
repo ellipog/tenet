@@ -3,18 +3,18 @@ package dev.ellipog.tenet.quest;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A reference to a registry entry, or to a tag of them: {@code minecraft:plains} or
  * {@code #minecraft:is_forest}.
  *
  * <p>the legacy format writes the tag form into the same field with a leading {@code #} — a shape a
- * {@link ResourceLocation} cannot hold, which is why this exists rather than a second field. The
+ * {@link Identifier} cannot hold, which is why this exists rather than a second field. The
  * codec round-trips the same spelling, so a file that says {@code "#minecraft:is_forest"} keeps
  * saying it.
  */
-public record RegistryRef(ResourceLocation id, boolean tag) {
+public record RegistryRef(Identifier id, boolean tag) {
 
     /**
      * The codec, and the one thing about it that matters is that it <b>never throws</b>.
@@ -55,7 +55,7 @@ public record RegistryRef(ResourceLocation id, boolean tag) {
     private static DataResult<RegistryRef> decode(String raw) {
         String text = raw == null ? "" : raw.trim();
         boolean tag = text.startsWith("#");
-        ResourceLocation id = ResourceLocation.tryParse(tag ? text.substring(1) : text);
+        Identifier id = Identifier.tryParse(tag ? text.substring(1) : text);
         if (id == null) {
             return DataResult.error(() -> "'" + raw + "' is not an id or a #tag");
         }
@@ -66,7 +66,7 @@ public record RegistryRef(ResourceLocation id, boolean tag) {
     public static RegistryRef parse(String raw) {
         String text = raw == null ? "" : raw.trim();
         boolean tag = text.startsWith("#");
-        ResourceLocation id = ResourceLocation.tryParse(tag ? text.substring(1) : text);
+        Identifier id = Identifier.tryParse(tag ? text.substring(1) : text);
         if (id == null) {
             throw new IllegalArgumentException("'" + raw + "' is not an id or a #tag");
         }

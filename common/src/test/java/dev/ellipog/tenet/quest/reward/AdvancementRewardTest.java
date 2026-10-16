@@ -5,7 +5,7 @@ import com.mojang.serialization.JsonOps;
 
 import dev.ellipog.tenet.quest.QuestReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AdvancementRewardTest {
 
     private static AdvancementReward reward(String advancement, Optional<String> criterion) {
-        return new AdvancementReward(RewardCommon.DEFAULT, ResourceLocation.parse(advancement),
+        return new AdvancementReward(RewardCommon.DEFAULT, Identifier.parse(advancement),
                 criterion);
     }
 

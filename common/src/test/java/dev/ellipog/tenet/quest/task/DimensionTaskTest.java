@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +35,7 @@ class DimensionTaskTest {
 
     private static DimensionTask task(String dimension) {
         return new DimensionTask(new TaskCommon(false, 100),
-                ResourceLocation.parse(dimension));
+                Identifier.parse(dimension));
     }
 
     private static QuestTask decoded(String text) {

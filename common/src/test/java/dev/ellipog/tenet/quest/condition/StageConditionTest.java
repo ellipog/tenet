@@ -5,7 +5,7 @@ import com.mojang.serialization.JsonOps;
 
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +35,7 @@ class StageConditionTest {
     @Test
     @DisplayName("the type is registered with a behaviour, so the gate can open")
     void behaviourRegistered() {
-        var condition = new StageCondition(ResourceLocation.parse("my_pack:inducted"));
+        var condition = new StageCondition(Identifier.parse("my_pack:inducted"));
 
         assertTrue(ConditionTypes.behaviourOf(condition).isPresent(),
                 "a registered type with no behaviour is a gate that never opens");
@@ -44,7 +44,7 @@ class StageConditionTest {
     @Test
     @DisplayName("the row names the stage the player has to have")
     void display() {
-        var condition = new StageCondition(ResourceLocation.parse("my_pack:inducted"));
+        var condition = new StageCondition(Identifier.parse("my_pack:inducted"));
 
         assertEquals("tenet.condition.stage", StageCondition.DISPLAY.apply(condition).label());
         assertEquals("Have the stage my_pack:inducted",
@@ -59,7 +59,7 @@ class StageConditionTest {
                 .parse(JsonOps.INSTANCE, JsonParser.parseString(
                         "{\"type\": \"tenet:stage\", \"stage\": \"my_pack:inducted\"}"))
                 .result().orElseThrow(() -> new AssertionError("did not decode")));
-        assertEquals(ResourceLocation.parse("my_pack:inducted"), parsed.stage());
-        assertEquals(ResourceLocation.parse("tenet:stage"), parsed.type());
+        assertEquals(Identifier.parse("my_pack:inducted"), parsed.stage());
+        assertEquals(Identifier.parse("tenet:stage"), parsed.type());
     }
 }

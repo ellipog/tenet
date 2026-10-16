@@ -5,7 +5,7 @@ import dev.ellipog.armature.client.render.GuiGraphicsRenderer;
 import dev.ellipog.armature.client.render.GuiRenderer;
 import dev.ellipog.tenet.client.BookGeometry;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
@@ -60,8 +60,9 @@ public final class ChoiceField extends AbstractWidget {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (!isActive() || !visible || button != 0 || !isMouseOver(mouseX, mouseY)) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        if (!isActive() || !visible || !isValidClickButton(event.buttonInfo())
+                || !isMouseOver(event.x(), event.y())) {
             return false;
         }
         onPress.run();
@@ -69,7 +70,8 @@ public final class ChoiceField extends AbstractWidget {
     }
 
     @Override
-    protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+            float partialTick) {
         render(new GuiGraphicsRenderer(graphics), mouseX, mouseY);
     }
 

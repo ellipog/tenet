@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A player pressing a canvas element whose click the client cannot run itself.
@@ -30,7 +30,7 @@ public record ClickPayload(String chapterId, String elementId) implements Custom
      * {@link QuestSyncPayload#TYPE} for why that method silently rewrites the namespace.
      */
     public static final CustomPacketPayload.Type<ClickPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "click"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "click"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ClickPayload> CODEC =
             StreamCodec.composite(

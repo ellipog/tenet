@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * An author pressing Reset on one quest in the quest book.
@@ -42,7 +42,7 @@ public record ResetQuestPayload(String questId) implements CustomPacketPayload {
      * {@link QuestSyncPayload#TYPE} for why that method silently rewrites the namespace.
      */
     public static final CustomPacketPayload.Type<ResetQuestPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "reset_quest"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "reset_quest"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ResetQuestPayload> CODEC =
             StreamCodec.composite(

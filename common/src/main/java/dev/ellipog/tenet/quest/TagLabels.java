@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.quest;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 
 import java.util.Locale;
@@ -43,7 +43,7 @@ public final class TagLabels {
      * The label for a tag's id: "Any &lt;Name&gt; &lt;Category&gt;" when the path has a category,
      * "Any &lt;Name&gt;" when it does not.
      */
-    public static String humanize(ResourceLocation id) {
+    public static String humanize(Identifier id) {
         if (id == null) {
             return "";
         }

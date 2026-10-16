@@ -143,7 +143,7 @@ class ColourPopoverTest {
                 "not every quick pick was offered: " + recorder.describe());
 
         RecordingRenderer.Fill first = drawn.get(0);
-        assertTrue(picker.popover.mouseClicked(first.left() + 2, first.top() + 2, 0),
+        assertTrue(picker.popover.mouseClicked(leftClick(first.left() + 2, first.top() + 2)),
                 "the press was not the picker's");
         assertEquals(List.of(seeds.get(0) | 0xFF000000), picker.commits,
                 "the swatch that was drawn is not the swatch that answered");
@@ -201,8 +201,15 @@ class ColourPopoverTest {
         RecordingRenderer.Drawn glyph = recorder.texts().stream()
                 .filter(text -> text.text().equals("+")).findFirst()
                 .orElseThrow(() -> new AssertionError("the + was not drawn: " + recorder.describe()));
-        assertTrue(picker.popover.mouseClicked(glyph.x() + 2, glyph.y() + 4, 0),
+        assertTrue(picker.popover.mouseClicked(leftClick(glyph.x() + 2, glyph.y() + 4)),
                 "the press on the + was not the picker's");
+    }
+
+    /** A left press at a point, for the popover's event-taking input. */
+    private static net.minecraft.client.input.MouseButtonEvent leftClick(double x, double y) {
+        return new net.minecraft.client.input.MouseButtonEvent(x, y,
+                new net.minecraft.client.input.MouseButtonInfo(
+                        com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT, 0));
     }
 
     @Test

@@ -8,7 +8,7 @@ import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.task.ItemCounting;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 
@@ -23,19 +23,19 @@ import java.util.function.Function;
  * <p>A sibling of {@code tenet:item}, as the task is, and read through the same counting helper: a
  * tag is a different question from "this exact item", and the answer for "how many" must not be.
  */
-public record ItemTagCondition(ResourceLocation tag, int count) implements QuestCondition {
+public record ItemTagCondition(Identifier tag, int count) implements QuestCondition {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "item_tag");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "item_tag");
 
     public static final Set<String> FIELDS = Set.of("tag", "count");
 
     public static final MapCodec<ItemTagCondition> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
-            ResourceLocation.CODEC.fieldOf("tag").forGetter(ItemTagCondition::tag),
+            Identifier.CODEC.fieldOf("tag").forGetter(ItemTagCondition::tag),
             Codec.intRange(1, 6400).optionalFieldOf("count", 1).forGetter(ItemTagCondition::count)
     ).apply(instance, ItemTagCondition::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

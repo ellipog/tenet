@@ -20,7 +20,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -388,7 +388,7 @@ public final class ClientQuestCache {
             if (live != null && !live.isBlank()) {
                 return java.util.Optional.of(live.trim());
             }
-            ResourceLocation location = ResourceLocation.tryParse(idPart);
+            Identifier location = Identifier.tryParse(idPart);
             if (location == null) {
                 return java.util.Optional.empty();
             }
@@ -568,7 +568,7 @@ public final class ClientQuestCache {
             return "";
         }
         boolean tag = id.startsWith("#");
-        ResourceLocation location = ResourceLocation.tryParse(tag ? id.substring(1) : id);
+        Identifier location = Identifier.tryParse(tag ? id.substring(1) : id);
         if (location == null) {
             return "";
         }
@@ -580,7 +580,7 @@ public final class ClientQuestCache {
         if (id == null || id.isBlank()) {
             return "";
         }
-        ResourceLocation location = ResourceLocation.tryParse(id.startsWith("#") ? id.substring(1) : id);
+        Identifier location = Identifier.tryParse(id.startsWith("#") ? id.substring(1) : id);
         if (location == null) {
             return "";
         }
@@ -622,7 +622,7 @@ public final class ClientQuestCache {
         if (id == null || id.isBlank()) {
             return null;
         }
-        ResourceLocation location = ResourceLocation.tryParse(id);
+        Identifier location = Identifier.tryParse(id);
         if (location == null) {
             return null;
         }
@@ -631,11 +631,11 @@ public final class ClientQuestCache {
             return null;
         }
         for (net.minecraft.advancements.AdvancementNode node
-                : minecraft.getConnection().getAdvancements().getTree().nodes()) {
+                : minecraft.getConnection().getAdvancements().tree().nodes()) {
             net.minecraft.advancements.AdvancementHolder holder = node.holder();
             if (holder.id().equals(location)) {
                 return holder.value().display()
-                        .map(display -> display.getTitle().getString())
+                        .map(display -> display.title().getString())
                         .orElse(null);
             }
         }
@@ -677,7 +677,7 @@ public final class ClientQuestCache {
             return ItemStack.EMPTY;
         }
         return frames.get(
-                (int) ((net.minecraft.Util.getMillis() / 1000) % frames.size()));
+                (int) ((net.minecraft.util.Util.getMillis() / 1000) % frames.size()));
     }
 
     /**
@@ -721,19 +721,16 @@ public final class ClientQuestCache {
             return cached;
         }
         List<ItemStack> frames = new ArrayList<>();
-        ResourceLocation id = ResourceLocation.tryParse(tagId);
+        Identifier id = Identifier.tryParse(tagId);
         if (id != null) {
             TagKey<Item> tag = TagKey.create(Registries.ITEM, id);
-            var named = BuiltInRegistries.ITEM.getTag(tag);
-            if (named.isPresent()) {
-                for (Holder<Item> holder : named.get()) {
-                    if (holder.value() == Items.AIR) {
-                        continue;
-                    }
-                    frames.add(new ItemStack(holder.value(), 1));
-                    if (frames.size() >= TAG_FRAMES) {
-                        break;
-                    }
+            for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tag)) {
+                if (holder.value() == Items.AIR) {
+                    continue;
+                }
+                frames.add(dev.ellipog.tenet.quest.ItemStacks.stackOf(holder, 1));
+                if (frames.size() >= TAG_FRAMES) {
+                    break;
                 }
             }
         }
@@ -3585,15 +3582,16 @@ public final class ClientQuestCache {
         if (id == null || id.isEmpty()) {
             return ItemStack.EMPTY;
         }
-        ResourceLocation location = ResourceLocation.tryParse(id);
+        Identifier location = Identifier.tryParse(id);
         if (location == null) {
             return ItemStack.EMPTY;
         }
-        Item item = BuiltInRegistries.ITEM.get(location);
-        if (item == Items.AIR) {
+        ItemStack stack = BuiltInRegistries.ITEM.get(location)
+                .map(holder -> dev.ellipog.tenet.quest.ItemStacks.stackOf(holder, Math.max(1, count)))
+                .orElse(ItemStack.EMPTY);
+        if (stack.isEmpty()) {
             return ItemStack.EMPTY;
         }
-        ItemStack stack = new ItemStack(item, Math.max(1, count));
         if (components != null && components.isJsonObject()) {
             net.minecraft.core.component.DataComponentPatch.CODEC
                     .parse(com.mojang.serialization.JsonOps.INSTANCE, components)
@@ -3660,11 +3658,11 @@ public final class ClientQuestCache {
         if (entityId == null || entityId.isEmpty()) {
             return ItemStack.EMPTY;
         }
-        ResourceLocation entity = ResourceLocation.tryParse(entityId);
+        Identifier entity = Identifier.tryParse(entityId);
         if (entity == null) {
             return ItemStack.EMPTY;
         }
-        ResourceLocation egg = ResourceLocation.fromNamespaceAndPath(entity.getNamespace(),
+        Identifier egg = Identifier.fromNamespaceAndPath(entity.getNamespace(),
                 entity.getPath() + "_spawn_egg");
         if (!BuiltInRegistries.ITEM.containsKey(egg)) {
             return ItemStack.EMPTY;

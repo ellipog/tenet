@@ -2,6 +2,7 @@ package dev.ellipog.tenet.client;
 
 import dev.ellipog.tenet.quest.task.FilterParser;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -68,11 +69,13 @@ public final class FilterMatches {
         }
         List<ItemStack> shown = new ArrayList<>();
         int total = 0;
-        for (var holder : BuiltInRegistries.ITEM.holders().toList()) {
-            if (holder.value() == Items.AIR) {
+        // The registry iterates its values directly now; holders come from wrapping, and the
+        // stack helper covers the unbound case a test JVM always is.
+        for (Item item : BuiltInRegistries.ITEM) {
+            if (item == Items.AIR) {
                 continue;
             }
-            ItemStack stack = new ItemStack(holder.value(), 1);
+            ItemStack stack = dev.ellipog.tenet.quest.ItemStacks.stackOf(item, 1);
             if (!parsed.test(stack)) {
                 continue;
             }

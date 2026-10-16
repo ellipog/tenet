@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +39,7 @@ class LocationTaskTest {
 
     private static LocationTask task() {
         return new LocationTask(new TaskCommon(false, 3),
-                Optional.of(ResourceLocation.parse("minecraft:overworld")), false,
+                Optional.of(Identifier.parse("minecraft:overworld")), false,
                 List.of(100, 64, -20), List.of(8, 8, 8));
     }
 

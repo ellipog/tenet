@@ -1,7 +1,7 @@
 package dev.ellipog.tenet.quest;
 
 import com.mojang.serialization.Codec;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * Something a player has to do to complete a quest.
@@ -39,7 +39,7 @@ import net.minecraft.resources.ResourceLocation;
 public interface QuestTask {
 
     /** Which registered type this is. The value of the JSON {@code "type"} field. */
-    ResourceLocation type();
+    Identifier type();
 
     /** Settings every task has. */
     TaskCommon common();

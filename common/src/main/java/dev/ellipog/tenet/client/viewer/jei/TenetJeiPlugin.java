@@ -36,12 +36,12 @@ import mezz.jei.api.registration.IAdvancedRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -104,8 +104,8 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
     }
 
     @Override
-    public ResourceLocation getPluginUid() {
-        return ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "recipe_viewer");
+    public Identifier getPluginUid() {
+        return Identifier.fromNamespaceAndPath(Constants.MOD_ID, "recipe_viewer");
     }
 
     @Override
@@ -300,11 +300,21 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
 
         private static void addIngredient(mezz.jei.api.gui.builder.IRecipeSlotBuilder slot, QuestRow row) {
             if (row.hasTag()) {
-                row.tag().ifPresent(tag -> slot.addIngredients(Ingredient.of(TagKey.create(Registries.ITEM, tag))));
+                // The tag-key `Ingredient.of` is gone; the holder-set one takes the live named set,
+                // and an undeclared tag is an empty ingredient rather than a crash.
+                row.tag().ifPresent(tag -> slot.addIngredients(Ingredient.of(tagHolders(tag))));
             }
             else if (!row.icon().isEmpty()) {
                 slot.addItemStack(row.icon());
             }
+        }
+
+        private static net.minecraft.core.HolderSet<net.minecraft.world.item.Item> tagHolders(
+                net.minecraft.resources.Identifier tag) {
+            net.minecraft.tags.TagKey<net.minecraft.world.item.Item> key =
+                    TagKey.create(Registries.ITEM, tag);
+            return BuiltInRegistries.ITEM.get(key).map(set -> (net.minecraft.core.HolderSet<net.minecraft.world.item.Item>) set)
+                    .orElseGet(net.minecraft.core.HolderSet::empty);
         }
 
         @Override
@@ -315,7 +325,7 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
         }
 
         @Override
-        public void draw(QuestPage page, IRecipeSlotsView slots, GuiGraphics graphics,
+        public void draw(QuestPage page, IRecipeSlotsView slots, GuiGraphicsExtractor graphics,
                          double mouseX, double mouseY) {
             GuiRenderer renderer = new GuiGraphicsRenderer(graphics);
 
@@ -377,16 +387,14 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
         private void drawPictureIcon(GuiRenderer renderer, QuestPageLayout.Box box,
                                      String texture, String sprite) {
             if (!texture.isEmpty()) {
-                net.minecraft.resources.ResourceLocation id =
-                        net.minecraft.resources.ResourceLocation.tryParse(texture);
+                net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.tryParse(texture);
                 if (id != null) {
                     renderer.texture(id, box.x(), box.y(), box.width(), box.height());
                     return;
                 }
             }
             if (!sprite.isEmpty()) {
-                net.minecraft.resources.ResourceLocation id =
-                        net.minecraft.resources.ResourceLocation.tryParse(sprite);
+                net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.tryParse(sprite);
                 if (id != null) {
                     renderer.sprite(id, box.x(), box.y(), box.width(), box.height(), 0xFFFFFFFF);
                 }
@@ -477,10 +485,10 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
         }
 
         @Override
-        public ResourceLocation getRegistryName(QuestPage page) {
+        public Identifier getRegistryName(QuestPage page) {
             // Synthetic, so JEI has a stable identity for the page; nothing behind it on disk, which
             // is why bookmarking is out of scope and said so in TESTING.md.
-            return ResourceLocation.fromNamespaceAndPath(type.getUid().getNamespace(),
+            return Identifier.fromNamespaceAndPath(type.getUid().getNamespace(),
                     "/quest/" + page.quest().id());
         }
     }
@@ -521,7 +529,7 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
      */
     private record QuestLookup(QuestContent content) implements ISimpleRecipeManagerPlugin<QuestPage> {
 
-        private static ResourceLocation itemOf(ITypedIngredient<?> ingredient) {
+        private static Identifier itemOf(ITypedIngredient<?> ingredient) {
             return ingredient.getItemStack()
                     .map(stack -> BuiltInRegistries.ITEM.getKey(stack.getItem()))
                     .orElse(null);
@@ -529,7 +537,7 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
 
         @Override
         public boolean isHandledInput(ITypedIngredient<?> ingredient) {
-            ResourceLocation item = itemOf(ingredient);
+            Identifier item = itemOf(ingredient);
             // Membership rather than "is the collected list empty": JEI asks this per ingredient as it
             // decides what to show, and the old form built a list, a set and a copy to answer it.
             return item != null && content.index().uses(item);
@@ -537,19 +545,19 @@ public final class TenetJeiPlugin implements IModPlugin, RecipeLookups.Lookup {
 
         @Override
         public boolean isHandledOutput(ITypedIngredient<?> ingredient) {
-            ResourceLocation item = itemOf(ingredient);
+            Identifier item = itemOf(ingredient);
             return item != null && content.index().awards(item);
         }
 
         @Override
         public List<QuestPage> getRecipesForInput(ITypedIngredient<?> ingredient) {
-            ResourceLocation item = itemOf(ingredient);
+            Identifier item = itemOf(ingredient);
             return item == null ? List.of() : pagesFor(content.index().questsUsing(item));
         }
 
         @Override
         public List<QuestPage> getRecipesForOutput(ITypedIngredient<?> ingredient) {
-            ResourceLocation item = itemOf(ingredient);
+            Identifier item = itemOf(ingredient);
             return item == null ? List.of() : pagesFor(content.index().questsAwarding(item));
         }
 

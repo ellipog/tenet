@@ -9,7 +9,7 @@ import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Set;
@@ -26,7 +26,7 @@ import java.util.function.Function;
  */
 public record XpTask(TaskCommon common, int value, boolean points) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "xp");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "xp");
 
     public static final Set<String> FIELDS = Set.of("value", "points");
 
@@ -37,7 +37,7 @@ public record XpTask(TaskCommon common, int value, boolean points) implements Qu
     ).apply(instance, XpTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

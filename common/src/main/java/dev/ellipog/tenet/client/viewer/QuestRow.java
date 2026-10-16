@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.client.viewer;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Optional;
@@ -66,8 +66,8 @@ public record QuestRow(ItemStack icon, String label, int have, int need, boolean
     }
 
     /** The tag id, parsed once per page build; empty when the row has none. */
-    public Optional<ResourceLocation> tag() {
-        return hasTag() ? Optional.of(ResourceLocation.parse(tagId)) : Optional.empty();
+    public Optional<Identifier> tag() {
+        return hasTag() ? Optional.of(Identifier.parse(tagId)) : Optional.empty();
     }
 
     /** True when there is anything at all to show: an icon, a tag, or a label. */

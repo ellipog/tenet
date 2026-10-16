@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * One locale's quest text, sent to the one player who asked for it.
@@ -60,7 +60,7 @@ public record LocaleSyncPayload(String locale, String served, SyncChunk chunk, b
      * {@link QuestSyncPayload#TYPE} for why that method silently rewrites the namespace.
      */
     public static final CustomPacketPayload.Type<LocaleSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "locale_sync"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "locale_sync"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, LocaleSyncPayload> CODEC =
             StreamCodec.composite(

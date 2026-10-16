@@ -8,7 +8,7 @@ import dev.ellipog.tenet.Constants;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.QuestReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Optional;
 import java.util.Set;
@@ -22,21 +22,21 @@ import java.util.function.Function;
  * <p>An empty criterion means every criterion, which is the legacy reading: the reward grants the whole
  * advancement rather than the first criterion of it.
  */
-public record AdvancementReward(RewardCommon common, ResourceLocation advancement, Optional<String> criterion)
+public record AdvancementReward(RewardCommon common, Identifier advancement, Optional<String> criterion)
         implements QuestReward {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "advancement");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "advancement");
 
     public static final Set<String> FIELDS = Set.of("advancement", "criterion");
 
     public static final MapCodec<AdvancementReward> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             RewardCommon.MAP_CODEC.forGetter(AdvancementReward::common),
-            ResourceLocation.CODEC.fieldOf("advancement").forGetter(AdvancementReward::advancement),
+            Identifier.CODEC.fieldOf("advancement").forGetter(AdvancementReward::advancement),
             Codec.STRING.optionalFieldOf("criterion").forGetter(AdvancementReward::criterion)
     ).apply(instance, AdvancementReward::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

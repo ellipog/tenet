@@ -35,7 +35,6 @@ import dev.ellipog.tenet.client.hud.PinnedQuests;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
@@ -85,7 +84,7 @@ public final class TenetFabricClient implements ClientModInitializer {
         ArmatureClient.registerKeyMapping(
                 Tenet.QUEST_BOOK_SCREEN,
                 InputConstants.KEY_B,
-                "key.categories.tenet",
+                net.minecraft.resources.Identifier.fromNamespaceAndPath("tenet", "main"),
                 // Refused with the pack's sentence when the pack disabled its book, like every
                 // other open. See `QuestBookScreen.checkOpenAllowed`.
                 () -> {
@@ -99,17 +98,17 @@ public final class TenetFabricClient implements ClientModInitializer {
         ArmatureClient.registerKeyMapping(
                 Tenet.HUD_EDIT_SCREEN,
                 InputConstants.KEY_H,
-                "key.categories.tenet",
+                net.minecraft.resources.Identifier.fromNamespaceAndPath("tenet", "main"),
                 () -> ArmatureClient.openScreen(Tenet.HUD_EDIT_SCREEN));
 
-        // The quest book's other door: a control on every container screen, wherever EMI and JEI draw.
+        // The quest book's other door: a control on every container screen, wherever JEI and REI draw.
         // What to add and where is Tenet's and lives in `InventoryQuestBookButton`; that a widget may be
         // added to somebody else's screen at all is this loader's business, which is why the two lines
         // below are here.
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
             InventoryQuestBookButton button = InventoryQuestBookButton.forScreen(screen);
             if (button != null) {
-                Screens.getButtons(screen).add(button);
+                Screens.getWidgets(screen).add(button);
             }
         });
 
@@ -123,15 +122,17 @@ public final class TenetFabricClient implements ClientModInitializer {
             if (!(screen instanceof ChatScreen)) {
                 return;
             }
-            ScreenMouseEvents.allowMouseClick(screen).register((chat, mouseX, mouseY, button) -> {
-                if (button != 0) {
+            ScreenMouseEvents.allowMouseClick(screen).register((chat, event) -> {
+                if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
                     return true;
                 }
+                double mouseX = event.x();
+                double mouseY = event.y();
                 var game = Minecraft.getInstance();
                 var player = game.player;
                 Measure measure = Measure.of(game.font::width, game.font.lineHeight);
                 String quest = HudOverlay.pinAt(measure, game.getWindow().getGuiScaledWidth(),
-                        game.getWindow().getGuiScaledHeight(), net.minecraft.Util.getMillis(),
+                        game.getWindow().getGuiScaledHeight(), net.minecraft.util.Util.getMillis(),
                         player == null ? null : player.getUUID(), mouseX, mouseY);
                 if (quest == null) {
                     return true;
@@ -142,13 +143,13 @@ public final class TenetFabricClient implements ClientModInitializer {
             // The hover half of the hook: the ring a press lands inside of, drawn after chat so it reads
             // over it. Same boxes, same player, one frame later at most -- a ring that lagged the boxes
             // would invite presses onto whatever moved under it.
-            ScreenEvents.afterRender(screen).register((chat, context, mouseX, mouseY, tickDelta) -> {
+            ScreenEvents.afterForeground(screen).register((chat, context, mouseX, mouseY, tickDelta) -> {
                 var game = Minecraft.getInstance();
                 var player = game.player;
                 Measure measure = Measure.of(game.font::width, game.font.lineHeight);
                 HudOverlay.drawPinHover(new GuiGraphicsRenderer(context), measure,
                         game.getWindow().getGuiScaledWidth(), game.getWindow().getGuiScaledHeight(),
-                        net.minecraft.Util.getMillis(), player == null ? null : player.getUUID(),
+                        net.minecraft.util.Util.getMillis(), player == null ? null : player.getUUID(),
                         mouseX, mouseY);
             });
         });
@@ -163,15 +164,19 @@ public final class TenetFabricClient implements ClientModInitializer {
 
         // The HUD's own elements: the pinned quests and the notices. This is the seam the round that built
         // the editor deliberately left unattached -- "nothing is drawn on the HUD by this round" -- and it is
-        // one line because everything it draws is Tenet's: the hook hands over a drawing context, the wrapper
-        // turns it into the toolkit's renderer, and `HudOverlay` decides what is on and where. The game does
-        // not call this while the GUI is hidden, so F1 needs no guard from here. The player travels with it
-        // because the overlay names no client class: who is looking decides whose claimed quests hide.
-        HudRenderCallback.EVENT.register((graphics, tickDelta) -> {
-            var player = net.minecraft.client.Minecraft.getInstance().player;
-            HudOverlay.render(new GuiGraphicsRenderer(graphics), graphics.guiWidth(), graphics.guiHeight(),
-                    net.minecraft.Util.getMillis(), player == null ? null : player.getUUID());
-        });
+        // one element because everything it draws is Tenet's: the hook hands over a drawing context, the wrapper
+        // turns it into the toolkit's renderer, and `HudOverlay` decides what is on and where. Last, so it
+        // draws over everything vanilla draws. The game does not call this while the GUI is hidden, so F1
+        // needs no guard from here. The player travels with it because the overlay names no client class:
+        // who is looking decides whose claimed quests hide.
+        net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry.addLast(
+                net.minecraft.resources.Identifier.fromNamespaceAndPath("tenet", "overlay"),
+                (graphics, delta) -> {
+                    var player = net.minecraft.client.Minecraft.getInstance().player;
+                    HudOverlay.render(new GuiGraphicsRenderer(graphics), graphics.guiWidth(),
+                            graphics.guiHeight(), net.minecraft.util.Util.getMillis(),
+                            player == null ? null : player.getUUID());
+                });
 
         // The developer screen and its F9 key are gone: the tools are a panel inside the book now,
         // reached from its header by a player who may edit. A key that opened a *different* screen was

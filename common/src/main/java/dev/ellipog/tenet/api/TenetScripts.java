@@ -14,7 +14,7 @@ import dev.ellipog.tenet.quest.TenetQuests;
 import dev.ellipog.tenet.quest.reward.CustomReward;
 import dev.ellipog.tenet.quest.task.CustomTask;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -58,8 +58,8 @@ public final class TenetScripts {
 
     /** Whether the player has the stage. False for an id that is not one, rather than an error. */
     public static boolean hasStage(ServerPlayer player, String stage) {
-        ResourceLocation id = ResourceLocation.tryParse(stage == null ? "" : stage);
-        MinecraftServer server = player == null ? null : player.getServer();
+        Identifier id = Identifier.tryParse(stage == null ? "" : stage);
+        MinecraftServer server = player == null ? null : player.level().getServer();
         return id != null && server != null && StageService.has(server, player.getUUID(), id);
     }
 
@@ -70,26 +70,26 @@ public final class TenetScripts {
      *         call from a listener that may run twice
      */
     public static boolean addStage(ServerPlayer player, String stage) {
-        ResourceLocation id = ResourceLocation.tryParse(stage == null ? "" : stage);
-        MinecraftServer server = player == null ? null : player.getServer();
+        Identifier id = Identifier.tryParse(stage == null ? "" : stage);
+        MinecraftServer server = player == null ? null : player.level().getServer();
         return id != null && server != null && StageService.add(server, player.getUUID(), id);
     }
 
     /** Takes the stage away, and returns whether it was there to take. */
     public static boolean removeStage(ServerPlayer player, String stage) {
-        ResourceLocation id = ResourceLocation.tryParse(stage == null ? "" : stage);
-        MinecraftServer server = player == null ? null : player.getServer();
+        Identifier id = Identifier.tryParse(stage == null ? "" : stage);
+        MinecraftServer server = player == null ? null : player.level().getServer();
         return id != null && server != null && StageService.remove(server, player.getUUID(), id);
     }
 
     /** Every stage this player has, as strings a script can compare or print. */
     public static List<String> stages(ServerPlayer player) {
-        MinecraftServer server = player == null ? null : player.getServer();
+        MinecraftServer server = player == null ? null : player.level().getServer();
         if (server == null) {
             return List.of();
         }
         return StageService.list(server, player.getUUID()).stream()
-                .map(ResourceLocation::toString)
+                .map(Identifier::toString)
                 .sorted()
                 .toList();
     }
@@ -100,8 +100,8 @@ public final class TenetScripts {
      * <p>the legacy {@code team_stage}: the flag one member's induction grants to everybody.
      */
     public static boolean hasTeamStage(ServerPlayer player, String stage) {
-        ResourceLocation id = ResourceLocation.tryParse(stage == null ? "" : stage);
-        MinecraftServer server = player == null ? null : player.getServer();
+        Identifier id = Identifier.tryParse(stage == null ? "" : stage);
+        MinecraftServer server = player == null ? null : player.level().getServer();
         return id != null && server != null
                 && StageService.hasTeam(server, ProgressService.progressOwner(server, player), id);
     }
@@ -112,28 +112,28 @@ public final class TenetScripts {
      * @return whether anything changed — false when the team already held it
      */
     public static boolean addTeamStage(ServerPlayer player, String stage) {
-        ResourceLocation id = ResourceLocation.tryParse(stage == null ? "" : stage);
-        MinecraftServer server = player == null ? null : player.getServer();
+        Identifier id = Identifier.tryParse(stage == null ? "" : stage);
+        MinecraftServer server = player == null ? null : player.level().getServer();
         return id != null && server != null
                 && StageService.addTeam(server, ProgressService.progressOwner(server, player), id);
     }
 
     /** Takes the team's stage away, and returns whether it was there to take. */
     public static boolean removeTeamStage(ServerPlayer player, String stage) {
-        ResourceLocation id = ResourceLocation.tryParse(stage == null ? "" : stage);
-        MinecraftServer server = player == null ? null : player.getServer();
+        Identifier id = Identifier.tryParse(stage == null ? "" : stage);
+        MinecraftServer server = player == null ? null : player.level().getServer();
         return id != null && server != null
                 && StageService.removeTeam(server, ProgressService.progressOwner(server, player), id);
     }
 
     /** Every stage the player's team holds, as strings a script can compare or print. */
     public static List<String> teamStages(ServerPlayer player) {
-        MinecraftServer server = player == null ? null : player.getServer();
+        MinecraftServer server = player == null ? null : player.level().getServer();
         if (server == null) {
             return List.of();
         }
         return StageService.listTeam(server, ProgressService.progressOwner(server, player)).stream()
-                .map(ResourceLocation::toString)
+                .map(Identifier::toString)
                 .sorted()
                 .toList();
     }
@@ -150,7 +150,7 @@ public final class TenetScripts {
      * client is told, and a script asking about progress is asking about the progress that is stored.
      */
     public static String state(ServerPlayer player, String questId) {
-        MinecraftServer server = player == null ? null : player.getServer();
+        MinecraftServer server = player == null ? null : player.level().getServer();
         QuestIndex index = TenetQuests.index();
         if (server == null || index.isEmpty()) {
             return "UNKNOWN";
@@ -179,7 +179,7 @@ public final class TenetScripts {
      * the card already draws it locked.
      */
     public static boolean complete(ServerPlayer player, String questId) {
-        MinecraftServer server = player == null ? null : player.getServer();
+        MinecraftServer server = player == null ? null : player.level().getServer();
         QuestIndex index = TenetQuests.index();
         if (server == null || index.isEmpty()) {
             return false;

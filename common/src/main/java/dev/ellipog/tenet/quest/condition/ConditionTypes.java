@@ -13,7 +13,7 @@ import dev.ellipog.tenet.quest.EditorSpecs;
 import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.task.ComponentMatch;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 import java.util.Optional;
@@ -58,8 +58,8 @@ public final class ConditionTypes {
                     EditorField.choice("match", "Match", "none", "fuzzy", "strict")
                             .hint("how closely a carried stack must match, the item task's own field")),
             ItemCondition.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("chest"), 1), ItemCondition.DISPLAY,
-            () -> new ItemCondition(new ItemRef(ResourceLocation.withDefaultNamespace("stone"), 1),
+            new ItemRef(Identifier.withDefaultNamespace("chest"), 1), ItemCondition.DISPLAY,
+            () -> new ItemCondition(new ItemRef(Identifier.withDefaultNamespace("stone"), 1),
                     ComponentMatch.STRICT));
 
     /** {@code tenet:item_tag} — have enough of any item in a tag. */
@@ -70,8 +70,8 @@ public final class ConditionTypes {
                     EditorField.number("count", "Count", "\u00d7")
                             .hint("how many of them")),
             ItemTagCondition.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("barrel"), 1), ItemTagCondition.DISPLAY,
-            () -> new ItemTagCondition(ResourceLocation.withDefaultNamespace("logs"), 1));
+            new ItemRef(Identifier.withDefaultNamespace("barrel"), 1), ItemTagCondition.DISPLAY,
+            () -> new ItemTagCondition(Identifier.withDefaultNamespace("logs"), 1));
 
     /** {@code tenet:score} — have at least this much on a scoreboard objective. */
     public static final ConditionType<ScoreCondition> SCORE = register(
@@ -83,7 +83,7 @@ public final class ConditionTypes {
                     EditorField.number("min", "At least", "")
                             .hint("the score to reach")),
             ScoreCondition.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("comparator"), 1), ScoreCondition.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("comparator"), 1), ScoreCondition.DISPLAY,
             () -> new ScoreCondition("condition_gallery_standing", 1));
 
     /** {@code tenet:advancement} — have earned an advancement, or one criterion of one. */
@@ -95,8 +95,8 @@ public final class ConditionTypes {
                                     "leave empty for the whole advancement")
                             .hint("require one criterion of it instead of the whole advancement")),
             AdvancementCondition.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("book"), 1), AdvancementCondition.DISPLAY,
-            () -> new AdvancementCondition(ResourceLocation.withDefaultNamespace("story/root"), Optional.empty()));
+            new ItemRef(Identifier.withDefaultNamespace("book"), 1), AdvancementCondition.DISPLAY,
+            () -> new AdvancementCondition(Identifier.withDefaultNamespace("story/root"), Optional.empty()));
 
     /** {@code tenet:stage} — have a stage. */
     public static final ConditionType<StageCondition> STAGE = register(
@@ -105,8 +105,8 @@ public final class ConditionTypes {
                             .hint("the stage the player has to have; a stage exists by being granted, so "
                                     + "there is no list to pick from and no id to validate")),
             StageCondition.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("lever"), 1), StageCondition.DISPLAY,
-            () -> new StageCondition(ResourceLocation.fromNamespaceAndPath("example", "stage")));
+            new ItemRef(Identifier.withDefaultNamespace("lever"), 1), StageCondition.DISPLAY,
+            () -> new StageCondition(Identifier.fromNamespaceAndPath("example", "stage")));
 
     /** {@code tenet:party_size} — be in a party of at least this many, online now. */
     public static final ConditionType<PartySizeCondition> PARTY_SIZE = register(
@@ -114,7 +114,7 @@ public final class ConditionTypes {
                     EditorField.number("min", "At least", "")
                             .hint("how many members of the party have to be online; you count as one")),
             PartySizeCondition.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("player_head"), 1), PartySizeCondition.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("player_head"), 1), PartySizeCondition.DISPLAY,
             () -> new PartySizeCondition(2));
 
     private ConditionTypes() {
@@ -149,7 +149,7 @@ public final class ConditionTypes {
                                                                        ItemRef icon,
                                                                        Function<T, ConditionDisplay> display,
                                                                        Supplier<T> defaults) {
-        return register(ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, path), codec, fields, editor,
+        return register(Identifier.fromNamespaceAndPath(Tenet.MOD_ID, path), codec, fields, editor,
                 behaviour, icon, display, defaults);
     }
 
@@ -165,7 +165,7 @@ public final class ConditionTypes {
     }
 
     /** Adds a condition type under an id you choose — how an addon registers its own. */
-    public static <T extends QuestCondition> ConditionType<T> register(ResourceLocation id,
+    public static <T extends QuestCondition> ConditionType<T> register(Identifier id,
                                                                        MapCodec<T> codec,
                                                                        Set<String> fields,
                                                                        ConditionBehaviour<T> behaviour,
@@ -176,7 +176,7 @@ public final class ConditionTypes {
     }
 
     /** The same, under an id you choose, with the type's own editor form. */
-    public static <T extends QuestCondition> ConditionType<T> register(ResourceLocation id,
+    public static <T extends QuestCondition> ConditionType<T> register(Identifier id,
                                                                        MapCodec<T> codec,
                                                                        Set<String> fields,
                                                                        List<EditorField> editor,
@@ -198,7 +198,7 @@ public final class ConditionTypes {
      * own codec does not write {@code "type"} and a tree without it is a condition the loader cannot
      * read back. Empty for an unregistered type, which the picker reports rather than inserting.
      */
-    public static Optional<com.google.gson.JsonObject> defaultTree(ResourceLocation id) {
+    public static Optional<com.google.gson.JsonObject> defaultTree(Identifier id) {
         return REGISTRY.get(id).flatMap(entry -> Dispatch.CODEC
                 .encodeStart(JsonOps.INSTANCE, entry.defaults().get())
                 .result()
@@ -225,7 +225,7 @@ public final class ConditionTypes {
     }
 
     /** Every registered id, sorted. For messages, the validator, and {@code /tenet types}. */
-    public static Set<ResourceLocation> ids() {
+    public static Set<Identifier> ids() {
         return REGISTRY.ids();
     }
 
@@ -234,12 +234,12 @@ public final class ConditionTypes {
     }
 
     /** The type-specific field names for a registered type, for the validator. */
-    public static Set<String> fieldsOf(ResourceLocation id) {
+    public static Set<String> fieldsOf(Identifier id) {
         return REGISTRY.get(id).map(entry -> entry.spec().fields()).orElse(Set.of());
     }
 
     /** The registered type's own codec, for validating one entry on its own. */
-    public static Optional<MapCodec<QuestCondition>> codecOf(ResourceLocation id) {
+    public static Optional<MapCodec<QuestCondition>> codecOf(Identifier id) {
         return REGISTRY.get(id).map(entry -> entry.spec().codec());
     }
 
@@ -257,12 +257,12 @@ public final class ConditionTypes {
     }
 
     /** The icon for a condition's type, for a listing or a picker. */
-    public static ItemRef iconOf(ResourceLocation id) {
+    public static ItemRef iconOf(Identifier id) {
         return REGISTRY.get(id).map(Entry::icon).orElse(ItemRef.DEFAULT_ICON);
     }
 
     /** The fields of a registered type as the editor draws them, declared form or derived. */
-    public static List<EditorField> editorOf(ResourceLocation id) {
+    public static List<EditorField> editorOf(Identifier id) {
         return REGISTRY.get(id)
                 .map(entry -> entry.editor().isEmpty() ? EditorSpecs.derive(entry.spec().fields()) : entry.editor())
                 .orElse(List.of());
@@ -272,7 +272,7 @@ public final class ConditionTypes {
     private static <T extends QuestCondition> TypeSpec<QuestCondition> widenSpec(ConditionType<T> type) {
         return new TypeSpec<>() {
             @Override
-            public ResourceLocation id() {
+            public Identifier id() {
                 return type.id();
             }
 
@@ -314,7 +314,7 @@ public final class ConditionTypes {
     }
 
     private record SimpleConditionType<T extends QuestCondition>(
-            ResourceLocation id, MapCodec<T> codec, Set<String> fields, List<EditorField> editor,
+            Identifier id, MapCodec<T> codec, Set<String> fields, List<EditorField> editor,
             ConditionBehaviour<T> behaviour, ItemRef icon, Function<T, ConditionDisplay> display,
             Supplier<T> defaultsSupplier
     ) implements ConditionType<T> {

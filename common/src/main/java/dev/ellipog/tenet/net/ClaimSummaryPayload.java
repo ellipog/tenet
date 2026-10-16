@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * How a bulk claim ended: how many rewards it took, out of how many it could have.
@@ -28,7 +28,7 @@ public record ClaimSummaryPayload(int claimed, int total, boolean halted) implem
 
     public static final CustomPacketPayload.Type<ClaimSummaryPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "claim_summary"));
+                    Identifier.fromNamespaceAndPath("tenet", "claim_summary"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ClaimSummaryPayload> CODEC =
             StreamCodec.composite(

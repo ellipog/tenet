@@ -5,7 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 import java.util.Map;
@@ -203,7 +203,7 @@ public record Quest(
      * how it does that for anything else too -- or names {@link #requiresStageTeam} and grants once to
      * the team.
      */
-    public Optional<ResourceLocation> requiresStage() {
+    public Optional<Identifier> requiresStage() {
         return rules.requiresStage();
     }
 

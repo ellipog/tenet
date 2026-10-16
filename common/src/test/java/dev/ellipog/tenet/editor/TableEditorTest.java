@@ -9,7 +9,7 @@ import dev.ellipog.tenet.quest.QuestIndex;
 import dev.ellipog.tenet.quest.loot.RewardTable;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -247,7 +247,7 @@ class TableEditorTest {
         // of the client's element rather than of the format: the wrapper saves and the bare reward is
         // refused, which means a future caller that skips the wrapper fails here rather than in a
         // screenshot six hours later.
-        JsonObject xp = RewardTypes.defaultTree(ResourceLocation.fromNamespaceAndPath("tenet", "xp"))
+        JsonObject xp = RewardTypes.defaultTree(Identifier.fromNamespaceAndPath("tenet", "xp"))
                 .orElseThrow(() -> new AssertionError("tenet:xp has no default tree, so nothing to add"));
 
         // The refusal first, because it writes nothing: both halves then start from the same fixture.

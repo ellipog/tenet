@@ -1240,7 +1240,7 @@ public final class ProgressService {
 
     /** Whether this player passes a quest's stage gate. True when the quest has none. */
     public static boolean stageGateOpen(MinecraftServer server, Quest quest, UUID player) {
-        java.util.Optional<net.minecraft.resources.ResourceLocation> required = quest.requiresStage();
+        java.util.Optional<net.minecraft.resources.Identifier> required = quest.requiresStage();
         if (required.isEmpty()) {
             return true;
         }
@@ -1281,7 +1281,7 @@ public final class ProgressService {
             if (quest.requiresStage().isEmpty()) {
                 continue;
             }
-            net.minecraft.resources.ResourceLocation stage = quest.requiresStage().get();
+            net.minecraft.resources.Identifier stage = quest.requiresStage().get();
             boolean held = quest.requiresStageTeam()
                     ? StageService.hasTeam(server, team, stage)
                     : StageService.has(server, self, stage);
@@ -1530,14 +1530,14 @@ public final class ProgressService {
 
         if (plan.indexes().isEmpty() && plan.offers().isEmpty()) {
             if (plan.sawBlocked()) {
-                player.displayClientMessage(
-                        Component.translatable("tenet.quest.rewards_blocked"), true);
+                player.sendOverlayMessage(
+                        Component.translatable("tenet.quest.rewards_blocked"));
             }
             else if (plan.sawLocked()) {
                 // Named separately from blocking: one is the team's switch, the other is something the
                 // player can go and do. The sync the caller sends anyway corrects the rows.
-                player.displayClientMessage(
-                        Component.translatable("tenet.quest.conditions_unmet"), true);
+                player.sendOverlayMessage(
+                        Component.translatable("tenet.quest.conditions_unmet"));
             }
             return new Claimed(0, total, false, false);
         }
@@ -1640,7 +1640,7 @@ public final class ProgressService {
             for (ItemStack stack : leaf.stacks()) {
                 ItemStack remainder = InventoryAccesses.current().insert(context.player(), stack);
                 if (!remainder.isEmpty()) {
-                    context.player().drop(remainder, false);
+                    context.player().drop(remainder, false, net.minecraft.util.Prediction.SERVER_ONLY);
                     context.feedback().dropped(remainder);
                     whole = false;
                 }
@@ -1755,7 +1755,7 @@ public final class ProgressService {
         // Re-checked at the answer: the offer travelled, the conditions did not necessarily hold when
         // it arrived, and a choice is a payout path of its own.
         if (!Conditions.passes(reward.common().conditions(), new ConditionContext(player, server, owner))) {
-            player.displayClientMessage(Component.translatable("tenet.quest.conditions_unmet"), true);
+            player.sendOverlayMessage(Component.translatable("tenet.quest.conditions_unmet"));
             return ClaimChoiceResultPayload.Result.REFUSED;
         }
 
@@ -2164,9 +2164,9 @@ public final class ProgressService {
         if (!feedback.anythingDropped()) {
             return;
         }
-        player.displayClientMessage(
-                Component.translatable("tenet.reward.inventory_full_count", feedback.droppedStacks()), true);
-        player.playNotifySound(SoundEvents.DISPENSER_FAIL, SoundSource.PLAYERS, 0.7F, 1.4F);
+        player.sendOverlayMessage(
+                Component.translatable("tenet.reward.inventory_full_count", feedback.droppedStacks()));
+        notifySound(player, SoundEvents.DISPENSER_FAIL, SoundSource.PLAYERS, 0.7F, 1.4F);
         ArmatureNetwork.sendToPlayer(player,
                 new RewardOverflowPayload(feedback.droppedStacks()));
     }
@@ -2183,13 +2183,27 @@ public final class ProgressService {
      * successful sweep stays silent: the claim notices already play the pickup chime as the rows go.
      */
     private static void announceSummary(ServerPlayer player, int claimed, int total, boolean halted) {
-        player.displayClientMessage(halted
+        player.sendOverlayMessage(halted
                 ? Component.translatable("tenet.reward.claim_halted", claimed, total)
-                : Component.translatable("tenet.reward.claim_done", claimed, total), true);
+                : Component.translatable("tenet.reward.claim_done", claimed, total));
         if (halted) {
-            player.playNotifySound(SoundEvents.DISPENSER_FAIL, SoundSource.PLAYERS, 0.7F, 1.4F);
+            notifySound(player, SoundEvents.DISPENSER_FAIL, SoundSource.PLAYERS, 0.7F, 1.4F);
         }
         ArmatureNetwork.sendToPlayer(player, new ClaimSummaryPayload(claimed, total, halted));
+    }
+
+    /**
+     * The old {@code playNotifySound}: a sound for this player, not the area around them.
+     *
+     * <p>Level's broadcast would let nearby players hear a notice meant for one inventory, so the
+     * packet goes to this player's connection directly, at their own position.
+     */
+    private static void notifySound(ServerPlayer player, net.minecraft.sounds.SoundEvent event,
+            SoundSource source, float volume, float pitch) {
+        player.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(
+                net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.wrapAsHolder(event), source,
+                player.getX(), player.getY(), player.getZ(), volume, pitch,
+                player.level().getRandom().nextLong()));
     }
 
     // ------------------------------------------------------------------
@@ -2245,7 +2259,7 @@ public final class ProgressService {
         // task whose conditions are unmet is the skip this guards against, the same way the count check
         // below guards the items.
         if (!Conditions.passes(task.common().conditions(), new ConditionContext(player, server, owner))) {
-            player.displayClientMessage(Component.translatable("tenet.quest.conditions_unmet"), true);
+            player.sendOverlayMessage(Component.translatable("tenet.quest.conditions_unmet"));
             return false;
         }
 
@@ -2284,7 +2298,7 @@ public final class ProgressService {
                     behaviour.get(), now);
             PartyMode.Tally tally = mode.combine(counts.perMember(), ownerIndex);
             if (tally.counted() < required) {
-                player.displayClientMessage(Component.translatable("tenet.quest.not_enough"), true);
+                player.sendOverlayMessage(Component.translatable("tenet.quest.not_enough"));
                 return false;
             }
             // The take itself only happens for a task that takes what it asks for: a manual-only

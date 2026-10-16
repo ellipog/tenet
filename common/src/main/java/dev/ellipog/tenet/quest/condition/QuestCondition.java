@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.quest.condition;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * Something that has to be true for a task to count, or for a reward to be paid.
@@ -24,5 +24,5 @@ import net.minecraft.resources.ResourceLocation;
 public interface QuestCondition {
 
     /** Which registered type this is. The value of the JSON {@code "type"} field. */
-    ResourceLocation type();
+    Identifier type();
 }

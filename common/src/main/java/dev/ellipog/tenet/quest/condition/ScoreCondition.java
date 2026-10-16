@@ -6,7 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import dev.ellipog.tenet.Tenet;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.ReadOnlyScoreInfo;
 
@@ -29,7 +29,7 @@ import java.util.function.Function;
  */
 public record ScoreCondition(String objective, int min) implements QuestCondition {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "score");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "score");
 
     public static final Set<String> FIELDS = Set.of("objective", "min");
 
@@ -42,7 +42,7 @@ public record ScoreCondition(String objective, int min) implements QuestConditio
     ).apply(instance, ScoreCondition::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

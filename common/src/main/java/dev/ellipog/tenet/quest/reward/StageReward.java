@@ -8,7 +8,7 @@ import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.progress.StageService;
 import dev.ellipog.tenet.quest.QuestReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 import java.util.function.Function;
@@ -35,22 +35,22 @@ import java.util.function.Function;
  * <p>{@code teamStage} is the legacy {@code team_stage}: grant to the team instead. The whole party
  * then holds the flag, which is what a multiplayer pack's induction quest hands over.
  */
-public record StageReward(RewardCommon common, ResourceLocation stage, boolean remove,
+public record StageReward(RewardCommon common, Identifier stage, boolean remove,
                           boolean teamStage) implements QuestReward {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "stage");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "stage");
 
     public static final Set<String> FIELDS = Set.of("stage", "remove", "teamStage");
 
     public static final MapCodec<StageReward> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             RewardCommon.MAP_CODEC.forGetter(StageReward::common),
-            ResourceLocation.CODEC.fieldOf("stage").forGetter(StageReward::stage),
+            Identifier.CODEC.fieldOf("stage").forGetter(StageReward::stage),
             Codec.BOOL.optionalFieldOf("remove", false).forGetter(StageReward::remove),
             Codec.BOOL.optionalFieldOf("teamStage", false).forGetter(StageReward::teamStage)
     ).apply(instance, StageReward::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -64,10 +64,10 @@ public record StageReward(RewardCommon common, ResourceLocation stage, boolean r
             }
         }
         else if (reward.remove()) {
-            StageService.remove(context.player().getServer(), context.player().getUUID(), reward.stage());
+            StageService.remove(context.player().level().getServer(), context.player().getUUID(), reward.stage());
         }
         else {
-            StageService.add(context.player().getServer(), context.player().getUUID(), reward.stage());
+            StageService.add(context.player().level().getServer(), context.player().getUUID(), reward.stage());
         }
     };
 

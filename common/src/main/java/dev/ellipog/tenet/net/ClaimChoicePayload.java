@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * The player's answer to a {@link ChoiceRewardPayload}.
@@ -23,7 +23,7 @@ public record ClaimChoicePayload(String questId, int rewardIndex, int entryIndex
 
     public static final CustomPacketPayload.Type<ClaimChoicePayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "claim_choice"));
+                    Identifier.fromNamespaceAndPath("tenet", "claim_choice"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ClaimChoicePayload> CODEC =
             StreamCodec.composite(

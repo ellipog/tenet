@@ -7,7 +7,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.tenet.Tenet;
 
 import net.minecraft.advancements.AdvancementProgress;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Optional;
 import java.util.Set;
@@ -22,21 +22,21 @@ import java.util.function.Function;
  * does not have reads as not earned rather than throwing, and the validator reports the missing id at
  * the file's own line.
  */
-public record AdvancementCondition(ResourceLocation advancement, Optional<String> criterion)
+public record AdvancementCondition(Identifier advancement, Optional<String> criterion)
         implements QuestCondition {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "advancement");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "advancement");
 
     public static final Set<String> FIELDS = Set.of("advancement", "criterion");
 
     public static final MapCodec<AdvancementCondition> MAP_CODEC =
             RecordCodecBuilder.mapCodec(instance -> instance.group(
-                    ResourceLocation.CODEC.fieldOf("advancement").forGetter(AdvancementCondition::advancement),
+                    Identifier.CODEC.fieldOf("advancement").forGetter(AdvancementCondition::advancement),
                     Codec.STRING.optionalFieldOf("criterion").forGetter(AdvancementCondition::criterion)
             ).apply(instance, AdvancementCondition::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

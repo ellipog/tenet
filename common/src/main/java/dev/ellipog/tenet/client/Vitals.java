@@ -60,8 +60,6 @@ public final class Vitals {
         if (!on) {
             return false;
         }
-        Minecraft minecraft = Minecraft.getInstance();
-        return minecraft != null && minecraft.player != null
-                && minecraft.player.hasPermissions(QuestAuthority.EDIT_LEVEL);
+        return dev.ellipog.tenet.QuestAuthority.mayEditClient(Minecraft.getInstance());
     }
 }

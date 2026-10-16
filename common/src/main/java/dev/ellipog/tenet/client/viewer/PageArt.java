@@ -4,7 +4,7 @@ import dev.ellipog.armature.client.render.GuiRenderer;
 import dev.ellipog.armature.client.render.TextEpoch;
 import dev.ellipog.armature.client.ui.kit.Measure;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -149,10 +149,10 @@ public final class PageArt {
      * cannot be made to agree that way, so they are drawn as a pair and ship together — a pack that
      * replaces one replaces both.
      */
-    public static final ResourceLocation STAR_EMPTY =
-            ResourceLocation.fromNamespaceAndPath("tenet", "textures/gui/star_empty.png");
-    public static final ResourceLocation STAR_FILLED =
-            ResourceLocation.fromNamespaceAndPath("tenet", "textures/gui/star_filled.png");
+    public static final Identifier STAR_EMPTY =
+            Identifier.fromNamespaceAndPath("tenet", "textures/gui/star_empty.png");
+    public static final Identifier STAR_FILLED =
+            Identifier.fromNamespaceAndPath("tenet", "textures/gui/star_filled.png");
 
     /** The star's side in pixels: the two images' size, and so the pin button's. */
     private static final int STAR_SIZE = 12;

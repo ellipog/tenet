@@ -12,7 +12,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -117,7 +117,7 @@ public final class SearchCatalogue {
         if (minecraft.level == null) {
             return;
         }
-        String here = minecraft.level.dimension().location().toString();
+        String here = minecraft.level.dimension().identifier().toString();
         boolean listed = out.stream().anyMatch(entry -> entry.id().equals(here));
         if (!listed) {
             out.add(entry(here));
@@ -149,13 +149,15 @@ public final class SearchCatalogue {
         if (access == null || key == null) {
             return List.of();
         }
-        Registry<?> registry = access.registry(key).orElse(null);
+        Registry<?> registry = access.lookup(key).orElse(null);
         return registry == null ? List.of() : builtIn(registry, withTags);
     }
 
     /** One of the game's own registries, by key: the same object the tag packet binds its tags to. */
     private static List<ItemPicker.Entry> builtIn(ResourceKey<? extends Registry<?>> key) {
-        Registry<?> registry = key == null ? null : BuiltInRegistries.REGISTRY.get(key.location());
+        Registry<?> registry = key == null ? null
+                : BuiltInRegistries.REGISTRY.get(key.identifier()).map(holder -> holder.value())
+                        .orElse(null);
         return registry == null ? List.of() : builtIn(registry, false);
     }
 
@@ -169,7 +171,9 @@ public final class SearchCatalogue {
 
     /** A built-in registry's tags, by key, as the field that consumes them spells one. */
     private static List<ItemPicker.Entry> tags(ResourceKey<? extends Registry<?>> key, boolean hash) {
-        Registry<?> registry = key == null ? null : BuiltInRegistries.REGISTRY.get(key.location());
+        Registry<?> registry = key == null ? null
+                : BuiltInRegistries.REGISTRY.get(key.identifier()).map(holder -> holder.value())
+                        .orElse(null);
         if (registry == null) {
             return List.of();
         }
@@ -187,8 +191,8 @@ public final class SearchCatalogue {
      * {@code #} is not one.
      */
     private static void tags(Registry<?> registry, List<ItemPicker.Entry> out, boolean hash) {
-        registry.getTagNames().forEach(tag ->
-                out.add(entry((hash ? "#" : "") + tag.location())));
+        registry.getTags().forEach(tag ->
+                out.add(entry((hash ? "#" : "") + tag.key().location())));
     }
 
     /** The client's own advancement tree: everything the server has told it about. */
@@ -197,10 +201,10 @@ public final class SearchCatalogue {
         if (minecraft.getConnection() == null) {
             return out;
         }
-        for (AdvancementNode node : minecraft.getConnection().getAdvancements().getTree().nodes()) {
+        for (AdvancementNode node : minecraft.getConnection().getAdvancements().tree().nodes()) {
             AdvancementHolder holder = node.holder();
             String label = holder.value().display()
-                    .map(display -> display.getTitle().getString())
+                    .map(display -> display.title().getString())
                     .orElseGet(() -> EditorSpecs.label(holder.id().getPath()));
             out.add(new ItemPicker.Entry(holder.id().toString(), label, 1, ""));
         }
@@ -208,7 +212,7 @@ public final class SearchCatalogue {
     }
 
     /** Ids as rows, for a registry's own key set. */
-    private static List<ItemPicker.Entry> rows(Collection<ResourceLocation> ids) {
+    private static List<ItemPicker.Entry> rows(Collection<Identifier> ids) {
         List<ItemPicker.Entry> out = new ArrayList<>();
         ids.forEach(id -> out.add(entry(id.toString())));
         return out;
@@ -223,9 +227,9 @@ public final class SearchCatalogue {
 
     /** One row: the id, and the name a person reads. */
     private static ItemPicker.Entry entry(String id) {
-        ResourceLocation location = id.startsWith("#")
-                ? ResourceLocation.tryParse(id.substring(1))
-                : ResourceLocation.tryParse(id);
+        Identifier location = id.startsWith("#")
+                ? Identifier.tryParse(id.substring(1))
+                : Identifier.tryParse(id);
         String label = location == null ? id : EditorSpecs.label(location.getPath());
         return new ItemPicker.Entry(id, label, 1, "");
     }

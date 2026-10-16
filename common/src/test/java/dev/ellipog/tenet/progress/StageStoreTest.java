@@ -1,11 +1,9 @@
 package dev.ellipog.tenet.progress;
 
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("stages in the store")
 class StageStoreTest {
 
-    private static final ResourceLocation LEFT = ResourceLocation.fromNamespaceAndPath("my_pack", "left_home");
-    private static final ResourceLocation COUNCIL = ResourceLocation.fromNamespaceAndPath("my_pack", "met_council");
+    private static final Identifier LEFT = Identifier.fromNamespaceAndPath("my_pack", "left_home");
+    private static final Identifier COUNCIL = Identifier.fromNamespaceAndPath("my_pack", "met_council");
 
     @Test
     @DisplayName("a stage can be granted, asked about, and taken away once")
@@ -75,8 +73,7 @@ class StageStoreTest {
         store.addStage(one, LEFT);
         store.addStage(two, LEFT);
 
-        ProgressStore loaded = ProgressStore.load(store.save(new CompoundTag(), RegistryAccess.EMPTY),
-                RegistryAccess.EMPTY);
+        ProgressStore loaded = ProgressStore.load(store.save(new CompoundTag()));
 
         assertEquals(2, loaded.stagedPlayerCount(), "both players survive the file");
         // A set, so order is not the assertion -- membership is. The insertion order matters for the file's
@@ -93,15 +90,15 @@ class StageStoreTest {
         UUID player = UUID.randomUUID();
         store.addStage(player, LEFT);
         store.addStage(player, COUNCIL);
-        CompoundTag tag = store.save(new CompoundTag(), RegistryAccess.EMPTY);
+        CompoundTag tag = store.save(new CompoundTag());
 
         // Hand-damage one id, the way a half-edited file or a bad downgrade would: the answer must be the
         // valid ids, not an exception and not an empty set.
-        ListTag stages = tag.getList("stages", Tag.TAG_COMPOUND);
-        ListTag ids = stages.getCompound(0).getList("ids", Tag.TAG_STRING);
+        ListTag stages = tag.getListOrEmpty("stages");
+        ListTag ids = stages.getCompoundOrEmpty(0).getListOrEmpty("ids");
         ids.set(0, StringTag.valueOf("not a valid id"));
 
-        ProgressStore loaded = ProgressStore.load(tag, RegistryAccess.EMPTY);
+        ProgressStore loaded = ProgressStore.load(tag);
 
         assertEquals(1, loaded.stagesOf(player).size(), "the id that survived is kept");
         assertTrue(loaded.hasStage(player, COUNCIL));
@@ -114,7 +111,7 @@ class StageStoreTest {
         old.putInt("version", 1);
         old.put("teams", new ListTag());
 
-        ProgressStore loaded = ProgressStore.load(old, RegistryAccess.EMPTY);
+        ProgressStore loaded = ProgressStore.load(old);
 
         assertEquals(0, loaded.stagedPlayerCount(), "a missing section is 'no stages', which is a valid state");
         assertEquals(0, loaded.stagedTeamCount(), "and the team section missing is 'no team stages' too");
@@ -167,8 +164,7 @@ class StageStoreTest {
         store.addTeamStage(team, COUNCIL);
         store.addStage(player, LEFT);
 
-        ProgressStore loaded = ProgressStore.load(store.save(new CompoundTag(), RegistryAccess.EMPTY),
-                RegistryAccess.EMPTY);
+        ProgressStore loaded = ProgressStore.load(store.save(new CompoundTag()));
 
         assertEquals(1, loaded.stagedTeamCount(), "the team survives the file");
         assertTrue(loaded.hasTeamStage(team, LEFT) && loaded.hasTeamStage(team, COUNCIL));

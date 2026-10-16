@@ -18,7 +18,7 @@ import dev.ellipog.armature.client.ui.kit.Viewport;
 import dev.ellipog.armature.client.ui.shape.Shape;
 import dev.ellipog.tenet.client.BookGeometry;
 import dev.ellipog.tenet.quest.QuestShape;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 import java.util.Map;
@@ -479,12 +479,12 @@ public final class ToolsPanel {
      * keeps making. Null means "ask the renderer every time", which is correct and merely slower.
      */
     public static void drawTextureThumb(GuiRenderer r, Slot box, String texture,
-                                        Map<ResourceLocation, Optional<GuiRenderer.TextureSize>> cache) {
+                                        Map<Identifier, Optional<GuiRenderer.TextureSize>> cache) {
         r.fill(box.x(), box.y(), box.right(), box.bottom(), ArmatureTheme.recessed());
         if (texture == null || texture.isEmpty()) {
             return;
         }
-        ResourceLocation id = ResourceLocation.tryParse(texture);
+        Identifier id = Identifier.tryParse(texture);
         if (id == null) {
             return;
         }

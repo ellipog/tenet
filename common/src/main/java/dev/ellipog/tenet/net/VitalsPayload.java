@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * An operator's client being told whether to draw the frame rate.
@@ -23,7 +23,7 @@ public record VitalsPayload(boolean on) implements CustomPacketPayload {
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<VitalsPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "vitals"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "vitals"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, VitalsPayload> CODEC =
             StreamCodec.composite(

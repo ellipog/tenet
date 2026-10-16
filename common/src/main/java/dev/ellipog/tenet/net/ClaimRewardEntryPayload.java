@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * One reward of a finished quest, collected on its own.
@@ -23,7 +23,7 @@ public record ClaimRewardEntryPayload(String questId, int rewardIndex) implement
 
     public static final CustomPacketPayload.Type<ClaimRewardEntryPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "claim_reward_entry"));
+                    Identifier.fromNamespaceAndPath("tenet", "claim_reward_entry"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ClaimRewardEntryPayload> CODEC =
             StreamCodec.composite(

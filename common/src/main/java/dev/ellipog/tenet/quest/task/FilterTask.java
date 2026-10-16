@@ -8,7 +8,7 @@ import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -34,7 +34,7 @@ import java.util.function.Function;
 public record FilterTask(TaskCommon common, FilterParser.Expr filter, int count,
                          Optional<Boolean> consumeItems, boolean manualOnly) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "filter");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "filter");
 
     public static final Set<String> FIELDS = Set.of("filter", "count", "consumeItems", "manualOnly");
 
@@ -59,7 +59,7 @@ public record FilterTask(TaskCommon common, FilterParser.Expr filter, int count,
     ).apply(instance, FilterTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

@@ -320,17 +320,23 @@ public final class ColourPopover {
     // Input
     // ------------------------------------------------------------------
 
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event) {
         if (!open) {
             return false;
         }
-        if (button == 0 && reset.contains(mouseX, mouseY)) {
+        // Left is 1 on SDL, where it was 0 on GLFW: asked as a comparison, because
+        // `isValidClickButton` lives on AbstractWidget and this is not one.
+        boolean left = event.button()
+                == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT;
+        double mouseX = event.x();
+        double mouseY = event.y();
+        if (left && reset.contains(mouseX, mouseY)) {
             set(openedWith);
             commit.accept(argb);
             committed = argb;
             return true;
         }
-        if (button == 0 && plus.contains(mouseX, mouseY)) {
+        if (left && plus.contains(mouseX, mouseY)) {
             // Nothing to add once the row is full, and nothing pretended either: the `+` is drawn dimmed
             // when there is no room, which is the half the old list was missing -- it kept appending past
             // the slots that fit, so a press did nothing and said nothing.
@@ -364,17 +370,19 @@ public final class ColourPopover {
         return panel.contains(mouseX, mouseY);
     }
 
-    public boolean mouseDragged(double mouseX, double mouseY, int button) {
-        if (!open || dragging == Part.NONE || button != 0) {
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event) {
+        if (!open || dragging == Part.NONE
+                || event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) {
             return false;
         }
-        dragTo(mouseX, mouseY);
+        dragTo(event.x(), event.y());
         return true;
     }
 
     /** The release writes once, and only when the gesture changed the colour. */
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (!open || button != 0) {
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        if (!open
+                || event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) {
             return false;
         }
         if (dragging != Part.NONE) {
@@ -455,16 +463,25 @@ public final class ColourPopover {
             return false;
         }
         int step = shift ? 10 : 1;
-        switch (keyCode) {
-            case 263 -> nudge(-step, 0);
-            case 262 -> nudge(step, 0);
-            case 265 -> nudge(0, -step);
-            case 264 -> nudge(0, step);
-            default -> {
-                return false;
-            }
+        // Arrow scancodes: the constants changed values with the SDL move, so these are the
+        // `InputConstants` ones for the same physical keys.
+        if (keyCode == com.mojang.blaze3d.platform.InputConstants.KEY_LEFT) {
+            nudge(-step, 0);
+            return true;
         }
-        return true;
+        if (keyCode == com.mojang.blaze3d.platform.InputConstants.KEY_RIGHT) {
+            nudge(step, 0);
+            return true;
+        }
+        if (keyCode == com.mojang.blaze3d.platform.InputConstants.KEY_UP) {
+            nudge(0, -step);
+            return true;
+        }
+        if (keyCode == com.mojang.blaze3d.platform.InputConstants.KEY_DOWN) {
+            nudge(0, step);
+            return true;
+        }
+        return false;
     }
 
     /**

@@ -5,7 +5,7 @@ import dev.ellipog.armature.api.event.Event;
 import dev.ellipog.tenet.quest.Quest;
 import dev.ellipog.tenet.quest.QuestReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -77,13 +77,13 @@ public final class TenetEvents {
      */
     @FunctionalInterface
     public interface StageAdded {
-        void onStageAdded(ServerPlayer player, ResourceLocation stage);
+        void onStageAdded(ServerPlayer player, Identifier stage);
     }
 
     /** A stage was taken away. Fired only when the player had it. */
     @FunctionalInterface
     public interface StageRemoved {
-        void onStageRemoved(ServerPlayer player, ResourceLocation stage);
+        void onStageRemoved(ServerPlayer player, Identifier stage);
     }
 
     /**
@@ -96,7 +96,7 @@ public final class TenetEvents {
      */
     @FunctionalInterface
     public interface ClickEvent {
-        void onClickEvent(ServerPlayer player, ResourceLocation id, String chapterId, String elementId);
+        void onClickEvent(ServerPlayer player, Identifier id, String chapterId, String elementId);
     }
 
     public static final Event<QuestStarted> QUEST_STARTED = new Event<>(listeners ->

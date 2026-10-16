@@ -33,11 +33,11 @@ import me.shedaniel.rei.api.common.entry.EntryStack;
 import me.shedaniel.rei.api.common.util.EntryIngredients;
 import me.shedaniel.rei.api.common.util.EntryStacks;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -186,6 +186,61 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
         @Override
         public CategoryIdentifier<?> getCategoryIdentifier() {
             return identifier;
+        }
+
+        /**
+         * Deliberately not serializable: a quest page is live content, regenerated per view from
+         * the installed {@link QuestContent}, so nothing here survives a round trip and no codec
+         * could rebuild it without the content it was read from. The serializer exists because the
+         * interface requires one; it is marked non-persistent, and both codecs fail loudly if REI
+         * ever invokes them, rather than producing a silent empty page.
+         */
+        @Override
+        public me.shedaniel.rei.api.common.display.DisplaySerializer<? extends me.shedaniel.rei.api.common.display.Display> getSerializer() {
+            return me.shedaniel.rei.api.common.display.DisplaySerializer.of(
+                    new com.mojang.serialization.MapCodec<QuestDisplay>() {
+                        @Override
+                        public <T> com.mojang.serialization.DataResult<QuestDisplay> decode(
+                                com.mojang.serialization.DynamicOps<T> ops,
+                                com.mojang.serialization.MapLike<T> input) {
+                            return com.mojang.serialization.DataResult
+                                    .error(() -> "quest displays are not serializable");
+                        }
+
+                        @Override
+                        public <T> com.mojang.serialization.RecordBuilder<T> encode(QuestDisplay input,
+                                com.mojang.serialization.DynamicOps<T> ops,
+                                com.mojang.serialization.RecordBuilder<T> prefix) {
+                            throw new UnsupportedOperationException(
+                                    "quest displays are not serializable");
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "TenetQuestDisplay";
+                        }
+
+                        @Override
+                        public <T> java.util.stream.Stream<T> keys(
+                                com.mojang.serialization.DynamicOps<T> ops) {
+                            return java.util.stream.Stream.empty();
+                        }
+                    },
+                    new net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, QuestDisplay>() {
+                        @Override
+                        public QuestDisplay decode(net.minecraft.network.RegistryFriendlyByteBuf buf) {
+                            throw new UnsupportedOperationException(
+                                    "quest displays are not serializable");
+                        }
+
+                        @Override
+                        public void encode(net.minecraft.network.RegistryFriendlyByteBuf buf,
+                                QuestDisplay value) {
+                            throw new UnsupportedOperationException(
+                                    "quest displays are not serializable");
+                        }
+                    },
+                    false);
         }
 
         private static List<EntryIngredient> inputs(QuestPage page, EntryStack<?> focus) {
@@ -361,28 +416,28 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
             this.box = box;
         }
 
-        /** No children: the icon is one drawn picture, and REI's event dispatch asks for them. */
         @Override
         public List<? extends GuiEventListener> children() {
             return List.of();
         }
 
         @Override
-        public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+        public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+                float delta) {
             GuiRenderer renderer = new GuiGraphicsRenderer(graphics);
             if (!quest.icon().isEmpty()) {
                 renderer.icon(quest.icon(), box.x(), box.y(), QuestPageLayout.ITEM);
                 return;
             }
             if (!quest.textureIcon().isEmpty()) {
-                ResourceLocation id = ResourceLocation.tryParse(quest.textureIcon());
+                Identifier id = Identifier.tryParse(quest.textureIcon());
                 if (id != null) {
                     renderer.texture(id, box.x(), box.y(), box.width(), box.height());
                     return;
                 }
             }
             if (!quest.spriteIcon().isEmpty()) {
-                ResourceLocation id = ResourceLocation.tryParse(quest.spriteIcon());
+                Identifier id = Identifier.tryParse(quest.spriteIcon());
                 if (id != null) {
                     renderer.sprite(id, box.x(), box.y(), box.width(), box.height(), 0xFFFFFFFF);
                 }
@@ -392,14 +447,14 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
 
     /** Draws nothing: the page's rows are the layout. */
     private static final class BlankRenderer extends DisplayRenderer {
-
         @Override
         public int getHeight() {
             return 0;
         }
 
         @Override
-        public void render(GuiGraphics graphics, Rectangle bounds, int mouseX, int mouseY, float delta) {
+        public void render(me.shedaniel.rei.api.client.gui.compat.GuiGraphics graphics,
+                me.shedaniel.math.Rectangle bounds, int mouseX, int mouseY, float delta) {
             // Nothing to draw above the widgets.
         }
     }
@@ -438,13 +493,14 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
         /**
          * {@code Renderable}'s entry point — the current one.
          *
-         * <p>REI's older {@code render(GuiGraphics, Rectangle, ...)} is deprecated, and its base
-         * implementation delegates here (read from the class rather than assumed). Implementing only
-         * this one is therefore both current and sufficient; overriding the deprecated variant would
-         * shadow that delegation with a duplicate.
+         * <p>REI's older {@code render} took vanilla's context; on 26.3 the widgets extract like
+         * everything else, and the base class routes through here. Implementing only this one is
+         * therefore both current and sufficient; overriding the old variant would shadow that
+         * delegation with a duplicate.
          */
         @Override
-        public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+        public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+                float delta) {
             GuiRenderer renderer = new GuiGraphicsRenderer(graphics);
             QuestRow live = task ? content.liveTask(questId, index) : content.liveReward(questId, index);
 
@@ -547,7 +603,7 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
         }
 
         private Optional<List<QuestDisplay>> found(EntryStack<?> entry, boolean usage) {
-            ResourceLocation item = itemOf(entry);
+            Identifier item = itemOf(entry);
             if (item == null) {
                 return Optional.empty();
             }
@@ -565,7 +621,7 @@ public final class TenetReiPlugin implements REIClientPlugin, RecipeLookups.Look
             return out.isEmpty() ? Optional.empty() : Optional.of(out);
         }
 
-        private static ResourceLocation itemOf(EntryStack<?> entry) {
+        private static Identifier itemOf(EntryStack<?> entry) {
             return entry.getValue() instanceof ItemStack stack
                     ? BuiltInRegistries.ITEM.getKey(stack.getItem())
                     : null;

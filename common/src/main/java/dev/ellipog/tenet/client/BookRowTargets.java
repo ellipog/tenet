@@ -4,7 +4,7 @@ import dev.ellipog.tenet.client.viewer.RecipeLookups;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -40,7 +40,7 @@ public final class BookRowTargets {
      */
     public static RecipeLookups.Target ofTask(ClientQuestCache.TaskEntry task) {
         if (!task.tagId().isEmpty()) {
-            ResourceLocation id = ResourceLocation.tryParse(task.tagId());
+            Identifier id = Identifier.tryParse(task.tagId());
             if (id != null) {
                 return RecipeLookups.Target.ofTag(TagKey.create(Registries.ITEM, id));
             }
@@ -50,9 +50,10 @@ public final class BookRowTargets {
             // A break task names a block, not an item: the row draws its sentence, and the
             // lookup opens recipes for the block's item form where one exists. A block with
             // no item form opens nothing, like a text row with nothing to look up.
-            ResourceLocation id = ResourceLocation.tryParse(task.block());
+            Identifier id = Identifier.tryParse(task.block());
             Item item = id == null ? null : BuiltInRegistries.ITEM.getOptional(id).orElse(null);
-            return item == null ? null : RecipeLookups.Target.of(new ItemStack(item));
+            return item == null ? null
+                    : RecipeLookups.Target.of(dev.ellipog.tenet.quest.ItemStacks.stackOf(item));
         }
         // A break task's block tag opens nothing: a block tag is not an item tag, so there
         // is no tag target that means it, and opening one member's recipes would claim the

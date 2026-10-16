@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * An author pressing Reset on one chapter in the quest book.
@@ -39,7 +39,7 @@ public record ResetChapterPayload(String chapterId) implements CustomPacketPaylo
      */
     public static final CustomPacketPayload.Type<ResetChapterPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "reset_chapter"));
+                    Identifier.fromNamespaceAndPath("tenet", "reset_chapter"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ResetChapterPayload> CODEC =
             StreamCodec.composite(

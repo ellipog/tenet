@@ -44,7 +44,8 @@ public final class SettingsLayout {
      * switch, so the state reads at a glance instead of needing the word found every time. The
      * third thing on this card that is about the player's own screen rather than the book's
      * appearance: where the navigation sits is a placement, like the HUD row's, and the header
-     * is the book's busiest row — a choice made once lives here rather than in it.
+     * is the book's busiest row — a choice made once lives here rather than in it. The icon-size row is the
+ * fourth: how large items draw, beside the text-size row that decides how large words draw.
      */
     public static final String SIDEBAR_KEY = "sidebar";
 

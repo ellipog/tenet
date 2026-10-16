@@ -12,7 +12,7 @@ import dev.ellipog.tenet.quest.Fixtures;
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestIndex;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
@@ -120,10 +120,9 @@ class QuestViewerContentTest {
      * identity rather than by equality.
      */
     private static Optional<net.minecraft.core.HolderSet<Item>> oakLogSet(int times) {
-        var holder = net.minecraft.core.registries.BuiltInRegistries.ITEM.getHolderOrThrow(
-                net.minecraft.resources.ResourceKey.create(
-                        net.minecraft.core.registries.Registries.ITEM,
-                        ResourceLocation.parse("minecraft:oak_log")));
+        // `getHolderOrThrow` is gone; the id lookup hands back the reference directly.
+        var holder = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .get(Identifier.parse("minecraft:oak_log")).orElseThrow();
         java.util.List<net.minecraft.core.Holder<Item>> holders = new java.util.ArrayList<>();
         for (int i = 0; i < times; i++) {
             holders.add(holder);
@@ -144,7 +143,7 @@ class QuestViewerContentTest {
         accept(ONE_QUEST);
         QuestViewerContent content = new QuestViewerContent();
         TagKey<Item> logs = TagKey.create(net.minecraft.core.registries.Registries.ITEM,
-                ResourceLocation.parse("minecraft:logs"));
+                Identifier.parse("minecraft:logs"));
 
         Optional<net.minecraft.core.HolderSet<Item>> stable = oakLogSet(1);
         Optional<net.minecraft.core.HolderSet<Item>> replaced = oakLogSet(2);
@@ -226,9 +225,9 @@ class QuestViewerContentTest {
         assertEquals("tenet:does_not_exist", missing.label(),
                 "so its id is the label -- the book's keep-and-mark rule, on a viewer page");
 
-        assertEquals(List.of("tree"), ids(content.index().questsUsing(ResourceLocation.parse("minecraft:oak_log"))));
-        assertEquals(List.of("tree"), ids(content.index().questsAwarding(ResourceLocation.parse("minecraft:diamond"))));
-        assertTrue(content.index().questsUsing(ResourceLocation.parse("minecraft:diamond")).isEmpty(),
+        assertEquals(List.of("tree"), ids(content.index().questsUsing(Identifier.parse("minecraft:oak_log"))));
+        assertEquals(List.of("tree"), ids(content.index().questsAwarding(Identifier.parse("minecraft:diamond"))));
+        assertTrue(content.index().questsUsing(Identifier.parse("minecraft:diamond")).isEmpty(),
                 "a reward is not a use");
     }
 
@@ -267,7 +266,7 @@ class QuestViewerContentTest {
         assertEquals("shown", content.pages().get(0).quest().id());
         assertNull(content.page("hidden"), "and no id lookup finds it either");
         assertEquals(List.of("shown"),
-                ids(content.index().questsUsing(ResourceLocation.parse("minecraft:oak_log"))),
+                ids(content.index().questsUsing(Identifier.parse("minecraft:oak_log"))),
                 "and no item lookup leads to it");
     }
 
@@ -287,18 +286,18 @@ class QuestViewerContentTest {
         // datapack, so the resolver is the fake above; production reads the same shape from the synced
         // client registry.
         assertEquals(List.of("tree"),
-                ids(content.index().questsUsing(ResourceLocation.parse("minecraft:birch_log"))));
-        assertTrue(content.index().questsUsing(ResourceLocation.parse("minecraft:stone")).isEmpty(),
+                ids(content.index().questsUsing(Identifier.parse("minecraft:birch_log"))));
+        assertTrue(content.index().questsUsing(Identifier.parse("minecraft:stone")).isEmpty(),
                 "an item outside the tag does not");
     }
 
     /** The fake datapack: {@code #minecraft:logs} holds two items, everything else is empty. */
-    private static List<ResourceLocation> expanded(TagKey<Item> tag) {
+    private static List<Identifier> expanded(TagKey<Item> tag) {
         if (!tag.location().toString().equals("minecraft:logs")) {
             return List.of();
         }
-        return List.of(ResourceLocation.parse("minecraft:oak_log"),
-                ResourceLocation.parse("minecraft:birch_log"));
+        return List.of(Identifier.parse("minecraft:oak_log"),
+                Identifier.parse("minecraft:birch_log"));
     }
 
     private static final String BREAK_QUEST = """
@@ -327,8 +326,8 @@ class QuestViewerContentTest {
         assertFalse(row.icon().isEmpty(), "the row wears the block's own item");
 
         assertEquals(List.of("quarry"),
-                ids(content.index().questsUsing(ResourceLocation.parse("minecraft:stone"))));
-        assertTrue(content.index().questsUsing(ResourceLocation.parse("minecraft:dirt")).isEmpty(),
+                ids(content.index().questsUsing(Identifier.parse("minecraft:stone"))));
+        assertTrue(content.index().questsUsing(Identifier.parse("minecraft:dirt")).isEmpty(),
                 "another block leads nowhere");
     }
 
@@ -345,19 +344,19 @@ class QuestViewerContentTest {
         assertFalse(row.hasTag(), "a block tag is not an item tag, so the row carries none");
 
         assertEquals(List.of("timber"),
-                ids(content.index().questsUsing(ResourceLocation.parse("minecraft:oak_log"))),
+                ids(content.index().questsUsing(Identifier.parse("minecraft:oak_log"))),
                 "a member's item finds the quest");
-        assertTrue(content.index().questsUsing(ResourceLocation.parse("minecraft:stone")).isEmpty(),
+        assertTrue(content.index().questsUsing(Identifier.parse("minecraft:stone")).isEmpty(),
                 "an item outside the tag does not");
     }
 
     /** The fake datapack's block side: {@code #minecraft:logs} holds two blocks. */
-    private static List<ResourceLocation> blockExpanded(TagKey<Block> tag) {
+    private static List<Identifier> blockExpanded(TagKey<Block> tag) {
         if (!tag.location().toString().equals("minecraft:logs")) {
             return List.of();
         }
-        return List.of(ResourceLocation.parse("minecraft:oak_log"),
-                ResourceLocation.parse("minecraft:birch_log"));
+        return List.of(Identifier.parse("minecraft:oak_log"),
+                Identifier.parse("minecraft:birch_log"));
     }
 
     @Test
@@ -369,12 +368,10 @@ class QuestViewerContentTest {
         accept(BREAK_TAG_QUEST);
         QuestViewerContent content = new QuestViewerContent();
         TagKey<Block> logs = TagKey.create(net.minecraft.core.registries.Registries.BLOCK,
-                ResourceLocation.parse("minecraft:logs"));
+                Identifier.parse("minecraft:logs"));
 
-        var oak = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getHolderOrThrow(
-                net.minecraft.resources.ResourceKey.create(
-                        net.minecraft.core.registries.Registries.BLOCK,
-                        ResourceLocation.parse("minecraft:oak_log")));
+        var oak = net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .get(Identifier.parse("minecraft:oak_log")).orElseThrow();
         Optional<net.minecraft.core.HolderSet<Block>> stable =
                 Optional.of(net.minecraft.core.HolderSet.direct(List.of(oak)));
         Optional<net.minecraft.core.HolderSet<Block>> replaced =
@@ -432,7 +429,7 @@ class QuestViewerContentTest {
         assertEquals(1, asks.get("minecraft:logs"),
                 "two tasks name the same tag, and the answer cannot differ inside one walk");
         assertEquals(List.of("paired"),
-                ids(content.index().questsUsing(ResourceLocation.parse("minecraft:oak_log"))),
+                ids(content.index().questsUsing(Identifier.parse("minecraft:oak_log"))),
                 "and both members are still indexed, so the saving is not a lost expansion");
     }
 
@@ -516,7 +513,7 @@ class QuestViewerContentTest {
     void categoryValuesAreTheContents() {
         QuestViewerContent content = new QuestViewerContent();
 
-        assertEquals(ResourceLocation.parse("tenet:quests"), content.categoryId());
+        assertEquals(Identifier.parse("tenet:quests"), content.categoryId());
         assertEquals("Quests", content.categoryTitle().getString());
         assertEquals("Tasks", content.tasksLabel().getString());
         assertEquals("Rewards", content.rewardsLabel().getString());

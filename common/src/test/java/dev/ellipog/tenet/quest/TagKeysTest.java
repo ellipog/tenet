@@ -1,7 +1,7 @@
 package dev.ellipog.tenet.quest;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 
@@ -26,21 +26,21 @@ class TagKeysTest {
     @Test
     @DisplayName("one pair builds once, however often it is asked")
     void samePairSameObject() {
-        TagKey<Item> first = TagKeys.of(Registries.ITEM, ResourceLocation.parse("minecraft:logs"));
-        assertSame(first, TagKeys.of(Registries.ITEM, ResourceLocation.parse("minecraft:logs")));
-        assertEquals(first, TagKey.create(Registries.ITEM, ResourceLocation.parse("minecraft:logs")),
+        TagKey<Item> first = TagKeys.of(Registries.ITEM, Identifier.parse("minecraft:logs"));
+        assertSame(first, TagKeys.of(Registries.ITEM, Identifier.parse("minecraft:logs")));
+        assertEquals(first, TagKey.create(Registries.ITEM, Identifier.parse("minecraft:logs")),
                 "the remembered key is the created key, not a lookalike");
     }
 
     @Test
     @DisplayName("two ids are two keys, and the registry is half the key")
     void distinctPairsAreDistinct() {
-        TagKey<Item> logs = TagKeys.of(Registries.ITEM, ResourceLocation.parse("minecraft:logs"));
-        TagKey<Item> planks = TagKeys.of(Registries.ITEM, ResourceLocation.parse("minecraft:planks"));
+        TagKey<Item> logs = TagKeys.of(Registries.ITEM, Identifier.parse("minecraft:logs"));
+        TagKey<Item> planks = TagKeys.of(Registries.ITEM, Identifier.parse("minecraft:planks"));
         assertTrue(!logs.equals(planks), "a neighbour's key must not answer");
 
-        TagKey<?> biome = TagKeys.of(Registries.BIOME, ResourceLocation.parse("minecraft:is_forest"));
-        TagKey<?> block = TagKeys.of(Registries.BLOCK, ResourceLocation.parse("minecraft:is_forest"));
+        TagKey<?> biome = TagKeys.of(Registries.BIOME, Identifier.parse("minecraft:is_forest"));
+        TagKey<?> block = TagKeys.of(Registries.BLOCK, Identifier.parse("minecraft:is_forest"));
         assertTrue(!biome.equals(block),
                 "the same path in two registries is two keys, which is what keeps a biome tag "
                         + "out of a block match");

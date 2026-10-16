@@ -1,6 +1,6 @@
 package dev.ellipog.tenet.quest.condition;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ConditionBehaviourForwardingTest {
 
     private static StageCondition stage() {
-        return new StageCondition(ResourceLocation.fromNamespaceAndPath("my_pack", "marked"));
+        return new StageCondition(Identifier.fromNamespaceAndPath("my_pack", "marked"));
     }
 
     @Test
@@ -53,8 +53,8 @@ class ConditionBehaviourForwardingTest {
         // decode one. The safe answer for a gate is "not met" -- the other direction is a lock that
         // silently opens. Only unknown types are used here: a registered one would run its behaviour,
         // and a real behaviour reads the server, which a null context does not have.
-        QuestCondition unknown = () -> ResourceLocation.fromNamespaceAndPath("some_mod", "missing");
-        QuestCondition other = () -> ResourceLocation.fromNamespaceAndPath("some_mod", "missing_too");
+        QuestCondition unknown = () -> Identifier.fromNamespaceAndPath("some_mod", "missing");
+        QuestCondition other = () -> Identifier.fromNamespaceAndPath("some_mod", "missing_too");
 
         assertFalse(Conditions.passes(List.of(unknown), null));
         assertFalse(Conditions.passes(List.of(other, unknown), null),
@@ -71,8 +71,8 @@ class ConditionBehaviourForwardingTest {
     @Test
     @DisplayName("the unmet mask names failing conditions by index, ascending")
     void unmetNamesTheFailingIndices() {
-        QuestCondition unknownA = () -> ResourceLocation.fromNamespaceAndPath("some_mod", "missing_a");
-        QuestCondition unknownB = () -> ResourceLocation.fromNamespaceAndPath("some_mod", "missing_b");
+        QuestCondition unknownA = () -> Identifier.fromNamespaceAndPath("some_mod", "missing_a");
+        QuestCondition unknownB = () -> Identifier.fromNamespaceAndPath("some_mod", "missing_b");
 
         assertEquals(List.of(0, 1), Conditions.unmet(List.of(unknownA, unknownB), null));
     }

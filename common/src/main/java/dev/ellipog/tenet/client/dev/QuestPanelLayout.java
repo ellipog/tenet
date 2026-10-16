@@ -13,7 +13,7 @@ import dev.ellipog.tenet.quest.reward.ItemReward;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -315,7 +315,7 @@ public final class QuestPanelLayout {
      */
     public static List<InspectRow> typeRows(String member) {
         Set<String> registered = new TreeSet<>();
-        for (ResourceLocation id : ("rewards".equals(member) ? RewardTypes.ids() : TaskTypes.ids())) {
+        for (Identifier id : ("rewards".equals(member) ? RewardTypes.ids() : TaskTypes.ids())) {
             registered.add(id.toString());
         }
         return typeRows(member, registered);
@@ -338,7 +338,7 @@ public final class QuestPanelLayout {
      */
     public static List<InspectRow> typeRowsNamedInChrome(String member) {
         Set<String> registered = new TreeSet<>();
-        for (ResourceLocation id : ("rewards".equals(member) ? RewardTypes.ids() : TaskTypes.ids())) {
+        for (Identifier id : ("rewards".equals(member) ? RewardTypes.ids() : TaskTypes.ids())) {
             registered.add(id.toString());
         }
         return rowsNamed("", groupsFor(member), registered);
@@ -373,7 +373,7 @@ public final class QuestPanelLayout {
      */
     public static List<InspectRow> conditionTypeRows() {
         Set<String> registered = new TreeSet<>();
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             registered.add(id.toString());
         }
         return rowsFor("tenet.dev.panel.add_condition", CONDITION_GROUPS, registered);
@@ -448,7 +448,7 @@ public final class QuestPanelLayout {
                 }
             }
         }
-        ResourceLocation id = ResourceLocation.tryParse(typeId);
+        Identifier id = Identifier.tryParse(typeId);
         return id == null ? typeId : EditorSpecs.label(id.getPath());
     }
 
@@ -458,7 +458,7 @@ public final class QuestPanelLayout {
      */
     public static List<EditorField> conditionEditorFor(JsonObject condition) {
         String type = text(condition, "type", "");
-        ResourceLocation id = ResourceLocation.tryParse(type);
+        Identifier id = Identifier.tryParse(type);
         return id == null ? List.of() : Advanced.fields(ConditionTypes.editorOf(id));
     }
 
@@ -475,7 +475,7 @@ public final class QuestPanelLayout {
                 }
             }
         }
-        ResourceLocation id = ResourceLocation.tryParse(typeId);
+        Identifier id = Identifier.tryParse(typeId);
         if (id != null && ConditionTypes.ids().contains(id)) {
             Set<String> fields = ConditionTypes.fieldsOf(id);
             if (!fields.isEmpty()) {
@@ -509,7 +509,7 @@ public final class QuestPanelLayout {
      */
     public static String friendlyId(String id) {
         boolean tag = id.startsWith("#");
-        ResourceLocation location = ResourceLocation.tryParse(tag ? id.substring(1) : id);
+        Identifier location = Identifier.tryParse(tag ? id.substring(1) : id);
         if (location == null) {
             return id;
         }
@@ -531,7 +531,7 @@ public final class QuestPanelLayout {
      * {@code minecraft:<word>}, so prettifying every parseable token would turn the "of" in that fluid
      * sentence into "Of" and a kill task's "anything" into "Anything". Only a token that spells a
      * namespace is an id here -- which is what the sentences write, since they all stringify a
-     * {@code ResourceLocation} -- and everything else passes through exactly as the server wrote it.
+     * {@code Identifier} -- and everything else passes through exactly as the server wrote it.
      */
     public static String prettiedArgument(String member, String typeId, String arg) {
         return prettiedArgument(member, typeId, arg, null);
@@ -587,7 +587,7 @@ public final class QuestPanelLayout {
         if (choice != null) {
             lines.add(Labels.of(choice.hint()));
         }
-        ResourceLocation id = ResourceLocation.tryParse(typeId);
+        Identifier id = Identifier.tryParse(typeId);
         if (id != null) {
             Set<String> fields = "rewards".equals(member) ? RewardTypes.fieldsOf(id) : TaskTypes.fieldsOf(id);
             if (!fields.isEmpty()) {
@@ -698,7 +698,7 @@ public final class QuestPanelLayout {
      */
     public static List<dev.ellipog.tenet.quest.EditorField> editorFor(String member, JsonObject entry) {
         String type = text(entry, "type", "");
-        ResourceLocation id = ResourceLocation.tryParse(type);
+        Identifier id = Identifier.tryParse(type);
         if (id == null) {
             return List.of();
         }
@@ -712,7 +712,7 @@ public final class QuestPanelLayout {
 
     /** Whether a type id is one this build can add to the given member. */
     public static boolean canAdd(String member, String typeId) {
-        ResourceLocation id = ResourceLocation.tryParse(typeId);
+        Identifier id = Identifier.tryParse(typeId);
         if (id == null) {
             return false;
         }
@@ -736,7 +736,7 @@ public final class QuestPanelLayout {
      * methods rather than one that guesses: nothing about a reward tree says which list it is for.
      */
     public static JsonObject defaultElement(String member, String typeId) {
-        ResourceLocation id = ResourceLocation.tryParse(typeId);
+        Identifier id = Identifier.tryParse(typeId);
         if (id == null) {
             return null;
         }
@@ -846,7 +846,7 @@ public final class QuestPanelLayout {
 
     /** Whether a type id is one this build has a panel for. The fallback is not a panel. */
     public static boolean knownType(String type) {
-        ResourceLocation id = ResourceLocation.tryParse(type);
+        Identifier id = Identifier.tryParse(type);
         if (id == null) {
             return false;
         }
@@ -855,7 +855,7 @@ public final class QuestPanelLayout {
 
     /** A registered type's own field names, sorted. Empty for an unregistered one. */
     private static Set<String> fieldsOf(String type, JsonObject entry) {
-        ResourceLocation id = ResourceLocation.tryParse(type);
+        Identifier id = Identifier.tryParse(type);
         if (id == null) {
             return Set.of();
         }

@@ -5,7 +5,7 @@ import dev.ellipog.armature.api.event.ArmatureEvents;
 import dev.ellipog.armature.api.registry.Registrar;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 
 /**
@@ -24,7 +24,7 @@ public final class QuestBook {
     private QuestBook() {
     }
 
-    public static final ResourceLocation ITEM_ID = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "quest_book");
+    public static final Identifier ITEM_ID = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "quest_book");
 
     /** Held so a later stage can hand it out, or put it in a quest reward. */
     public static Item ITEM;
@@ -68,7 +68,15 @@ public final class QuestBook {
 
         registrar.register(BuiltInRegistries.ITEM, ITEM_ID,
                 () -> {
-                    Item item = new QuestBookItem(new Item.Properties().stacksTo(1));
+                    // On 26.x an item reads its own id out of its Properties at construction
+                    // (`Item.<init>` resolves the description id through it), so the key is set
+                    // into the Properties before the item exists -- constructing first and
+                    // registering after, the 1.21 shape, dies in the constructor with
+                    // "Item id not set". The key is pure (no registry access), so building it
+                    // here is safe on both loaders and in headless tests.
+                    var key = net.minecraft.resources.ResourceKey.create(
+                            net.minecraft.core.registries.Registries.ITEM, ITEM_ID);
+                    Item item = new QuestBookItem(new Item.Properties().setId(key).stacksTo(1));
                     ITEM = item;
                     return item;
                 });

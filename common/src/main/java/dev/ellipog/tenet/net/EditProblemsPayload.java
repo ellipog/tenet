@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * What the reload found wrong, pushed to the authors who are editing.
@@ -43,7 +43,7 @@ public record EditProblemsPayload(int lines, String text) implements CustomPacke
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<EditProblemsPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "edit_problems"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "edit_problems"));
 
     /** As much as one message carries. Beyond it the count says what was left out. */
     public static final int MAX_CHARS = 8192;

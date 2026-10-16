@@ -977,7 +977,7 @@
         },
         "disableRecipeMod": {
           "type": "boolean",
-          "description": "Recipe viewers (JEI, REI, EMI) do not list this quest. Leave the field out and the file's `defaultDisableRecipeMod` decides; write `false` to opt out of a file that hides its quests by default. The legacy format calls this disable_recipe_mod."
+          "description": "Recipe viewers (JEI, REI) do not list this quest. Leave the field out and the file's `defaultDisableRecipeMod` decides; write `false` to opt out of a file that hides its quests by default. The legacy format calls this disable_recipe_mod."
         },
         "hideLockIcon": {
           "type": "boolean",

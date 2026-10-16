@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import dev.ellipog.tenet.Constants;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
@@ -140,7 +140,7 @@ public final class TableImport {
         if (stack == null || stack.isEmpty()) {
             return;
         }
-        ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         String key = id + "|" + stack.getComponents();
         int total = counts.getOrDefault(key, 0) + stack.getCount();
         if (total > MAX_COUNT) {

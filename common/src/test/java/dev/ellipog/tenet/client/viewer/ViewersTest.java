@@ -33,17 +33,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ViewersTest {
 
     @Test
-    @DisplayName("the chain is EMI, then JEI, then REI, and the first installed one wins")
+    @DisplayName("the chain is JEI, then REI, and the first installed one wins")
     void theFirstInstalledViewerInPriorityOrderWins() {
-        assertEquals(Optional.of(Viewers.Viewer.EMI),
-                Viewers.choose(Set.of("emi", "jei", "roughlyenoughitems")::contains),
-                "with all three installed, EMI is the integration");
         assertEquals(Optional.of(Viewers.Viewer.JEI),
                 Viewers.choose(Set.of("jei", "roughlyenoughitems")::contains),
-                "without EMI, JEI carries the fallback");
+                "with both installed, JEI is the integration");
         assertEquals(Optional.of(Viewers.Viewer.REI),
                 Viewers.choose(Set.of("roughlyenoughitems")::contains),
-                "and REI is the last tier");
+                "and REI is the fallback tier");
         assertEquals(Optional.empty(), Viewers.choose(id -> false),
                 "with nothing installed there is no integration at all");
     }
@@ -51,7 +48,9 @@ class ViewersTest {
     @Test
     @DisplayName("for every possible installation, exactly one viewer is chosen")
     void everySubsetChoosesExactlyOne() {
-        List<String> ids = List.of("emi", "jei", "roughlyenoughitems");
+        // (EMI was first until the 26.3 port removed it for want of a 26.x artifact; it goes back
+        // at the head of both this list and the enum when it ports.)
+        List<String> ids = List.of("jei", "roughlyenoughitems");
 
         for (int mask = 1; mask < (1 << ids.size()); mask++) {
             Set<String> installed = new HashSet<>();

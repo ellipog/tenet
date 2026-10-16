@@ -10,7 +10,7 @@ import dev.ellipog.tenet.quest.reward.RewardCommon;
 import dev.ellipog.tenet.quest.reward.TableReward;
 import dev.ellipog.tenet.quest.reward.XpReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -40,7 +40,7 @@ class RewardTableTest {
 
     private static ItemReward item(String id) {
         return new ItemReward(RewardCommon.DEFAULT,
-                new ItemRef(ResourceLocation.withDefaultNamespace(id), 1), 0, false);
+                new ItemRef(Identifier.withDefaultNamespace(id), 1), 0, false);
     }
 
     private static RewardTable table(double emptyWeight, int lootSize, RewardTable.Entry... entries) {
@@ -137,7 +137,7 @@ class RewardTableTest {
     void theEditorsThreeFieldsRoundTrip() {
         RewardTable table = new RewardTable(0, 2, List.of(entry(1, item("stone"))),
                 java.util.Optional.of("Tier 1 minerals"),
-                java.util.Optional.of(new ItemRef(ResourceLocation.withDefaultNamespace("iron_ingot"), 1)),
+                java.util.Optional.of(new ItemRef(Identifier.withDefaultNamespace("iron_ingot"), 1)),
                 java.util.Optional.of("a-handle"), false, false);
 
         RewardTable decoded = RewardTable.CODEC.parse(JsonOps.INSTANCE,
@@ -239,7 +239,7 @@ class RewardTableTest {
         ItemReward ore = item("iron_ingot");
         RewardTable declared = new RewardTable(0, 1, List.of(entry(1, ore)),
                 java.util.Optional.empty(),
-                java.util.Optional.of(new ItemRef(ResourceLocation.withDefaultNamespace("chest"), 1)),
+                java.util.Optional.of(new ItemRef(Identifier.withDefaultNamespace("chest"), 1)),
                 java.util.Optional.empty(), false, false);
         assertEquals("minecraft:chest", declared.displayIcon().item().toString(),
                 "an author's icon wins outright");

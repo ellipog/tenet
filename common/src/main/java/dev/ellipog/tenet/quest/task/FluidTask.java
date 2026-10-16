@@ -10,7 +10,7 @@ import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -34,9 +34,9 @@ import java.util.function.Function;
  * carry it. The screen path arrives with the blocks in T11, and the file's shape already carries
  * everything it will need.
  */
-public record FluidTask(TaskCommon common, ResourceLocation fluid, int amount, boolean manualOnly) implements QuestTask {
+public record FluidTask(TaskCommon common, Identifier fluid, int amount, boolean manualOnly) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "fluid");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "fluid");
 
     public static final Set<String> FIELDS = Set.of("fluid", "amount", "manualOnly");
 
@@ -45,13 +45,13 @@ public record FluidTask(TaskCommon common, ResourceLocation fluid, int amount, b
 
     public static final MapCodec<FluidTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(20).forGetter(FluidTask::common),
-            ResourceLocation.CODEC.fieldOf("fluid").forGetter(FluidTask::fluid),
+            Identifier.CODEC.fieldOf("fluid").forGetter(FluidTask::fluid),
             Codec.intRange(1, 1_000_000).fieldOf("amount").forGetter(FluidTask::amount),
             Codec.BOOL.optionalFieldOf("manualOnly", false).forGetter(FluidTask::manualOnly)
     ).apply(instance, FluidTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -61,11 +61,14 @@ public record FluidTask(TaskCommon common, ResourceLocation fluid, int amount, b
      * <p>Remembered by fluid: the registry behind it does not change while a client is connected,
      * and the lookup runs per evaluation and per press. Bounded by the fluids a pack names.
      */
-    private static final Map<ResourceLocation, Item> BUCKETS = new ConcurrentHashMap<>();
+    private static final Map<Identifier, Item> BUCKETS = new ConcurrentHashMap<>();
 
-    public static Item bucketFor(ResourceLocation fluid) {
+    public static Item bucketFor(Identifier fluid) {
         return BUCKETS.computeIfAbsent(fluid, missing -> {
-            Fluid found = BuiltInRegistries.FLUID.get(missing);
+            // A missing fluid is a pack typo the validator reports; reaching here throws loudly
+            // rather than caching a null `computeIfAbsent` forbids.
+            Fluid found = BuiltInRegistries.FLUID.get(missing).map(holder -> holder.value())
+                    .orElseThrow(() -> new IllegalArgumentException("unknown fluid: " + missing));
             return found.getBucket();
         });
     }
@@ -145,14 +148,14 @@ public record FluidTask(TaskCommon common, ResourceLocation fluid, int amount, b
                 // walk per stack instead of one per bucket. Chunked at the max stack size rather
                 // than handed over whole, because a single oversize add is not a shape the
                 // inventory promises to split.
-                int max = new ItemStack(Items.BUCKET).getMaxStackSize();
+                int max = dev.ellipog.tenet.quest.ItemStacks.stackOf(Items.BUCKET).getMaxStackSize();
                 int left = buckets;
                 while (left > 0) {
                     int size = Math.min(left, max);
-                    ItemStack empty = new ItemStack(Items.BUCKET, size);
+                    ItemStack empty = dev.ellipog.tenet.quest.ItemStacks.stackOf(Items.BUCKET, size);
                     inventory.add(empty);
                     if (!empty.isEmpty()) {
-                        player.drop(empty, false);
+                        player.drop(empty, false, net.minecraft.util.Prediction.SERVER_ONLY);
                     }
                     left -= size;
                 }

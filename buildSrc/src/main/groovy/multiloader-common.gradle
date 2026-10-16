@@ -58,19 +58,8 @@ repositories {
         }
         filter { includeGroupAndSubgroups('org.spongepowered') }
     }
-    exclusiveContent {
-        forRepositories(
-                maven {
-                    name = 'ParchmentMC'
-                    url = 'https://maven.parchmentmc.org/'
-                },
-                maven {
-                    name = "NeoForge"
-                    url = 'https://maven.neoforged.net/releases'
-                }
-        )
-        filter { includeGroup('org.parchmentmc.data') }
-    }
+    // (A ParchmentMC repository block lived here until the 26.3 port: 26.x is unobfuscated and
+    // Parchment publishes nothing for it, so there is nothing left to resolve from it.)
     maven {
         name = 'BlameJared'
         url = 'https://maven.blamejared.com'
@@ -95,7 +84,7 @@ repositories {
 }
 
 // ---------------------------------------------------------------------------
-// The three viewer APIs, for the adapters under client/viewer/.
+// The two viewer APIs, for the adapters under client/viewer/.
 //
 // Same rule as Armature's parties adapters: `compileOnly`, so none of them reaches a jar, the
 // published POM, or a consumer's classpath -- and a client without any of them loses nothing. This
@@ -103,20 +92,18 @@ repositories {
 // client/viewer/ name these packages, and `.utils/check_integration.py` fails the build if anything
 // else ever does.
 //
-// EMI is read from its full loader-neutral jar rather than its `:api` classifier, deliberately:
-// the adapter needs the reload entry point, and that lives in the runtime package the classifier
-// excludes. JEI's `common-api` is the opposite case -- the whole API package, no dependencies, no
-// loader types at all. REI has no loader-neutral mojmap artefact, so its NeoForge API jar is the
-// compile target for both loader projects: common/ reads official names, and the Fabric module
-// remaps its output to intermediary on the way into the jar.
+// JEI's `common-api` is the whole API package, no dependencies, no loader types at all. REI has no
+// loader-neutral mojmap artefact, so its NeoForge API jar is the compile target for both loader
+// projects: common/ reads official names, and the Fabric module remaps its output to intermediary
+// on the way into the jar. (EMI was the third until the 26.3 port removed it: no 26.x EMI artifact
+// exists, so its adapter, pin and check entry went with it -- see that commit.)
 //
 // No `testImplementation` here: no test constructs an adapter -- everything decidable is pushed
 // into QuestContent and ItemQuestIndex, which name no viewer -- so putting a viewer jar on the
 // test runtime classpath would only make it easier to break that rule.
 // ---------------------------------------------------------------------------
 dependencies {
-    compileOnly "dev.emi:emi-xplat-mojmap:${emi_version}"
-    compileOnly "mezz.jei:jei-1.21.1-common-api:${jei_version}"
+    compileOnly "mezz.jei:jei-26.3-common-api:${jei_version}"
     compileOnly "me.shedaniel:RoughlyEnoughItems-api-neoforge:${rei_version}"
 }
 
@@ -176,6 +163,7 @@ processResources {
             'neoforge_version'             : neoforge_version,
             'neoforge_loader_version_range': neoforge_loader_version_range,
             'armature_version'             : armature_version,
+            'kubejs_version'               : kubejs_version,
             'credits'                      : credits,
             'java_version'                 : java_version
     ]

@@ -3,7 +3,7 @@ package dev.ellipog.tenet.client.dev;
 import dev.ellipog.armature.client.render.GuiRenderer;
 import dev.ellipog.tenet.Constants;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Optional;
@@ -87,6 +87,22 @@ public final class CountingRenderer implements GuiRenderer {
     private int flushes;
     private int batches;
     private int switches;
+    /**
+     * Nanoseconds per kind, accumulated around the delegate call. Counts say <i>how many</i> draws
+     * a frame issued; these say <i>how long</i> they took — and on 26.x the two disagree badly
+     * enough to matter: one full-3D item icon costs what hundreds of fills do, so a frame with
+     * forty icons and four thousand fills can spend its time in either place. Read with the
+     * counts, never instead of them.
+     *
+     * <p>Two nanoTime calls per draw, ~100ns together against micro-to-milliseconds of drawing,
+     * and this renderer only exists while `/tenet vitals` is up — off, the cost is the one
+     * branch that builds the plain renderer instead.
+     */
+    private long fillNanos;
+    private long textNanos;
+    private long widthNanos;
+    private long iconNanos;
+    private long textureNanos;
 
     /** Nothing drawn yet, or a boundary has just ended whatever was. See {@link #drew}. */
     private static final int NONE = 0;
@@ -148,38 +164,29 @@ public final class CountingRenderer implements GuiRenderer {
             return;
         }
         lastReportNanos = now;
-        // The icon split, drained rather than read: it is the number that says whether the flat-sprite
-        // path is doing anything with this client's content, and a cumulative total could not answer
-        // that. Draining here also means the arithmetic has one reader, so a second one cannot disagree
-        // about where a second begins.
-        //
-        // **And it is per second, which the name has to say.** It was labelled `lives` — a word that reads
-        // as "live objects" and was taken for a count of quests being scanned across the whole project, in
-        // an audit that then proposed scoping a scan that does not exist. The figure is item-icon decisions
-        // over the last second: at 122 fps, `19434` is the 156 icons of one frame, a hundred and twenty-two
-        // times over. An instrument whose name invites a wrong diagnosis costs more than it saves.
-        dev.ellipog.armature.client.render.IconPlan.Counts planned =
-                dev.ellipog.armature.client.render.IconPlan.drain();
         // The line layer's own number, and the one that says whether a still canvas is still paying for
         // its edges: a route that has not moved is remembered, so this is near zero while the canvas is
         // being read and spikes only while it is being panned, zoomed or edited.
+        // (An icon split used to be reported here -- flat versus live icon paths, drained from
+        // Armature's `IconPlan`. That experiment went away with the 1.21.1 model pipeline it measured,
+        // so there is nothing left to count on this line.)
         long walkPoints = LineArt.drainWalked();
         // The line keeps the shape TESTING.md greps for -- `book frame -- N fill(s)` -- so everything
         // newer than that is appended rather than inserted among the older counts.
         Constants.LOG.info("book frame -- {} fill(s), {} text(s), {} icon(s), {} texture(s),"
-                        + " {} batched region(s), {} width(s), {} flush(es), {} flat icon(s)/s,"
-                        + " {} live icon(s)/s, {} submission(s), {} line walk point(s)",
-                fills, texts, icons, textures, batches, widths, flushes, planned.flat(), planned.live(),
-                switches, walkPoints);
+                        + " {} batched region(s), {} width(s), {} flush(es),"
+                        + " {} submission(s), {} line walk point(s)"
+                        + " -- times icon {} ms, fill {} ms, text {} ms, texture {} ms, width {} ms",
+                fills, texts, icons, textures, batches, widths, flushes,
+                switches, walkPoints,
+                ms(iconNanos), ms(fillNanos), ms(textNanos), ms(textureNanos), ms(widthNanos));
         summary = new String[] {
-                "fills " + fills,
-                "texts " + texts,
-                "widths " + widths,
-                "icons " + icons,
+                "fills " + fills + "  " + ms(fillNanos) + " ms",
+                "texts " + texts + "  " + ms(textNanos) + " ms",
+                "widths " + widths + "  " + ms(widthNanos) + " ms",
+                "icons " + icons + "  " + ms(iconNanos) + " ms",
                 "flushes " + flushes,
                 "batches " + batches,
-                "flats/s " + planned.flat(),
-                "liveicons/s " + planned.live(),
                 "submits " + switches,
                 "linewalk " + walkPoints,
                 // What was *there*, which no count above says. A reading of `fills 4034` cannot be compared
@@ -223,6 +230,11 @@ public final class CountingRenderer implements GuiRenderer {
         }
     }
 
+    /** Milliseconds with one decimal, for the overlay and the log. Never negative. */
+    private static String ms(long nanos) {
+        return Double.toString(Math.max(0L, nanos + 50_000L) / 100_000L / 10.0);
+    }
+
     /** The last reported frame, as short lines for the dev HUD. Empty before the first report. */
     public static String[] summary() {
         return summary;
@@ -243,14 +255,18 @@ public final class CountingRenderer implements GuiRenderer {
     public void fill(int left, int top, int right, int bottom, int argb) {
         fills++;
         drew(FILL);
+        long start = System.nanoTime();
         delegate.fill(left, top, right, bottom, argb);
+        fillNanos += System.nanoTime() - start;
     }
 
     @Override
     public void text(String text, int x, int y, int argb) {
         texts++;
         drew(TEXT);
+        long start = System.nanoTime();
         delegate.text(text, x, y, argb);
+        textNanos += System.nanoTime() - start;
     }
 
     /**
@@ -265,26 +281,42 @@ public final class CountingRenderer implements GuiRenderer {
     public void shadowedText(String text, int x, int y, int argb, float scale) {
         texts++;
         drew(TEXT);
+        long start = System.nanoTime();
         delegate.shadowedText(text, x, y, argb, scale);
+        textNanos += System.nanoTime() - start;
     }
 
     @Override
     public void styledText(java.util.List<StyledRun> runs, int x, int y, int argb) {
         texts++;
         drew(TEXT);
+        long start = System.nanoTime();
         delegate.styledText(runs, x, y, argb);
+        textNanos += System.nanoTime() - start;
     }
 
     @Override
     public int styledWidth(String text, boolean bold, boolean italic, float scale) {
         widths++;
-        return delegate.styledWidth(text, bold, italic, scale);
+        long start = System.nanoTime();
+        try {
+            return delegate.styledWidth(text, bold, italic, scale);
+        }
+        finally {
+            widthNanos += System.nanoTime() - start;
+        }
     }
 
     @Override
     public int textWidth(String text) {
         widths++;
-        return delegate.textWidth(text);
+        long start = System.nanoTime();
+        try {
+            return delegate.textWidth(text);
+        }
+        finally {
+            widthNanos += System.nanoTime() - start;
+        }
     }
 
     @Override
@@ -296,21 +328,35 @@ public final class CountingRenderer implements GuiRenderer {
     public boolean icon(ItemStack stack, int boxX, int boxY, int box) {
         icons++;
         drew(ICON);
-        return delegate.icon(stack, boxX, boxY, box);
+        long start = System.nanoTime();
+        try {
+            return delegate.icon(stack, boxX, boxY, box);
+        }
+        finally {
+            iconNanos += System.nanoTime() - start;
+        }
     }
 
     @Override
     public boolean face(UUID player, int boxX, int boxY, int box) {
         icons++;
         drew(ICON);
-        return delegate.face(player, boxX, boxY, box);
+        long start = System.nanoTime();
+        try {
+            return delegate.face(player, boxX, boxY, box);
+        }
+        finally {
+            iconNanos += System.nanoTime() - start;
+        }
     }
 
     @Override
-    public void texture(ResourceLocation texture, int x, int y, int width, int height) {
+    public void texture(Identifier texture, int x, int y, int width, int height) {
         textures++;
         drew(TEXTURE);
+        long start = System.nanoTime();
         delegate.texture(texture, x, y, width, height);
+        textureNanos += System.nanoTime() - start;
     }
 
     /**
@@ -322,11 +368,13 @@ public final class CountingRenderer implements GuiRenderer {
      * real boundary the kinds here cannot express — the same coarseness that lumps an icon in with a texture.
      */
     @Override
-    public void sprite(ResourceLocation atlasSprite, int x, int y, int width, int height, int argb) {
+    public void sprite(Identifier atlasSprite, int x, int y, int width, int height, int argb) {
         boundary();
         textures++;
         drew(TEXTURE);
+        long start = System.nanoTime();
         delegate.sprite(atlasSprite, x, y, width, height, argb);
+        textureNanos += System.nanoTime() - start;
     }
 
     /**
@@ -338,10 +386,12 @@ public final class CountingRenderer implements GuiRenderer {
      * when the last thing drawn was something else.
      */
     @Override
-    public void guiSprite(ResourceLocation guiSprite, int x, int y, int width, int height) {
+    public void guiSprite(Identifier guiSprite, int x, int y, int width, int height) {
         textures++;
         drew(TEXTURE);
+        long start = System.nanoTime();
         delegate.guiSprite(guiSprite, x, y, width, height);
+        textureNanos += System.nanoTime() - start;
     }
 
     /**
@@ -352,7 +402,7 @@ public final class CountingRenderer implements GuiRenderer {
      * which is the empty the seam promises for an asset it cannot read.
      */
     @Override
-    public Optional<TextureSize> textureSize(ResourceLocation texture) {
+    public Optional<TextureSize> textureSize(Identifier texture) {
         return delegate == null ? Optional.empty() : delegate.textureSize(texture);
     }
 
@@ -369,16 +419,18 @@ public final class CountingRenderer implements GuiRenderer {
      * the direction the class note says it is fine to be wrong in, which is exactly why nobody would notice.
      */
     @Override
-    public void scaled(ResourceLocation texture, int x, int y, int width, int height,
+    public void scaled(Identifier texture, int x, int y, int width, int height,
                        float u, float v, int sourceWidth, int sourceHeight,
                        int textureWidth, int textureHeight, int argb) {
         boundary();
         textures++;
         drew(TEXTURE);
+        long start = System.nanoTime();
         if (delegate != null) {
             delegate.scaled(texture, x, y, width, height, u, v, sourceWidth, sourceHeight,
                     textureWidth, textureHeight, argb);
         }
+        textureNanos += System.nanoTime() - start;
     }
 
     @Override

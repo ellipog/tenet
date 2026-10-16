@@ -7,12 +7,11 @@ import dev.ellipog.armature.client.ui.kit.Colour;
 import dev.ellipog.armature.client.ui.kit.TextField;
 import dev.ellipog.tenet.client.BookGeometry;
 
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import java.util.function.DoubleConsumer;
@@ -166,30 +165,31 @@ public final class ScrubField extends AbstractWidget {
     // ------------------------------------------------------------------
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
         // Only the box: a press on the label area belongs to the screen's own hit test, which forwards
         // it to `beginLabelScrub`. Returning false here is also what keeps a label click from focusing
         // the field -- the container focuses whatever answered the click.
-        if (!isActive() || !visible || button != 0 || !isMouseOver(mouseX, mouseY)
-                || !box().contains(mouseX, mouseY)) {
+        if (!isActive() || !visible || !isValidClickButton(event.buttonInfo())
+                || !isMouseOver(event.x(), event.y()) || !box().contains(event.x(), event.y())) {
             return false;
         }
-        arm(mouseX, mouseY, true);
+        arm(event.x(), event.y(), true);
         return true;
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (!armed || button != 0) {
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event, double dragX,
+            double dragY) {
+        if (!armed || !isValidClickButton(event.buttonInfo())) {
             return false;
         }
-        return applyDrag(mouseX, mouseY, Screen.hasShiftDown(),
-                Screen.hasControlDown() || Screen.hasAltDown());
+        return applyDrag(event.x(), event.y(), event.hasShiftDown(),
+                event.hasControlDown() || event.hasAltDown());
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (!armed || button != 0) {
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        if (!armed || !isValidClickButton(event.buttonInfo())) {
             return false;
         }
         if (scrubbing) {
@@ -252,13 +252,15 @@ public final class ScrubField extends AbstractWidget {
     // ------------------------------------------------------------------
 
     @Override
-    public boolean charTyped(char typed, int modifiers) {
+    public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
         if (!isFocused() || !isActive()) {
             return false;
         }
-        if (typed < ' ') {
+        int codepoint = event.codepoint();
+        if (codepoint < ' ' || codepoint > 127) {
             return false;
         }
+        char typed = (char) codepoint;
         // Anything that cannot be part of a number is swallowed rather than inserted: the field is one
         // number, and letting letters in would only have `parse` strip them back out at commit time --
         // with the player watching nonsense appear in the meantime.
@@ -270,55 +272,68 @@ public final class ScrubField extends AbstractWidget {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
         if (!isFocused() || !isActive()) {
             return false;
         }
-        boolean control = Screen.hasControlDown();
-        switch (keyCode) {
-            case 257, 335 -> {          // Enter: the blur is the commit
-                setFocused(false);
+        // Same scancode note as the one-line field: `key()` is the scancode side, and every literal
+        // is an `InputConstants` scancode for the same physical key as before.
+        boolean control = event.hasControlDown();
+        int key = event.key();
+
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_RETURN
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_NUMPADENTER) {
+            setFocused(false);
+            return true;
+        }
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_ESCAPE) {
+            cancelTyped();
+            return true;
+        }
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_BACKSPACE) {
+            model.backspace();
+            return true;
+        }
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_DELETE) {
+            model.deleteForward();
+            return true;
+        }
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_LEFT) {
+            model.left();
+            return true;
+        }
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_RIGHT) {
+            model.right();
+            return true;
+        }
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_HOME) {
+            model.home();
+            return true;
+        }
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_END) {
+            model.end();
+            return true;
+        }
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_A) {
+            if (control) {
+                model.selectAll();
                 return true;
-            }
-            case 256 -> {               // Escape: the edit is abandoned, not written
-                cancelTyped();
-                return true;
-            }
-            case 259 -> {               // Backspace
-                model.backspace();
-                return true;
-            }
-            case 261 -> {               // Delete
-                model.deleteForward();
-                return true;
-            }
-            case 263 -> {               // Left
-                model.left();
-                return true;
-            }
-            case 262 -> {               // Right
-                model.right();
-                return true;
-            }
-            case 268 -> {               // Home
-                model.home();
-                return true;
-            }
-            case 269 -> {               // End
-                model.end();
-                return true;
-            }
-            case 65 -> {                // A: mark everything
-                if (control) {
-                    model.selectAll();
-                    return true;
-                }
-            }
-            default -> {
-                return false;
             }
         }
-        return true;
+        // Matched keys are swallowed whether or not they acted; only an unmatched key propagates.
+        if (key == com.mojang.blaze3d.platform.InputConstants.KEY_RETURN
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_NUMPADENTER
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_ESCAPE
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_BACKSPACE
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_DELETE
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_LEFT
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_RIGHT
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_HOME
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_END
+                || key == com.mojang.blaze3d.platform.InputConstants.KEY_A) {
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -335,6 +350,8 @@ public final class ScrubField extends AbstractWidget {
             commitTyped();
         }
         super.setFocused(focused);
+        // SDL needs explicit start/stop around text input; see the one-line field.
+        Minecraft.getInstance().onTextInputFocusChange(this, focused);
     }
 
     /** Reads the typed text; a value that changed is written once, a value that did not is reformatted. */
@@ -376,7 +393,8 @@ public final class ScrubField extends AbstractWidget {
     }
 
     @Override
-    protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+            float partialTick) {
         render(new GuiGraphicsRenderer(graphics), mouseX, mouseY);
     }
 

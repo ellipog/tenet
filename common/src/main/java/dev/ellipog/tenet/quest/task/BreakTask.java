@@ -14,7 +14,7 @@ import dev.ellipog.tenet.quest.TaskContext;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -52,23 +52,23 @@ import java.util.function.Function;
  * and the machine's breaks count. Asked of the loader through Armature, because vanilla marks
  * nothing and each loader answers it its own way.
  */
-public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
-                        Optional<ResourceLocation> blockTag, Optional<String> blockState, int value,
+public record BreakTask(TaskCommon common, Optional<Identifier> block,
+                        Optional<Identifier> blockTag, Optional<String> blockState, int value,
                         boolean countFakePlayers)
         implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "break");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "break");
 
     public static final Set<String> FIELDS =
             Set.of("block", "blockTag", "blockState", "value", "countFakePlayers");
 
     public static final MapCodec<BreakTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(20).forGetter(BreakTask::common),
-            ResourceLocation.CODEC.optionalFieldOf("block").forGetter(BreakTask::block),
+            Identifier.CODEC.optionalFieldOf("block").forGetter(BreakTask::block),
             // Its own field rather than a `#` inside `block`, as the kill task has it: a tag written
             // where an id is expected is a validator error in every other Tenet field, and this one
             // being the exception is how a pack author learns the wrong rule.
-            ResourceLocation.CODEC.optionalFieldOf("blockTag").forGetter(BreakTask::blockTag),
+            Identifier.CODEC.optionalFieldOf("blockTag").forGetter(BreakTask::blockTag),
             // A blockstate predicate in the datapack's own spelling, e.g.
             // `minecraft:wheat[age=7]`: the farming filter, narrowing whatever `block` or
             // `blockTag` names — or standing alone, implying its own block.
@@ -80,7 +80,7 @@ public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
     ).apply(instance, BreakTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -179,7 +179,7 @@ public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
         // piston head) keeps it too, as does a lone state predicate, whose block is implied
         // rather than named.
         if (task.block().isPresent() && task.blockTag().isEmpty()) {
-            ResourceLocation id = task.block().get();
+            Identifier id = task.block().get();
             if (BuiltInRegistries.ITEM.containsKey(id)) {
                 return display.withTypePicture(new ItemRef(id, 1));
             }
@@ -190,7 +190,7 @@ public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
     /** The target alone — the block id, its tag, its state, or the word for "any" — for the row's subject. */
     public String target() {
         return blockTag().map(tag -> "#" + tag)
-                .or(() -> block().map(ResourceLocation::toString))
+                .or(() -> block().map(Identifier::toString))
                 .or(() -> blockState())
                 .orElse("anything");
     }

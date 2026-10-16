@@ -1,5 +1,6 @@
 package dev.ellipog.tenet.inventory;
 
+import dev.ellipog.tenet.quest.ItemStacks;
 import dev.ellipog.tenet.server.HeadlessServer;
 
 import net.minecraft.server.level.ServerPlayer;
@@ -63,16 +64,16 @@ class VanillaInventoryTest {
         ServerPlayer player = server.spawnPlayer("tenet-offhand-merge");
         server.callOnServerThread(() -> {
             fillMain(player);
-            player.getInventory().setItem(40, new ItemStack(Items.STONE, 60));
+            player.getInventory().setItem(40, ItemStacks.stackOf(Items.STONE, 60));
             player.getInventory().setChanged();
             return null;
         });
 
         assertTrue(server.callOnServerThread(() -> VanillaInventory.INSTANCE.fitsAll(player,
-                List.of(new ItemStack(Items.STONE, 4)))),
+                List.of(ItemStacks.stackOf(Items.STONE, 4)))),
                 "four stone merge into the part-filled offhand");
         ItemStack remainder = server.callOnServerThread(() ->
-                VanillaInventory.INSTANCE.insert(player, new ItemStack(Items.STONE, 4)));
+                VanillaInventory.INSTANCE.insert(player, ItemStacks.stackOf(Items.STONE, 4)));
         assertTrue(remainder.isEmpty(), "the merge leaves no remainder");
         assertEquals(64, server.callOnServerThread(
                 () -> player.getInventory().getItem(40).getCount()),
@@ -90,10 +91,10 @@ class VanillaInventoryTest {
         });
 
         assertFalse(server.callOnServerThread(() -> VanillaInventory.INSTANCE.fitsAll(player,
-                List.of(new ItemStack(Items.STONE, 1)))),
+                List.of(ItemStacks.stackOf(Items.STONE, 1)))),
                 "nothing merges and no slot is free");
         ItemStack remainder = server.callOnServerThread(() ->
-                VanillaInventory.INSTANCE.insert(player, new ItemStack(Items.STONE, 1)));
+                VanillaInventory.INSTANCE.insert(player, ItemStacks.stackOf(Items.STONE, 1)));
         assertEquals(1, remainder.getCount(), "what does not fit comes back whole");
     }
 
@@ -103,13 +104,13 @@ class VanillaInventoryTest {
         ServerPlayer player = server.spawnPlayer("tenet-offhand-foreign");
         server.callOnServerThread(() -> {
             fillMain(player);
-            player.getInventory().setItem(40, new ItemStack(Items.STONE, 60));
+            player.getInventory().setItem(40, ItemStacks.stackOf(Items.STONE, 60));
             player.getInventory().setChanged();
             return null;
         });
 
         assertFalse(server.callOnServerThread(() -> VanillaInventory.INSTANCE.fitsAll(player,
-                List.of(new ItemStack(Items.DIRT, 1)))),
+                List.of(ItemStacks.stackOf(Items.DIRT, 1)))),
                 "dirt merges nowhere and no slot is free");
     }
 
@@ -121,14 +122,14 @@ class VanillaInventoryTest {
             var inventory = player.getInventory();
             fillMain(player);
             for (int slot = 36; slot < 40; slot++) {
-                inventory.setItem(slot, new ItemStack(Items.STONE, 64));
+                inventory.setItem(slot, ItemStacks.stackOf(Items.STONE, 64));
             }
             inventory.setChanged();
             return null;
         });
 
         assertFalse(server.callOnServerThread(() -> VanillaInventory.INSTANCE.fitsAll(player,
-                List.of(new ItemStack(Items.STONE, 1)))),
+                List.of(ItemStacks.stackOf(Items.STONE, 1)))),
                 "full armour beside a full main is still a full inventory");
     }
 
@@ -137,7 +138,7 @@ class VanillaInventoryTest {
         var inventory = player.getInventory();
         inventory.clearContent();
         for (int slot = 0; slot < 36; slot++) {
-            inventory.setItem(slot, new ItemStack(Items.STONE, 64));
+            inventory.setItem(slot, ItemStacks.stackOf(Items.STONE, 64));
         }
         // Survival, so vanilla's insert keeps its remainder: a headless player otherwise has
         // infinite materials, and creative add() voids what does not fit instead of handing it

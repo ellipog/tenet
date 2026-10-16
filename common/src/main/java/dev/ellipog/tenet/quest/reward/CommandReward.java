@@ -11,7 +11,7 @@ import dev.ellipog.tenet.quest.QuestText;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Optional;
 import java.util.Set;
@@ -36,7 +36,7 @@ public record CommandReward(RewardCommon common, String command, int permissionL
                             Optional<QuestText> feedbackMessage)
         implements QuestReward {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "command");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "command");
 
     public static final Set<String> FIELDS = Set.of("command", "permissionLevel", "silent", "feedbackMessage");
 
@@ -51,15 +51,13 @@ public record CommandReward(RewardCommon common, String command, int permissionL
     ).apply(instance, CommandReward::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
     public static final RewardBehaviour<CommandReward> BEHAVIOUR = (reward, context) -> {
-        CommandSourceStack source = context.player().createCommandSourceStack();
-        if (reward.permissionLevel() > 0) {
-            source = source.withPermission(reward.permissionLevel());
-        }
+        CommandSourceStack source = dev.ellipog.tenet.QuestAuthority
+                .atLevel(context.player().createCommandSourceStack(), reward.permissionLevel());
         if (reward.silent()) {
             source = source.withSuppressedOutput();
         }
@@ -71,7 +69,7 @@ public record CommandReward(RewardCommon common, String command, int permissionL
             reward.feedbackMessage().ifPresent(message -> {
                 Component text = message.component();
                 if (!text.getString().isEmpty()) {
-                    context.player().displayClientMessage(text, false);
+                    context.player().sendSystemMessage(text);
                     dev.ellipog.armature.api.net.ArmatureNetwork.sendToPlayer(context.player(),
                             new RewardToastPayload(message.value(), message.translatable(),
                                     message.fallback().orElse("")));

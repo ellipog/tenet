@@ -340,7 +340,7 @@ public final class TenetPartyCommand {
                 target.getScoreboardName(), team.name()), false);
         // The invitee is told even though their progress did not move, because they now have
         // something to accept and no other line will say so.
-        target.displayClientMessage(Component.translatable("tenet.party.invited_you", team.name()), false);
+        target.sendSystemMessage(Component.translatable("tenet.party.invited_you", team.name()));
         return 1;
     }
 
@@ -742,7 +742,7 @@ public final class TenetPartyCommand {
 
         context.getSource().sendSuccess(() -> Component.translatable("tenet.command.party.kicked",
                 target.getScoreboardName()), false);
-        target.displayClientMessage(Component.translatable("tenet.party.you_were_removed"), false);
+        target.sendSystemMessage(Component.translatable("tenet.party.you_were_removed"));
         return 1;
     }
 
@@ -1007,12 +1007,13 @@ public final class TenetPartyCommand {
         if (online != null) {
             return online.getUUID();
         }
-        var cache = server.getProfileCache();
-        if (cache == null) {
+        // The profile cache is gone; the name-to-id cache is its successor for offline names.
+        if (server.services() == null) {
             // The headless test server has none; a real one always does.
             return null;
         }
-        return cache.get(name).map(com.mojang.authlib.GameProfile::getId).orElse(null);
+        return server.services().nameToIdCache().get(name)
+                .map(net.minecraft.server.players.NameAndId::id).orElse(null);
     }
 
     /** How a boolean reads in a message: the words the panel's switches use. */

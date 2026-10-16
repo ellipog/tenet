@@ -12,7 +12,7 @@ import dev.ellipog.tenet.client.ToastStack;
 import dev.ellipog.tenet.client.dev.QuestPanelLayout;
 import dev.ellipog.tenet.progress.QuestState;
 
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 

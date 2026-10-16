@@ -10,7 +10,7 @@ import dev.ellipog.tenet.quest.condition.ConditionTypes;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -187,7 +187,7 @@ class QuestPanelLayoutTest {
     }
 
     /** Every registered id is a row, once -- from the registry, not from the table. */
-    private static void assertCovered(String member, Set<ResourceLocation> registered) {
+    private static void assertCovered(String member, Set<Identifier> registered) {
         List<String> listed = QuestPanelLayout.typeRows(member).stream()
                 .filter(candidate -> candidate.kind() == InspectRow.Kind.ACTION)
                 .map(candidate -> candidate.key().substring(QuestPanelLayout.TYPE_PREFIX.length()))
@@ -330,14 +330,14 @@ class QuestPanelLayoutTest {
     @Test
     @DisplayName("every registered type's player tooltip is player language: no fields, no ids")
     void playerTooltipsArePlayerLanguage() {
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             for (boolean byHand : new boolean[] {false, true}) {
                 for (boolean takes : new boolean[] {false, true}) {
                     assertPlayerFacing("tasks", id.toString(), byHand, takes);
                 }
             }
         }
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             assertPlayerFacing("rewards", id.toString(), false, false);
         }
     }

@@ -3,7 +3,7 @@ package dev.ellipog.tenet.client.dev;
 import dev.ellipog.armature.client.render.GuiGraphicsRenderer;
 import dev.ellipog.armature.client.render.GuiRenderer;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
@@ -71,18 +71,19 @@ public final class ScrubPairField extends AbstractWidget {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
         place();
         // Inactive or hidden answers nothing at all, so a press falls through to whatever is behind --
         // the same rule the single-field rows follow.
-        if (!isActive() || !visible || button != 0 || !isMouseOver(mouseX, mouseY)) {
+        if (!isActive() || !visible || !isValidClickButton(event.buttonInfo())
+                || !isMouseOver(event.x(), event.y())) {
             return false;
         }
-        if (left.mouseClicked(mouseX, mouseY, button)) {
+        if (left.mouseClicked(event, doubleClick)) {
             pressed = left;
             return true;
         }
-        if (right.mouseClicked(mouseX, mouseY, button)) {
+        if (right.mouseClicked(event, doubleClick)) {
             pressed = right;
             return true;
         }
@@ -93,13 +94,14 @@ public final class ScrubPairField extends AbstractWidget {
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event, double dragX,
+            double dragY) {
         place();
-        return pressed != null && pressed.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        return pressed != null && pressed.mouseDragged(event, dragX, dragY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
         place();
         if (pressed == null) {
             return false;
@@ -109,19 +111,19 @@ public final class ScrubPairField extends AbstractWidget {
         if (was.isFocused()) {
             lastFocused = was;
         }
-        return was.mouseReleased(mouseX, mouseY, button);
+        return was.mouseReleased(event);
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
         AbstractWidget target = keyboard();
-        return target != null && target.keyPressed(keyCode, scanCode, modifiers);
+        return target != null && target.keyPressed(event);
     }
 
     @Override
-    public boolean charTyped(char typed, int modifiers) {
+    public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
         AbstractWidget target = keyboard();
-        return target != null && target.charTyped(typed, modifiers);
+        return target != null && target.charTyped(event);
     }
 
     /** The half holding the caret, if any. */
@@ -154,7 +156,8 @@ public final class ScrubPairField extends AbstractWidget {
     }
 
     @Override
-    protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+            float partialTick) {
         render(new GuiGraphicsRenderer(graphics), mouseX, mouseY);
     }
 

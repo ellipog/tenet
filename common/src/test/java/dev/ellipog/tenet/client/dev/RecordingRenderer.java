@@ -2,7 +2,7 @@ package dev.ellipog.tenet.client.dev;
 
 import dev.ellipog.armature.client.render.GuiRenderer;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -41,20 +41,20 @@ final class RecordingRenderer implements GuiRenderer {
     }
 
     /** One drawn region of a file, as {@link #scaled} was told to draw it. */
-    record Scaled(ResourceLocation texture, int x, int y, int width, int height) {
+    record Scaled(Identifier texture, int x, int y, int width, int height) {
     }
 
     /** One whole-file blit, as {@link #texture} was told to draw it. */
-    record Textured(ResourceLocation texture, int x, int y, int width, int height) {
+    record Textured(Identifier texture, int x, int y, int width, int height) {
     }
 
     /** One atlas-region draw, as {@link #sprite} was told to draw it. */
-    record Sprited(ResourceLocation sprite, int x, int y, int width, int height) {
+    record Sprited(Identifier sprite, int x, int y, int width, int height) {
     }
 
     private final List<Fill> fills = new ArrayList<>();
     private final List<Drawn> texts = new ArrayList<>();
-    private final Map<ResourceLocation, TextureSize> sizes = new LinkedHashMap<>();
+    private final Map<Identifier, TextureSize> sizes = new LinkedHashMap<>();
     private final List<Scaled> scaled = new ArrayList<>();
     private final List<Textured> textures = new ArrayList<>();
     private final List<Sprited> sprites = new ArrayList<>();
@@ -129,7 +129,7 @@ final class RecordingRenderer implements GuiRenderer {
     }
 
     @Override
-    public void texture(ResourceLocation texture, int x, int y, int width, int height) {
+    public void texture(Identifier texture, int x, int y, int width, int height) {
         // Recorded, like every other draw on this recorder: a node wearing a texture icon draws one
         // blit, and a test that wants to tell it from an item icon reads this list. (It used to be a
         // no-op on the grounds that no panel drew a texture; nodes do now.)
@@ -144,19 +144,19 @@ final class RecordingRenderer implements GuiRenderer {
      * pretending the resource manager answered -- and the row's own test does exactly that.
      */
     @Override
-    public Optional<TextureSize> textureSize(ResourceLocation texture) {
+    public Optional<TextureSize> textureSize(Identifier texture) {
         return Optional.ofNullable(sizes.get(texture));
     }
 
     @Override
-    public void scaled(ResourceLocation texture, int x, int y, int width, int height,
+    public void scaled(Identifier texture, int x, int y, int width, int height,
                        float u, float v, int sourceWidth, int sourceHeight,
                        int textureWidth, int textureHeight, int argb) {
         scaled.add(new Scaled(texture, x, y, width, height));
     }
 
     /** Teaches the recorder one file's size, so a thumbnail has something to draw at its aspect. */
-    void putTextureSize(ResourceLocation texture, int width, int height) {
+    void putTextureSize(Identifier texture, int width, int height) {
         sizes.put(texture, new TextureSize(width, height));
     }
 
@@ -168,12 +168,12 @@ final class RecordingRenderer implements GuiRenderer {
      * {@link #texture} because the two lookups fail differently, like the render recorder's.
      */
     @Override
-    public void sprite(ResourceLocation atlasSprite, int x, int y, int width, int height, int argb) {
+    public void sprite(Identifier atlasSprite, int x, int y, int width, int height, int argb) {
         sprites.add(new Sprited(atlasSprite, x, y, width, height));
     }
 
     @Override
-    public void guiSprite(ResourceLocation guiSprite, int x, int y, int width, int height) {
+    public void guiSprite(Identifier guiSprite, int x, int y, int width, int height) {
         // Recorded with the atlas draws: the panels this recorder exists for draw none yet, and a
         // caller that does still has to appear in the log. A GUI sprite carries no tint, so the
         // tintless Sprited record holds everything it chooses.

@@ -5,7 +5,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +43,7 @@ class TaskBehaviourForwardingTest {
 
     private static ItemTask itemTask(Optional<Boolean> consume) {
         return new ItemTask(TaskCommon.DEFAULT,
-                new ItemRef(ResourceLocation.withDefaultNamespace("oak_log"), 4),
+                new ItemRef(Identifier.withDefaultNamespace("oak_log"), 4),
                 consume, ComponentMatch.STRICT, false, false);
     }
 
@@ -82,18 +82,18 @@ class TaskBehaviourForwardingTest {
         // submit gate and the inventory floor go through — so a wrapper that dropped it would
         // measure a manual task on the tick while the submit path refused to record it.
         ItemTask manualItem = new ItemTask(TaskCommon.DEFAULT,
-                new ItemRef(ResourceLocation.withDefaultNamespace("oak_log"), 4),
+                new ItemRef(Identifier.withDefaultNamespace("oak_log"), 4),
                 Optional.empty(), ComponentMatch.STRICT, false, true);
         assertTrue(TaskTypes.behaviourOf(manualItem).orElseThrow().manualOnly(manualItem));
         assertFalse(TaskTypes.behaviourOf(itemTask(Optional.empty())).orElseThrow()
                 .manualOnly(itemTask(Optional.empty())));
 
         ItemTagTask manualTag = new ItemTagTask(TaskCommon.DEFAULT,
-                ResourceLocation.withDefaultNamespace("logs"), 1, Optional.empty(), false, true);
+                Identifier.withDefaultNamespace("logs"), 1, Optional.empty(), false, true);
         assertTrue(TaskTypes.behaviourOf(manualTag).orElseThrow().manualOnly(manualTag));
 
         FluidTask manualFluid = new FluidTask(TaskCommon.DEFAULT,
-                ResourceLocation.withDefaultNamespace("water"), 1000, true);
+                Identifier.withDefaultNamespace("water"), 1000, true);
         assertTrue(TaskTypes.behaviourOf(manualFluid).orElseThrow().manualOnly(manualFluid));
 
         EnergyTask manualEnergy = new EnergyTask(TaskCommon.DEFAULT, 1000, 0, true);
@@ -108,7 +108,7 @@ class TaskBehaviourForwardingTest {
         // record nothing while the event fired. The item-consumption incident is why this is
         // pinned rather than trusted: the wrapper forwarded "most" methods once already.
         BreakTask task = new BreakTask(TaskCommon.DEFAULT,
-                Optional.of(ResourceLocation.withDefaultNamespace("stone")),
+                Optional.of(Identifier.withDefaultNamespace("stone")),
                 Optional.empty(), Optional.empty(), 10, false);
         TaskBehaviour<QuestTask> through = TaskTypes.behaviourOf(task).orElseThrow();
 
@@ -129,17 +129,17 @@ class TaskBehaviourForwardingTest {
         assertTrue(TaskTypes.behaviourOf(itemTask(Optional.empty())).orElseThrow().readsInventory(),
                 "item tasks count carried items");
         assertTrue(TaskTypes.behaviourOf(new ItemTagTask(TaskCommon.DEFAULT,
-                        ResourceLocation.withDefaultNamespace("logs"), 1, Optional.empty(), false, false))
+                        Identifier.withDefaultNamespace("logs"), 1, Optional.empty(), false, false))
                         .orElseThrow().readsInventory(),
                 "item-tag tasks count carried items");
         assertTrue(TaskTypes.behaviourOf(new FluidTask(TaskCommon.DEFAULT,
-                        ResourceLocation.withDefaultNamespace("water"), 1000, false))
+                        Identifier.withDefaultNamespace("water"), 1000, false))
                         .orElseThrow().readsInventory(),
                 "fluid tasks count carried buckets");
         assertTrue(TaskTypes.behaviourOf(new EnergyTask(TaskCommon.DEFAULT, 1000, 0, false))
                         .orElseThrow().readsInventory(),
                 "energy tasks count carried charge");        assertFalse(TaskTypes.behaviourOf(new StatTask(TaskCommon.DEFAULT,
-                        ResourceLocation.withDefaultNamespace("walk_one_cm"), 100))
+                        Identifier.withDefaultNamespace("walk_one_cm"), 100))
                         .orElseThrow().readsInventory(),
                 "a stat lookup is not an inventory walk");
         assertFalse(TaskTypes.behaviourOf(new XpTask(TaskCommon.DEFAULT, 30, false))

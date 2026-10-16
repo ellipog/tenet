@@ -5,7 +5,7 @@ import dev.ellipog.tenet.quest.reward.RewardCommon;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,7 +62,7 @@ class EditorSpecsTest {
     @Test
     @DisplayName("every task type's form draws every field it has, and nothing it does not")
     void taskFormsCoverTheirFields() {
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             Set<String> paths = paths(TaskTypes.editorOf(id));
             Set<String> declared = TaskTypes.fieldsOf(id);
 
@@ -90,7 +90,7 @@ class EditorSpecsTest {
     @Test
     @DisplayName("every reward type's form draws every field it owns, base mechanics included")
     void rewardFormsCoverTheirFields() {
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             Set<String> paths = paths(RewardTypes.editorOf(id));
             Set<String> declared = RewardTypes.fieldsOf(id);
 
@@ -117,7 +117,7 @@ class EditorSpecsTest {
     @Test
     @DisplayName("every condition type's form draws every field it has, and nothing it does not")
     void conditionFormsCoverTheirFields() {
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             Set<String> paths = paths(ConditionTypes.editorOf(id));
             Set<String> declared = ConditionTypes.fieldsOf(id);
 
@@ -133,18 +133,18 @@ class EditorSpecsTest {
     @Test
     @DisplayName("a field that is an id the game can list is never a text box")
     void idsAreSearchedRatherThanTyped() {
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             checkIdsAreListed(id, TaskTypes.editorOf(id));
         }
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             checkIdsAreListed(id, RewardTypes.editorOf(id));
         }
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             checkIdsAreListed(id, ConditionTypes.editorOf(id));
         }
     }
 
-    private static void checkIdsAreListed(ResourceLocation id, List<EditorField> form) {
+    private static void checkIdsAreListed(Identifier id, List<EditorField> form) {
         for (EditorField field : form) {
             Set<EditorField.Kind> allowed = IDS_MUST_BE_LISTED.get(last(field.path()));
             if (allowed != null) {
@@ -158,18 +158,18 @@ class EditorSpecsTest {
     @Test
     @DisplayName("a number says what it counts")
     void numbersCarryTheirUnits() {
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             assertUnits(id, TaskTypes.editorOf(id));
         }
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             assertUnits(id, RewardTypes.editorOf(id));
         }
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             assertUnits(id, ConditionTypes.editorOf(id));
         }
     }
 
-    private static void assertUnits(ResourceLocation id, List<EditorField> form) {
+    private static void assertUnits(Identifier id, List<EditorField> form) {
         for (EditorField field : form) {
             if (field.path().equals("count") || field.path().equals("amount")) {
                 assertFalse(field.unit().isEmpty(),
@@ -184,18 +184,18 @@ class EditorSpecsTest {
     void everyFieldExplainsItself() {
         // The rule the labels' hover rests on. A field with no sentence is a label of one or two words
         // and nothing else -- and a form of switches and steppers reads as a set of guesses without it.
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             assertHints(id, TaskTypes.editorOf(id));
         }
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             assertHints(id, RewardTypes.editorOf(id));
         }
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             assertHints(id, ConditionTypes.editorOf(id));
         }
     }
 
-    private static void assertHints(ResourceLocation id, List<EditorField> form) {
+    private static void assertHints(Identifier id, List<EditorField> form) {
         for (EditorField field : form) {
             assertFalse(field.hint().isBlank(),
                     id + "'s `" + field.path() + "` has no hint, so hovering its label says nothing "

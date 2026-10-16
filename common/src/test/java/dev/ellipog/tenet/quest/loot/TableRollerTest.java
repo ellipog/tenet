@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.reward.ItemReward;
 import dev.ellipog.tenet.quest.reward.RewardCommon;
 import dev.ellipog.tenet.quest.reward.TableReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -39,7 +39,7 @@ class TableRollerTest {
 
     private static ItemReward item(String id) {
         return new ItemReward(RewardCommon.DEFAULT,
-                new ItemRef(ResourceLocation.withDefaultNamespace(id), 1), 0, false);
+                new ItemRef(Identifier.withDefaultNamespace(id), 1), 0, false);
     }
 
     private static RewardTable table(RewardTable.Entry... entries) {

@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A command asked for the quest book: open it, on one quest when one is named.
@@ -21,7 +21,7 @@ public record OpenBookPayload(String questId) implements CustomPacketPayload {
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<OpenBookPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "open_book"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "open_book"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, OpenBookPayload> CODEC =
             StreamCodec.composite(

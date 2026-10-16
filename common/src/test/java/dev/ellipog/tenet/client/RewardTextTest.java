@@ -4,7 +4,7 @@ import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.reward.RewardDisplay;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -32,7 +32,7 @@ class RewardTextTest {
     @DisplayName("an item reward is named by the item, not by a label it does not have")
     void itemRewardsUseTheItemsName() {
         RewardDisplay display = RewardDisplay.ofItem(
-                new ItemRef(ResourceLocation.withDefaultNamespace("iron_ingot"), 4));
+                new ItemRef(Identifier.withDefaultNamespace("iron_ingot"), 4));
 
         assertEquals("Iron Ingot", RewardText.of(display));
         assertEquals(4, RewardText.countOf(display));
@@ -43,7 +43,7 @@ class RewardTextTest {
     @DisplayName("an item this build does not have shows the id rather than nothing")
     void missingItemsShowTheirId() {
         RewardDisplay display = RewardDisplay.ofItem(
-                new ItemRef(ResourceLocation.fromNamespaceAndPath("gone", "relic"), 1));
+                new ItemRef(Identifier.fromNamespaceAndPath("gone", "relic"), 1));
 
         assertEquals("gone:relic", RewardText.of(display));
     }

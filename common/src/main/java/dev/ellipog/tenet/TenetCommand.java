@@ -35,9 +35,9 @@ import dev.ellipog.tenet.net.TenetNetworking;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.commands.arguments.ResourceLocationArgument;
+import net.minecraft.commands.arguments.IdentifierArgument;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -273,22 +273,22 @@ public final class TenetCommand {
                         .then(Commands.literal("add")
                                 .requires(QuestAuthority.mayEdit())
                                 .then(Commands.argument("player", EntityArgument.player())
-                                        .then(Commands.argument("stage", ResourceLocationArgument.id())
+                                        .then(Commands.argument("stage", IdentifierArgument.id())
                                                 .executes(ctx -> stage(ctx, true)))))
                         .then(Commands.literal("add-team")
                                 .requires(QuestAuthority.mayEdit())
                                 .then(Commands.argument("player", EntityArgument.player())
-                                        .then(Commands.argument("stage", ResourceLocationArgument.id())
+                                        .then(Commands.argument("stage", IdentifierArgument.id())
                                                 .executes(ctx -> stageTeam(ctx, true)))))
                         .then(Commands.literal("remove")
                                 .requires(QuestAuthority.mayEdit())
                                 .then(Commands.argument("player", EntityArgument.player())
-                                        .then(Commands.argument("stage", ResourceLocationArgument.id())
+                                        .then(Commands.argument("stage", IdentifierArgument.id())
                                                 .executes(ctx -> stage(ctx, false)))))
                         .then(Commands.literal("remove-team")
                                 .requires(QuestAuthority.mayEdit())
                                 .then(Commands.argument("player", EntityArgument.player())
-                                        .then(Commands.argument("stage", ResourceLocationArgument.id())
+                                        .then(Commands.argument("stage", IdentifierArgument.id())
                                                 .executes(ctx -> stageTeam(ctx, false)))))
                         .then(Commands.literal("list")
                                 .executes(ctx -> stageList(ctx, null))
@@ -436,7 +436,7 @@ public final class TenetCommand {
         }
         boolean on = TenetNetworking.setVitals(player, wanted.orElse(!TenetNetworking.vitals(player)));
         context.getSource().sendSuccess(() -> Component.literal(
-                "Vitals overlay " + (on ? "on" : "off") + " for " + player.getGameProfile().getName()
+                "Vitals overlay " + (on ? "on" : "off") + " for " + player.getGameProfile().name()
                         + ". It shows the frame rate and frame time, and the frame's counters."), false);
         return 1;
     }
@@ -1372,7 +1372,7 @@ public final class TenetCommand {
             net.minecraft.world.item.ItemStack remainder = dev.ellipog.tenet.inventory.InventoryAccesses
                     .current().insert(player, give);
             if (!remainder.isEmpty()) {
-                player.drop(remainder, false);
+                player.drop(remainder, false, net.minecraft.util.Prediction.SERVER_ONLY);
             }
             granted++;
         }
@@ -1431,7 +1431,7 @@ public final class TenetCommand {
         ServerPlayer target = EntityArgument.getPlayer(context, "player");
         // A resource-location argument, not a word: a stage id is `namespace:path`, and Brigadier's
         // word type stops at the colon -- so the one spelling the format documents was untypeable.
-        ResourceLocation stage = ResourceLocationArgument.getId(context, "stage");
+        Identifier stage = IdentifierArgument.getId(context, "stage");
         MinecraftServer server = context.getSource().getServer();
         boolean changed = grant
                 ? StageService.add(server, target.getUUID(), stage)
@@ -1451,7 +1451,7 @@ public final class TenetCommand {
             context.getSource().sendFailure(Component.translatable("tenet.command.stage.needsplayer"));
             return 0;
         }
-        Set<ResourceLocation> stages = StageService.list(context.getSource().getServer(), target.getUUID());
+        Set<Identifier> stages = StageService.list(context.getSource().getServer(), target.getUUID());
         if (stages.isEmpty()) {
             context.getSource().sendSuccess(() -> Component.translatable("tenet.command.stage.none",
                     target.getScoreboardName()), false);
@@ -1461,7 +1461,7 @@ public final class TenetCommand {
                 target.getScoreboardName(), stages.size()), false);
         // One line each, the shape `/tenet types` uses, because a pack can hold twenty and a wrapped line
         // is one nobody can read a name out of.
-        for (ResourceLocation stage : stages) {
+        for (Identifier stage : stages) {
             context.getSource().sendSuccess(() -> Component.literal("  " + stage), false);
         }
         return 1;
@@ -1477,7 +1477,7 @@ public final class TenetCommand {
     private static int stageTeam(CommandContext<CommandSourceStack> context, boolean grant)
             throws CommandSyntaxException {
         ServerPlayer target = EntityArgument.getPlayer(context, "player");
-        ResourceLocation stage = ResourceLocationArgument.getId(context, "stage");
+        Identifier stage = IdentifierArgument.getId(context, "stage");
         MinecraftServer server = context.getSource().getServer();
         java.util.UUID team = ProgressService.progressOwner(server, target);
         boolean changed = grant
@@ -1500,7 +1500,7 @@ public final class TenetCommand {
         }
         MinecraftServer server = context.getSource().getServer();
         java.util.UUID team = ProgressService.progressOwner(server, target);
-        Set<ResourceLocation> stages = StageService.listTeam(server, team);
+        Set<Identifier> stages = StageService.listTeam(server, team);
         if (stages.isEmpty()) {
             context.getSource().sendSuccess(() -> Component.translatable("tenet.command.stage.team_none",
                     target.getScoreboardName()), false);
@@ -1508,7 +1508,7 @@ public final class TenetCommand {
         }
         context.getSource().sendSuccess(() -> Component.translatable("tenet.command.stage.team_list",
                 target.getScoreboardName(), stages.size()), false);
-        for (ResourceLocation stage : stages) {
+        for (Identifier stage : stages) {
             context.getSource().sendSuccess(() -> Component.literal("  " + stage), false);
         }
         return 1;

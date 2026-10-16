@@ -5,7 +5,7 @@ import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.QuestText;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ class ConsentToTakeTest {
 
     private static ItemTask item(Optional<Boolean> consume) {
         return new ItemTask(TaskCommon.DEFAULT,
-                new ItemRef(ResourceLocation.withDefaultNamespace("oak_log"), 8),
+                new ItemRef(Identifier.withDefaultNamespace("oak_log"), 8),
                 consume, ComponentMatch.STRICT, false, false);
     }
 
@@ -87,7 +87,7 @@ class ConsentToTakeTest {
     @DisplayName("an item tag task reads the same rule as an item task")
     void tagTasksReadTheSameRule() {
         ItemTagTask task = new ItemTagTask(TaskCommon.DEFAULT,
-                ResourceLocation.withDefaultNamespace("logs"), 8, Optional.empty(), false, false);
+                Identifier.withDefaultNamespace("logs"), 8, Optional.empty(), false, false);
         TaskBehaviour<QuestTask> through = behaviour(task);
 
         assertTrue(through.canSubmitByHand(task, true));
@@ -105,7 +105,7 @@ class ConsentToTakeTest {
                         + "rule exists to stop");
 
         FluidTask fluid = new FluidTask(TaskCommon.DEFAULT,
-                ResourceLocation.withDefaultNamespace("water"), 1000, false);
+                Identifier.withDefaultNamespace("water"), 1000, false);
         assertTrue(behaviour(fluid).waitsForSubmit(fluid, false));
     }
 
@@ -124,7 +124,7 @@ class ConsentToTakeTest {
                         + "checkmark because its count is zero, not because the tick is held back");
 
         DimensionTask elsewhere = new DimensionTask(TaskCommon.DEFAULT,
-                ResourceLocation.withDefaultNamespace("the_nether"));
+                Identifier.withDefaultNamespace("the_nether"));
         assertFalse(behaviour(elsewhere).waitsForSubmit(elsewhere, true),
                 "and a type with no button at all is registered too, rather than being stranded");
     }
@@ -133,7 +133,7 @@ class ConsentToTakeTest {
     @DisplayName("a manual-only presence task waits for the press and keeps its button")
     void manualOnlyPresenceWaits() {
         ItemTask task = new ItemTask(TaskCommon.DEFAULT,
-                new ItemRef(ResourceLocation.withDefaultNamespace("oak_log"), 8),
+                new ItemRef(Identifier.withDefaultNamespace("oak_log"), 8),
                 Optional.of(false), ComponentMatch.STRICT, false, true);
         TaskBehaviour<QuestTask> through = behaviour(task);
 
@@ -144,7 +144,7 @@ class ConsentToTakeTest {
                 "and the tick records nothing: a presence task that waited for nothing would complete by itself");
 
         ItemTagTask tag = new ItemTagTask(TaskCommon.DEFAULT,
-                ResourceLocation.withDefaultNamespace("logs"), 8, Optional.empty(), false, true);
+                Identifier.withDefaultNamespace("logs"), 8, Optional.empty(), false, true);
         assertTrue(behaviour(tag).canSubmitByHand(tag, false));
         assertTrue(behaviour(tag).waitsForSubmit(tag, false));
     }

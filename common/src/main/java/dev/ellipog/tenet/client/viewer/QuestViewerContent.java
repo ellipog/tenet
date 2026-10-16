@@ -19,7 +19,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -69,8 +69,8 @@ import java.util.function.Function;
 public final class QuestViewerContent implements QuestContent {
 
     /** The viewer category's id. The words are Tenet's, so the namespace is too. */
-    public static final ResourceLocation CATEGORY_ID =
-            ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "quests");
+    public static final Identifier CATEGORY_ID =
+            Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "quests");
 
     private volatile ItemQuestIndex index = ItemQuestIndex.empty();
     private volatile List<QuestPage> pages = List.of();
@@ -153,7 +153,9 @@ public final class QuestViewerContent implements QuestContent {
      * {@code rebuild}'s tag resolver takes, and for the same reason.
      */
     private java.util.function.Function<TagKey<Item>, Optional<HolderSet<Item>>> tagHolders =
-            tag -> BuiltInRegistries.ITEM.getTag(tag).map(set -> (HolderSet<Item>) set);
+            // `HolderLookup.get` with a tag key: the live named set, stable across ticks and rebound
+            // on reload, which is what the identity watch below needs. (`getTag` is gone.)
+            tag -> BuiltInRegistries.ITEM.get(tag).map(set -> (HolderSet<Item>) set);
 
     /** Points the tag lookup somewhere else. For a test; see {@link #tagHolders}. */
     void setTagHolders(java.util.function.Function<TagKey<Item>, Optional<HolderSet<Item>>> holders) {
@@ -179,7 +181,8 @@ public final class QuestViewerContent implements QuestContent {
      * test JVM loads no datapack, so the registry answers empty there.
      */
     private java.util.function.Function<TagKey<Block>, Optional<HolderSet<Block>>> blockTagHolders =
-            tag -> BuiltInRegistries.BLOCK.getTag(tag).map(set -> (HolderSet<Block>) set);
+            // Same live-set replacement as `tagHolders` above.
+            tag -> BuiltInRegistries.BLOCK.get(tag).map(set -> (HolderSet<Block>) set);
 
     /** Points the block-tag lookup somewhere else. For a test; see {@link #blockTagHolders}. */
     void setBlockTagHolders(java.util.function.Function<TagKey<Block>, Optional<HolderSet<Block>>> holders) {
@@ -359,7 +362,7 @@ public final class QuestViewerContent implements QuestContent {
     }
 
     @Override
-    public ResourceLocation categoryId() {
+    public Identifier categoryId() {
         return CATEGORY_ID;
     }
 
@@ -380,7 +383,9 @@ public final class QuestViewerContent implements QuestContent {
 
     @Override
     public ItemStack categoryIcon() {
-        return QuestBook.ITEM == null ? new ItemStack(Items.WRITABLE_BOOK) : new ItemStack(QuestBook.ITEM);
+        return QuestBook.ITEM == null
+                ? dev.ellipog.tenet.quest.ItemStacks.stackOf(Items.WRITABLE_BOOK)
+                : dev.ellipog.tenet.quest.ItemStacks.stackOf(QuestBook.ITEM);
     }
 
     // ------------------------------------------------------------------
@@ -395,8 +400,8 @@ public final class QuestViewerContent implements QuestContent {
      * expansion — the part that turns {@code #minecraft:logs} into the items a viewer can find — would
      * otherwise be untestable. Production passes {@link #registryTagItems}.
      */
-    void rebuild(long revision, Function<TagKey<Item>, List<ResourceLocation>> tagItems,
-                 Function<TagKey<Block>, List<ResourceLocation>> blockTagItems) {
+    void rebuild(long revision, Function<TagKey<Item>, List<Identifier>> tagItems,
+                 Function<TagKey<Block>, List<Identifier>> blockTagItems) {
         ItemQuestIndex.Builder index = ItemQuestIndex.builder();
         List<QuestPage> built = new ArrayList<>();
         // One expansion per tag per rebuild. A pack that gates several quests behind `#c:ingots/iron`
@@ -404,13 +409,13 @@ public final class QuestViewerContent implements QuestContent {
         // one tree -- so the second read is the same question asked again. A resolver that answers null
         // is not remembered, which is what `computeIfAbsent` does with a null mapping: the miss is
         // retried rather than cached as an absence.
-        java.util.Map<TagKey<Item>, List<ResourceLocation>> expansions = new java.util.HashMap<>();
-        Function<TagKey<Item>, List<ResourceLocation>> once =
+        java.util.Map<TagKey<Item>, List<Identifier>> expansions = new java.util.HashMap<>();
+        Function<TagKey<Item>, List<Identifier>> once =
                 tag -> expansions.computeIfAbsent(tag, tagItems::apply);
         // The same, for the block tags break tasks name: one expansion per tag per rebuild, for the
         // same reason. A separate map because the keys are a different registry's tags.
-        java.util.Map<TagKey<Block>, List<ResourceLocation>> blockExpansions = new java.util.HashMap<>();
-        Function<TagKey<Block>, List<ResourceLocation>> onceBlocks =
+        java.util.Map<TagKey<Block>, List<Identifier>> blockExpansions = new java.util.HashMap<>();
+        Function<TagKey<Block>, List<Identifier>> onceBlocks =
                 tag -> blockExpansions.computeIfAbsent(tag, blockTagItems::apply);
         // The id index, built here because this is the only walk of the pages that has to happen at all
         // — see QuestContent.page for why an adapter must not write its own.
@@ -443,8 +448,8 @@ public final class QuestViewerContent implements QuestContent {
 
     private static List<QuestRow> taskRows(ClientQuestCache.Entry entry, QuestRef ref,
                                            ItemQuestIndex.Builder index,
-                                           Function<TagKey<Item>, List<ResourceLocation>> tagItems,
-                                           Function<TagKey<Block>, List<ResourceLocation>> blockTagItems) {
+                                           Function<TagKey<Item>, List<Identifier>> tagItems,
+                                           Function<TagKey<Block>, List<Identifier>> blockTagItems) {
         List<QuestRow> rows = new ArrayList<>(entry.tasks().size());
         for (int source = 0; source < entry.tasks().size(); source++) {
             ClientQuestCache.TaskEntry task = entry.tasks().get(source);
@@ -500,7 +505,7 @@ public final class QuestViewerContent implements QuestContent {
         if (itemId == null || itemId.isEmpty()) {
             return;
         }
-        ResourceLocation item = ResourceLocation.tryParse(itemId);
+        Identifier item = Identifier.tryParse(itemId);
         if (item == null) {
             // A hand-edited file can carry an id that does not parse; the validator warns about it and
             // the quest stays loadable, so the index skips the entry rather than the page.
@@ -510,15 +515,15 @@ public final class QuestViewerContent implements QuestContent {
     }
 
     private static void addTag(ItemQuestIndex.Builder index, String tagId, QuestRef ref,
-                               Function<TagKey<Item>, List<ResourceLocation>> tagItems) {
+                               Function<TagKey<Item>, List<Identifier>> tagItems) {
         if (tagId == null || tagId.isEmpty()) {
             return;
         }
-        ResourceLocation tag = ResourceLocation.tryParse(tagId);
+        Identifier tag = Identifier.tryParse(tagId);
         if (tag == null) {
             return;
         }
-        for (ResourceLocation item : tagItems.apply(TagKey.create(Registries.ITEM, tag))) {
+        for (Identifier item : tagItems.apply(TagKey.create(Registries.ITEM, tag))) {
             index.add(item, ref, true, false);
         }
     }
@@ -531,8 +536,8 @@ public final class QuestViewerContent implements QuestContent {
      * empty, which leaves the quest findable from its label but not from an item, which is the honest
      * reading of a file that names a tag no pack provides.
      */
-    private static List<ResourceLocation> registryTagItems(TagKey<Item> tag) {
-        return itemsOf(BuiltInRegistries.ITEM.getTag(tag));
+    private static List<Identifier> registryTagItems(TagKey<Item> tag) {
+        return itemsOf(BuiltInRegistries.ITEM.get(tag));
     }
 
     /**
@@ -543,13 +548,13 @@ public final class QuestViewerContent implements QuestContent {
      * would be two registry lookups per tag per rebuild for one answer, and it would leave the watch and the
      * members free to disagree if the two reads straddled a reload.
      */
-    private static List<ResourceLocation> itemsOf(Optional<? extends HolderSet<Item>> holders) {
+    private static List<Identifier> itemsOf(Optional<? extends HolderSet<Item>> holders) {
         if (holders.isEmpty()) {
             return List.of();
         }
-        List<ResourceLocation> items = new ArrayList<>();
+        List<Identifier> items = new ArrayList<>();
         for (Holder<Item> holder : holders.get()) {
-            holder.unwrapKey().map(ResourceKey::location).ifPresent(items::add);
+            holder.unwrapKey().map(ResourceKey::identifier).ifPresent(items::add);
         }
         return items;
     }
@@ -564,19 +569,19 @@ public final class QuestViewerContent implements QuestContent {
      */
     private static void indexBreak(ItemQuestIndex.Builder index, ClientQuestCache.TaskEntry task,
                                    QuestRef ref,
-                                   Function<TagKey<Block>, List<ResourceLocation>> blockTagItems) {
+                                   Function<TagKey<Block>, List<Identifier>> blockTagItems) {
         if (!task.blockTag().isEmpty()) {
-            ResourceLocation tag = ResourceLocation.tryParse(task.blockTag());
+            Identifier tag = Identifier.tryParse(task.blockTag());
             if (tag == null) {
                 return;
             }
-            for (ResourceLocation item : blockTagItems.apply(TagKey.create(Registries.BLOCK, tag))) {
+            for (Identifier item : blockTagItems.apply(TagKey.create(Registries.BLOCK, tag))) {
                 index.add(item, ref, true, false);
             }
             return;
         }
         if (!task.block().isEmpty()) {
-            ResourceLocation block = ResourceLocation.tryParse(task.block());
+            Identifier block = Identifier.tryParse(task.block());
             if (block == null || !BuiltInRegistries.ITEM.containsKey(block)) {
                 return;
             }
@@ -591,8 +596,8 @@ public final class QuestViewerContent implements QuestContent {
      * already has. Members with no item form (air, fluids, piston heads) are skipped: no item
      * names them, and indexing them would be entries no lookup can ever hit.
      */
-    private static List<ResourceLocation> registryBlockTagItems(TagKey<Block> tag) {
-        return blockItemsOf(BuiltInRegistries.BLOCK.getTag(tag));
+    private static List<Identifier> registryBlockTagItems(TagKey<Block> tag) {
+        return blockItemsOf(BuiltInRegistries.BLOCK.get(tag));
     }
 
     /**
@@ -602,13 +607,13 @@ public final class QuestViewerContent implements QuestContent {
      * split from {@link #registryTagItems}: {@link #tick} reads each tag's holder set once
      * and takes the members and the watched object from that one read.
      */
-    private static List<ResourceLocation> blockItemsOf(Optional<? extends HolderSet<Block>> holders) {
+    private static List<Identifier> blockItemsOf(Optional<? extends HolderSet<Block>> holders) {
         if (holders.isEmpty()) {
             return List.of();
         }
-        List<ResourceLocation> items = new ArrayList<>();
+        List<Identifier> items = new ArrayList<>();
         for (Holder<Block> holder : holders.get()) {
-            holder.unwrapKey().map(ResourceKey::location).ifPresent(block -> {
+            holder.unwrapKey().map(ResourceKey::identifier).ifPresent(block -> {
                 if (BuiltInRegistries.ITEM.containsKey(block)) {
                     items.add(block);
                 }

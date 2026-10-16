@@ -5,7 +5,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 
@@ -40,31 +40,31 @@ public sealed interface ImageSource {
     Set<String> FIELDS = Set.of("texture", "sprite");
 
     /** A PNG named by its own path, e.g. {@code atm:textures/questpics/logo.png}. */
-    record Texture(ResourceLocation file) implements ImageSource {
+    record Texture(Identifier file) implements ImageSource {
 
         static final MapCodec<Texture> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
-                ResourceLocation.CODEC.fieldOf("texture").forGetter(Texture::file)
+                Identifier.CODEC.fieldOf("texture").forGetter(Texture::file)
         ).apply(instance, Texture::new));
 
         static final Codec<Texture> CODEC = MAP_CODEC.codec();
 
         @Override
-        public ResourceLocation id() {
+        public Identifier id() {
             return file;
         }
     }
 
     /** A region of the block atlas, e.g. {@code minecraft:block/sculk}. */
-    record Sprite(ResourceLocation sprite) implements ImageSource {
+    record Sprite(Identifier sprite) implements ImageSource {
 
         static final MapCodec<Sprite> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
-                ResourceLocation.CODEC.fieldOf("sprite").forGetter(Sprite::sprite)
+                Identifier.CODEC.fieldOf("sprite").forGetter(Sprite::sprite)
         ).apply(instance, Sprite::new));
 
         static final Codec<Sprite> CODEC = MAP_CODEC.codec();
 
         @Override
-        public ResourceLocation id() {
+        public Identifier id() {
             return sprite;
         }
     }
@@ -83,5 +83,5 @@ public sealed interface ImageSource {
                     : Either.left((Texture) source));
 
     /** The id this source names, whichever arm it is. For a message, and for an editor's field. */
-    ResourceLocation id();
+    Identifier id();
 }

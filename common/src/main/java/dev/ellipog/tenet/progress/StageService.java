@@ -4,7 +4,7 @@ import dev.ellipog.armature.api.teams.Teams;
 import dev.ellipog.tenet.api.TenetEvents;
 import dev.ellipog.tenet.net.TenetNetworking;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -33,17 +33,17 @@ public final class StageService {
     }
 
     /** Whether this player has the stage. */
-    public static boolean has(MinecraftServer server, UUID player, ResourceLocation stage) {
+    public static boolean has(MinecraftServer server, UUID player, Identifier stage) {
         return ProgressStore.of(server).hasStage(player, stage);
     }
 
     /** The same, for a player who is here. */
-    public static boolean has(MinecraftServer server, ServerPlayer player, ResourceLocation stage) {
+    public static boolean has(MinecraftServer server, ServerPlayer player, Identifier stage) {
         return has(server, player.getUUID(), stage);
     }
 
     /** Every stage this player has, in the order they were granted. */
-    public static Set<ResourceLocation> list(MinecraftServer server, UUID player) {
+    public static Set<Identifier> list(MinecraftServer server, UUID player) {
         return ProgressStore.of(server).stagesOf(player);
     }
 
@@ -53,7 +53,7 @@ public final class StageService {
      * @return whether anything changed -- false when they already had it, which is what makes a stage reward
      *         idempotent and what the event is gated on
      */
-    public static boolean add(MinecraftServer server, UUID player, ResourceLocation stage) {
+    public static boolean add(MinecraftServer server, UUID player, Identifier stage) {
         if (!ProgressStore.of(server).addStage(player, stage)) {
             return false;
         }
@@ -66,7 +66,7 @@ public final class StageService {
     }
 
     /** Takes a stage away, and returns whether it was there to take. */
-    public static boolean remove(MinecraftServer server, UUID player, ResourceLocation stage) {
+    public static boolean remove(MinecraftServer server, UUID player, Identifier stage) {
         if (!ProgressStore.of(server).removeStage(player, stage)) {
             return false;
         }
@@ -90,12 +90,12 @@ public final class StageService {
      * the team, and a team stage does not answer for a member asked about personally. The sync is
      * what unions them for display — see {@code TenetNetworking.sendStagesTo}.
      */
-    public static boolean hasTeam(MinecraftServer server, UUID team, ResourceLocation stage) {
+    public static boolean hasTeam(MinecraftServer server, UUID team, Identifier stage) {
         return ProgressStore.of(server).hasTeamStage(team, stage);
     }
 
     /** Every stage this team holds, in the order they were granted. */
-    public static Set<ResourceLocation> listTeam(MinecraftServer server, UUID team) {
+    public static Set<Identifier> listTeam(MinecraftServer server, UUID team) {
         return ProgressStore.of(server).stagesOfTeam(team);
     }
 
@@ -104,7 +104,7 @@ public final class StageService {
      *
      * @return whether anything changed -- false when the team already held it
      */
-    public static boolean addTeam(MinecraftServer server, UUID team, ResourceLocation stage) {
+    public static boolean addTeam(MinecraftServer server, UUID team, Identifier stage) {
         if (!ProgressStore.of(server).addTeamStage(team, stage)) {
             return false;
         }
@@ -116,7 +116,7 @@ public final class StageService {
     }
 
     /** Takes a team's stage away, and returns whether it was there to take. */
-    public static boolean removeTeam(MinecraftServer server, UUID team, ResourceLocation stage) {
+    public static boolean removeTeam(MinecraftServer server, UUID team, Identifier stage) {
         if (!ProgressStore.of(server).removeTeamStage(team, stage)) {
             return false;
         }
@@ -135,8 +135,8 @@ public final class StageService {
      * touching the player's own. Sorted by insertion across both sets: the player's own first,
      * then the team's.
      */
-    public static Set<ResourceLocation> effective(MinecraftServer server, UUID player) {
-        Set<ResourceLocation> seen = new LinkedHashSet<>();
+    public static Set<Identifier> effective(MinecraftServer server, UUID player) {
+        Set<Identifier> seen = new LinkedHashSet<>();
         seen.addAll(ProgressStore.of(server).stagesOf(player));
         seen.addAll(ProgressStore.of(server).stagesOfTeam(Teams.teamOf(server, player).id()));
         return Set.copyOf(seen);

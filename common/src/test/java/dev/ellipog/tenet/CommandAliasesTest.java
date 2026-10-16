@@ -9,6 +9,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -18,9 +19,19 @@ import org.junit.jupiter.api.Test;
  * <p>Pure Brigadier shape — no player, no server, no loader — so this runs headless. Building
  * the nodes is all registration does; what each subcommand <i>does</i> is covered by the
  * playthrough test, which runs the real tree on a server.
+ *
+ * <p>The bootstrap below is load-bearing rather than ceremonial: {@code Commands} now touches the
+ * registries in its static initialiser (the permission codecs do), so loading it before vanilla
+ * bootstraps poisons the registry classes for the whole test JVM — every later test then fails
+ * with "Not bootstrapped" no matter what it does.
  */
 @DisplayName("the /quests and /questbook aliases")
 class CommandAliasesTest {
+
+    @BeforeAll
+    static void bootstrap() {
+        dev.ellipog.tenet.quest.MinecraftTestBootstrap.boot();
+    }
 
     @Test
     @DisplayName("both aliases redirect to the /tenet root")

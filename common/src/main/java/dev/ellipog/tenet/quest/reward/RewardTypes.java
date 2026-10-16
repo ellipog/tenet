@@ -8,7 +8,7 @@ import dev.ellipog.armature.api.registry.SimpleRegistry;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.QuestReward;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Optional;
 import java.util.Set;
@@ -32,7 +32,7 @@ public final class RewardTypes {
     }
 
     /** The registered type's own codec; the reward half of {@link dev.ellipog.tenet.quest.task.TaskTypes#codecOf}. */
-    public static java.util.Optional<MapCodec<QuestReward>> codecOf(ResourceLocation id) {
+    public static java.util.Optional<MapCodec<QuestReward>> codecOf(Identifier id) {
         return REGISTRY.get(id).map(entry -> entry.spec().codec());
     }
 
@@ -101,9 +101,9 @@ public final class RewardTypes {
                     dev.ellipog.tenet.quest.EditorField.flag("onlyOne", "Only one")
                             .hint("skip it if the player already carries this item")),
             ItemReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("diamond"), 1), ItemReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("diamond"), 1), ItemReward.DISPLAY,
             () -> new ItemReward(RewardCommon.DEFAULT,
-                    new ItemRef(ResourceLocation.withDefaultNamespace("paper"), 1), 0, false));
+                    new ItemRef(Identifier.withDefaultNamespace("paper"), 1), 0, false));
 
     /** {@code tenet:xp} — experience points or levels. */
     public static final QuestRewardType<XpReward> XP = register(
@@ -113,7 +113,7 @@ public final class RewardTypes {
                     dev.ellipog.tenet.quest.EditorField.flag("levels", "Levels instead")
                             .hint("give levels rather than points")),
             XpReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("experience_bottle"), 1), XpReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("experience_bottle"), 1), XpReward.DISPLAY,
             () -> new XpReward(RewardCommon.DEFAULT, 1, false));
 
     /** {@code tenet:currency} — money, paid through the installed economy. */
@@ -122,14 +122,14 @@ public final class RewardTypes {
                     dev.ellipog.tenet.quest.EditorField.number("amount", "Give", "coins")
                             .hint("how much currency to pay through the installed economy")),
             CurrencyReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("gold_nugget"), 1), CurrencyReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("gold_nugget"), 1), CurrencyReward.DISPLAY,
             () -> new CurrencyReward(RewardCommon.DEFAULT, 1));
 
     /** {@code tenet:random} — one guaranteed roll from a table. */
     public static final QuestRewardType<TableReward> RANDOM = register(
             "random", TableReward.mapCodec(TableReward.Mode.RANDOM), TableReward.FIELDS, TABLE_EDITOR,
             TableReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("dispenser"), 1), TableReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("dispenser"), 1), TableReward.DISPLAY,
             () -> new TableReward(RewardCommon.DEFAULT, TableReward.Mode.RANDOM, java.util.Optional.of("loot"),
                     java.util.Optional.empty()));
 
@@ -137,7 +137,7 @@ public final class RewardTypes {
     public static final QuestRewardType<TableReward> LOOT = register(
             "loot", TableReward.mapCodec(TableReward.Mode.LOOT), TableReward.FIELDS, TABLE_EDITOR,
             TableReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("chest"), 1), TableReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("chest"), 1), TableReward.DISPLAY,
             () -> new TableReward(RewardCommon.DEFAULT, TableReward.Mode.LOOT, java.util.Optional.of("loot"),
                     java.util.Optional.empty()));
 
@@ -145,7 +145,7 @@ public final class RewardTypes {
     public static final QuestRewardType<TableReward> ALL_TABLE = register(
             "all_table", TableReward.mapCodec(TableReward.Mode.ALL_TABLE), TableReward.FIELDS, TABLE_EDITOR,
             TableReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("shulker_box"), 1), TableReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("shulker_box"), 1), TableReward.DISPLAY,
             () -> new TableReward(RewardCommon.DEFAULT, TableReward.Mode.ALL_TABLE,
                     java.util.Optional.of("loot"), java.util.Optional.empty()));
 
@@ -153,7 +153,7 @@ public final class RewardTypes {
     public static final QuestRewardType<TableReward> CHOICE = register(
             "choice", TableReward.mapCodec(TableReward.Mode.CHOICE), TableReward.FIELDS, TABLE_EDITOR,
             TableReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("bundle"), 1), TableReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("bundle"), 1), TableReward.DISPLAY,
             () -> new TableReward(RewardCommon.DEFAULT, TableReward.Mode.CHOICE, java.util.Optional.of("loot"),
                     java.util.Optional.empty()));
 
@@ -171,7 +171,7 @@ public final class RewardTypes {
                                     "shown when the command runs; empty shows nothing")
                             .hint("the message shown when the command runs; empty means nothing extra")),
             CommandReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("command_block"), 1), CommandReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("command_block"), 1), CommandReward.DISPLAY,
             () -> new CommandReward(RewardCommon.DEFAULT, "say hello", 2, false, java.util.Optional.empty()));
 
     /** {@code tenet:advancement} — award an advancement, or one criterion of one. */
@@ -184,9 +184,9 @@ public final class RewardTypes {
                                     "leave empty for the whole advancement")
                             .hint("award one criterion of it instead of the whole advancement")),
             AdvancementReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("dragon_egg"), 1), AdvancementReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("dragon_egg"), 1), AdvancementReward.DISPLAY,
             () -> new AdvancementReward(RewardCommon.DEFAULT,
-                    ResourceLocation.withDefaultNamespace("story/root"), java.util.Optional.empty()));
+                    Identifier.withDefaultNamespace("story/root"), java.util.Optional.empty()));
 
     /** {@code tenet:custom} — somebody else's code, by id. */
     public static final QuestRewardType<CustomReward> CUSTOM = register(
@@ -195,7 +195,7 @@ public final class RewardTypes {
                                     "the id another mod registered")
                             .hint("the id another mod registered for its own reward")),
             CustomReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("structure_block"), 1), CustomReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("structure_block"), 1), CustomReward.DISPLAY,
             () -> new CustomReward(RewardCommon.DEFAULT, "example:custom"));
 
     /**
@@ -213,9 +213,9 @@ public final class RewardTypes {
                     dev.ellipog.tenet.quest.EditorField.flag("teamStage", "Team stage")
                             .hint("grant to the team rather than the claiming player")),
             StageReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("oak_sign"), 1), StageReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("oak_sign"), 1), StageReward.DISPLAY,
             () -> new StageReward(RewardCommon.DEFAULT,
-                    ResourceLocation.fromNamespaceAndPath("example", "stage"), false, false));
+                    Identifier.fromNamespaceAndPath("example", "stage"), false, false));
 
     /** {@code tenet:toast} — show the player a message. */
     public static final QuestRewardType<ToastReward> TOAST = register(
@@ -224,7 +224,7 @@ public final class RewardTypes {
                                     "shown when the reward is collected")
                             .hint("the message shown when this reward is collected")),
             ToastReward.BEHAVIOUR,
-            new ItemRef(ResourceLocation.withDefaultNamespace("bell"), 1), ToastReward.DISPLAY,
+            new ItemRef(Identifier.withDefaultNamespace("bell"), 1), ToastReward.DISPLAY,
             () -> new ToastReward(RewardCommon.DEFAULT,
                     dev.ellipog.tenet.quest.QuestText.literal("Hello")));
 
@@ -272,11 +272,11 @@ public final class RewardTypes {
             java.util.List<dev.ellipog.tenet.quest.EditorField> editor,
             RewardBehaviour<T> behaviour, ItemRef icon, Function<T, RewardDisplay> display,
             Supplier<T> defaults) {
-        return register(ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, path), codec, fields, editor,
+        return register(Identifier.fromNamespaceAndPath(Tenet.MOD_ID, path), codec, fields, editor,
                 behaviour, icon, display, defaults);
     }
 
-    public static <T extends QuestReward> QuestRewardType<T> register(ResourceLocation id,
+    public static <T extends QuestReward> QuestRewardType<T> register(Identifier id,
                                                                       MapCodec<T> codec,
                                                                       Set<String> fields,
                                                                       RewardBehaviour<T> behaviour,
@@ -288,7 +288,7 @@ public final class RewardTypes {
 
     /** The same, under an id you choose, with the type's own editor form. */
     public static <T extends QuestReward> QuestRewardType<T> register(
-            ResourceLocation id, MapCodec<T> codec, Set<String> fields,
+            Identifier id, MapCodec<T> codec, Set<String> fields,
             java.util.List<dev.ellipog.tenet.quest.EditorField> editor,
             RewardBehaviour<T> behaviour, ItemRef icon, Function<T, RewardDisplay> display,
             Supplier<T> defaults) {
@@ -314,7 +314,7 @@ public final class RewardTypes {
      * A fresh instance of a registered type, encoded as the tree a quest file stores. See
      * {@link dev.ellipog.tenet.quest.task.TaskTypes#defaultTree} for the whole of the argument.
      */
-    public static Optional<com.google.gson.JsonObject> defaultTree(ResourceLocation id) {
+    public static Optional<com.google.gson.JsonObject> defaultTree(Identifier id) {
         return REGISTRY.get(id).flatMap(entry -> Dispatch.CODEC
                 // Through the dispatch codec: it is what writes the "type" field -- see TaskTypes.
                 .encodeStart(com.mojang.serialization.JsonOps.INSTANCE, entry.defaults().get())
@@ -373,9 +373,9 @@ public final class RewardTypes {
         return out;
     }
 
-    private static ItemRef eggOf(net.minecraft.resources.ResourceLocation entity) {
-        net.minecraft.resources.ResourceLocation egg =
-                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(entity.getNamespace(),
+    private static ItemRef eggOf(net.minecraft.resources.Identifier entity) {
+        net.minecraft.resources.Identifier egg =
+                net.minecraft.resources.Identifier.fromNamespaceAndPath(entity.getNamespace(),
                         entity.getPath() + "_spawn_egg");
         if (!net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(egg)) {
             return null;
@@ -384,15 +384,15 @@ public final class RewardTypes {
     }
 
     /** The icon for a reward's type, for a listing. Paper for an unregistered type. */
-    public static ItemRef iconOf(ResourceLocation id) {
+    public static ItemRef iconOf(Identifier id) {
         return REGISTRY.get(id).map(Entry::icon).orElse(ItemRef.DEFAULT_ICON);
     }
 
     /**
      * The fields of a registered type as the editor draws them: the type's own form, or one derived from
-     * its field names. See {@link dev.ellipog.tenet.quest.task.TaskTypes#editorOf(ResourceLocation)}.
+     * its field names. See {@link dev.ellipog.tenet.quest.task.TaskTypes#editorOf(Identifier)}.
      */
-    public static java.util.List<dev.ellipog.tenet.quest.EditorField> editorOf(ResourceLocation id) {
+    public static java.util.List<dev.ellipog.tenet.quest.EditorField> editorOf(Identifier id) {
         return REGISTRY.get(id)
                 .map(entry -> entry.editor().isEmpty()
                         ? dev.ellipog.tenet.quest.EditorSpecs.derive(entry.spec().fields())
@@ -400,7 +400,7 @@ public final class RewardTypes {
                 .orElse(java.util.List.of());
     }
 
-    public static Set<ResourceLocation> ids() {
+    public static Set<Identifier> ids() {
         return REGISTRY.ids();
     }
 
@@ -408,7 +408,7 @@ public final class RewardTypes {
         return REGISTRY.size();
     }
 
-    public static Set<String> fieldsOf(ResourceLocation id) {
+    public static Set<String> fieldsOf(Identifier id) {
         return REGISTRY.get(id).map(entry -> entry.spec().fields()).orElse(Set.of());
     }
 
@@ -434,7 +434,7 @@ public final class RewardTypes {
     private static <T extends QuestReward> TypeSpec<QuestReward> widenSpec(QuestRewardType<T> type) {
         return new TypeSpec<>() {
             @Override
-            public ResourceLocation id() {
+            public Identifier id() {
                 return type.id();
             }
 
@@ -464,7 +464,7 @@ public final class RewardTypes {
     }
 
     private record SimpleQuestRewardType<T extends QuestReward>(
-            ResourceLocation id, MapCodec<T> codec, Set<String> fields,
+            Identifier id, MapCodec<T> codec, Set<String> fields,
             java.util.List<dev.ellipog.tenet.quest.EditorField> editor,
             RewardBehaviour<T> behaviour, ItemRef icon, Function<T, RewardDisplay> display,
             Supplier<T> defaultsSupplier

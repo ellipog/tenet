@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A chapter's quests, whole, on their way to a client that asked for them.
@@ -29,7 +29,7 @@ public record ChapterReplicaPayload(String chapter, String quests, String chapte
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<ChapterReplicaPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "chapter_replica"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "chapter_replica"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ChapterReplicaPayload> CODEC =
             StreamCodec.composite(

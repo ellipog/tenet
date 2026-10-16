@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * Told that the server's undo history is gone.
@@ -44,7 +44,7 @@ public record EditHistoryPayload(boolean discarded) implements CustomPacketPaylo
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<EditHistoryPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "edit_history"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "edit_history"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, EditHistoryPayload> CODEC =
             StreamCodec.composite(

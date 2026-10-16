@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * An author pressing Complete on quests in the quest book.
@@ -46,7 +46,7 @@ public record CompleteQuestPayload(String questId, boolean withDependencies)
      * {@link QuestSyncPayload#TYPE} for why that method silently rewrites the namespace.
      */
     public static final CustomPacketPayload.Type<CompleteQuestPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "complete_quest"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "complete_quest"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, CompleteQuestPayload> CODEC =
             StreamCodec.composite(

@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A party's roster, as it goes to a client.
@@ -38,7 +38,7 @@ public record PartySyncPayload(String packed) implements CustomPacketPayload {
      * the method that was misused.
      */
     public static final CustomPacketPayload.Type<PartySyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "party_sync"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "party_sync"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, PartySyncPayload> CODEC =
             StreamCodec.composite(

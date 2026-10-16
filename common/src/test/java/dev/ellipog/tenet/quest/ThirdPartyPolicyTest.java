@@ -11,7 +11,7 @@ import dev.ellipog.tenet.quest.reward.UnknownReward;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 import dev.ellipog.tenet.quest.task.UnknownTask;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -94,7 +94,7 @@ class ThirdPartyPolicyTest {
     @DisplayName("third-party reward ids are not registered here, so each takes the Unknown path")
     void thirdPartyRewardIdsAreUnknown() {
         for (String id : THIRD_PARTY_REWARDS) {
-            assertFalse(RewardTypes.ids().contains(ResourceLocation.parse(id)),
+            assertFalse(RewardTypes.ids().contains(Identifier.parse(id)),
                     id + " is registered now; this test pins the unregistered path");
         }
     }
@@ -103,7 +103,7 @@ class ThirdPartyPolicyTest {
     @DisplayName("third-party task ids are not registered here either")
     void thirdPartyTaskIdsAreUnknown() {
         for (String id : THIRD_PARTY_TASKS) {
-            assertFalse(TaskTypes.ids().contains(ResourceLocation.parse(id)),
+            assertFalse(TaskTypes.ids().contains(Identifier.parse(id)),
                     id + " is registered now; this test pins the unregistered path");
         }
     }
@@ -114,7 +114,7 @@ class ThirdPartyPolicyTest {
         UnknownReward unknown = assertInstanceOf(UnknownReward.class,
                 reward("{\"type\": \"eternalcurrencies:currency\", \"amount\": 50}"));
 
-        assertEquals(ResourceLocation.parse("eternalcurrencies:currency"), unknown.type(),
+        assertEquals(Identifier.parse("eternalcurrencies:currency"), unknown.type(),
                 "the id survives, which is what tells the author which economy is missing");
         assertFalse(unknown.autoGrantable(),
                 "an automatic path must leave it for the claim rather than marking it collected"

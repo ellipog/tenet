@@ -1,7 +1,7 @@
 package dev.ellipog.tenet.client;
 
 import dev.ellipog.armature.client.render.GuiRenderer;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A checkmark task's two pictures: the empty box it wears while todo, and the checked box once
@@ -17,18 +17,18 @@ import net.minecraft.resources.ResourceLocation;
 public final class CheckmarkArt {
 
     /** The todo box, by its own path. */
-    public static final ResourceLocation UNCHECKED = ResourceLocation.fromNamespaceAndPath("tenet",
+    public static final Identifier UNCHECKED = Identifier.fromNamespaceAndPath("tenet",
             "textures/gui/checkmark_unchecked.png");
 
     /** The done box, by its own path. */
-    public static final ResourceLocation CHECKED = ResourceLocation.fromNamespaceAndPath("tenet",
+    public static final Identifier CHECKED = Identifier.fromNamespaceAndPath("tenet",
             "textures/gui/checkmark_checked.png");
 
     private CheckmarkArt() {
     }
 
     /** The box this state wears. */
-    public static ResourceLocation forState(boolean done) {
+    public static Identifier forState(boolean done) {
         return done ? CHECKED : UNCHECKED;
     }
 

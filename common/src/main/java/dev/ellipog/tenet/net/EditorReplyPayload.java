@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * What the server did about an edit: yes or no, and the words for it.
@@ -44,7 +44,7 @@ public record EditorReplyPayload(String chapter, boolean ok, String questId, Str
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<EditorReplyPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "editor_reply"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "editor_reply"));
 
     /** A reply to a request that carried no id, which is what a server that does not echo one produces. */
     public static final long NO_REQUEST = 0L;

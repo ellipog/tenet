@@ -11,7 +11,7 @@ import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.levelgen.structure.Structure;
 
@@ -29,7 +29,7 @@ import java.util.function.Function;
  */
 public record StructureTask(TaskCommon common, RegistryRef structure) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "structure");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "structure");
 
     public static final Set<String> FIELDS = Set.of("structure");
 
@@ -39,7 +39,7 @@ public record StructureTask(TaskCommon common, RegistryRef structure) implements
     ).apply(instance, StructureTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 
@@ -52,12 +52,12 @@ public record StructureTask(TaskCommon common, RegistryRef structure) implements
 
         @Override
         public int current(StructureTask task, TaskContext context) {
-            ServerLevel level = context.player().serverLevel();
+            ServerLevel level = context.player().level();
             var containing = level.structureManager().getAllStructuresAt(context.player().blockPosition());
             if (containing.isEmpty()) {
                 return 0;
             }
-            var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+            var registry = level.registryAccess().lookupOrThrow(Registries.STRUCTURE);
             for (Structure structure : containing.keySet()) {
                 boolean found = task.structure().tag()
                         ? registry.wrapAsHolder(structure)

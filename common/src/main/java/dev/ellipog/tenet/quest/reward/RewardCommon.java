@@ -27,7 +27,7 @@ import java.util.Set;
  * simply false, because that is what they mean.
  *
  * <p>{@link #FIELDS} is unioned into every registered type by
- * {@link RewardTypes#register(net.minecraft.resources.ResourceLocation, MapCodec, Set,
+ * {@link RewardTypes#register(net.minecraft.resources.Identifier, MapCodec, Set,
  * RewardBehaviour, dev.ellipog.tenet.quest.ItemRef, java.util.function.Function,
  * java.util.function.Supplier)}, so a type that embeds this codec cannot forget to declare them —
  * and an addon's type that does not embed it is a mistake the validator's codec check reports at

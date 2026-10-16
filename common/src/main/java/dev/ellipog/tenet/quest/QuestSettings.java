@@ -110,8 +110,8 @@ public record QuestSettings(RewardAutoClaim defaultAutoClaim, boolean defaultTea
                     return com.mojang.serialization.DataResult.success(
                             com.mojang.datafixers.util.Pair.of(Optional.empty(), input));
                 }
-                net.minecraft.resources.ResourceLocation id =
-                        net.minecraft.resources.ResourceLocation.tryParse(raw);
+                net.minecraft.resources.Identifier id =
+                        net.minecraft.resources.Identifier.tryParse(raw);
                 if (id == null) {
                     return com.mojang.serialization.DataResult.error(
                             () -> "\"" + raw + "\" is not a namespaced id");

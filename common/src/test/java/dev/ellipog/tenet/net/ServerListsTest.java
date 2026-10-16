@@ -2,33 +2,24 @@ package dev.ellipog.tenet.net;
 
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 
-import net.minecraft.core.Holder;
 import net.minecraft.core.LayeredRegistryAccess;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.RegistryDataLoader;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.RegistryLayer;
-import net.minecraft.server.packs.PackResources;
-import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.ServerPacksSource;
-import net.minecraft.server.packs.resources.CloseableResourceManager;
-import net.minecraft.server.packs.resources.MultiPackResourceManager;
-import net.minecraft.tags.TagKey;
-import net.minecraft.tags.TagLoader;
+import net.minecraft.util.Util;
 import net.minecraft.world.level.levelgen.structure.Structure;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -63,55 +54,39 @@ class ServerListsTest {
     private static Registry<Structure> structures;
 
     /**
-     * The vanilla worldgen registries, loaded exactly as {@code WorldLoader} loads them.
+     * The vanilla worldgen registries, loaded the way {@code WorldLoader} loads them.
      *
-     * <p>{@code RegistryLayer.createRegistryAccess()} is the static layer, and
-     * {@code getAccessForLoading(WORLDGEN)} is what the worldgen entries are read against — the two
-     * calls vanilla makes in {@code loadLayer}. Getting this wrong is not silent: the loader reports every
-     * element it cannot decode.
-     *
-     * <p>The pack is closed once the load has returned, because the load reads every entry eagerly: what
-     * the registries hold afterwards does not need the files any more.
+     * <p>The three calls below are its own sequence: static tags first, then the world
+     * registries with the static lookups as fallback (structure files name biomes and blocks
+     * from other registries, and without the fallbacks the load fails), then the tag bind over
+     * the result. Tags live in a second set of files the entry load does not bind. No world, no
+     * server, no player: what is under test is the gathering, so nothing else is asked for. The
+     * vanilla pack needs no closing: it is in-jar resources, not files.
      */
     @BeforeAll
-    static void loadVanillaWorldgen() throws IOException {
+    static void loadVanillaWorldgen() {
         MinecraftTestBootstrap.boot();
-        PackResources vanilla = ServerPacksSource.createVanillaPackSource();
-        try (CloseableResourceManager packs =
-                     new MultiPackResourceManager(PackType.SERVER_DATA, List.of(vanilla))) {
+        // The pack's full resources, not the manager view: `asResourceManager` exposes none of
+        // the datapack entries, and the load comes back with empty registries that fail
+        // validation. This is the same vanilla pack the old test wrapped, unwrapped.
+        try (var packs = new net.minecraft.server.packs.resources.MultiPackResourceManager(
+                net.minecraft.server.packs.PackType.SERVER_DATA,
+                List.of(ServerPacksSource.createVanillaPackSource().fullResources()))) {
             LayeredRegistryAccess<RegistryLayer> layers = RegistryLayer.createRegistryAccess();
-            worldgen = RegistryDataLoader.load(packs,
-                    layers.getAccessForLoading(RegistryLayer.WORLDGEN),
-                    RegistryDataLoader.WORLDGEN_REGISTRIES);
-            // **And then the tags, which are a second step and a second file.** A registry's tags are not
-            // in the entry files: they live under `data/<ns>/tags/<registry>/`, and vanilla binds them
-            // after every registry is loaded -- `ReloadableServerResources.updateRegistryTags`, called
-            // from `WorldLoader`'s last stage. Without this the structure registry loads with no tags at
-            // all, which is a green-looking fixture that would have agreed with a tag-less list; the first
-            // run of this test failed exactly there.
-            bindStructureTags(packs);
+            var staticTags = net.minecraft.tags.TagLoader.loadTagsForExistingRegistries(
+                    packs, layers.getLayer(RegistryLayer.STATIC));
+            var lookups = net.minecraft.tags.TagLoader.buildUpdatedLookups(
+                    layers.getAccessForLoading(RegistryLayer.WORLD), staticTags);
+            worldgen = RegistryDataLoader.load(packs, lookups, RegistryDataLoader.WORLD_REGISTRIES,
+                    Util.backgroundExecutor()).join();
+            net.minecraft.tags.TagLoader.loadTagsForExistingRegistries(packs, worldgen)
+                    .forEach(pending -> pending.apply());
         }
-        structures = worldgen.registryOrThrow(Registries.STRUCTURE);
-    }
-
-    /**
-     * The two moves the server makes for one registry's tags, taken from vanilla rather than invented.
-     *
-     * <p>{@code TagLoader} over `Registries.tagsDirPath(key)` is what {@code TagManager.createLoader} does,
-     * and {@code bindTags} with one {@code TagKey} per file is what {@code updateRegistryTags} does. Only
-     * the structures are bound: they are this file's subject, and a test that bound every registry would be
-     * a slower way to say the same thing.
-     */
-    private static void bindStructureTags(CloseableResourceManager packs) {
-        Registry<Structure> registry = worldgen.registryOrThrow(Registries.STRUCTURE);
-        TagLoader<Holder<Structure>> loader =
-                new TagLoader<>(registry::getHolder, Registries.tagsDirPath(Registries.STRUCTURE));
-        Map<TagKey<Structure>, List<Holder<Structure>>> tags = loader.loadAndBuild(packs)
-                .entrySet().stream()
-                .collect(Collectors.toUnmodifiableMap(
-                        entry -> TagKey.create(Registries.STRUCTURE, entry.getKey()),
-                        entry -> List.copyOf(entry.getValue())));
-        registry.bindTags(tags);
+        structures = worldgen.registries()
+                .filter(entry -> entry.key().equals(Registries.STRUCTURE))
+                .findFirst()
+                .map(entry -> (Registry<Structure>) entry.value())
+                .orElseThrow(() -> new AssertionError("the load put vanilla structures nowhere"));
     }
 
     @Test
@@ -121,7 +96,7 @@ class ServerListsTest {
 
         Set<String> expected = new TreeSet<>();
         structures.keySet().forEach(id -> expected.add(id.toString()));
-        structures.getTagNames().forEach(tag -> expected.add("#" + tag.location()));
+        structures.getTags().forEach(tag -> expected.add("#" + tag.key().location()));
 
         assertEquals(List.copyOf(expected), sent,
                 "the list the server sends is not the registry it read: a structure the pack has would be "
@@ -146,7 +121,7 @@ class ServerListsTest {
         // label or a translated string would look right in a picker and write a value the codec refuses.
         for (String id : sent) {
             String location = id.startsWith("#") ? id.substring(1) : id;
-            assertNotNull(ResourceLocation.tryParse(location),
+            assertNotNull(Identifier.tryParse(location),
                     id + " is neither an id nor a #tag, and the field's codec takes nothing else");
         }
     }
@@ -158,10 +133,10 @@ class ServerListsTest {
 
         assertTrue(sent.containsAll(structures.keySet().stream().map(Object::toString).toList()),
                 "every structure id has to be offered");
-        assertFalse(structures.getTagNames().toList().isEmpty(),
+        assertFalse(structures.getTags().toList().isEmpty(),
                 "the vanilla datapack defines structure tags, so the tag half of this test is real");
-        for (var tag : structures.getTagNames().toList()) {
-            assertTrue(sent.contains("#" + tag.location()), tag + " is missing from the tag list");
+        for (var tag : structures.getTags().toList()) {
+            assertTrue(sent.contains("#" + tag.key().location()), tag + " is missing from the tag list");
         }
         // Sorted, so a picker's first ten rows are the same ten twice running.
         assertEquals(sent.stream().sorted().toList(), sent, "the list is not sorted");

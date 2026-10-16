@@ -9,7 +9,7 @@ import dev.ellipog.armature.client.ui.kit.Viewport;
 import dev.ellipog.tenet.client.BookGeometry;
 import dev.ellipog.tenet.client.DevMode;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -355,7 +355,7 @@ class ToolsPanelTest {
         // The size the row's picture is drawn at. Without it the recorder answers empty and the
         // thumbnail falls back to its `?`, which is the correct behaviour and not what this test is
         // about -- so the file is taught one, and the drawing is asked to use it.
-        ResourceLocation file = ResourceLocation.parse("minecraft:textures/gui/bg.png");
+        Identifier file = Identifier.parse("minecraft:textures/gui/bg.png");
         r.putTextureSize(file, 32, 16);
 
         ToolsPanel.drawRows(r, listRect, list, layout, rows, state(background, 51), 0, 0);

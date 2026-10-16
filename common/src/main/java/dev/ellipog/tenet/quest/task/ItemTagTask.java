@@ -12,7 +12,7 @@ import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
@@ -33,18 +33,18 @@ import java.util.function.Function;
  * required. The same consumption rules apply: presence checks by default, take the items when
  * {@code consumeItems} says so.
  */
-public record ItemTagTask(TaskCommon common, ResourceLocation tag, int count,
+public record ItemTagTask(TaskCommon common, Identifier tag, int count,
                           Optional<Boolean> consumeItems, boolean onlyFromCrafting,
                           boolean manualOnly) implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "item_tag");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "item_tag");
 
     public static final Set<String> FIELDS = Set.of("tag", "count", "consumeItems", "onlyFromCrafting",
             "manualOnly");
 
     public static final MapCodec<ItemTagTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(20).forGetter(ItemTagTask::common),
-            ResourceLocation.CODEC.fieldOf("tag").forGetter(ItemTagTask::tag),
+            Identifier.CODEC.fieldOf("tag").forGetter(ItemTagTask::tag),
             Codec.intRange(1, 6400).optionalFieldOf("count", 1).forGetter(ItemTagTask::count),
             Codec.BOOL.optionalFieldOf("consumeItems").forGetter(ItemTagTask::consumeItems),
             Codec.BOOL.optionalFieldOf("onlyFromCrafting", false).forGetter(ItemTagTask::onlyFromCrafting),
@@ -52,7 +52,7 @@ public record ItemTagTask(TaskCommon common, ResourceLocation tag, int count,
     ).apply(instance, ItemTagTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

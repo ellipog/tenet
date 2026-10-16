@@ -8,7 +8,7 @@ import dev.ellipog.tenet.quest.condition.QuestCondition;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.task.TaskTypes;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,7 +37,7 @@ class RegisteredTypesTest {
     void taskDefaultsRoundTrip() {
         assertTrue(TaskTypes.count() >= 10, "the built-in catalogue is expected to be complete here");
 
-        for (ResourceLocation id : TaskTypes.ids()) {
+        for (Identifier id : TaskTypes.ids()) {
             Optional<JsonObject> tree = TaskTypes.defaultTree(id);
             assertTrue(tree.isPresent(), id + " has no default tree, so the editor could never add it");
             assertTrue(tree.get().has("type"), id + "'s default tree carries no type field");
@@ -51,7 +51,7 @@ class RegisteredTypesTest {
     @Test
     @DisplayName("a reward type's default tree encodes, decodes, and names its own type")
     void rewardDefaultsRoundTrip() {
-        for (ResourceLocation id : RewardTypes.ids()) {
+        for (Identifier id : RewardTypes.ids()) {
             Optional<JsonObject> tree = RewardTypes.defaultTree(id);
             assertTrue(tree.isPresent(), id + " has no default tree, so the editor could never add it");
 
@@ -66,7 +66,7 @@ class RegisteredTypesTest {
     void conditionDefaultsRoundTrip() {
         assertTrue(ConditionTypes.count() >= 6, "the built-in catalogue is expected to be complete here");
 
-        for (ResourceLocation id : ConditionTypes.ids()) {
+        for (Identifier id : ConditionTypes.ids()) {
             Optional<JsonObject> tree = ConditionTypes.defaultTree(id);
             assertTrue(tree.isPresent(), id + " has no default tree, so a picker could never add it");
             assertTrue(tree.get().has("type"), id + "'s default tree carries no type field");

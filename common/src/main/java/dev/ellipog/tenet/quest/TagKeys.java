@@ -2,7 +2,7 @@ package dev.ellipog.tenet.quest;
 
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 
 import java.util.Map;
@@ -27,7 +27,7 @@ public final class TagKeys {
     private TagKeys() {
     }
 
-    private static final Map<ResourceKey<?>, Map<ResourceLocation, TagKey<?>>> KEYS =
+    private static final Map<ResourceKey<?>, Map<Identifier, TagKey<?>>> KEYS =
             new ConcurrentHashMap<>();
 
     /**
@@ -37,10 +37,10 @@ public final class TagKeys {
      * null id, which stays a loud error rather than a quiet miss.
      */
     @SuppressWarnings("unchecked")
-    public static <T> TagKey<T> of(ResourceKey<? extends Registry<T>> registry, ResourceLocation id) {
+    public static <T> TagKey<T> of(ResourceKey<? extends Registry<T>> registry, Identifier id) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(id, "id");
-        Map<ResourceLocation, TagKey<?>> byId =
+        Map<Identifier, TagKey<?>> byId =
                 KEYS.computeIfAbsent(registry, missing -> new ConcurrentHashMap<>());
         return (TagKey<T>) byId.computeIfAbsent(id, missing -> TagKey.create(registry, missing));
     }

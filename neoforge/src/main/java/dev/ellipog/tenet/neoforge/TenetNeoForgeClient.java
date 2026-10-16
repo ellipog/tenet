@@ -76,7 +76,7 @@ public final class TenetNeoForgeClient {
         ArmatureClient.registerKeyMapping(
                 Tenet.QUEST_BOOK_SCREEN,
                 InputConstants.KEY_B,
-                "key.categories.tenet",
+                net.minecraft.resources.Identifier.fromNamespaceAndPath("tenet", "main"),
                 // Refused with the pack's sentence when the pack disabled its book, like every
                 // other open. See `QuestBookScreen.checkOpenAllowed`.
                 () -> {
@@ -89,10 +89,10 @@ public final class TenetNeoForgeClient {
         ArmatureClient.registerKeyMapping(
                 Tenet.HUD_EDIT_SCREEN,
                 InputConstants.KEY_H,
-                "key.categories.tenet",
+                net.minecraft.resources.Identifier.fromNamespaceAndPath("tenet", "main"),
                 () -> ArmatureClient.openScreen(Tenet.HUD_EDIT_SCREEN));
 
-        // The quest book's other door: a control on every container screen, wherever EMI and JEI draw.
+        // The quest book's other door: a control on every container screen, wherever JEI and REI draw.
         // `addListener` is this loader's way of putting a widget on a screen that is being initialised,
         // and it is the whole of the loader-shaped half; what to add and where is Tenet's, in
         // `InventoryQuestBookButton`.
@@ -108,14 +108,18 @@ public final class TenetNeoForgeClient {
         // keeps the ones that land nowhere near a pin. A press on a box opens the book on that quest,
         // which closes chat; anything typed but unsent goes with it, which is the documented cost.
         NeoForge.EVENT_BUS.addListener((ScreenEvent.MouseButtonPressed.Pre event) -> {
-            if (!(event.getScreen() instanceof ChatScreen) || event.getButton() != 0) {
+            // Left is 1 on SDL, where it was 0 on GLFW: asked as a comparison rather than a
+            // constant 0, which now matches every button and would let middle and right presses
+            // open quests from chat.
+            if (!(event.getScreen() instanceof ChatScreen)
+                    || event.getButton() != InputConstants.MOUSE_BUTTON_LEFT) {
                 return;
             }
             var game = Minecraft.getInstance();
             var player = game.player;
             Measure measure = Measure.of(game.font::width, game.font.lineHeight);
             String quest = HudOverlay.pinAt(measure, game.getWindow().getGuiScaledWidth(),
-                    game.getWindow().getGuiScaledHeight(), net.minecraft.Util.getMillis(),
+                    game.getWindow().getGuiScaledHeight(), net.minecraft.util.Util.getMillis(),
                     player == null ? null : player.getUUID(), event.getMouseX(), event.getMouseY());
             if (quest == null) {
                 return;
@@ -135,7 +139,7 @@ public final class TenetNeoForgeClient {
             Measure measure = Measure.of(game.font::width, game.font.lineHeight);
             HudOverlay.drawPinHover(new GuiGraphicsRenderer(event.getGuiGraphics()), measure,
                     game.getWindow().getGuiScaledWidth(), game.getWindow().getGuiScaledHeight(),
-                    net.minecraft.Util.getMillis(), player == null ? null : player.getUUID(),
+                    net.minecraft.util.Util.getMillis(), player == null ? null : player.getUUID(),
                     event.getMouseX(), event.getMouseY());
         });
 
@@ -153,7 +157,7 @@ public final class TenetNeoForgeClient {
             var graphics = event.getGuiGraphics();
             var player = net.minecraft.client.Minecraft.getInstance().player;
             HudOverlay.render(new GuiGraphicsRenderer(graphics), graphics.guiWidth(), graphics.guiHeight(),
-                    net.minecraft.Util.getMillis(), player == null ? null : player.getUUID());
+                    net.minecraft.util.Util.getMillis(), player == null ? null : player.getUUID());
         });
 
         // No developer screen and no F9: the tools are a panel in the book, reached from its header.

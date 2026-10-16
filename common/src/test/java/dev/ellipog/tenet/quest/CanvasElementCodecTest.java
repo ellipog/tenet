@@ -127,7 +127,7 @@ class CanvasElementCodecTest {
         assertTrue(image.corner());
         assertTrue(image.locked(), "pinned against the editor's drag");
         assertEquals(new ImageSource.Texture(
-                net.minecraft.resources.ResourceLocation.parse("atm:textures/questpics/chap4.png")),
+                net.minecraft.resources.Identifier.parse("atm:textures/questpics/chap4.png")),
                 image.image());
         assertEquals(0x80FF0000, image.tint());
         assertEquals(200, image.alpha());
@@ -143,7 +143,7 @@ class CanvasElementCodecTest {
     @DisplayName("a picture's source is one of a file or a sprite, and both survive a round trip")
     void theTwoImageArms() {
         assertEquals(new ImageSource.Sprite(
-                        net.minecraft.resources.ResourceLocation.parse("minecraft:block/sculk")),
+                        net.minecraft.resources.Identifier.parse("minecraft:block/sculk")),
                 assertInstanceOf(CanvasElement.Image.class,
                         read("{ \"type\": \"image\", \"id\": \"s\", \"image\": "
                                 + "{ \"sprite\": \"minecraft:block/sculk\" } }")).image());
@@ -152,7 +152,7 @@ class CanvasElementCodecTest {
         // refuse it without refusing the document, and `QuestValidator` is the half that reports it. Pinned
         // here so the validator's message and this behaviour stay describing the same thing.
         assertEquals(new ImageSource.Texture(
-                        net.minecraft.resources.ResourceLocation.parse("pack:textures/x.png")),
+                        net.minecraft.resources.Identifier.parse("pack:textures/x.png")),
                 assertInstanceOf(CanvasElement.Image.class,
                         read("{ \"type\": \"image\", \"id\": \"b\", \"image\": "
                                 + "{ \"texture\": \"pack:textures/x.png\", \"sprite\": \"minecraft:air\" } }"))

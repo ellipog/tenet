@@ -4,7 +4,7 @@ import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A task whose type this build has no codec for, kept rather than thrown away.
@@ -40,7 +40,7 @@ import net.minecraft.resources.ResourceLocation;
  * id that was in the file, which is precisely the id the registry does <b>not</b> have. Registering it
  * would need one id, and there is one of these per unknown id.
  */
-public record UnknownTask(TaskCommon common, ResourceLocation type) implements QuestTask {
+public record UnknownTask(TaskCommon common, Identifier type) implements QuestTask {
 
     /**
      * The shape a decoded unknown task takes: no settings of its own, since the file's own
@@ -49,7 +49,7 @@ public record UnknownTask(TaskCommon common, ResourceLocation type) implements Q
      * <p>{@link TaskCommon#DEFAULT} rather than null, which is what makes {@code optional()} answer
      * false and every other accessor on this record safe to call.
      */
-    public static UnknownTask of(ResourceLocation type) {
+    public static UnknownTask of(Identifier type) {
         return new UnknownTask(TaskCommon.DEFAULT, type);
     }
 

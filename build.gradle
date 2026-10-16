@@ -1,8 +1,11 @@
 plugins {
-    // see https://fabricmc.net/develop/ for new versions
-    id 'fabric-loom' version '1.8-SNAPSHOT' apply false
+    // see https://fabricmc.net/develop/ for new versions. 26.x is unobfuscated, so this is the
+    // no-remap plugin id; modImplementation/modCompileOnly/remapJar do not exist here -- the
+    // standard implementation/compileOnly/jar configurations are used instead (see fabric/build.gradle
+    // and the deploy tasks below).
+    id 'net.fabricmc.fabric-loom' version '1.17.21' apply false
     // see https://projects.neoforged.net/neoforged/moddevgradle for new versions
-    id 'net.neoforged.moddev' version '2.0.49-beta' apply false
+    id 'net.neoforged.moddev' version '2.0.148' apply false
 }
 
 // ---------------------------------------------------------------------------
@@ -83,7 +86,7 @@ def registerDeploy = { String taskName, String subproject, String jarTask, Strin
     }
 }
 
-registerDeploy('deployFabric',   'fabric',   'remapJar', 'testModsDirFabric')
+registerDeploy('deployFabric',   'fabric',   'jar', 'testModsDirFabric')
 registerDeploy('deployNeoForge', 'neoforge', 'jar',      'testModsDirNeoForge')
 
 tasks.register('deployAll') {

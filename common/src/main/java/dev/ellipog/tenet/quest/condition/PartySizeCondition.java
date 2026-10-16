@@ -7,7 +7,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.ellipog.armature.api.teams.Teams;
 import dev.ellipog.tenet.Tenet;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Set;
@@ -28,7 +28,7 @@ import java.util.function.Function;
  */
 public record PartySizeCondition(int min) implements QuestCondition {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "party_size");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "party_size");
 
     public static final Set<String> FIELDS = Set.of("min");
 
@@ -37,7 +37,7 @@ public record PartySizeCondition(int min) implements QuestCondition {
     ).apply(instance, PartySizeCondition::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

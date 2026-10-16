@@ -4,13 +4,14 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 
 import dev.ellipog.tenet.quest.ItemRef;
+import dev.ellipog.tenet.quest.ItemStacks;
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -44,13 +45,13 @@ class ItemTaskTest {
 
     private static ItemTask task(int count, Optional<Boolean> consume) {
         return new ItemTask(new TaskCommon(false, 20),
-                new ItemRef(ResourceLocation.parse("minecraft:oak_log"), count),
+                new ItemRef(Identifier.parse("minecraft:oak_log"), count),
                 consume, ComponentMatch.STRICT, false, false);
     }
 
     private static ItemTask manual(int count) {
         return new ItemTask(new TaskCommon(false, 20),
-                new ItemRef(ResourceLocation.parse("minecraft:oak_log"), count),
+                new ItemRef(Identifier.parse("minecraft:oak_log"), count),
                 Optional.empty(), ComponentMatch.STRICT, false, true);
     }
 
@@ -69,10 +70,10 @@ class ItemTaskTest {
     @Test
     @DisplayName("none looks at the item alone, fuzzy at the filter's data, strict at the whole stack")
     void matchModes() {
-        ItemStack plain = new ItemStack(Items.OAK_LOG);
-        ItemStack named = new ItemStack(Items.OAK_LOG);
+        ItemStack plain = ItemStacks.stackOf(Items.OAK_LOG);
+        ItemStack named = ItemStacks.stackOf(Items.OAK_LOG);
         named.set(DataComponents.CUSTOM_NAME, Component.literal("Oakie"));
-        ItemStack stone = new ItemStack(Items.STONE);
+        ItemStack stone = ItemStacks.stackOf(Items.STONE);
 
         assertTrue(ComponentMatch.NONE.matches(plain, named), "the item alone is the same item");
         assertTrue(ComponentMatch.FUZZY.matches(plain, named),

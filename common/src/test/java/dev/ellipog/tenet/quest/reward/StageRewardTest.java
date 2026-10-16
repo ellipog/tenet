@@ -5,7 +5,7 @@ import com.mojang.serialization.JsonOps;
 
 import dev.ellipog.tenet.quest.QuestReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class StageRewardTest {
 
     private static StageReward reward(String stage, boolean remove, boolean teamStage) {
-        return new StageReward(RewardCommon.DEFAULT, ResourceLocation.parse(stage), remove,
+        return new StageReward(RewardCommon.DEFAULT, Identifier.parse(stage), remove,
                 teamStage);
     }
 

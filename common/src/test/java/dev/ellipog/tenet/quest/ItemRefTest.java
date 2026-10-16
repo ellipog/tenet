@@ -5,7 +5,7 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -44,14 +44,14 @@ class ItemRefTest {
         DataComponentPatch patch = DataComponentPatch.builder()
                 .set(DataComponents.DAMAGE, 5)
                 .build();
-        ItemRef ref = new ItemRef(ResourceLocation.withDefaultNamespace("diamond_sword"), 2, patch);
+        ItemRef ref = new ItemRef(Identifier.withDefaultNamespace("diamond_sword"), 2, patch);
 
         JsonElement wire = ItemRef.CODEC.encodeStart(JsonOps.INSTANCE, ref).getOrThrow();
         assertTrue(wire.getAsJsonObject().has("components"),
                 "the patch travels as its own field, in the same shape a quest file uses");
         ItemRef read = ItemRef.CODEC.parse(JsonOps.INSTANCE, wire).getOrThrow();
 
-        assertEquals(ResourceLocation.withDefaultNamespace("diamond_sword"), read.item());
+        assertEquals(Identifier.withDefaultNamespace("diamond_sword"), read.item());
         assertEquals(2, read.toStack().getCount(), "count and all");
         assertEquals(5, read.toStack().getDamageValue(), "the stack arrives damaged, as it was written");
     }
@@ -59,13 +59,13 @@ class ItemRefTest {
     @Test
     @DisplayName("a plain reference has no patch, and a damaged one is not the same stack")
     void componentsMakeADifferentStack() {
-        ItemRef plain = new ItemRef(ResourceLocation.withDefaultNamespace("diamond_sword"), 1);
+        ItemRef plain = new ItemRef(Identifier.withDefaultNamespace("diamond_sword"), 1);
         assertTrue(plain.components().isEmpty(), "nothing custom, nothing to carry");
-        assertTrue(ItemStack.isSameItemSameComponents(new ItemStack(Items.DIAMOND_SWORD),
+        assertTrue(ItemStack.isSameItemSameComponents(ItemStacks.stackOf(Items.DIAMOND_SWORD),
                         plain.toStack()),
                 "so the template is the plain stack");
 
-        ItemRef damaged = new ItemRef(ResourceLocation.withDefaultNamespace("diamond_sword"), 1,
+        ItemRef damaged = new ItemRef(Identifier.withDefaultNamespace("diamond_sword"), 1,
                 DataComponentPatch.builder().set(DataComponents.DAMAGE, 3).build());
         assertFalse(ItemStack.isSameItemSameComponents(damaged.toStack(), plain.toStack()),
                 "which is why a task naming the damaged sword is not satisfied by a pristine one -- "
@@ -91,16 +91,19 @@ class ItemRefTest {
                 "a string holding JSON is a text component on JsonOps");
 
         JsonElement written = ItemRef.CODEC.encodeStart(JsonOps.INSTANCE, ref).getOrThrow();
-        assertEquals("\"Tempered Pickaxe\"",
+        // On 26.x vanilla writes a literal component back as its bare string rather than the
+        // nested quoted form 1.21.1 wrote. Either spelling reads to the same name through the
+        // leniency above, so the editor's files carry whatever vanilla writes.
+        assertEquals("Tempered Pickaxe",
                 written.getAsJsonObject().getAsJsonObject("components")
                         .get("minecraft:custom_name").getAsString(),
-                "and the codec writes that same nested form, which is what the editor's files carry");
+                "and the codec writes a form that reads back to the same name");
     }
 
     @Test
     @DisplayName("an unknown item still resolves to nothing, patch or no patch")
     void unknownItemsStayEmpty() {
-        ItemRef gone = new ItemRef(ResourceLocation.fromNamespaceAndPath("someothermod", "widget"), 1,
+        ItemRef gone = new ItemRef(Identifier.fromNamespaceAndPath("someothermod", "widget"), 1,
                 DataComponentPatch.builder().set(DataComponents.DAMAGE, 1).build());
 
         assertFalse(gone.isKnown(), "the mod is not installed");

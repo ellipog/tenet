@@ -4,12 +4,13 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 
 import dev.ellipog.tenet.quest.ItemRef;
+import dev.ellipog.tenet.quest.ItemStacks;
 import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.task.ComponentMatch;
 import dev.ellipog.tenet.quest.task.ItemCounting;
 
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -44,11 +45,11 @@ class ItemConditionTest {
     }
 
     private static ItemCondition requiring(String item, int count) {
-        return new ItemCondition(new ItemRef(ResourceLocation.parse(item), count), ComponentMatch.STRICT);
+        return new ItemCondition(new ItemRef(Identifier.parse(item), count), ComponentMatch.STRICT);
     }
 
     private static Inventory stocked(ItemStack... stacks) {
-        Inventory inventory = new Inventory(null);
+        Inventory inventory = new Inventory(null, new net.minecraft.world.entity.EntityEquipment());
         for (int slot = 0; slot < stacks.length; slot++) {
             inventory.setItem(slot, stacks[slot]);
         }
@@ -64,7 +65,7 @@ class ItemConditionTest {
     @Test
     @DisplayName("enough of the named item counts, across slots, and one short does not")
     void threshold() {
-        Inventory inventory = stocked(new ItemStack(Items.IRON_INGOT, 5), new ItemStack(Items.IRON_INGOT, 3));
+        Inventory inventory = stocked(ItemStacks.stackOf(Items.IRON_INGOT, 5), ItemStacks.stackOf(Items.IRON_INGOT, 3));
 
         assertTrue(meets(inventory, requiring("minecraft:iron_ingot", 8)), "five and three is eight");
         assertFalse(meets(inventory, requiring("minecraft:iron_ingot", 9)), "and not nine");
@@ -73,7 +74,7 @@ class ItemConditionTest {
     @Test
     @DisplayName("only the named item counts toward the total")
     void onlyTheNamedItem() {
-        Inventory inventory = stocked(new ItemStack(Items.DIRT, 64));
+        Inventory inventory = stocked(ItemStacks.stackOf(Items.DIRT, 64));
 
         assertFalse(meets(inventory, requiring("minecraft:iron_ingot", 1)),
                 "a chest of dirt is not one ingot");
@@ -82,10 +83,10 @@ class ItemConditionTest {
     @Test
     @DisplayName("the match mode decides whether a damaged sword is the plain one")
     void matchMode() {
-        ItemStack damaged = new ItemStack(Items.DIAMOND_SWORD);
+        ItemStack damaged = ItemStacks.stackOf(Items.DIAMOND_SWORD);
         damaged.set(DataComponents.DAMAGE, 3);
         Inventory inventory = stocked(damaged);
-        ItemRef plain = new ItemRef(ResourceLocation.parse("minecraft:diamond_sword"), 1);
+        ItemRef plain = new ItemRef(Identifier.parse("minecraft:diamond_sword"), 1);
 
         assertTrue(meets(inventory, new ItemCondition(plain, ComponentMatch.NONE)),
                 "none compares the item alone");
@@ -96,7 +97,7 @@ class ItemConditionTest {
     @Test
     @DisplayName("the row is drawn with the item itself, count and all")
     void display() {
-        ItemRef ref = new ItemRef(ResourceLocation.parse("minecraft:iron_ingot"), 8);
+        ItemRef ref = new ItemRef(Identifier.parse("minecraft:iron_ingot"), 8);
 
         assertEquals(Optional.of(ref), ItemCondition.DISPLAY.apply(requiring("minecraft:iron_ingot", 8)).item());
     }
@@ -108,7 +109,7 @@ class ItemConditionTest {
                 .parse(JsonOps.INSTANCE, JsonParser.parseString(
                         "{\"type\": \"tenet:item\", \"item\": \"minecraft:iron_ingot\", \"count\": 8}"))
                 .result().orElseThrow(() -> new AssertionError("did not decode")));
-        assertEquals(new ItemRef(ResourceLocation.parse("minecraft:iron_ingot"), 8), parsed.item());
+        assertEquals(new ItemRef(Identifier.parse("minecraft:iron_ingot"), 8), parsed.item());
         assertEquals(ComponentMatch.STRICT, parsed.match());
 
         var plain = assertInstanceOf(ItemCondition.class, ConditionTypes.dispatchCodec()
@@ -117,6 +118,6 @@ class ItemConditionTest {
                 .result().orElseThrow(() -> new AssertionError("did not decode")));
         assertEquals(1, plain.item().count(), "an absent count means one");
         assertEquals(ComponentMatch.STRICT, plain.match(), "an absent match is strict, like the task");
-        assertEquals(ResourceLocation.parse("tenet:item"), plain.type());
+        assertEquals(Identifier.parse("tenet:item"), plain.type());
     }
 }

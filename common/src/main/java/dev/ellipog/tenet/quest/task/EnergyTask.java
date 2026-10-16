@@ -8,7 +8,7 @@ import dev.ellipog.armature.api.energy.EnergyAccesses;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 import dev.ellipog.tenet.quest.TaskContext;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Set;
@@ -38,7 +38,7 @@ import java.util.function.Function;
 public record EnergyTask(TaskCommon common, int value, int maxInput, boolean manualOnly)
         implements QuestTask {
 
-    public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "energy");
+    public static final Identifier TYPE = Identifier.fromNamespaceAndPath(Tenet.MOD_ID, "energy");
 
     public static final Set<String> FIELDS = Set.of("value", "maxInput", "manualOnly");
 
@@ -51,7 +51,7 @@ public record EnergyTask(TaskCommon common, int value, int maxInput, boolean man
     ).apply(instance, EnergyTask::new));
 
     @Override
-    public ResourceLocation type() {
+    public Identifier type() {
         return TYPE;
     }
 

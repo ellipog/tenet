@@ -6,7 +6,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * Every outstanding reward of one chapter, collected from the claim menu's banner.
@@ -49,7 +49,7 @@ public record ClaimChapterPayload(String chapterId, ClaimFilter filter) implemen
      */
     public static final CustomPacketPayload.Type<ClaimChapterPayload> TYPE =
             new CustomPacketPayload.Type<>(
-                    ResourceLocation.fromNamespaceAndPath("tenet", "claim_chapter"));
+                    Identifier.fromNamespaceAndPath("tenet", "claim_chapter"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, ClaimChapterPayload> CODEC =
             StreamCodec.composite(

@@ -16,7 +16,7 @@ import dev.ellipog.tenet.client.BookGeometry;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -382,16 +382,17 @@ public final class HudEditScreen extends ArmatureScreen {
      * a strength unreachable from the keyboard that reaches everything else.
      */
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
+        int keyCode = event.key();
         if (selected != null && !(getFocused() instanceof ArmatureSlider)
                 && (keyCode == InputConstants.KEY_UP || keyCode == InputConstants.KEY_DOWN
                         || keyCode == InputConstants.KEY_LEFT || keyCode == InputConstants.KEY_RIGHT)) {
             nudgeSelected(keyCode == InputConstants.KEY_LEFT ? -1 : keyCode == InputConstants.KEY_RIGHT ? 1 : 0,
                     keyCode == InputConstants.KEY_UP ? -1 : keyCode == InputConstants.KEY_DOWN ? 1 : 0,
-                    Screen.hasShiftDown() ? 10 : 1);
+                    event.hasShiftDown() ? 10 : 1);
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     /** Moves the selected element by exact pixels, and writes where it landed. */

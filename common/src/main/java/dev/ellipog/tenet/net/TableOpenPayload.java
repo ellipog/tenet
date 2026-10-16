@@ -4,7 +4,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * The server telling a client to open a table's editor.
@@ -22,7 +22,7 @@ public record TableOpenPayload(String table) implements CustomPacketPayload {
 
     /** The payload's id. The constructor, not {@code createType} — see {@link QuestSyncPayload#TYPE}. */
     public static final CustomPacketPayload.Type<TableOpenPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("tenet", "table_open"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("tenet", "table_open"));
 
     public static final StreamCodec<? super RegistryFriendlyByteBuf, TableOpenPayload> CODEC =
             StreamCodec.composite(

@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 
@@ -39,13 +39,13 @@ class BreakMatchTest {
         MinecraftTestBootstrap.boot();
     }
 
-    private static BreakTask breaking(Optional<ResourceLocation> block, Optional<ResourceLocation> tag,
+    private static BreakTask breaking(Optional<Identifier> block, Optional<Identifier> tag,
                                       Optional<String> state, int value) {
         return new BreakTask(new TaskCommon(false, 20), block, tag, state, value, false);
     }
 
     private static BreakTask breaking(String block, int value) {
-        return breaking(Optional.of(ResourceLocation.parse(block)), Optional.empty(), Optional.empty(),
+        return breaking(Optional.of(Identifier.parse(block)), Optional.empty(), Optional.empty(),
                 value);
     }
 
@@ -77,18 +77,18 @@ class BreakMatchTest {
     void tagPrecedence() {
         var stone = Blocks.STONE.defaultBlockState();
 
-        assertFalse(breaking(Optional.empty(), Optional.of(ResourceLocation.parse("minecraft:logs")),
+        assertFalse(breaking(Optional.empty(), Optional.of(Identifier.parse("minecraft:logs")),
                         Optional.empty(), 1).matches(stone),
                 "stone is not a log");
         assertFalse(breaking(Optional.empty(),
-                        Optional.of(ResourceLocation.parse("minecraft:tag_no_datapack_declares")),
+                        Optional.of(Identifier.parse("minecraft:tag_no_datapack_declares")),
                         Optional.empty(), 1).matches(Blocks.OAK_LOG.defaultBlockState()),
                 "a tag nothing declares matches nothing, whatever the datapack situation");
         // The precedence half: the id alone would match, but the tag is asked first and answers
         // no — so the task counts nothing. That is the kill rule ("the tag wins when both are
         // named"), and it holds in a bare JVM precisely because the tag answers false there.
-        assertFalse(breaking(Optional.of(ResourceLocation.parse("minecraft:stone")),
-                        Optional.of(ResourceLocation.parse("minecraft:tag_no_datapack_declares")),
+        assertFalse(breaking(Optional.of(Identifier.parse("minecraft:stone")),
+                        Optional.of(Identifier.parse("minecraft:tag_no_datapack_declares")),
                         Optional.empty(), 1).matches(stone),
                 "a tag takes precedence over the id, even when the id would match");
     }
@@ -103,7 +103,7 @@ class BreakMatchTest {
         assertTrue(wheat.matches(ripe), "ripe wheat is wheat");
         assertTrue(wheat.matches(green), "and so is green wheat, without a predicate");
 
-        var ripeOnly = breaking(Optional.of(ResourceLocation.parse("minecraft:wheat")),
+        var ripeOnly = breaking(Optional.of(Identifier.parse("minecraft:wheat")),
                 Optional.empty(), Optional.of("minecraft:wheat[age=7]"), 16);
         assertTrue(ripeOnly.matches(ripe));
         assertFalse(ripeOnly.matches(green), "the property is part of the filter");
@@ -121,7 +121,7 @@ class BreakMatchTest {
     @Test
     @DisplayName("an unparsable state predicate matches nothing")
     void unparsableStateMatchesNothing() {
-        var task = breaking(Optional.of(ResourceLocation.parse("minecraft:wheat")),
+        var task = breaking(Optional.of(Identifier.parse("minecraft:wheat")),
                 Optional.empty(), Optional.of("minecraft:wheat[age=sideways]"), 16);
 
         // Fail-closed like the kill task's NBT filter; the validator refuses this at the
@@ -147,7 +147,7 @@ class BreakMatchTest {
         assertEquals("minecraft:stone", breaking("minecraft:stone", 10).target());
         assertEquals("10 x minecraft:stone", breaking("minecraft:stone", 10).description());
         assertEquals("#minecraft:logs", breaking(Optional.empty(),
-                Optional.of(ResourceLocation.parse("minecraft:logs")), Optional.empty(), 32).target());
+                Optional.of(Identifier.parse("minecraft:logs")), Optional.empty(), 32).target());
         assertEquals("anything",
                 breaking(Optional.empty(), Optional.empty(), Optional.empty(), 1).target());
     }

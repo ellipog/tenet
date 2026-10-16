@@ -2,7 +2,7 @@ package dev.ellipog.tenet.quest;
 
 import dev.ellipog.tenet.quest.reward.RewardCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Optional;
 
@@ -21,7 +21,7 @@ import java.util.Optional;
 public interface QuestReward {
 
     /** Which registered type this is. The value of the JSON {@code "type"} field. */
-    ResourceLocation type();
+    Identifier type();
 
     /** The settings every reward has, whatever its type. See {@link RewardCommon}. */
     RewardCommon common();

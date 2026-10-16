@@ -7,7 +7,7 @@ import dev.ellipog.tenet.quest.MinecraftTestBootstrap;
 import dev.ellipog.tenet.quest.QuestTask;
 import dev.ellipog.tenet.quest.TaskCommon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -36,7 +36,7 @@ class StageTaskTest {
 
     private static StageTask task(boolean teamStage) {
         return new StageTask(new TaskCommon(false, 20),
-                ResourceLocation.parse("example:left_the_village"), teamStage);
+                Identifier.parse("example:left_the_village"), teamStage);
     }
 
     private static QuestTask decoded(String text) {

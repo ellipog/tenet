@@ -8,7 +8,7 @@ import dev.ellipog.tenet.quest.reward.RewardCommon;
 import dev.ellipog.tenet.quest.reward.TableReward;
 import dev.ellipog.tenet.quest.reward.XpReward;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +43,7 @@ class TableExportTest {
 
     private static ItemReward item(String id, int count, int bonus) {
         return new ItemReward(RewardCommon.DEFAULT,
-                new ItemRef(ResourceLocation.withDefaultNamespace(id), count), bonus, false);
+                new ItemRef(Identifier.withDefaultNamespace(id), count), bonus, false);
     }
 
     private static RewardTable table(RewardTable.Entry... entries) {
