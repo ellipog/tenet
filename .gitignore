@@ -1,6 +1,10 @@
 # plan is a local working document, not committed
 plan.md
 
+# vscode. Personal editor config -- launch profiles, workspace settings -- is not
+# something a clone should carry, same as the eclipse and idea blocks below.
+.vscode/
+
 # eclipse
 bin
 *.launch
