@@ -17,8 +17,10 @@ not content.
 ## Playing
 
 Install **Tenet and Armature** together, on client and server. The loader will name
-Armature if it is missing. See the Modrinth page for the supported Minecraft version
-and which Armature release to pair with this one.
+Armature if it is missing. See the
+[CurseForge page](https://www.curseforge.com/minecraft/mc-mods/tenet) for the supported
+Minecraft version, and pair it with the matching
+[Armature](https://www.curseforge.com/minecraft/mc-mods/armature-lib) release.
 
 Open the book with the Quest Book item or the `B` key. Details live in the manual:
 
