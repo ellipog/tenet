@@ -12,7 +12,7 @@ editing their own game.
 | Minecraft | 1.21.1, on Fabric or NeoForge |
 | Fabric | Fabric Loader 0.16.9+, with Fabric API 0.109.0+1.21.1 |
 | NeoForge | 21.1.252+ |
-| Armature | 1.0.0+, required on both loaders ([[armature:index]] is the library Tenet is built on) |
+| Armature | 1.1.0+, required on both loaders ([[armature:index]] is the library Tenet is built on) |
 | KubeJS | optional, NeoForge only, 2101.7.2+ (see [[tenet:authoring/kubejs]]) |
 
 Tenet ships no questlines of its own. It is an engine, and installing it does not put somebody else's
