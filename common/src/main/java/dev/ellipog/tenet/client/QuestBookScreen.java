@@ -136,7 +136,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.UUID;
 
 /**
@@ -254,6 +253,12 @@ public final class QuestBookScreen extends ArmatureScreen
     /** The sidebar's footer, as two rows of its own. Four controls do not fit across one. */
     private static final int ROW_HEIGHT = BookGeometry.ROW_HEIGHT;
     private static final int ROW_GAP = BookGeometry.ROW_GAP;
+
+    /** The quest book's texture picker. See {@link BookTexturePicker}. */
+    final BookTexturePicker texturePicker = new BookTexturePicker(this);
+
+    /** The quest book's row drag. See {@link BookRowDrag}. */
+    final BookRowDrag rowDrag = new BookRowDrag(this);
 
     /**
      * The layout, rebuilt when the window changes size.
@@ -833,7 +838,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * the shape every kind had before this mode existed, so a path that somehow forgot to set it draws what
      * it always drew rather than nothing.
      */
-    private PanelKind surfaceKind = PanelKind.NONE;
+    PanelKind surfaceKind = PanelKind.NONE;
 
     /** What the player asked the second column to do. Read at startup, written when the fold is pressed. */
     private PanelStack.Fold foldChoice = PanelStack.Fold.AUTO;
@@ -1042,7 +1047,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * Only with no exit anywhere does the cleanup run now — a close that moved nothing has no surface to
      * draw from, so deferring would only leak it to the next settle.
      */
-    private void deferForLastDeparted(Runnable teardown) {
+    void deferForLastDeparted(Runnable teardown) {
         deferForLastDeparted(teardown, new PanelKind[0]);
     }
 
@@ -2276,7 +2281,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private List<ToolsLayout.Action> chapterAppearanceRows = List.of();
 
     /** The panel's list: its rows are widgets, so they move when it scrolls. */
-    private final dev.ellipog.armature.client.ui.kit.ScrollView toolsView =
+    final dev.ellipog.armature.client.ui.kit.ScrollView toolsView =
             dev.ellipog.armature.client.ui.kit.ScrollView.of(
                     dev.ellipog.armature.client.ui.kit.Viewport.fixed());
 
@@ -2867,7 +2872,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * because it expires on a different signal: the settings preview reads the tree, which arrives in
      * milliseconds, while these fields read the replica, which lags by up to its retry window.
      */
-    private static final dev.ellipog.tenet.client.dev.FieldDraft fieldDraft =
+    static final dev.ellipog.tenet.client.dev.FieldDraft fieldDraft =
             new dev.ellipog.tenet.client.dev.FieldDraft();
 
     /**
@@ -2930,8 +2935,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * is why several comments in this file still name the inspector: the chapter's rows are the drawer's
      * now, and the inspector keeps the quest card, the settings card and the rewards list.
      */
-    private List<ToolsLayout.Action> chapterRows = List.of();
-    private Layout chapterLayout;
+    List<ToolsLayout.Action> chapterRows = List.of();
+    Layout chapterLayout;
 
     /**
      * The Chapter tab's header: its name, its icon, and the id that icon was resolved from.
@@ -3150,30 +3155,13 @@ public final class QuestBookScreen extends ArmatureScreen
     /** The list's scroll, its clamp and its bar as one object, on the type page's own terms. */
     private final Viewport pickerBody = Viewport.fixed();
     private final ScrollBar pickerBar = new ScrollBar(pickerBody);
-
-    /**
-     * The texture picker's own state -- catalogue, query, list and scroll -- beside the item picker's
-     * and sharing none of it.
-     *
-     * <h2>Why a second set of fields rather than reuse</h2>
-     *
-     * <p>The item picker's state describes a field of a quest, a chapter's identity or the book's icon;
-     * the texture picker's describes a file choice over the pack's own resources. Folding them together
-     * would make opening one picker depend on the other's target and leave a stale "current" id naming a
-     * field the open list is not about -- the same reasoning that gave the picker an overlay of its own
-     * rather than a page of the quest card. The card's <i>shape</i> is shared (see
-     * {@code ItemPickerLayout.Frame}); the state is not.
-     */
-    private List<ItemPicker.Entry> textureCatalogue;
-    private List<ItemPicker.Entry> textureMatches = List.of();
-    private List<ItemPickerLayout.Row> textureRows = List.of();
-    private ItemPickerLayout.Frame textureFrame;
-    private ArmatureTextField textureSearch;
-    private String textureQuery = "";
-    private int textureSelected = -1;
+    List<ItemPicker.Entry> textureMatches = List.of();
+    List<ItemPickerLayout.Row> textureRows = List.of();
+    ItemPickerLayout.Frame textureFrame;
+    int textureSelected = -1;
     /** The list's scroll, its clamp and its bar as one object, on the same terms again. */
-    private final Viewport textureBody = Viewport.fixed();
-    private final ScrollBar textureBar = new ScrollBar(textureBody);
+    final Viewport textureBody = Viewport.fixed();
+    final ScrollBar textureBar = new ScrollBar(textureBody);
 
     /**
      * The sizes the texture rows' pictures read, keyed by file.
@@ -3183,7 +3171,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * file per session. It lives with the screen rather than the drawing for the reason every other
      * piece of state does -- the drawing is a pure function of what it is handed.
      */
-    private final Map<Identifier, Optional<GuiRenderer.TextureSize>> textureSizes =
+    final Map<Identifier, Optional<GuiRenderer.TextureSize>> textureSizes =
             new LinkedHashMap<>();
 
     /**
@@ -3384,7 +3372,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * The rows each list is drawn at, this frame, in drawing order -- the seam the gap is counted
      * against. Rebuilt by the drawing and read by the release, one derivation for both.
      */
-    private final Map<String, List<BookGeometry.Rect>> dragRowSlots = new LinkedHashMap<>();
+    final Map<String, List<BookGeometry.Rect>> dragRowSlots = new LinkedHashMap<>();
 
     /** Whether the modal's Delete has been pressed once and is waiting for the confirming second. */
     private boolean confirmingDelete;
@@ -3546,7 +3534,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * modal path -- which means that in the one presentation this mod has, the field an author is typing
      * into was never painted at all. It is drawn after this list for the same reason these entries are.
      */
-    private final List<java.util.function.Consumer<GuiRenderer>> panelOverlays = new ArrayList<>();
+    final List<java.util.function.Consumer<GuiRenderer>> panelOverlays = new ArrayList<>();
 
     /**
      * How many rosters had arrived when the party panel was last built.
@@ -3617,6 +3605,14 @@ public final class QuestBookScreen extends ArmatureScreen
 
     public QuestBookScreen() {
         super(Component.translatable("tenet.screen.quest_book.title"));
+    }
+
+    /**
+     * The screen's client, for the book's slices: {@code Screen.minecraft} is protected, and a slice
+     * holds the screen rather than extending it.
+     */
+    Minecraft minecraft() {
+        return minecraft;
     }
 
     // ------------------------------------------------------------------
@@ -4415,7 +4411,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * @param contentHeight how tall the whole list is, from the layout that owns it
      * @param pitch         one row of it: what a wheel notch moves, and what a page keeps
      */
-    private static void bindList(Viewport body, ScrollBar bar, BookGeometry.Rect region,
+    static void bindList(Viewport body, ScrollBar bar, BookGeometry.Rect region,
                                  BookGeometry.Rect strip, int contentHeight, int pitch) {
         body.bounds(region.x(), region.y(), region.width(), region.height());
         body.setContentSize(region.width(), contentHeight);
@@ -4429,7 +4425,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * bar's hover is a frame-driven ease, the value only has to be the frame's, and the alternative is a
      * {@code long now} parameter on eight methods whose only other use for it would be passing it along.
      */
-    private static void drawBar(GuiRenderer r, ScrollBar bar, int mouseX, int mouseY) {
+    static void drawBar(GuiRenderer r, ScrollBar bar, int mouseX, int mouseY) {
         bar.draw(r, ArmatureScrollStyle.skin(), mouseX, mouseY, net.minecraft.util.Util.getMillis());
     }
 
@@ -4834,7 +4830,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * removal rests on</b>: thirty call sites ask this question and every one of them is still right, which
      * is the test of whether the conversion was really a seam or only a coat of paint.
      */
-    private BookGeometry.Rect surfaceCard(PanelKind kind) {
+    BookGeometry.Rect surfaceCard(PanelKind kind) {
         return panelRail(kind);
     }
 
@@ -4913,7 +4909,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * placing of the control cannot disagree: {@link PanelLayout#headerRight} is the layout's own number,
      * and every header in this book that draws a title inside a column asks for it here.
      */
-    private int headerTextRoom(BookGeometry.Rect rail) {
+    int headerTextRoom(BookGeometry.Rect rail) {
         return PanelLayout.headerRight(rail, carriesFold(surfaceKind));
     }
 
@@ -5109,7 +5105,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         if (overlay2 == PanelKind.TEXTURE) {
-            closeTexturePicker();
+            texturePicker.closeTexturePicker();
             return;
         }
         applyColumns(PanelStack.afterClose(columns(), true));
@@ -5147,7 +5143,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * so opening a panel took the dock's rectangle and closing that panel gave it back — the author watched
      * their tools vanish and reappear in the same place. Here it is simply the third rail.
      */
-    private PanelStack.Columns columns() {
+    PanelStack.Columns columns() {
         return new PanelStack.Columns(dockOpen ? PanelKind.TOOLS : PanelKind.NONE, overlay, overlay2,
                 foldChoice);
     }
@@ -5179,7 +5175,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * kinds leaving get their current clip snapshotted and an exit stamp, and draw from those plus the
      * retained content until the exit sinks.
      */
-    private void applyColumns(PanelStack.Columns next) {
+    void applyColumns(PanelStack.Columns next) {
         java.util.List<PanelKind> before = PanelStack.presented(columns(), panelFolded());
         java.util.List<PanelKind> afterNext = PanelStack.presented(next, panelFoldedFor(next));
         arrangementEpoch++;
@@ -5559,19 +5555,19 @@ public final class QuestBookScreen extends ArmatureScreen
      * its rows' rectangles — so a kind being drawn, built or pressed measures itself against its own rail
      * and never against the one beside it.
      */
-    private int overlayLeft() {
+    int overlayLeft() {
         return surfaceCard(surfaceKind).x();
     }
 
-    private int overlayTop() {
+    int overlayTop() {
         return surfaceCard(surfaceKind).y();
     }
 
-    private int overlayWidth() {
+    int overlayWidth() {
         return surfaceCard(surfaceKind).width();
     }
 
-    private int overlayHeight() {
+    int overlayHeight() {
         return surfaceCard(surfaceKind).height();
     }
 
@@ -5654,7 +5650,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * filter is deliberately in that one place: a second copy here would be a second answer to "may this
      * chapter be opened", and the two would disagree the first time one of them changed.
      */
-    private static String effectiveChapter() {
+    static String effectiveChapter() {
         if (frameChapterActive) {
             return frameChapter;
         }
@@ -6012,7 +6008,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * rectangle the clip, the scroll clamp and the scrollbar all read — which is the point, because
      * they used to be three.
      */
-    private Viewport overlayBody() {
+    Viewport overlayBody() {
         return overlayView.viewport().bounds(
                 overlayLeft() + BODY_INSET,
                 overlayTop() + BODY_TOP,
@@ -6166,7 +6162,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * caught only when the copy comes back shorter than the draft's index (the guard in
      * {@code reconcile}), and a same-length reorder is left to the {@code STALE_MILLIS} backstop.
      */
-    private boolean mayEditNow() {
+    boolean mayEditNow() {
         return editEffective(DevMode.on(), mayEdit(), previewAsPlayer);
     }
 
@@ -7388,7 +7384,7 @@ public final class QuestBookScreen extends ArmatureScreen
                                                 : groupIcon ? "tenet.dev.chapter.group_icon_unset"
                                                         : "tenet.dev.chapter.pick_item")
                                         : row.value()),
-                                picture ? () -> openTexturePickerFor(element[0])
+                                picture ? () -> texturePicker.openTexturePickerFor(element[0])
                                         : groupIcon ? this::openGroupItemPicker
                                                 : this::openChapterItemPicker);
                         if (groupIcon && !own) {
@@ -10076,7 +10072,7 @@ public final class QuestBookScreen extends ArmatureScreen
         return new JsonPrimitive(String.valueOf(value));
     }
 
-    private static JsonElement stringArray(List<String> values) {
+    static JsonElement stringArray(List<String> values) {
         JsonArray array = new JsonArray();
         for (String value : values) {
             array.add(value);
@@ -10375,7 +10371,7 @@ public final class QuestBookScreen extends ArmatureScreen
      *
      * @return true when the texture was written, false when the id did not resolve to a file
      */
-    private boolean commitCanvasTexture(String typed) {
+    boolean commitCanvasTexture(String typed) {
         String raw = typed == null ? "" : typed.trim();
         String canonical = CanvasBackground.canonicalTexture(raw);
         if (canonical.isEmpty()) {
@@ -10511,7 +10507,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** The canvas background in force for the panel's target. */
-    private CanvasBackground editedBackground() {
+    CanvasBackground editedBackground() {
         return themeTargetsChapter ? editedTheme().background() : ClientAppearance.LOOK.background();
     }
 
@@ -10769,7 +10765,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * the same sentence, in a band that cost every author twelve pixels of list whether or not anything
      * had happened.
      */
-    private void status(String message, boolean error) {
+    void status(String message, boolean error) {
         // A key for everything the sweep has converted, and a plain sentence for the composed ones:
         // `translatable` passes an unknown key through unchanged, so both kinds go through one door and
         // a translator sees one namespace.
@@ -11889,11 +11885,11 @@ public final class QuestBookScreen extends ArmatureScreen
         // The texture picker's card, before the item picker's and for the same reason: it is an overlay
         // that is not about a quest, so the entry lookup below would close it on the frame it opened.
         if (kind == PanelKind.TEXTURE) {
-            buildTextureWidgets();
+            texturePicker.buildTextureWidgets();
             // The same single Back control the item picker's card carries: Escape and a press outside
             // also leave, and the card's own footer rectangle keeps the two cards' controls in line.
             ArmatureButton back = control(overlayControls(false).get("back"),
-                    Component.translatable("tenet.screen.back"), this::closeTexturePicker);
+                    Component.translatable("tenet.screen.back"), texturePicker::closeTexturePicker);
             if (back != null) {
                 back.ink(ArmatureButton.Ink.BODY)
                         .tooltip(Component.translatable("tenet.screen.escape_also_closes_this"));
@@ -12339,7 +12335,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** The card's body as a rectangle, for the layouts that take one. */
-    private BookGeometry.Rect overlayBodyRect() {
+    BookGeometry.Rect overlayBodyRect() {
         return BookGeometry.Rect.at(overlayBody().originX(), overlayBody().originY(),
                 overlayBody().viewWidth(), overlayBody().viewHeight());
     }
@@ -12704,7 +12700,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * hovering, quiet enough that the card still reads as the preview it is. Four one-pixel lines, so
      * the text inside is never dimmed by its own affordance.
      */
-    private static void drawEditAffordance(GuiRenderer r, BookGeometry.Rect box, boolean hot) {
+    static void drawEditAffordance(GuiRenderer r, BookGeometry.Rect box, boolean hot) {
         int colour = hot
                 ? Colour.alphaOf(ArmatureTheme.title(), 0.55F)
                 : Colour.alphaOf(ArmatureTheme.faint(), 0.30F);
@@ -15134,7 +15130,7 @@ public final class QuestBookScreen extends ArmatureScreen
             status(Labels.of("tenet.dev.texture.hint"), true);
             return;
         }
-        if (textureCatalogue().stream().noneMatch(entry -> entry.id().equalsIgnoreCase(raw))) {
+        if (texturePicker.textureCatalogue().stream().noneMatch(entry -> entry.id().equalsIgnoreCase(raw))) {
             status("No texture at " + raw, true);
             return;
         }
@@ -15763,9 +15759,9 @@ public final class QuestBookScreen extends ArmatureScreen
             textureSelected = -1;
             textureBody.setScrollY(0);
         }
-        textureMatches = ItemPicker.rank(textureCatalogue(), query, ItemPicker.LIMIT);
+        textureMatches = ItemPicker.rank(texturePicker.textureCatalogue(), query, ItemPicker.LIMIT);
         List<ItemPickerLayout.Row> rows = new ArrayList<>(
-                TexturePicker.rows(textureCatalogue(), "", query));
+                TexturePicker.rows(texturePicker.textureCatalogue(), "", query));
         if (pickingItemClearPath != null) {
             // Clear lives on every tab, not only Items: an author on Files must not have to leave
             // to remove the picture, and the commit below already knows the clear path.
@@ -15890,7 +15886,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * The id is kept and drawn beside this, so the placeholder is what stops "cannot draw it" from
      * reading as "there is nothing here".
      */
-    private static void drawItemPlaceholder(GuiRenderer r, int x, int y, int box) {
+    static void drawItemPlaceholder(GuiRenderer r, int x, int y, int box) {
         r.fill(x + 1, y + 1, x + box - 1, y + box - 1, ArmatureTheme.recessed());
         r.text("?", x + (box - r.textWidth("?")) / 2, y + (box - 8) / 2, ArmatureTheme.blocked());
     }
@@ -15971,431 +15967,6 @@ public final class QuestBookScreen extends ArmatureScreen
             }
         }
         return "";
-    }
-
-    // ------------------------------------------------------------------
-    // The texture picker
-    // ------------------------------------------------------------------
-
-    /**
-     * The pack's own PNGs, gathered once and kept.
-     *
-     * <h2>Why the walk is done once and not per open</h2>
-     *
-     * <p>{@code listResources} walks every pack's index, and the answer is the client's file list --
-     * which changes when a pack is reloaded, not between two presses of a row's browse button. The
-     * catalogue is therefore gathered the first time a picker is opened and kept for the session; the
-     * one moment it could go stale is a resource reload, and a picker that paid the whole walk per open
-     * to be current for that is the worse trade. A manager that is not there yet answers an empty list
-     * without caching it, so the first real open still gathers.
-     */
-    private List<ItemPicker.Entry> textureCatalogue() {
-        if (textureCatalogue == null) {
-            if (minecraft == null || minecraft.getResourceManager() == null) {
-                return List.of();
-            }
-            textureCatalogue = TexturePicker.catalogue(minecraft.getResourceManager()
-                    .listResources("textures", path -> path.getPath().endsWith(".png")).keySet());
-        }
-        return textureCatalogue;
-    }
-
-    /**
-     * Opens the texture picker on the canvas image's Texture row.
-     *
-     * <p>A fresh list every time: the query, the scroll and the selection belong to the pick that opened
-     * the card, and a search left from the last texture choice would filter a list the author did not
-     * type into. The catalogue itself is the session's, see {@link #textureCatalogue}.
-     */
-    private void openTexturePicker() {
-        openTexturePickerFor(null);
-    }
-
-    /**
-     * The same, choosing a file for one canvas element rather than for the canvas's own surface.
-     *
-     * <p>The target is a parameter of the opening rather than a field set beforehand, because a picker that
-     * read a target left over from the last time would commit a file to whatever the author had open an hour
-     * ago. Null is the canvas's own background, which is what every existing caller means.
-     */
-    private void openTexturePickerFor(String elementId) {
-        texturePickElement = elementId;
-        textureSearch = null;
-        textureQuery = "";
-        textureSelected = -1;
-        textureBody.setScrollY(0);
-        textureMatches = List.of();
-        textureRows = List.of();
-        textureFrame = null;
-        textureCatalogue();
-        rebuildTextureRows("");
-        applyColumns(PanelStack.afterOpen(columns(), PanelKind.TEXTURE));
-        rebuildWidgets();
-    }
-
-    /**
-     * The list for a query: ranked once, when the box changes, rather than once a frame.
-     *
-     * <p>A pack's textures run to five figures and ranking is a walk over all of them, so ranking in the
-     * drawing was a walk over the catalogue twice every frame while a query was being typed -- a stutter
-     * in exactly the packs this picker exists for. The query is the only thing that can change the
-     * answer, so it is the only thing that pays for it.
-     */
-    private void rebuildTextureRows(String query) {
-        textureMatches = ItemPicker.rank(textureCatalogue(), query, ItemPicker.LIMIT);
-        // The highlighted row is the file the target is drawn from: the canvas's own texture, or the element
-        // the picker was opened for -- so a list opened from a picture marks that picture's file.
-        textureRows = TexturePicker.rows(textureCatalogue(), pickerCurrentTexture(), query);
-    }
-
-    /** The file the picker's target is drawn from, or empty when it names none. */
-    private String pickerCurrentTexture() {
-        if (texturePickElement == null) {
-            return editedBackground().image().texture();
-        }
-        CanvasElement element = elementNow(texturePickElement);
-        if (!(element instanceof CanvasElement.Image image)
-                || !(image.image() instanceof dev.ellipog.tenet.quest.ImageSource.Texture texture)) {
-            return "";
-        }
-        return texture.file().toString();
-    }
-
-    /** Closes the texture picker without writing: the book comes back, the field keeps its value. */
-    private void closeTexturePicker() {
-        // Through the rules first, so the exit is recorded before its content is owed: the arrangement
-        // is what snapshots the rail, and the teardown below is what keeps the rows for the slide.
-        // This picker is a root today -- the browse button lives in the dock's own panel -- and closing
-        // a root closes both columns.
-        applyColumns(PanelStack.afterClose(columns(), false));
-        deferForLastDeparted(() -> {
-            textureSearch = null;
-            textureQuery = "";
-            textureSelected = -1;
-            textureBody.setScrollY(0);
-            textureMatches = List.of();
-            textureRows = List.of();
-            textureFrame = null;
-        });
-        rebuildWidgets();
-    }
-
-    /**
-     * The picker's search box: the one widget the card has, on the item picker's own terms.
-     *
-     * <p>Rebuilt with the value it already held, so a rebuild that is not a keystroke -- the world
-     * behind the card ticking, a resize -- cannot clear what is being typed. Enter and Escape are the
-     * screen's while the card is open (see {@code keyPressed}), so a blur commits nothing.
-     */
-    private void buildTextureWidgets() {
-        BookGeometry.Rect bodyRect = overlayBodyRect();
-        ItemPickerLayout.Frame frame = ItemPickerLayout.Frame.of(bodyRect);
-        String kept = textureSearch == null ? "" : textureSearch.value();
-        textureSearch = new ArmatureTextField(frame.search().x(), frame.search().y(),
-                frame.search().width(), frame.search().height(), kept);
-        textureSearch.onSubmit(text -> { });
-        addRenderableWidget(textureSearch);
-        // The placeholder after the pass, and nothing else: see the item picker's own copy of this note.
-        panelOverlays.add(r -> {
-            if (textureSearch == null || !textureSearch.value().isEmpty()) {
-                return;
-            }
-            try (GuiRenderer.Scoped clip = r.clip(bodyRect.x(), bodyRect.y(), bodyRect.right(),
-                    bodyRect.bottom())) {
-                // Off the box, for the rail's slide: see the item picker's own copy of this note.
-                r.text(Labels.of("tenet.dev.texture.search"), textureSearch.getX() + 4,
-                        textureSearch.getY() + (textureSearch.getHeight() - 8) / 2,
-                        ArmatureTheme.faint());
-            }
-        });
-        setFocused(textureSearch);
-    }
-
-    /**
-     * The picker's card: the same panel, header strip and rule the item picker's overlay draws, with
-     * the list's own title instead of a subject's icon and name.
-     *
-     * <p>Chrome like the item picker's card -- it is about the client's files rather than about the
-     * chapter it was opened over -- so it is drawn outside every chapter scope by {@code drawModal}'s
-     * own position, exactly as the item picker's card is.
-     */
-    private void drawTextureOverlay(GuiRenderer r, int mouseX, int mouseY) {
-        int left = overlayLeft();
-        int top = overlayTop();
-        int w = overlayWidth();
-        int h = overlayHeight();
-
-        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, 45, ArmatureTheme.raised(),
-                Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
-        r.fill(left + 1, top + 46, left + w - 1, top + 47, ArmatureTheme.panelEdge());
-
-        // Both header lines stop short of the fold control when this column carries one. The second is the
-        // one that noticed: the subject line is a texture's path, and a path is longer than any column.
-        int headerRoom = Math.max(0, headerTextRoom(surfaceCard(surfaceKind)) - (left + 14));
-        Measure headerMeasure = Measure.of(r::textWidth, r.lineHeight());
-        r.text(Measure.truncate(Labels.of("tenet.dev.texture.title"), headerRoom, headerMeasure),
-                left + 14, top + 12, ArmatureTheme.title());
-        // The field's own value, under the title: the card is choosing a file, and the one it would
-        // replace is the context the list is read against.
-        String current = editedBackground().image().texture();
-        r.text(Measure.truncate(
-                        current.isEmpty() ? Labels.of("tenet.dev.canvas.pattern_none") : current,
-                        headerRoom, headerMeasure),
-                left + 14, top + 26, ArmatureTheme.faint());
-
-        drawTexturePicker(r, overlayBody(), mouseX, mouseY);
-    }
-
-    /**
-     * The texture picker's body: the search box above (a widget, placed by
-     * {@link #buildTextureWidgets}), then the rows.
-     *
-     * <p>The item picker's drawing with one substitution: a texture row's picture is the file itself,
-     * probed and drawn at its aspect by {@code ToolsPanel.drawTextureThumb}, where an item row draws its
-     * stack's icon. Everything else -- the clip to the list, the skip of wholly-out rows, the heading's
-     * faint line, the recessed selection, the hover wash and the missing rows' placeholder -- is the
-     * same shape, so the two lists cannot disagree about what a row looks like.
-     */
-    private void drawTexturePicker(GuiRenderer r, Viewport body, int mouseX, int mouseY) {
-        BookGeometry.Rect bodyRect = BookGeometry.Rect.at(body.originX(), body.originY(),
-                body.viewWidth(), body.viewHeight());
-        textureFrame = ItemPickerLayout.Frame.of(bodyRect);
-        String query = textureSearch == null ? "" : textureSearch.value();
-        if (!query.equals(textureQuery)) {
-            // A keystroke is a new list: the selection goes back to its first row and the scroll to the
-            // top, because an index into the old list names nothing in this one. The list itself is
-            // rebuilt here and nowhere else -- see `rebuildTextureRows` for why the drawing must not.
-            textureQuery = query;
-            textureSelected = -1;
-            textureBody.setScrollY(0);
-            rebuildTextureRows(query);
-        }
-        bindList(textureBody, textureBar, textureFrame.list(), textureFrame.scrollbar(),
-                ItemPickerLayout.contentHeight(textureRows), ItemPickerLayout.ROW_HEIGHT);
-        int textureScroll = textureBody.scrollY();
-        if (textureSelected >= 0) {
-            textureSelected = ItemPickerLayout.clamp(textureRows, textureSelected);
-        }
-
-        // Clipped to the list, not the body: a row half scrolled under the search box belongs at the
-        // box's edge, which is where the list starts -- the item picker's own note says the same.
-        try (GuiRenderer.Scoped clip = r.clip(textureFrame.list().x(), textureFrame.list().y(),
-                textureFrame.list().right(), textureFrame.list().bottom())) {
-            if (textureRows.isEmpty()) {
-                r.text(Labels.of("tenet.dev.texture.hint"), textureFrame.list().x() + 4,
-                        textureFrame.list().y() + 4, ArmatureTheme.faint());
-                return;
-            }
-            Measure measure = textMeasure(r);
-            for (int i = 0; i < textureRows.size(); i++) {
-                BookGeometry.Rect rect =
-                        ItemPickerLayout.rowRect(textureRows, textureFrame, textureScroll, i);
-                // Off the list is not drawn -- the clip would cut a row the keyboard can still land on
-                // and the wheel can bring back, and a half row at the edge is exactly what the clip is
-                // for, so only the wholly-out ones are skipped.
-                if (rect.bottom() <= textureFrame.list().y()
-                        || rect.y() >= textureFrame.list().bottom()) {
-                    continue;
-                }
-                ItemPickerLayout.Row row = textureRows.get(i);
-                if (row.kind() == ItemPickerLayout.Kind.HEADING) {
-                    r.text(row.label(), rect.x() + 2, rect.y() + (rect.height() - 8) / 2,
-                            ArmatureTheme.faint());
-                    continue;
-                }
-                if (i == textureSelected) {
-                    r.fill(rect.x(), rect.y(), rect.right(), rect.bottom(), ArmatureTheme.recessed());
-                }
-                else if (rect.contains(mouseX, mouseY)) {
-                    drawEditAffordance(r, rect, true);
-                }
-                int box = Math.max(8, rect.height() - 2);
-                int textX = rect.x() + 4;
-                boolean missing = row.kind() == ItemPickerLayout.Kind.MISSING;
-                if (row.kind() == ItemPickerLayout.Kind.TEXTURE) {
-                    // The picture in the row's own square, at its aspect: the one thing an id cannot
-                    // say and the whole reason this picker exists rather than a second text field.
-                    ToolsPanel.drawTextureThumb(r, new Slot(row.id(), rect.x() + 1, rect.y() + 1,
-                            box, box), row.id(), textureSizes);
-                    textX = rect.x() + 20;
-                }
-                else if (missing) {
-                    // No file behind the id: a placeholder where the picture would be, and the note
-                    // that says so. The id itself is the label, so it is kept and visible either way.
-                    drawItemPlaceholder(r, rect.x() + 1, rect.y() + 1, box);
-                    textX = rect.x() + 20;
-                }
-                r.text(Measure.truncate(row.label(), rect.width() - (textX - rect.x()) - 30, measure),
-                        textX, rect.y() + (rect.height() - 8) / 2,
-                        missing ? ArmatureTheme.blocked() : ArmatureTheme.body());
-                if (!row.secondary().isEmpty()) {
-                    // The namespace, faint at the right: two packs both holding `gui/button` are told
-                    // apart by this and by nothing else in the row.
-                    r.text(row.secondary(), rect.right() - 4 - r.textWidth(row.secondary()),
-                            rect.y() + (rect.height() - 8) / 2,
-                            missing ? ArmatureTheme.blocked() : ArmatureTheme.faint());
-                }
-            }
-        }
-        // The list's bar, in the frame's own strip and outside the clip: the item picker's arrangement,
-        // because the two pages are the same act with a different catalogue.
-        drawBar(r, textureBar, mouseX, mouseY);
-    }
-
-    /**
-     * A press on a texture row: the file becomes the canvas image's texture, or the row is missing and
-     * already the field's value.
-     *
-     * <p>Mirrors {@code pressPickerRow}: a row whose id is the current value is "keep it", closing with
-     * no edit spent saying nothing. Every other row goes through the field's own commit, and the card
-     * closes only when it wrote -- a refusal keeps the list open with the reason on the panel, so the
-     * next press is a correction rather than a reopened picker.
-     */
-    private void pressTextureRow(int index) {
-        if (index < 0 || index >= textureRows.size()) {
-            return;
-        }
-        ItemPickerLayout.Row row = textureRows.get(index);
-        if (!ItemPickerLayout.pickable(row)) {
-            return;
-        }
-        String current = editedBackground().image().texture();
-        if (row.kind() == ItemPickerLayout.Kind.MISSING && row.id().equals(current)) {
-            closeTexturePicker();
-            return;
-        }
-        if (commitCanvasTexture(row.id())) {
-            closeTexturePicker();
-        }
-    }
-
-    /**
-     * Enter in the texture picker, on the item picker's two rules: a whole id typed into the box is the
-     * answer outright, otherwise the selected row commits, and when neither exists the screen says so
-     * rather than choosing whatever happened to sort first.
-     */
-    private void commitFromTexturePicker() {
-        String query = textureSearch == null ? "" : textureSearch.value();
-        String exact = ItemPicker.exactId(query, textureMatches);
-        if (exact != null) {
-            if (commitCanvasTexture(exact)) {
-                closeTexturePicker();
-            }
-            return;
-        }
-        ItemPickerLayout.Row row = textureSelected >= 0 && textureSelected < textureRows.size()
-                ? textureRows.get(textureSelected) : null;
-        if (row != null && ItemPickerLayout.pickable(row)) {
-            pressTextureRow(textureSelected);
-            return;
-        }
-        status(query.isBlank() ? "Type to search, or paste a texture id"
-                : "No texture matches \"" + query + "\"", true);
-    }
-
-    // ------------------------------------------------------------------
-    // The row drag
-    // ------------------------------------------------------------------
-
-    /**
-     * Lets a dragged row go: one op, aimed at the gap the line was last drawn on.
-     *
-     * <p>Three lists, two ops. A task or a reward moves by {@link EditorOp.MoveEntry}, which the model
-     * has carried and refused-bounds since before any of this was draggable. The chapter's quest list
-     * is not any quest's file -- it is the chapter manifest's own {@code "quests"} array, which only
-     * {@link EditorOp.SetChapter} reaches -- so the drop says the whole reordered list rather than an
-     * index move, which is a bigger message and the same one edit.
-     *
-     * <p>A drop onto the row's own place sends nothing: "that edit would change nothing" as a refusal
-     * is the server's way of saying it, and there is no reason to spend a round trip on it.
-     */
-    private void commitRowDrop(String member, String quest, int from, double pointerY) {
-        if (!mayEditNow() || member == null || from < 0) {
-            return;
-        }
-        List<BookGeometry.Rect> rows = dragRowSlots.get(member);
-        if (rows == null || rows.isEmpty()) {
-            return;
-        }
-        int gap = RowDrag.gapAt(rows, pointerY);
-        if (gap < 0) {
-            return;
-        }
-        int to = RowDrag.finalIndex(from, gap);
-        if (to == from) {
-            return;
-        }
-        if ("chapter".equals(member)) {
-            // The pending order, not the replica's: two reorders inside the replica window would
-            // otherwise compute the second from the first's stale order and drop it.
-            JsonObject chapter = fieldDraft.overlaid(effectiveChapter(),
-                    dev.ellipog.tenet.client.dev.FieldDraft.CHAPTER_OWNER,
-                    ClientChapterReplica.chapterTree(effectiveChapter()));
-            List<String> names = new ArrayList<>(QuestPanelLayout.strings(chapter, "quests"));
-            if (from >= names.size() || to >= names.size() || to < 0) {
-                return;
-            }
-            names.add(to, names.remove(from));
-            sendChapterField("quests", stringArray(names));
-        }
-        else {
-            if (quest == null) {
-                return;
-            }
-            // The entries are about to shift, so a pending value indexed inside the list no longer
-            // names the entry the author was editing.
-            fieldDraft.forgetList(effectiveChapter(), quest, member);
-            send(new EditorOp.MoveEntry(quest, member, from, to));
-        }
-        status("Moved to position " + (to + 1), false);
-    }
-
-    /**
-     * The chapter-tab row a pointer is over, as an index into the manifest's quest order, or -1.
-     *
-     * <p>The rows are drawn by {@code ToolsPanel} from {@code chapterLayout}; this is the same mapping the
-     * drawing uses, so what is pressed is what is seen, scrolled or not.
-     */
-    private int chapterQuestRowAt(double mouseX, double mouseY) {
-        if (chapterLayout == null) {
-            return -1;
-        }
-        Viewport view = toolsView.viewport();
-        int index = 0;
-        for (ToolsLayout.Action row : chapterRows) {
-            if (!row.key().startsWith(ChapterPanelLayout.VALUE_PREFIX + "quest:")) {
-                continue;
-            }
-            Slot slot = chapterLayout.slot(row.key());
-            if (slot != null && ToolsLayout.onScreen(view, slot).contains(mouseX, mouseY)) {
-                return index;
-            }
-            index++;
-        }
-        return -1;
-    }
-
-    /** The same rows as rectangles, in order -- the seams the drag's gap arithmetic counts. */
-    private List<BookGeometry.Rect> chapterQuestRowRects() {
-        List<BookGeometry.Rect> out = new ArrayList<>();
-        if (chapterLayout == null) {
-            return List.copyOf(out);
-        }
-        Viewport view = toolsView.viewport();
-        for (ToolsLayout.Action row : chapterRows) {
-            if (!row.key().startsWith(ChapterPanelLayout.VALUE_PREFIX + "quest:")) {
-                continue;
-            }
-            Slot slot = chapterLayout.slot(row.key());
-            if (slot == null) {
-                continue;
-            }
-            Slot onScreen = ToolsLayout.onScreen(view, slot);
-            out.add(BookGeometry.Rect.at(onScreen.x(), onScreen.y(), onScreen.width(),
-                    onScreen.height()));
-        }
-        return List.copyOf(out);
     }
 
     /**
@@ -18568,7 +18139,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * from it would compound its own last frame. This is the settled belief — the tree plus the drafts — which
      * is what a new gesture takes hold of and what a commit is diffed against.
      */
-    private CanvasElement elementNow(String id) {
+    CanvasElement elementNow(String id) {
         if (id == null) {
             return null;
         }
@@ -19129,7 +18700,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     ArmatureButton pick = control(0, 0, 0, 0,
                             Component.literal(row.value().isEmpty()
                                     ? Labels.of("tenet.dev.element.pick_file") : row.value()),
-                            () -> openTexturePickerFor(elementPanelId));
+                            () -> texturePicker.openTexturePickerFor(elementPanelId));
                     pick.ink(ArmatureButton.Ink.BODY).alignLeft(true);
                     elementView.put(row.key(), pick, InspectLayout::controlBand);
                 }
@@ -26629,7 +26200,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // quest rows take part -- the identity fields above them are not a list.
             try (GuiRenderer.Scoped clip = r.clip(toolsFrame.list().x(), toolsFrame.list().y(),
                     toolsFrame.list().right(), toolsFrame.list().bottom())) {
-                dragRowSlots.put("chapter", chapterQuestRowRects());
+                dragRowSlots.put("chapter", rowDrag.chapterQuestRowRects());
                 if (dragRowLive && "chapter".equals(dragRowMember)) {
                     drawRowDragIndicator(r, dragRowSlots.get("chapter"), dragRowPointerY,
                             onScreenBand(toolsView.viewport()));
@@ -28461,7 +28032,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * {@code image} and an element's -- and a picker that could not tell them apart would write one from the
      * other's list.
      */
-    private String texturePickElement;
+    String texturePickElement;
 
     /** Rebuilds the frame's canvas if anything it is drawn from has moved. See {@link CanvasState}. */
     private void stampCanvas(GuiRenderer r, List<ClientQuestCache.Entry> quests) {
@@ -29865,7 +29436,7 @@ public final class QuestBookScreen extends ArmatureScreen
         else if (kind == PanelKind.TEXTURE) {
             // The same: a list of the client's own files is chrome rather than a chapter's content, so
             // it is drawn outside every chapter scope, exactly as the item picker's rail is.
-            drawTextureOverlay(r, mouseX, mouseY);
+            texturePicker.drawTextureOverlay(r, mouseX, mouseY);
         }
         else if (kind == PanelKind.CHOICE) {
             // A question about a reward, not a chapter's content: chrome, like the picker's.
@@ -33273,7 +32844,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * is the whole of the change: the same object answers every frame, so the widths it has already
      * been asked for are still there.
      */
-    private Measure textMeasure(GuiRenderer r) {
+    Measure textMeasure(GuiRenderer r) {
         measuring = r;
         if (measure == null) {
             measure = Measure.cached(Measure.of(text -> measuring.textWidth(text), OverlayLayout.LINE_HEIGHT),
@@ -34494,7 +34065,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 int row = textureFrame == null ? -1
                         : ItemPickerLayout.rowAt(textureRows, textureFrame, textureBody.scrollY(), mouseY);
                 if (row >= 0) {
-                    pressTextureRow(row);
+                    texturePicker.pressTextureRow(row);
                     return true;
                 }
             }
@@ -34812,7 +34383,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 Layout active = activeLayout();
                 if (ToolsLayout.textureBrowseAt(toolsView.viewport(),
                         active == null ? null : active.slot(ToolsLayout.CANVAS_TEXTURE), mouseX, mouseY)) {
-                    openTexturePicker();
+                    texturePicker.openTexturePicker();
                     return true;
                 }
             }
@@ -34861,7 +34432,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // because the threshold compares against them and this press never reaches the canvas
             // branch that usually sets them.
             if (toolsTab == ToolsLayout.Tab.CHAPTER && mayEditNow() && chapterLayout != null) {
-                int row = chapterQuestRowAt(mouseX, mouseY);
+                int row = rowDrag.chapterQuestRowAt(mouseX, mouseY);
                 if (row >= 0) {
                     dragRowMember = "chapter";
                     dragRowQuest = null;
@@ -35700,7 +35271,7 @@ public final class QuestBookScreen extends ArmatureScreen
             pressedNode = null;
             pressedQuestLink = null;
             if (live) {
-                commitRowDrop(member, quest, from, pointerY);
+                rowDrag.commitRowDrop(member, quest, from, pointerY);
             }
             return true;
         }
@@ -36652,11 +36223,11 @@ public final class QuestBookScreen extends ArmatureScreen
         // submit it, and neither is what a form's key means while a list is open.
         if (overlay == PanelKind.TEXTURE) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
-                closeTexturePicker();
+                texturePicker.closeTexturePicker();
                 return true;
             }
             if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
-                commitFromTexturePicker();
+                texturePicker.commitFromTexturePicker();
                 return true;
             }
             if (keyCode == InputConstants.KEY_UP) {
@@ -37058,7 +36629,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** Asks the server for one edit. The client writes nothing: see {@code TenetNetworking.sendEditorOp}. */
-    private void send(EditorOp op) {
+    void send(EditorOp op) {
         send(op, effectiveChapter());
     }
 
@@ -37192,7 +36763,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * until the copy holds it, and a refusal clears it. The Chapter tab reads it through
      * {@code FieldDraft.overlaid}, because it builds all of its rows from the tree at once.
      */
-    private void sendChapterField(String path, JsonElement value) {
+    void sendChapterField(String path, JsonElement value) {
         fieldDraft.set(effectiveChapter(), dev.ellipog.tenet.client.dev.FieldDraft.CHAPTER_OWNER,
                 path, value, ClientQuestCache.treeRevision(), Util.getMillis());
         send(new EditorOp.SetChapter(path, value));
