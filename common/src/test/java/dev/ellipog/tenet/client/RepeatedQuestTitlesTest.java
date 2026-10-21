@@ -56,7 +56,7 @@ class RepeatedQuestTitlesTest {
     }
 
     private static Set<String> repeated() {
-        return QuestBookScreen.repeatedTitles(ClientQuestCache.entries());
+        return BookRewards.repeatedTitles(ClientQuestCache.entries());
     }
 
     @Test
@@ -121,12 +121,12 @@ class RepeatedQuestTitlesTest {
                 "quest.b.title", "Asztalt"));
 
         List<ClientQuestCache.Entry> entries = ClientQuestCache.entries();
-        Set<String> repeated = QuestBookScreen.repeatedTitles(entries);
+        Set<String> repeated = BookRewards.repeatedTitles(entries);
 
-        assertTrue(QuestBookScreen.questLabel(entries.get(0), 0, repeated).endsWith("Asztalt"),
+        assertTrue(BookRewards.questLabel(entries.get(0), 0, repeated).endsWith("Asztalt"),
                 "the numbered row still reads in the player's language");
-        assertTrue(QuestBookScreen.questLabel(entries.get(0), 0, repeated).startsWith("1"));
-        assertFalse(QuestBookScreen.questLabel(entries.get(0), 0, Set.of()).startsWith("1"),
+        assertTrue(BookRewards.questLabel(entries.get(0), 0, repeated).startsWith("1"));
+        assertFalse(BookRewards.questLabel(entries.get(0), 0, Set.of()).startsWith("1"),
                 "and an unnumbered row carries no number at all");
     }
 }

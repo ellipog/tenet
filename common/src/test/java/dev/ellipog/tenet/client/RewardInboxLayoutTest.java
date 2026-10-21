@@ -324,24 +324,24 @@ class RewardInboxLayoutTest {
     @Test
     @DisplayName("a ready reward row claims on press, and nothing else does")
     void rowPressClaimsOnlyReadyRewards() {
-        assertTrue(QuestBookScreen.claimsOnRowPress(reward("a", 0)),
+        assertTrue(BookRewards.claimsOnRowPress(reward("a", 0)),
                 "a ready reward row is the button by another gesture");
-        assertTrue(QuestBookScreen.claimsOnRowPress(
+        assertTrue(BookRewards.claimsOnRowPress(
                 RewardInboxLayout.Row.single("basics", "a", "A Quest", 0, 3,
                         RewardInboxLayout.Status.READY)),
                 "a single-reward quest's one row too");
         for (RewardInboxLayout.Status status : RewardInboxLayout.Status.values()) {
             boolean ready = status == RewardInboxLayout.Status.READY;
-            assertEquals(ready, QuestBookScreen.claimsOnRowPress(
+            assertEquals(ready, BookRewards.claimsOnRowPress(
                     RewardInboxLayout.Row.reward("basics", "a", 0, "x", 1, status)),
                     "a " + status + " reward row " + (ready ? "claims" : "keeps its behaviour"));
-            assertEquals(ready, QuestBookScreen.claimsOnRowPress(
+            assertEquals(ready, BookRewards.claimsOnRowPress(
                     RewardInboxLayout.Row.single("basics", "a", "A Quest", 0, 1, status)),
                     "a " + status + " single row " + (ready ? "claims" : "keeps its behaviour"));
-            assertFalse(QuestBookScreen.claimsOnRowPress(
+            assertFalse(BookRewards.claimsOnRowPress(
                     RewardInboxLayout.Row.quest("basics", "a", "A Quest", 2, status)),
                     "a quest header folds rather than pays: " + status);
-            assertFalse(QuestBookScreen.claimsOnRowPress(
+            assertFalse(BookRewards.claimsOnRowPress(
                     RewardInboxLayout.Row.chapter("basics", "1 \u00b7 The Basics", 3, status)),
                     "a chapter banner folds rather than pays: " + status);
         }

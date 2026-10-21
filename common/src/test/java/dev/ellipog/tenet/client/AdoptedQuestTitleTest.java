@@ -200,7 +200,7 @@ class AdoptedQuestTitleTest {
         accept(quest("a", literal("New quest"), BLUE_DYE),
                 quest("b", literal("New quest"), BLUE_DYE));
 
-        assertTrue(QuestBookScreen.repeatedTitles(ClientQuestCache.entries()).contains("Blue Dye"),
+        assertTrue(BookRewards.repeatedTitles(ClientQuestCache.entries()).contains("Blue Dye"),
                 "numbering reads the resolved title, so adopted twins must number like any twins");
     }
 
