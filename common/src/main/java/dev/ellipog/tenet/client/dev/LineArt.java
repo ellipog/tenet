@@ -5,6 +5,7 @@ import dev.ellipog.tenet.quest.DependencyStyle;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -522,20 +523,22 @@ public final class LineArt {
      * is copied into the key rather than held — a caller reusing one mutable list for every edge would
      * otherwise poison every entry with the last route it drew.
      *
-     * <p>Emptied rather than trimmed on overflow, matching {@code Shapes.Tables} and {@code CachedMeasure}:
-     * every entry is the same kind of thing, so there is no better half to keep.
+     * <p>Evicts the least-recently-used entry past {@link #FILL_CACHE_LIMIT} rather than clearing the
+     * whole table, so zooming back and forth across a large chapter keeps recent zoom levels hot.
      */
     private static List<Fill> remember(FillsKey key, List<Fill> out) {
         List<Fill> answer = List.copyOf(out);
-        if (FILLS.size() >= FILL_CACHE_LIMIT) {
-            FILLS.clear();
-        }
         FILLS.put(key, answer);
         return answer;
     }
 
-    /** The remembered rectangles, by route. See {@link #fills}. */
-    private static final Map<FillsKey, List<Fill>> FILLS = new HashMap<>();
+    /** The remembered rectangles, by route, with LRU eviction at {@link #FILL_CACHE_LIMIT}. See {@link #fills}. */
+    private static final Map<FillsKey, List<Fill>> FILLS = new LinkedHashMap<>(16, 0.75F, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<FillsKey, List<Fill>> eldest) {
+            return size() > FILL_CACHE_LIMIT;
+        }
+    };
 
     /**
      * The ink of a stroke of this weight along a route: the stroke's own region, filled a row at a time.

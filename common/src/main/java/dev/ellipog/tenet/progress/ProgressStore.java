@@ -88,6 +88,9 @@ public final class ProgressStore extends SavedData {
      */
     private final Map<UUID, Set<Identifier>> stagesByTeam = new LinkedHashMap<>();
 
+    /** Increments whenever any player or team stage is added or removed. */
+    private long stageRevision;
+
     /**
      * The store's serialised form. A plain tag codec over {@link #save} and {@link #load} rather
      * than a field-by-field codec: the format is versioned by hand, with readers for older
@@ -192,6 +195,7 @@ public final class ProgressStore extends SavedData {
         if (!stagesByPlayer.computeIfAbsent(player, id -> new java.util.LinkedHashSet<>()).add(stage)) {
             return false;
         }
+        stageRevision++;
         setDirty();
         return true;
     }
@@ -207,6 +211,7 @@ public final class ProgressStore extends SavedData {
             // per player who was ever granted one and then had it taken away.
             stagesByPlayer.remove(player);
         }
+        stageRevision++;
         setDirty();
         return true;
     }
@@ -214,6 +219,11 @@ public final class ProgressStore extends SavedData {
     /** How many players hold at least one stage. For diagnostics. */
     public int stagedPlayerCount() {
         return stagesByPlayer.size();
+    }
+
+    /** Monotonic revision of all stage grants and removals in this store. */
+    public long stageRevision() {
+        return stageRevision;
     }
 
     // ------------------------------------------------------------------
@@ -238,6 +248,7 @@ public final class ProgressStore extends SavedData {
         if (!stagesByTeam.computeIfAbsent(team, id -> new java.util.LinkedHashSet<>()).add(stage)) {
             return false;
         }
+        stageRevision++;
         setDirty();
         return true;
     }
@@ -252,6 +263,7 @@ public final class ProgressStore extends SavedData {
             // Like the player's own: a team with no stages is not a team with an empty entry.
             stagesByTeam.remove(team);
         }
+        stageRevision++;
         setDirty();
         return true;
     }

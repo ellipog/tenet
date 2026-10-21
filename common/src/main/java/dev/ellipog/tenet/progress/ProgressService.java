@@ -14,7 +14,9 @@ import dev.ellipog.tenet.quest.TaskContext;
 import dev.ellipog.tenet.quest.TenetQuests;
 import dev.ellipog.tenet.quest.condition.ConditionContext;
 import dev.ellipog.tenet.quest.condition.Conditions;
+import dev.ellipog.tenet.quest.condition.PartySizeCondition;
 import dev.ellipog.tenet.quest.condition.QuestCondition;
+import dev.ellipog.tenet.quest.condition.StageCondition;
 import dev.ellipog.tenet.inventory.InventoryAccesses;
 import dev.ellipog.tenet.net.ClaimChoiceResultPayload;
 import dev.ellipog.tenet.net.ClaimSummaryPayload;
@@ -49,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.Optional;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -169,6 +172,99 @@ public final class ProgressService {
      */
     private static MinecraftServer lastEvaluatedServer;
     private static long lastEvaluatedTick = Long.MIN_VALUE;
+
+    /**
+     * Per-team cached resolution and time-ordered due queue for {@link #evaluateTeam}.
+     *
+     * <p>Invalidated whenever the quest index, the team's stored progress, the stage revision,
+     * the party mode, the online member set, or a repeatable quest's cooldown expiry changes.
+     */
+    private static final Map<UUID, TeamSchedule> TEAM_SCHEDULES = new LinkedHashMap<>();
+
+    private record ScheduledQuest(int order, QuestIndex.QuestEntry entry,
+                                  boolean chapterConsumes, boolean chapterSequential,
+                                  long nextDueAt) implements Comparable<ScheduledQuest> {
+        @Override
+        public int compareTo(ScheduledQuest other) {
+            int cmp = Long.compare(this.nextDueAt, other.nextDueAt);
+            return cmp != 0 ? cmp : Integer.compare(this.order, other.order);
+        }
+    }
+
+    private static final class TeamSchedule {
+        final QuestIndex index;
+        final TeamProgress progress;
+        final long stageRevision;
+        final int inventoryFloor;
+        final boolean defaultConsumeItems;
+        final PartyMode mode;
+        final UUID teamOwner;
+        final List<UUID> memberIds;
+        final long resolvedAt;
+        final long cooldownExpiryAt;
+        final ProgressionEngine.Resolution resolution;
+        final PriorityQueue<ScheduledQuest> dueQueue;
+        long lastTick;
+
+        TeamSchedule(QuestIndex index, TeamProgress progress, long stageRevision,
+                     int inventoryFloor, boolean defaultConsumeItems, PartyMode mode,
+                     UUID teamOwner, List<UUID> memberIds,
+                     long resolvedAt, long cooldownExpiryAt,
+                     ProgressionEngine.Resolution resolution,
+                     PriorityQueue<ScheduledQuest> dueQueue) {
+            this.index = index;
+            this.progress = progress;
+            this.stageRevision = stageRevision;
+            this.inventoryFloor = inventoryFloor;
+            this.defaultConsumeItems = defaultConsumeItems;
+            this.mode = mode;
+            this.teamOwner = teamOwner;
+            this.memberIds = memberIds;
+            this.resolvedAt = resolvedAt;
+            this.cooldownExpiryAt = cooldownExpiryAt;
+            this.resolution = resolution;
+            this.dueQueue = dueQueue;
+            this.lastTick = resolvedAt;
+        }
+
+        boolean matches(QuestIndex currentIndex, TeamProgress currentProgress,
+                        long currentStageRevision, int currentInventoryFloor,
+                        boolean currentDefaultConsumeItems,
+                        PartyMode currentMode, UUID currentTeamOwner,
+                        List<ServerPlayer> currentMembers, long now) {
+            if (this.index != currentIndex
+                    || this.progress != currentProgress
+                    || this.stageRevision != currentStageRevision
+                    || this.inventoryFloor != currentInventoryFloor
+                    || this.defaultConsumeItems != currentDefaultConsumeItems
+                    || this.mode != currentMode
+                    || !this.teamOwner.equals(currentTeamOwner)
+                    || now < this.lastTick
+                    || now >= this.cooldownExpiryAt
+                    || this.memberIds.size() != currentMembers.size()) {
+                return false;
+            }
+            for (int i = 0; i < currentMembers.size(); i++) {
+                if (!this.memberIds.get(i).equals(currentMembers.get(i).getUUID())) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    private static long computeCooldownExpiry(long now, ProgressionEngine.Resolution resolution) {
+        long earliest = Long.MAX_VALUE;
+        for (long remaining : resolution.cooldownRemaining().values()) {
+            if (remaining > 0L) {
+                long expiry = now + remaining;
+                if (expiry > now && expiry < earliest) {
+                    earliest = expiry;
+                }
+            }
+        }
+        return earliest;
+    }
 
     private ProgressService() {
     }
@@ -296,7 +392,16 @@ public final class ProgressService {
     public static ProgressionEngine.Resolution resolutionFor(MinecraftServer server, UUID owner) {
         QuestIndex index = TenetQuests.index();
         TeamProgress progress = ProgressStore.of(server).progressOf(owner);
-        return ProgressionEngine.resolve(index, progress, server.overworld().getGameTime());
+        long now = server.overworld().getGameTime();
+        if (server == lastEvaluatedServer && owner != null) {
+            TeamSchedule cached = TEAM_SCHEDULES.get(owner);
+            if (cached != null && cached.index == index && cached.progress == progress
+                    && now >= cached.resolvedAt
+                    && (cached.cooldownExpiryAt == Long.MAX_VALUE || now == cached.resolvedAt)) {
+                return cached.resolution;
+            }
+        }
+        return ProgressionEngine.resolve(index, progress, now);
     }
 
     public static TeamProgress progressFor(MinecraftServer server, UUID owner) {
@@ -371,6 +476,7 @@ public final class ProgressService {
             CONTRIBUTIONS.clear();
             // And the live counts of the waiting tasks, which are inventories too.
             LIVE.clear();
+            TEAM_SCHEDULES.clear();
         }
 
         lastEvaluatedServer = server;
@@ -666,6 +772,64 @@ public final class ProgressService {
         // one mode and the rest by another, and a quest could then be completed by a rule that was
         // never in force for all of it.
         PartyMode mode = PartyStore.of(server).modeOf(owner);
+        ProgressStore store = ProgressStore.of(server);
+        TeamProgress initialWorking = store.progressOf(owner);
+        long stageRev = store.stageRevision();
+
+        // the legacy `detection_delay`, read once per pass: the minimum ticks between inventory
+        // checks. A pack that polls inventory every sixty ticks must not pay for a task that asked
+        // every twenty -- and a task that never reads an inventory keeps its own cadence whatever
+        // the pack says, because a stat lookup is not an inventory walk. The default is twenty,
+        // which is the interval it floors, so a pack that says nothing behaves exactly as before.
+        int inventoryFloor = TenetQuests.settings().detectionDelay();
+        boolean defaultConsumeItems = TenetQuests.settings().defaultConsumeItems();
+
+        TeamSchedule schedule = TEAM_SCHEDULES.get(owner);
+        if (schedule != null && schedule.matches(
+                index, initialWorking, stageRev, inventoryFloor, defaultConsumeItems,
+                mode, team.owner(), members, now)) {
+            schedule.lastTick = now;
+            ScheduledQuest firstDue = schedule.dueQueue.peek();
+            if (firstDue == null || now < firstDue.nextDueAt()) {
+                return false;
+            }
+
+            List<ScheduledQuest> due = new ArrayList<>();
+            while (schedule.dueQueue.peek() != null && schedule.dueQueue.peek().nextDueAt() <= now) {
+                due.add(schedule.dueQueue.poll());
+            }
+            if (due.size() > 1) {
+                due.sort(java.util.Comparator.comparingInt(ScheduledQuest::order));
+            }
+
+            int ownerIndex = indexOfMember(members, team.owner());
+            MemberAsks asks = asksFor(server, owner, members, index, now);
+            Map<String, Long> lastEvaluated = LAST_EVALUATED.computeIfAbsent(owner, key -> new LinkedHashMap<>());
+            Map<String, Map<UUID, Integer>> contributions =
+                    CONTRIBUTIONS.computeIfAbsent(owner, key -> new LinkedHashMap<>());
+
+            TeamProgress working = initialWorking;
+            boolean changed = false;
+            for (ScheduledQuest sq : due) {
+                QuestEval step = evaluateQuest(server, index, owner, now, members, mode, ownerIndex, asks,
+                        inventoryFloor, lastEvaluated, contributions, schedule.resolution, working,
+                        sq.entry(), sq.chapterConsumes(), sq.chapterSequential());
+                working = step.working();
+                changed |= step.changed();
+                if (step.nextDueAt() != Long.MAX_VALUE) {
+                    schedule.dueQueue.add(new ScheduledQuest(
+                            sq.order(), sq.entry(), sq.chapterConsumes(), sq.chapterSequential(), step.nextDueAt()));
+                }
+            }
+            if (working != initialWorking) {
+                TEAM_SCHEDULES.remove(owner);
+            }
+            if (changed) {
+                store.put(owner, working);
+            }
+            return changed;
+        }
+
         int ownerIndex = indexOfMember(members, team.owner());
 
         // One question per member for the whole pass, reused across tasks: the subjects, the
@@ -681,247 +845,51 @@ public final class ProgressService {
         // twenty times a second, forever, whether or not a single quest had moved.
         boolean changed = false;
 
-        ProgressStore store = ProgressStore.of(server);
-        TeamProgress working = store.progressOf(owner);
+        TeamProgress working = initialWorking;
         ProgressionEngine.Resolution resolution = ProgressionEngine.resolve(index, working, now);
 
         Map<String, Long> lastEvaluated = LAST_EVALUATED.computeIfAbsent(owner, key -> new LinkedHashMap<>());
         Map<String, Map<UUID, Integer>> contributions =
                 CONTRIBUTIONS.computeIfAbsent(owner, key -> new LinkedHashMap<>());
 
-        // the legacy `detection_delay`, read once per pass: the minimum ticks between inventory
-        // checks. A pack that polls inventory every sixty ticks must not pay for a task that asked
-        // every twenty — and a task that never reads an inventory keeps its own cadence whatever
-        // the pack says, because a stat lookup is not an inventory walk. The default is twenty,
-        // which is the interval it floors, so a pack that says nothing behaves exactly as before.
-        int inventoryFloor = TenetQuests.settings().detectionDelay();
+        PriorityQueue<ScheduledQuest> dueQueue = new PriorityQueue<>();
+        int order = 0;
 
         for (QuestIndex.QuestEntry entry : index.quests()) {
+            int questOrder = order++;
             Quest quest = entry.quest();
             if (!resolution.stateOf(quest).isPlayable()) {
                 continue;
             }
 
-            QuestProgress questProgress = working.progressOf(quest);
             var chapter = chapterOf(index, entry);
             boolean chapterConsumes = chapter.map(Chapter::defaultConsumeItems).orElse(false)
-                    || TenetQuests.settings().defaultConsumeItems();
+                    || defaultConsumeItems;
             boolean chapterSequential = chapter.map(c -> c.rules().defaultSequentialTasks()).orElse(false);
 
-            // Who the reward goes to if this quest finishes in this pass. Reassigned below to the
-            // member whose inventory moved the quest forward, so a party pays the player who
-            // gathered rather than a player chosen at random -- see the completion at the bottom.
-            ServerPlayer earner = members.get(0);
-
-            for (int taskIndex = 0; taskIndex < quest.tasks().size(); taskIndex++) {
-                QuestTask task = quest.tasks().get(taskIndex);
-
-                if (ProgressionEngine.isTaskSatisfied(quest, taskIndex, questProgress)) {
-                    // Skipped, and that is all: the picture this task was last given <b>stays</b>.
-                    //
-                    // It is the only record anywhere of who did the work -- the counts themselves are
-                    // inventories and go to zero the moment a consuming task takes the items -- and the
-                    // evaluation that satisfied the task is the last one that saw them. So the map holds
-                    // "who did what" for a finished task and "who is doing what" for a live one, from
-                    // the same entry, with nothing to distinguish them because nothing needs to.
-                    continue;
-                }
-
-                // A final local, because the lambda below cannot capture `questProgress`: it is
-                // reassigned further down this loop, so it is not effectively final. Java refuses
-                // that outright, and it is right to -- a deferred lambda reading a variable that
-                // moves is a bug waiting to be written.
-                //
-                // A snapshot is also the correct reading rather than a workaround. isTaskUnlocked
-                // runs the predicate synchronously, so the state it should judge against is exactly
-                // the progress as it stands at this moment.
-                final QuestProgress beforeThisTask = questProgress;
-                if (!quest.isTaskUnlocked(taskIndex,
-                        earlier -> ProgressionEngine.isTaskSatisfied(quest, earlier, beforeThisTask),
-                        chapterSequential)) {
-                    continue;
-                }
-
-                String key = keyOf(quest, taskIndex);
-                int interval = task.common().autoSubmitTicks();
-
-                Optional<dev.ellipog.tenet.quest.task.TaskBehaviour<QuestTask>> behaviour =
-                        TaskTypes.behaviourOf(task);
-                if (behaviour.isEmpty()) {
-                    continue;
-                }
-                // Inventory-backed tasks wait at least the pack's detection delay between reads.
-                if (behaviour.get().readsInventory()) {
-                    interval = Math.max(interval, inventoryFloor);
-                }
-                // The scheduling decision, which belongs to `isDue` rather than to this loop. It is a
-                // method because it went wrong twice, and both times the cause was arithmetic no test
-                // could reach from here: an overflow, and a clock that goes backwards when a player
-                // loads a second world in one session. Both are written up on `isDue`.
-                if (!isDue(now, lastEvaluated.get(key), interval)) {
-                    continue;
-                }
-                lastEvaluated.put(key, now);
-
-                int required = behaviour.get().required(task);
-
-                // Every member is asked, and the party's mode decides what the answers add up to.
-                // A manual-only task is the exception: it is never measured here — zeros stand in for
-                // the asking — so the tick publishes zero and records nothing, and the submit press is
-                // the only path that reads the inventory. Without this the flag would be display-only
-                // on consuming tasks (which already wait for the press) and meaningless on
-                // presence-only ones the tick would register by itself.
-                //
-                // The asks used to be folded here, as a running maximum with a comment explaining why
-                // max and not sum. That reasoning is now PartyMode.ONE_MEMBER's, and it is worth
-                // keeping in view because it is still the default: max means "somebody in this party
-                // has eight logs", which is what makes one player gathering work for both, where sum
-                // means "the party's pooled logs come to eight" — a more generous rule where eight
-                // members carrying one log each would finish a gather-eight quest.
-                //
-                // Both are now answers a party can choose, so the fold moved to where the rule can be
-                // read on its own and asserted without a server. What stayed here is the asking, which
-                // is the part that needs a world -- and which now lives in countMembers, because the
-                // press that pays for a waiting task has to ask the same question. See `submit`.
-                PartyCounts counts;
-                if (behaviour.get().manualOnly(task)) {
-                    // Zeros stand in for the asking, so the tick publishes zero and records nothing.
-                    // The view is already a list, so it is passed as is rather than copied through a
-                    // second one: nothing here writes to it, and the copy was one allocation per task
-                    // per team per tick for the same zeros.
-                    counts = new PartyCounts(List.of(), java.util.Collections.nCopies(members.size(), 0));
-                }
-                else {
-                    counts = countMembers(index, server, owner, members,
-                            asks, task, behaviour.get(), now);
-                }
-                List<Integer> perMember = counts.perMember();
-
-                // Kept, not just added up: this list is what the panel's rows name, and it used to be
-                // the tally's private business. See CONTRIBUTIONS.
-                Map<UUID, Integer> held = new LinkedHashMap<>();
-                for (int m = 0; m < members.size(); m++) {
-                    int heldByMember = perMember.get(m);
-                    if (heldByMember > 0) {
-                        held.put(members.get(m).getUUID(), heldByMember);
-                    }
-                }
-                // Handed over as it is rather than copied through an unordered map: the client's delta
-                // is built by comparing JSON *text*, so a picture whose members came out in a different
-                // order for the same numbers would read as a change on every tick and re-send the quest
-                // forever. It is freshly built here and never touched again, so there is nothing to
-                // defend against by copying.
-                Map<UUID, Integer> shown = held.isEmpty() ? null : held;
-                Map<UUID, Integer> was = shown == null
-                        ? contributions.remove(key)
-                        : contributions.put(key, shown);
-                // News even when the party's total did not move: somebody going from two logs to three,
-                // with eight already counted, changes nothing about the quest and everything about the
-                // row that names them.
-                if (!java.util.Objects.equals(was, shown)) {
-                    changed = true;
-                }
-                PartyMode.Tally tally = mode.combine(perMember, ownerIndex);
-                int current = tally.counted();
-                ServerPlayer holder = tally.hasPayer() ? members.get(tally.payer()) : null;
-
-                // Progress only ever goes up. A consuming task zeroes its own count the moment the
-                // items are taken, so without this the task would un-complete itself.
-                int recorded = questProgress.progressOf(taskIndex);
-                int best = Math.max(recorded, current);
-
-                // A task that takes what it asks for waits for the press: the tick publishes the
-                // count for the row and the button, and records nothing. See waitsForSubmit, and
-                // `submit` for the press that takes it.
-                //
-                // <b>Not recorded</b>, rather than merely not taken: completion is read off the
-                // recorded progress (ProgressionEngine.tasksSatisfied), so a tick that took nothing
-                // but still recorded the count would finish the quest and leave the items in the
-                // player's pocket -- the opposite of what the press is for.
-                boolean waits = behaviour.get().waitsForSubmit(task, chapterConsumes);
-                if (waits) {
-                    LIVE.computeIfAbsent(owner, absent -> new LinkedHashMap<>())
-                            .put(keyOf(quest, taskIndex), current);
-                }
-
-                if (best <= recorded) {
-                    continue;
-                }
-                if (!waits) {
-                    questProgress = questProgress.recordTask(taskIndex, best);
-                    changed = true;
-
-                    // The lifecycle events, fired where the engine records the change rather than where
-                    // it is later reported, so a listener runs before the caller's next statement. See
-                    // TenetEvents.
-                    ServerPlayer mover = holder != null ? holder : earner;
-                    if (best >= required) {
-                        TenetEvents.TASK_COMPLETED.invoker().onTaskCompleted(mover, quest, taskIndex);
-                    }
-                    if (!beforeThisTask.anyTaskProgress() && questProgress.anyTaskProgress()) {
-                        TenetEvents.QUEST_STARTED.invoker().onQuestStarted(mover, quest);
-                    }
-                }
-
-                // Whose carrying moved this quest forward, so the reward below goes to them.
-                //
-                // Only when somebody actually holds something: a task satisfied from *stored*
-                // progress -- the items are gone, the completion is not -- leaves holder null and
-                // keeps whatever the previous task decided, falling back to the first online member
-                // if nothing has. That path is a player who logged off after gathering, and the
-                // fallback is what it was before this was per-member at all.
-                if (holder != null) {
-                    earner = holder;
-                }
-
-                if (!waits && best >= required && behaviour.get().takesResources(task, chapterConsumes)) {
-                    // Where the resources come from, and the mode decides it -- see takesFromEveryone.
-                    //
-                    // For the two modes that count one member, the payer is that member and is
-                    // guaranteed to be holding at least `required`, because the count *is* their
-                    // inventory. So the take is what it says it is, rather than finding less and
-                    // leaving the task recorded as satisfied with the items still in somebody's
-                    // pocket.
-                    //
-                    // POOLED is the mode where that guarantee does not hold and cannot: the count is
-                    // the party's while the payer is only its largest holder, so eight logs across
-                    // four members is a satisfied task and an inventory holding two. Taking from one
-                    // would take two and call it four. So this is a real difference in behaviour
-                    // rather than a tidier way to spell the same take.
-                    if (mode.takesFromEveryone()) {
-                        // From the contributors, not from everyone: an ungated member's items were never
-                        // counted toward the requirement, so they are not the requirement's to take.
-                        consumeAcross(counts.contributors(), task, required, behaviour.get());
-                    }
-                    else {
-                        behaviour.get().take(task, holder != null ? holder : earner, required);
-                    }
-                }
+            QuestEval step = evaluateQuest(server, index, owner, now, members, mode, ownerIndex, asks,
+                    inventoryFloor, lastEvaluated, contributions, resolution, working,
+                    entry, chapterConsumes, chapterSequential);
+            working = step.working();
+            changed |= step.changed();
+            if (step.nextDueAt() != Long.MAX_VALUE) {
+                dueQueue.add(new ScheduledQuest(
+                        questOrder, entry, chapterConsumes, chapterSequential, step.nextDueAt()));
             }
+        }
 
-            // Completion is checked after the task pass, so a quest whose last task was satisfied
-            // above completes on the same evaluation rather than one interval later.
-            //
-            // `canComplete` as well as `tasksSatisfied`, and it is not belt-and-braces. A repeatable
-            // quest that is finished with a payout nobody has collected is still *playable* -- its
-            // tasks are satisfied and its cooldown has not started counting -- so every tick would
-            // reach this line and call `complete` again. `complete` refuses, correctly; the problem is
-            // that `changed` was set regardless, so the refusal was reported as a change and became a
-            // progress packet per tick, per member, for a quest that is waiting on a player rather
-            // than on the engine. Asking first is what keeps the two answers consistent.
-            //
-            // The `else if` is what still carries genuinely new task progress to disk on the tick the
-            // refusal happens, rather than dropping it on the floor.
-            if (ProgressionEngine.tasksSatisfied(quest, questProgress) && canComplete(quest, working)
-                    && gateOpenForFlexible(index, entry, quest, resolution.states())) {
-                working = complete(server, owner, earner, entry, working.put(quest, questProgress),
-                        resolution.states());
-                changed = true;
+        if (working == initialWorking) {
+            List<UUID> memberIds = new ArrayList<>(members.size());
+            for (ServerPlayer member : members) {
+                memberIds.add(member.getUUID());
             }
-            else if (!questProgress.equals(working.progressOf(quest))) {
-                working = working.put(quest, questProgress);
-                changed = true;
-            }
+            TEAM_SCHEDULES.put(owner, new TeamSchedule(
+                    index, initialWorking, stageRev, inventoryFloor, defaultConsumeItems,
+                    mode, team.owner(), List.copyOf(memberIds), now,
+                    computeCooldownExpiry(now, resolution), resolution, dueQueue));
+        }
+        else {
+            TEAM_SCHEDULES.remove(owner);
         }
 
         // Only when it moved. See the note on `changed` above: writing unconditionally marked the
@@ -932,6 +900,259 @@ public final class ProgressService {
             store.put(owner, working);
         }
         return changed;
+    }
+
+    private record QuestEval(TeamProgress working, boolean changed, long nextDueAt) {
+    }
+
+    private static QuestEval evaluateQuest(MinecraftServer server,
+                                           QuestIndex index,
+                                           UUID owner,
+                                           long now,
+                                           List<ServerPlayer> members,
+                                           PartyMode mode,
+                                           int ownerIndex,
+                                           MemberAsks asks,
+                                           int inventoryFloor,
+                                           Map<String, Long> lastEvaluated,
+                                           Map<String, Map<UUID, Integer>> contributions,
+                                           ProgressionEngine.Resolution resolution,
+                                           TeamProgress working,
+                                           QuestIndex.QuestEntry entry,
+                                           boolean chapterConsumes,
+                                           boolean chapterSequential) {
+        Quest quest = entry.quest();
+        QuestProgress questProgress = working.progressOf(quest);
+        boolean changed = false;
+        long nextDueAt = Long.MAX_VALUE;
+
+        // Who the reward goes to if this quest finishes in this pass. Reassigned below to the
+        // member whose inventory moved the quest forward, so a party pays the player who
+        // gathered rather than a player chosen at random -- see the completion at the bottom.
+        ServerPlayer earner = members.get(0);
+
+        for (int taskIndex = 0; taskIndex < quest.tasks().size(); taskIndex++) {
+            QuestTask task = quest.tasks().get(taskIndex);
+
+            if (ProgressionEngine.isTaskSatisfied(quest, taskIndex, questProgress)) {
+                // Skipped, and that is all: the picture this task was last given <b>stays</b>.
+                //
+                // It is the only record anywhere of who did the work -- the counts themselves are
+                // inventories and go to zero the moment a consuming task takes the items -- and the
+                // evaluation that satisfied the task is the last one that saw them. So the map holds
+                // "who did what" for a finished task and "who is doing what" for a live one, from
+                // the same entry, with nothing to distinguish them because nothing needs to.
+                continue;
+            }
+
+            // A final local, because the lambda below cannot capture `questProgress`: it is
+            // reassigned further down this loop, so it is not effectively final. Java refuses
+            // that outright, and it is right to -- a deferred lambda reading a variable that
+            // moves is a bug waiting to be written.
+            //
+            // A snapshot is also the correct reading rather than a workaround. isTaskUnlocked
+            // runs the predicate synchronously, so the state it should judge against is exactly
+            // the progress as it stands at this moment.
+            final QuestProgress beforeThisTask = questProgress;
+            if (!quest.isTaskUnlocked(taskIndex,
+                    earlier -> ProgressionEngine.isTaskSatisfied(quest, earlier, beforeThisTask),
+                    chapterSequential)) {
+                continue;
+            }
+
+            String key = keyOf(quest, taskIndex);
+            int interval = task.common().autoSubmitTicks();
+
+            Optional<dev.ellipog.tenet.quest.task.TaskBehaviour<QuestTask>> behaviour =
+                    TaskTypes.behaviourOf(task);
+            if (behaviour.isEmpty()) {
+                continue;
+            }
+            // Inventory-backed tasks wait at least the pack's detection delay between reads.
+            if (behaviour.get().readsInventory()) {
+                interval = Math.max(interval, inventoryFloor);
+            }
+            // The scheduling decision, which belongs to `isDue` rather than to this loop. It is a
+            // method because it went wrong twice, and both times the cause was arithmetic no test
+            // could reach from here: an overflow, and a clock that goes backwards when a player
+            // loads a second world in one session. Both are written up on `isDue`.
+            Long lastAt = lastEvaluated.get(key);
+            int stepInterval = Math.max(1, interval);
+            if (!isDue(now, lastAt, interval)) {
+                long dueAt = lastAt + stepInterval;
+                if (dueAt < nextDueAt) {
+                    nextDueAt = dueAt;
+                }
+                continue;
+            }
+            lastEvaluated.put(key, now);
+            long dueAt = now + stepInterval;
+            if (dueAt < nextDueAt) {
+                nextDueAt = dueAt;
+            }
+
+            int required = behaviour.get().required(task);
+
+            // Every member is asked, and the party's mode decides what the answers add up to.
+            // A manual-only task is the exception: it is never measured here -- zeros stand in for
+            // the asking -- so the tick publishes zero and records nothing, and the submit press is
+            // the only path that reads the inventory. Without this the flag would be display-only
+            // on consuming tasks (which already wait for the press) and meaningless on
+            // presence-only ones the tick would register by itself.
+            //
+            // The asks used to be folded here, as a running maximum with a comment explaining why
+            // max and not sum. That reasoning is now PartyMode.ONE_MEMBER's, and it is worth
+            // keeping in view because it is still the default: max means "somebody in this party
+            // has eight logs", which is what makes one player gathering work for both, where sum
+            // means "the party's pooled logs come to eight" -- a more generous rule where eight
+            // members carrying one log each would finish a gather-eight quest.
+            //
+            // Both are now answers a party can choose, so the fold moved to where the rule can be
+            // read on its own and asserted without a server. What stayed here is the asking, which
+            // is the part that needs a world -- and which now lives in countMembers, because the
+            // press that pays for a waiting task has to ask the same question. See `submit`.
+            PartyCounts counts;
+            if (behaviour.get().manualOnly(task)) {
+                // Zeros stand in for the asking, so the tick publishes zero and records nothing.
+                // The view is already a list, so it is passed as is rather than copied through a
+                // second one: nothing here writes to it, and the copy was one allocation per task
+                // per team per tick for the same zeros.
+                counts = new PartyCounts(List.of(), java.util.Collections.nCopies(members.size(), 0));
+            }
+            else {
+                counts = countMembers(index, server, owner, members,
+                        asks, task, behaviour.get(), now);
+            }
+            List<Integer> perMember = counts.perMember();
+
+            // Kept, not just added up: this list is what the panel's rows name, and it used to be
+            // the tally's private business. See CONTRIBUTIONS.
+            Map<UUID, Integer> held = new LinkedHashMap<>();
+            for (int m = 0; m < members.size(); m++) {
+                int heldByMember = perMember.get(m);
+                if (heldByMember > 0) {
+                    held.put(members.get(m).getUUID(), heldByMember);
+                }
+            }
+            // Handed over as it is rather than copied through an unordered map: the client's delta
+            // is built by comparing JSON *text*, so a picture whose members came out in a different
+            // order for the same numbers would read as a change on every tick and re-send the quest
+            // forever. It is freshly built here and never touched again, so there is nothing to
+            // defend against by copying.
+            Map<UUID, Integer> shown = held.isEmpty() ? null : held;
+            Map<UUID, Integer> was = shown == null
+                    ? contributions.remove(key)
+                    : contributions.put(key, shown);
+            // News even when the party's total did not move: somebody going from two logs to three,
+            // with eight already counted, changes nothing about the quest and everything about the
+            // row that names them.
+            if (!java.util.Objects.equals(was, shown)) {
+                changed = true;
+            }
+            PartyMode.Tally tally = mode.combine(perMember, ownerIndex);
+            int current = tally.counted();
+            ServerPlayer holder = tally.hasPayer() ? members.get(tally.payer()) : null;
+
+            // Progress only ever goes up. A consuming task zeroes its own count the moment the
+            // items are taken, so without this the task would un-complete itself.
+            int recorded = questProgress.progressOf(taskIndex);
+            int best = Math.max(recorded, current);
+
+            // A task that takes what it asks for waits for the press: the tick publishes the
+            // count for the row and the button, and records nothing. See waitsForSubmit, and
+            // `submit` for the press that takes it.
+            //
+            // <b>Not recorded</b>, rather than merely not taken: completion is read off the
+            // recorded progress (ProgressionEngine.tasksSatisfied), so a tick that took nothing
+            // but still recorded the count would finish the quest and leave the items in the
+            // player's pocket -- the opposite of what the press is for.
+            boolean waits = behaviour.get().waitsForSubmit(task, chapterConsumes);
+            if (waits) {
+                LIVE.computeIfAbsent(owner, absent -> new LinkedHashMap<>())
+                        .put(keyOf(quest, taskIndex), current);
+            }
+
+            if (best <= recorded) {
+                continue;
+            }
+            if (!waits) {
+                questProgress = questProgress.recordTask(taskIndex, best);
+                changed = true;
+
+                // The lifecycle events, fired where the engine records the change rather than where
+                // it is later reported, so a listener runs before the caller's next statement. See
+                // TenetEvents.
+                ServerPlayer mover = holder != null ? holder : earner;
+                if (best >= required) {
+                    TenetEvents.TASK_COMPLETED.invoker().onTaskCompleted(mover, quest, taskIndex);
+                }
+                if (!beforeThisTask.anyTaskProgress() && questProgress.anyTaskProgress()) {
+                    TenetEvents.QUEST_STARTED.invoker().onQuestStarted(mover, quest);
+                }
+            }
+
+            // Whose carrying moved this quest forward, so the reward below goes to them.
+            //
+            // Only when somebody actually holds something: a task satisfied from *stored*
+            // progress -- the items are gone, the completion is not -- leaves holder null and
+            // keeps whatever the previous task decided, falling back to the first online member
+            // if nothing has. That path is a player who logged off after gathering, and the
+            // fallback is what it was before this was per-member at all.
+            if (holder != null) {
+                earner = holder;
+            }
+
+            if (!waits && best >= required && behaviour.get().takesResources(task, chapterConsumes)) {
+                // Where the resources come from, and the mode decides it -- see takesFromEveryone.
+                //
+                // For the two modes that count one member, the payer is that member and is
+                // guaranteed to be holding at least `required`, because the count *is* their
+                // inventory. So the take is what it says it is, rather than finding less and
+                // leaving the task recorded as satisfied with the items still in somebody's
+                // pocket.
+                //
+                // POOLED is the mode where that guarantee does not hold and cannot: the count is
+                // the party's while the payer is only its largest holder, so eight logs across
+                // four members is a satisfied task and an inventory holding two. Taking from one
+                // would take two and call it four. So this is a real difference in behaviour
+                // rather than a tidier way to spell the same take.
+                if (mode.takesFromEveryone()) {
+                    // From the contributors, not from everyone: an ungated member's items were never
+                    // counted toward the requirement, so they are not the requirement's to take.
+                    consumeAcross(counts.contributors(), task, required, behaviour.get());
+                }
+                else {
+                    behaviour.get().take(task, holder != null ? holder : earner, required);
+                }
+            }
+        }
+
+        // Completion is checked after the task pass, so a quest whose last task was satisfied
+        // above completes on the same evaluation rather than one interval later.
+        //
+        // `canComplete` as well as `tasksSatisfied`, and it is not belt-and-braces. A repeatable
+        // quest that is finished with a payout nobody has collected is still *playable* -- its
+        // tasks are satisfied and its cooldown has not started counting -- so every tick would
+        // reach this line and call `complete` again. `complete` refuses, correctly; the problem is
+        // that `changed` was set regardless, so the refusal was reported as a change and became a
+        // progress packet per tick, per member, for a quest that is waiting on a player rather
+        // than on the engine. Asking first is what keeps the two answers consistent.
+        //
+        // The `else if` is what still carries genuinely new task progress to disk on the tick the
+        // refusal happens, rather than dropping it on the floor.
+        if (ProgressionEngine.tasksSatisfied(quest, questProgress) && canComplete(quest, working)
+                && stageGateOpen(server, quest, earner.getUUID())
+                && gateOpenForFlexible(index, entry, quest, resolution.states())) {
+            working = complete(server, owner, earner, entry, working.put(quest, questProgress),
+                    resolution.states());
+            changed = true;
+        }
+        else if (!questProgress.equals(working.progressOf(quest))) {
+            working = working.put(quest, questProgress);
+            changed = true;
+        }
+
+        return new QuestEval(working, changed, nextDueAt);
     }
 
     // ------------------------------------------------------------------
@@ -1257,6 +1478,72 @@ public final class ProgressService {
         return StageService.has(server, player, required.get());
     }
 
+    private record ConditionedQuest(String questId,
+                                    List<List<QuestCondition>> taskConditions,
+                                    List<List<QuestCondition>> rewardConditions) {
+    }
+
+    private record ConditionSites(QuestIndex index,
+                                  List<Quest> stageGatedQuests,
+                                  List<ConditionedQuest> quests,
+                                  boolean onlyStageAndParty) {
+    }
+
+    private static volatile ConditionSites cachedConditionSites;
+
+    private static ConditionSites conditionSites(QuestIndex index) {
+        ConditionSites current = cachedConditionSites;
+        if (current != null && current.index() == index) {
+            return current;
+        }
+        List<Quest> stageGated = new ArrayList<>();
+        List<ConditionedQuest> conditioned = new ArrayList<>();
+        boolean onlyStageAndParty = true;
+        for (QuestIndex.QuestEntry entry : index.quests()) {
+            Quest quest = entry.quest();
+            if (quest.requiresStage().isPresent()) {
+                stageGated.add(quest);
+            }
+            boolean hasTaskCond = false;
+            for (QuestTask task : quest.tasks()) {
+                List<QuestCondition> conds = task.common().conditions();
+                if (!conds.isEmpty()) {
+                    hasTaskCond = true;
+                    for (QuestCondition c : conds) {
+                        if (!(c instanceof StageCondition) && !(c instanceof PartySizeCondition)) {
+                            onlyStageAndParty = false;
+                        }
+                    }
+                }
+            }
+            boolean hasRewardCond = false;
+            for (QuestReward reward : quest.rewards()) {
+                List<QuestCondition> conds = reward.common().conditions();
+                if (!conds.isEmpty()) {
+                    hasRewardCond = true;
+                    for (QuestCondition c : conds) {
+                        if (!(c instanceof StageCondition) && !(c instanceof PartySizeCondition)) {
+                            onlyStageAndParty = false;
+                        }
+                    }
+                }
+            }
+            if (hasTaskCond || hasRewardCond) {
+                List<List<QuestCondition>> taskConds = hasTaskCond
+                        ? quest.tasks().stream().map(t -> t.common().conditions()).toList()
+                        : List.of();
+                List<List<QuestCondition>> rewardConds = hasRewardCond
+                        ? quest.rewards().stream().map(r -> r.common().conditions()).toList()
+                        : List.of();
+                conditioned.add(new ConditionedQuest(quest.id(), taskConds, rewardConds));
+            }
+        }
+        ConditionSites built = new ConditionSites(
+                index, List.copyOf(stageGated), List.copyOf(conditioned), onlyStageAndParty);
+        cachedConditionSites = built;
+        return built;
+    }
+
     /**
      * The quests whose stage gate this player does not pass, by id.
      *
@@ -1269,18 +1556,14 @@ public final class ProgressService {
         if (server == null) {
             return java.util.Set.of();
         }
-        // Asked per quest rather than copied per send: the held sets were built whole and then
-        // probed once per gated quest, so a pack with a handful of gates paid for every stage ever
-        // granted. A miss reads as locked, exactly as the set-membership form answered — a stage
-        // neither the player nor (for a team gate) the team holds is not held.
+        List<Quest> stageGated = conditionSites(index).stageGatedQuests();
+        if (stageGated.isEmpty()) {
+            return java.util.Set.of();
+        }
         java.util.UUID self = player.getUUID();
         java.util.UUID team = progressOwner(server, player);
         java.util.Set<String> locked = new java.util.LinkedHashSet<>();
-        for (QuestIndex.QuestEntry entry : index.quests()) {
-            Quest quest = entry.quest();
-            if (quest.requiresStage().isEmpty()) {
-                continue;
-            }
+        for (Quest quest : stageGated) {
             net.minecraft.resources.Identifier stage = quest.requiresStage().get();
             boolean held = quest.requiresStageTeam()
                     ? StageService.hasTeam(server, team, stage)
@@ -1295,7 +1578,7 @@ public final class ProgressService {
     /**
      * The rows a player is condition-locked out of, by quest: row index -> the conditions that failed.
      *
-     * <p>A task or a reward with no entry is not locked, and its conditions — if it has any — all held.
+     * <p>A task or a reward with no entry is not locked, and its conditions -- if it has any -- all held.
      * The lists are ascending and the maps are sorted, because this value's text is compared to decide
      * whether a client needs an update; a map iterated in a varying order would resend forever, the
      * lesson the contributors' JSON already carries.
@@ -1313,25 +1596,26 @@ public final class ProgressService {
     /**
      * Every condition lock this player has, for the sync to draw and to compare against the last one.
      *
-     * <p>Only rows that declare conditions are evaluated, so a pack that uses none pays one walk of
-     * the index per call and nothing else — and the callers skip even that when the index declares
-     * none at all; see {@link #hasConditions}.
+     * <p>Only quests that declare conditions are evaluated, pre-indexed per {@link QuestIndex}, so a
+     * pack that uses none pays nothing and a pack that uses a few walks only those quests.
      *
      * <p>Asked per player because every condition is: the sync's overlay is the one per-player fact a
      * team's stored progress cannot express, the same reason {@link #stageLockedQuests} exists.
      */
     public static Map<String, LockView> lockView(MinecraftServer server, QuestIndex index,
                                                  ServerPlayer player, UUID owner) {
+        List<ConditionedQuest> quests = conditionSites(index).quests();
+        if (quests.isEmpty()) {
+            return Map.of();
+        }
+        int presentCount = server != null ? onlineMembersOf(server, teamFor(server, owner)).size() : 1;
+        ConditionContext context = new ConditionContext(player, server, owner, presentCount);
         Map<String, LockView> out = new TreeMap<>();
-        ConditionContext context = new ConditionContext(player, server, owner);
-        for (QuestIndex.QuestEntry entry : index.quests()) {
-            Quest quest = entry.quest();
-            Map<Integer, List<Integer>> tasks = lockedRows(
-                    quest.tasks().stream().map(task -> task.common().conditions()).toList(), context);
-            Map<Integer, List<Integer>> rewards = lockedRows(
-                    quest.rewards().stream().map(reward -> reward.common().conditions()).toList(), context);
+        for (ConditionedQuest cq : quests) {
+            Map<Integer, List<Integer>> tasks = lockedRows(cq.taskConditions(), context);
+            Map<Integer, List<Integer>> rewards = lockedRows(cq.rewardConditions(), context);
             if (!tasks.isEmpty() || !rewards.isEmpty()) {
-                out.put(quest.id(), new LockView(tasks, rewards));
+                out.put(cq.questId(), new LockView(tasks, rewards));
             }
         }
         return out;
@@ -1339,6 +1623,9 @@ public final class ProgressService {
 
     private static Map<Integer, List<Integer>> lockedRows(List<List<QuestCondition>> conditions,
                                                           ConditionContext context) {
+        if (conditions.isEmpty()) {
+            return Map.of();
+        }
         Map<Integer, List<Integer>> out = new TreeMap<>();
         for (int i = 0; i < conditions.size(); i++) {
             if (conditions.get(i).isEmpty()) {
@@ -1355,23 +1642,31 @@ public final class ProgressService {
     /**
      * Whether any quest declares a condition at all.
      *
-     * <p>The lock refresh's fast path: a pack that uses no conditions — which is every pack before
-     * this feature, and most after it — must pay nothing recurring for a display it never shows.
+     * <p>The lock refresh's fast path: a pack that uses no conditions -- which is every pack before
+     * this feature, and most after it -- must pay nothing recurring for a display it never shows.
      */
     public static boolean hasConditions(QuestIndex index) {
-        for (QuestIndex.QuestEntry entry : index.quests()) {
-            for (QuestTask task : entry.quest().tasks()) {
-                if (!task.common().conditions().isEmpty()) {
-                    return true;
-                }
-            }
-            for (QuestReward reward : entry.quest().rewards()) {
-                if (!reward.common().conditions().isEmpty()) {
-                    return true;
-                }
-            }
+        return !conditionSites(index).quests().isEmpty();
+    }
+
+    /** Whether every condition in {@code index} is a stage or party-size check. */
+    public static boolean onlyStageAndPartyConditions(QuestIndex index) {
+        return conditionSites(index).onlyStageAndParty();
+    }
+
+    /**
+     * Fingerprint of the event-driven inputs to {@link #lockView} for stage and party-size conditions:
+     * the index identity, the team owner, the store's stage revision, and the online party member count.
+     */
+    public static long lockInputsFingerprint(MinecraftServer server, QuestIndex index, UUID owner) {
+        if (server == null) {
+            return 0L;
         }
-        return false;
+        long h = System.identityHashCode(index);
+        h = h * 31L + (owner != null ? owner.hashCode() : 0);
+        h = h * 31L + ProgressStore.of(server).stageRevision();
+        h = h * 31L + onlineMembersOf(server, teamFor(server, owner)).size();
+        return h;
     }
 
     /** What one claim press did: how much it took, out of how much it could, and why it stopped. */
@@ -2356,6 +2651,7 @@ public final class ProgressService {
             int count = progress.size();
             store.clear(owner);
             LAST_EVALUATED.remove(owner);
+            TEAM_SCHEDULES.remove(owner);
             return count;
         }
 
@@ -2365,6 +2661,7 @@ public final class ProgressService {
         }
         store.put(owner, progress.remove(entry.get().quest()));
         LAST_EVALUATED.remove(owner);
+        TEAM_SCHEDULES.remove(owner);
         return 1;
     }
 

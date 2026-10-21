@@ -283,6 +283,50 @@ public final class QuestBookScreen extends ArmatureScreen
     private SidebarState geometrySidebar = SidebarState.DEFAULT;
 
     /**
+     * Per-frame snapshot of the geometry, canvas viewport, permission check, and active chapter.
+     *
+     * <p>Captured once at the top of {@link #extractRenderState} (and {@link #renderWith} when driven
+     * directly by a test), refreshed if the frame triggers a widget rebuild, and cleared when the frame
+     * finishes or {@link #init} runs. Without this, {@link #viewport} and {@link #geometry} re-ran
+     * permission checks and allocated {@link SidebarState} records hundreds of times per frame.
+     */
+    private boolean frameActive;
+    private BookGeometry frameGeometry;
+    private Viewport frameViewport;
+    private boolean frameMayEdit;
+    private static boolean frameChapterActive;
+    private static String frameChapter;
+
+    private void snapshotFrame() {
+        frameActive = false;
+        frameChapterActive = false;
+        frameMayEdit = dev.ellipog.tenet.QuestAuthority.mayEditClient(minecraft);
+        boolean author = frameMayEdit && !previewAsPlayer;
+        SidebarState sidebar = sidebarEffective();
+        if (geometry == null || geometryWidth != width || geometryHeight != height
+                || geometryAuthor != author || !geometrySidebar.equals(sidebar)) {
+            geometry = new BookGeometry(width, height, author, author, sidebar);
+            geometryWidth = width;
+            geometryHeight = height;
+            geometryAuthor = author;
+            geometrySidebar = sidebar;
+        }
+        frameGeometry = geometry;
+        BookGeometry.Rect canvas = frameGeometry.canvas();
+        frameViewport = VIEW.bounds(canvas.x(), canvas.y(), canvas.width(), canvas.height());
+        frameChapter = computeEffectiveChapter();
+        frameActive = true;
+        frameChapterActive = true;
+    }
+
+    private void clearFrameSnapshot() {
+        frameActive = false;
+        frameChapterActive = false;
+        frameGeometry = null;
+        frameViewport = null;
+    }
+
+    /**
      * The chapter list's effective state: the file's answers, with a held drag's live width over
      * the stored one, docked forced expanded, and a hover-peek resolved to what it draws as.
      *
@@ -320,11 +364,14 @@ public final class QuestBookScreen extends ArmatureScreen
      * are the reason the key is three comparisons rather than one.
      */
     private BookGeometry geometry() {
+        if (frameActive && frameGeometry != null) {
+            return frameGeometry;
+        }
         // A previewing operator gets the reader's geometry: the card, no band, no full-bleed. That is
         // the whole point of the preview — the panel shrinks to exactly what a player without the
         // permission sees — and the way back out is the floating pill `buildViewCluster` puts over the
         // canvas, not the band, which this geometry does not have.
-        boolean author = mayEdit() && !previewing();
+        boolean author = mayEdit() && !previewAsPlayer;
         SidebarState sidebar = sidebarEffective();
         if (geometry == null || geometryWidth != width || geometryHeight != height
                 || geometryAuthor != author || !geometrySidebar.equals(sidebar)) {
@@ -1880,6 +1927,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * mistaken for a real value is the difference between "definitely stale" and "probably stale".
      */
     private static SidebarLayout sidebar;
+    private static List<SidebarLayout.ChapterRow> sidebarChapters = List.of();
     private static long sidebarRevision = -1;
 
     /** And the other three inputs the outline's rows depend on. See {@link #sidebar()}. */
@@ -3535,9 +3583,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * window was resized.
      *
      * <p>What each one buys: the <b>tree</b> is the sidebar's rows, so a reload rebuilds them; the
-     * <b>progress</b> is what the rows say and whether a Claim button belongs on the screen, which is
-     * the one part of progress that is a widget rather than something drawn; the <b>party</b> is the
-     * roster's rows and the Remove buttons placed in them.
+     * <b>party</b> is the roster's rows and the Remove buttons placed in them. Progress is deliberately
+     * not watched here: it increments on every item-count tick and lock refresh, and tearing down the
+     * whole widget list for a task count moving is a hitch on every sync. Progress-driven widgets
+     * (chapter gates, reward counts, the reader footer and the rewards inbox) check their own state.
      */
     private static boolean watchingSources;
 
@@ -3547,7 +3596,6 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         watchingSources = true;
         ArmatureLive.watch("tenet.tree", ClientQuestCache::treeRevision);
-        ArmatureLive.watch("tenet.progress", ClientQuestCache::progressRevision);
         ArmatureLive.watch("tenet.party", ClientPartyCache::rosterRevision);
     }
 
@@ -4000,6 +4048,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * still takes the full rebuild.
      */
     private void rebuildSidebarAndCluster() {
+        clearFrameSnapshot();
         buildSidebarWidgets();
         buildViewCluster();
     }
@@ -4016,6 +4065,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * one rule whatever the list held.
      */
     private void orphanSidebarRows() {
+        clearFrameSnapshot();
         sidebarDeparted.clear();
         for (AbstractWidget widget : sidebarRowWidgets) {
             sidebarDeparted.add(new SidebarDeparted(widget, widget.getX(), widget.getY()));
@@ -4523,11 +4573,23 @@ public final class QuestBookScreen extends ArmatureScreen
      * </ul>
      */
     private static boolean sidebarStale() {
-        return sidebar == null
+        if (sidebar == null
                 || sidebarRevision != ClientQuestCache.treeRevision()
-                || sidebarProgress != ClientQuestCache.progressRevision()
                 || sidebarEditing != editingView
-                || sidebarText != ClientQuestCache.textRevision();
+                || sidebarText != ClientQuestCache.textRevision()) {
+            return true;
+        }
+        long progress = ClientQuestCache.progressRevision();
+        if (sidebarProgress == progress) {
+            return false;
+        }
+        for (SidebarLayout.ChapterRow row : sidebarChapters) {
+            if (row.locked() != chapterLocked(row.id()) || row.hidden() != chapterHidden(row.id())) {
+                return true;
+            }
+        }
+        sidebarProgress = progress;
+        return false;
     }
 
     /**
@@ -4571,7 +4633,8 @@ public final class QuestBookScreen extends ArmatureScreen
                     chapterLocked(entry.chapterId()), chapterHidden(entry.chapterId())));
         }
 
-        SidebarLayout layout = SidebarLayout.of(groups, List.copyOf(chapters.values()));
+        sidebarChapters = List.copyOf(chapters.values());
+        SidebarLayout layout = SidebarLayout.of(groups, sidebarChapters);
         // The player's own expansions, over the authored defaults: this rebuild is what used to throw
         // them away. And the memory is pruned to the groups that still exist here, so a renamed or
         // deleted group's key does not accumulate for the life of the session.
@@ -4708,6 +4771,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         boolean moved = !java.util.Objects.equals(id, selectedChapter);
         selectedChapter = id;
+        frameChapterActive = false;
         selectedQuest = null;
         multiSelection.clear();
         if (moved) {
@@ -5591,6 +5655,13 @@ public final class QuestBookScreen extends ArmatureScreen
      * chapter be opened", and the two would disagree the first time one of them changed.
      */
     private static String effectiveChapter() {
+        if (frameChapterActive) {
+            return frameChapter;
+        }
+        return computeEffectiveChapter();
+    }
+
+    private static String computeEffectiveChapter() {
         Map<String, String> chapters = chapters();
         if (chapters.isEmpty()) {
             return null;
@@ -5926,8 +5997,11 @@ public final class QuestBookScreen extends ArmatureScreen
      * once would be describing the previous window for an unknown number of frames.
      */
     private Viewport viewport() {
-        return VIEW.bounds(canvasLeft(), canvasTop(), canvasRight() - canvasLeft(),
-                canvasBottom() - canvasTop());
+        if (frameActive && frameViewport != null) {
+            return frameViewport;
+        }
+        BookGeometry.Rect canvas = geometry().canvas();
+        return VIEW.bounds(canvas.x(), canvas.y(), canvas.width(), canvas.height());
     }
 
     /**
@@ -6421,7 +6495,8 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         float t = Math.max(0F, Math.min(1F, (float) elapsed / ZOOM_GLIDE_MILLIS));
         float eased = Motion.defaultEasing().between(zoomGlideFrom, zoomGlideTo, t);
-        if (eased != current && !viewport().zoomAboutCentre(eased / current)) {
+        if (eased != current && CanvasDetail.of(eased) != CanvasDetail.of(current)
+                && !viewport().zoomAboutCentre(eased / current)) {
             zoomGlideStart = -1L;
         }
     }
@@ -9942,6 +10017,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // The chapter the quest lives in, not the one on screen: the pick may have been taken
             // somewhere else entirely, and the card can only show a quest of the chapter it is drawn in.
             selectedChapter = pick.chapter();
+            frameChapterActive = false;
         }
         selectedQuest = pick.quest();
         multiSelection.clear();
@@ -11129,6 +11205,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
     @Override
     protected void init() {
+        clearFrameSnapshot();
         // First, because the panels built below ask what this viewer may see: a chapter withheld until
         // its gate is met is a row to an author and not a row to a reader, and the static helpers that
         // decide it read this flag. `rebuildWidgets` re-reads it too. See `editingView`.
@@ -11612,6 +11689,9 @@ public final class QuestBookScreen extends ArmatureScreen
      * names it -- and the day the rule changes, the command is where it should change.
      */
     private boolean mayEdit() {
+        if (frameActive) {
+            return frameMayEdit;
+        }
         return dev.ellipog.tenet.QuestAuthority.mayEditClient(minecraft);
     }
 
@@ -11953,6 +12033,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // Per player: a teammate having collected their copy must not hide this player's button.
         java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
         boolean claimable = self != null && claimableWithMarks(self, entry);
+        readerFooterTaskIndex = taskIndex;
+        readerFooterClaimable = claimable;
         Map<String, BookGeometry.Rect> controls = overlayControls(taskIndex >= 0 || claimable);
 
         if (claimable) {
@@ -16492,12 +16574,16 @@ public final class QuestBookScreen extends ArmatureScreen
      * no count touches no button. Called every tick; setting an unchanged suffix is still a write
      * the button does not need, which is what the comparison is for.
      */
+    private int readerFooterTaskIndex = -1;
+    private boolean readerFooterClaimable;
+
     private void syncSidebarSuffixes() {
         SidebarLayout layout = sidebar();
         if (layout == null) {
             return;
         }
-        Map<String, Integer> waiting = rewardCounts().byChapter();
+        RewardCounts counts = rewardCounts();
+        Map<String, Integer> waiting = counts.byChapter();
         String selectedChapter = effectiveChapter();
         if (waiting.equals(sidebarWaiting)
                 && java.util.Objects.equals(selectedChapter, sidebarSuffixChapter)) {
@@ -16505,6 +16591,11 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         sidebarWaiting = waiting;
         sidebarSuffixChapter = selectedChapter;
+        if (rewardsButton != null) {
+            int total = counts.byQuest().size();
+            rewardsButton.tooltip(Component.translatable(total == 0
+                    ? "tenet.screen.rewards.none" : "tenet.screen.rewards.waiting", total));
+        }
         for (SidebarLayout.Row row : layout.rows()) {
             if (row.group() || !(sidebarView.get(row.key()) instanceof ArmatureButton button)) {
                 continue;
@@ -16659,7 +16750,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * player's. The count comes from one walk per revision (see {@link #rewardCounts}), and the
      * badge's own art and anchoring are {@link RewardBadge}'s.
      */
-    private void drawRewardBadges(GuiRenderer r, List<FrameNode> nodes, CanvasDetail detail) {
+    private void drawRewardBadges(GuiRenderer r, List<FrameNode> nodes, int dx, int dy,
+                                  CanvasDetail detail) {
         Map<String, Integer> waiting = rewardCounts().byQuest();
         if (waiting.isEmpty()) {
             return;
@@ -16669,16 +16761,26 @@ public final class QuestBookScreen extends ArmatureScreen
             // the number is unreadable and the disc is larger than the node it sits on. See CanvasDetail.
             return;
         }
+        int cLeft = canvasLeft();
+        int cTop = canvasTop();
+        int cRight = canvasRight();
+        int cBottom = canvasBottom();
         for (FrameNode node : nodes) {
             Integer count = waiting.get(node.id());
             if (count == null) {
+                continue;
+            }
+            int nx = node.x() + dx;
+            int ny = node.y() + dy;
+            int size = node.size();
+            if (nx >= cRight || nx + size <= cLeft || ny >= cBottom || ny + size <= cTop) {
                 continue;
             }
             // The badge anchors itself to this node's own outline and shrinks with it; the ring is a
             // darker shade of the badge's own colour rather than a theme edge, because a grey outline
             // around a gold disc reads as two unrelated things.
             int fill = ArmatureTheme.inProgress();
-            RewardBadge.draw(r, node.geometry(), node.x(), node.y(), node.size(),
+            RewardBadge.draw(r, node.geometry(), nx, ny, size,
                     count, fill, Colour.shade(fill, -0.45F), ArmatureTheme.canvas());
         }
     }
@@ -16691,10 +16793,15 @@ public final class QuestBookScreen extends ArmatureScreen
      * is the node's own — locked, rings tier, pack and quest flags — read here rather than carried,
      * so the pass and the node cannot disagree about which nodes wear one.
      */
-    private void drawLockMarks(GuiRenderer r, List<FrameNode> nodes, CanvasDetail detail) {
+    private void drawLockMarks(GuiRenderer r, List<FrameNode> nodes, int dx, int dy,
+                               CanvasDetail detail) {
         if (!detail.rings()) {
             return;
         }
+        int cLeft = canvasLeft();
+        int cTop = canvasTop();
+        int cRight = canvasRight();
+        int cBottom = canvasBottom();
         boolean showLockIcons = ClientQuestCache.showLockIcons();
         for (FrameNode node : nodes) {
             if (node.state() != QuestState.LOCKED) {
@@ -16704,9 +16811,14 @@ public final class QuestBookScreen extends ArmatureScreen
                     node.hideLock())) {
                 continue;
             }
+            int nx = node.x() + dx;
+            int ny = node.y() + dy;
             int size = node.size();
+            if (nx >= cRight || nx + size <= cLeft || ny >= cBottom || ny + size <= cTop) {
+                continue;
+            }
             int box = Math.max(9, size / 4);
-            drawLockMark(r, node.x() + size - box / 2, node.y() - box / 2, box);
+            drawLockMark(r, nx + size - box / 2, ny - box / 2, box);
         }
     }
 
@@ -20262,7 +20374,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * <p><b>And a drag owns the pointer:</b> while a handle is being dragged, or a node, or a marquee,
      * no other line may light up — dragging across a neighbour used to sprout its handles mid-gesture.
      */
-    private void drawEdgeHandles(GuiRenderer r, double mouseX, double mouseY, List<FrameEdge> edges) {
+    private void drawEdgeHandles(GuiRenderer r, double mouseX, double mouseY, List<FrameEdge> edges,
+                                 int dx, int dy) {
         // The same condition `handleAt` tests, and that is the point: the two are one decision -- where a
         // line's handles are grabbable is where they are drawn -- so a handle that answers a press must be
         // the handle the player can see.
@@ -20272,18 +20385,24 @@ public final class QuestBookScreen extends ArmatureScreen
         // A gesture owns the pointer: only the dragged line shows anything, and a node or marquee drag
         // shows nothing at all until the release.
         boolean gesture = bendDragFrom != null || draggedNode != null || marqueeActive;
+        int cLeft = canvasLeft();
+        int cTop = canvasTop();
+        int cRight = canvasRight();
+        int cBottom = canvasBottom();
         // The frame's own edges: the paths the handles are grabbed against are the ones that were drawn,
         // and they are already built -- this loop used to rebuild every route a second time per frame.
         for (FrameEdge frameEdge : edges) {
-            String[] edge = frameEdge.key();
-            ClientQuestCache.Entry dependent = frameEdge.to();
-            ClientQuestCache.Entry dependency = frameEdge.from();
             boolean dragging = frameEdge.matches(bendDragFrom, bendDragTo);
             if (gesture && !dragging) {
                 continue;
             }
+            if (!dragging && !frameEdge.reaches(dx, dy, cLeft, cTop, cRight, cBottom)) {
+                continue;
+            }
+            String[] edge = frameEdge.key();
             DependencyStyle style = frameEdge.style();
-            List<List<LineArt.Point>> arms = handleArms(edge, frameEdge.path(), style);
+            List<LineArt.Point> path = frameEdge.path(dx, dy);
+            List<List<LineArt.Point>> arms = handleArms(edge, path, style);
             if (!dragging && !showsHandles(edge, arms, mouseX, mouseY)) {
                 continue;
             }
@@ -20291,8 +20410,8 @@ public final class QuestBookScreen extends ArmatureScreen
             boolean toDragged = dragging && HANDLE_TO.equals(bendDragKind);
             // Drawn where they are grabbed, from the same path the ink came from: circles at the ends,
             // the diamond at the middle of a curve.
-            circleDot(r, handleDot(frameEdge.path(), true), fromDragged);
-            circleDot(r, handleDot(frameEdge.path(), false), toDragged);
+            circleDot(r, handleDot(path, true), fromDragged);
+            circleDot(r, handleDot(path, false), toDragged);
             if (isSplit(style)) {
                 // Two diamonds at the control points, each with a leash to the end of the curve it
                 // steers -- the outline that says "bend here" rather than "another end". Both come from
@@ -20307,8 +20426,8 @@ public final class QuestBookScreen extends ArmatureScreen
                 }
             }
             else if (bows(style)) {
-                LineArt.Point middle = LineArt.pointAt(frameEdge.path(),
-                        LineArt.length(frameEdge.path()) / 2);
+                LineArt.Point middle = LineArt.pointAt(path,
+                        LineArt.length(path) / 2);
                 diamondDot(r, middle, dragging && HANDLE_BEND.equals(bendDragKind));
             }
         }
@@ -25401,6 +25520,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // so everything below already answers it. Edge-triggered — a stationary pointer costs
         // nothing — and never mid-wipe, under a menu, or while the pointer is owned.
         updateSidebarPeek(hoverX, hoverY, owned, Util.getMillis());
+        snapshotFrame();
+        try {
         // The one forced signature in this class for drawing, and the whole of the seam at this call
         // site: a GuiGraphics arrives because Minecraft's Screen hands over one and there is no other
         // override, so it is wrapped and handed on. Nothing below this line names the type.
@@ -25869,6 +25990,10 @@ public final class QuestBookScreen extends ArmatureScreen
         // numbers are the frame's own; through the plain one, so the overlay is not counted by the
         // instrument it exists to display. Last of all, so nothing covers it.
         drawDevOverlay(plain);
+        }
+        finally {
+            clearFrameSnapshot();
+        }
     }
 
     /** How far the dev overlay's panel sits from the frame's top-left corner. */
@@ -26030,8 +26155,17 @@ public final class QuestBookScreen extends ArmatureScreen
         // The canvas caption comes back up rather than drawing here: tests driving this method ignore
         // the return, `render` draws it at TOOLTIP_Z, and drawing order over widgets is not something
         // RecordingRenderer observes (see the tooltips note in renderBook).
+        boolean ownFrame = !frameActive;
+        if (ownFrame) {
+            snapshotFrame();
+        }
         try (ArmatureTheme.Scope look = ArmatureTheme.scope(ClientAppearance.LOOK.main())) {
             return renderBook(renderer, mouseX, mouseY, partialTick);
+        }
+        finally {
+            if (ownFrame) {
+                clearFrameSnapshot();
+            }
         }
     }
 
@@ -26055,6 +26189,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // the guard's only remaining effect would be a sidebar that went stale whenever a panel was open.
         if (sidebarStale()) {
             rebuildWidgets();
+            snapshotFrame();
         }
 
         // The animation clock, read once per frame and handed down. Nothing in this screen or in the
@@ -27324,7 +27459,13 @@ public final class QuestBookScreen extends ArmatureScreen
         // from has moved. Stamped here rather than earlier because the glide above moves the camera, and
         // this is the first point at which the viewport is the one the frame will draw with.
         stampCanvas(r, quests);
-        r.fill(canvasLeft(), canvasTop(), canvasRight(), canvasBottom(), ArmatureTheme.canvas());
+        int dx = panDx();
+        int dy = panDy();
+        int cLeft = canvasLeft();
+        int cTop = canvasTop();
+        int cRight = canvasRight();
+        int cBottom = canvasBottom();
+        r.fill(cLeft, cTop, cRight, cBottom, ArmatureTheme.canvas());
         // The chapter's surface over its colour, inside the same batch and the same theme scope as
         // everything else on the canvas -- so a chapter that names a patterned theme gets it here,
         // and CanvasBackgroundArt's own bounds keep it decorative. See that class for the fades.
@@ -27346,7 +27487,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // The line hover, recomputed only when the pointer or the view moved: a still pointer over a
         // still canvas cannot change which line is nearest, and the walk it would redo is every pixel
         // of every route.
-        String[] hoveredEdge = mayEditNow() && hovered == null ? lineHover(edges, mouseX, mouseY) : null;
+        String[] hoveredEdge = mayEditNow() && hovered == null ? lineHover(edges, mouseX, mouseY, dx, dy) : null;
         // A value-equal key -- a List, not the candidate's own array -- because Hover compares by
         // equals, and a fresh array every frame would restart the fade every frame and never arrive.
         edgeHover.update(hoveredEdge == null ? null : List.of(hoveredEdge[0], hoveredEdge[1]), now);
@@ -27358,10 +27499,13 @@ public final class QuestBookScreen extends ArmatureScreen
         // The canvas's decoration, under everything else on it: a box behind a cluster of quests, a label over
         // the backdrop, a rule between two tiers. After the chapter's own background and **before** the
         // dependency lines, which is the legacy format's own arrangement and the reason a box is a container rather than a
-        // lid over what it names. Culled and gated by stampCanvas, so a frame re-issues what it was given; the
-        // look is read per frame, because hover eases and a selection changes on a press.
+        // lid over what it names. Culled per frame against the pan-shifted bounds; the look is read per frame,
+        // because hover eases and a selection changes on a press.
         CanvasElementArt.Frame elementFrame = elementFrame(r);
         for (ElementSlot slot : canvasElements) {
+            if (!slot.overlaps(dx, dy, cLeft, cTop, cRight, cBottom)) {
+                continue;
+            }
             CanvasElementArt.draw(elementFrame, slot.element(), elementLook(slot));
         }
         // And the grips, over the elements and under the lines and the nodes. That order is the press order
@@ -27408,11 +27552,14 @@ public final class QuestBookScreen extends ArmatureScreen
         //
         // Through the edge's own geometry rather than through `drawStyledPath(path, style, ...)`: the
         // rectangles and the arrowheads were worked out when this edge was built, so a frame re-issues
-        // them and measures nothing. The origin is still added per fill — see `drawStyledPath`'s overload.
+        // them and measures nothing. The pan-shifted origin is added per fill (see `drawStyledPath`'s overload).
         for (FrameEdge edge : edges) {
-            drawStyledPath(r, edge.geometry(), edge.path().get(0),
+            if (!edge.reaches(dx, dy, cLeft, cTop, cRight, cBottom)) {
+                continue;
+            }
+            drawStyledPath(r, edge.geometry(), edge.origin(dx, dy),
                     lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now));
-            drawEdgePulse(r, edge, now);
+            drawEdgePulse(r, edge, now, dx, dy);
         }
 
         // The chapter's markers, in the node layer but beneath the nodes: a shortcut beside the quests
@@ -27421,29 +27568,39 @@ public final class QuestBookScreen extends ArmatureScreen
         // thing drawn on top is the thing a press belongs to, and a press that landed elsewhere than
         // what it opened would be a fault with no visible cause.
         for (LinkSlot slot : canvasLinks) {
-            drawLink(r, slot, nodeHover.amount(slot.slot().link().id(), now), detail);
+            if (!slot.overlaps(dx, dy, cLeft, cTop, cRight, cBottom)) {
+                continue;
+            }
+            drawLink(r, slot.shifted(dx, dy), nodeHover.amount(slot.slot().link().id(), now), detail);
         }
 
         // Only the nodes the canvas can show. The scissor already hides the rest, but a clipped fill is
         // still a fill that was built, transformed and submitted -- and at high zoom most of a chapter is
-        // off-canvas, which is why this is the node half of the zoom fix. Culled by stampCanvas.
+        // off-canvas, which is why this is the node half of the zoom fix. Culled against the pan-shifted
+        // screen box so panning does not re-stamp.
         // The focused id unwrapped once for the loop rather than per node: `focused()` answers an
         // Optional, and mapping it per node allocates two throwaways per visible node per frame.
         String focusedId = canvasFocus.focused().orElse(null);
         List<FrameNode> nodes = frameNodes;
         for (FrameNode node : nodes) {
+            int nx = node.x() + dx;
+            int ny = node.y() + dy;
+            int nSize = node.size();
+            if (nx >= cRight || nx + nSize <= cLeft || ny >= cBottom || ny + nSize <= cTop) {
+                continue;
+            }
             float flash = node.id().equals(flashQuest)
                     ? CanvasReveal.flash(now - flashStart, CanvasReveal.FLASH_MILLIS) : 0F;
-            drawNode(r, node, nodeHover.amount(node.id(), now), flash, detail, focusedId);
+            drawNode(r, node, nx, ny, nodeHover.amount(node.id(), now), flash, detail, focusedId);
         }
         // Titles in their own pass, after every node, so a label can see the other nodes -- see the
-        // stamp for what happened when it could not. Placed, cut and collision-tested there; the
-        // frame re-issues fills and runs.
+        // stamp for what happened when it could not. Placed and cut there; the frame applies the pan
+        // shift and re-issues fills and runs.
         drawLabels(r);
         // The reward badges last of the node furniture: a title's backdrop is opaque and reaches the
         // corner on a long name, so a badge drawn with the nodes would vanish exactly when the chapter
         // is busiest.
-        drawRewardBadges(r, nodes, detail);
+        drawRewardBadges(r, nodes, dx, dy, detail);
         // The padlocks after everything node-shaped, straddling their node's top-right corner:
         // a large icon reaches the corner the lock would sit inside, and vanilla's item pipeline
         // draws over fills whatever order they are issued in — a lock drawn with its node ends up
@@ -27452,12 +27609,12 @@ public final class QuestBookScreen extends ArmatureScreen
         // with the quest's own `hide_lock_icon`, either silence winning; a locked node without one
         // still reads locked — the blocked edge and the dim wash stay — because the mark is the
         // announcement, not the state.
-        drawLockMarks(r, nodes, detail);
+        drawLockMarks(r, nodes, dx, dy, detail);
 
         // The handle layer **after the nodes**, deliberately: a dot that overlaps a node -- an anchor
         // dragged round to its far side -- has to be on top of it, or the thing in your hand disappears.
         // The frame's own edge list, so the paths it grabs against are the ones that were drawn.
-        drawEdgeHandles(r, mouseX, mouseY, edges);
+        drawEdgeHandles(r, mouseX, mouseY, edges, dx, dy);
 
         // The editor's in-progress gestures, drawn over everything they touch: the marquee is what the
         // author is reaching for, and the rubber line is the edge they are about to make.
@@ -27565,11 +27722,9 @@ public final class QuestBookScreen extends ArmatureScreen
     // asked to solve a rendering problem. Two layers of forwarding around one pose-stack manipulation,
     // and the manipulation is the only part that had anything to say.
 
-    private void drawNode(GuiRenderer r, FrameNode node, float hover, float flash,
+    private void drawNode(GuiRenderer r, FrameNode node, int x, int y, float hover, float flash,
                           CanvasDetail detail, String focusedId) {
         int size = node.size();
-        int x = node.x();
-        int y = node.y();
         int edge = node.edge();
 
         boolean isSelected = isSelected(node.id());
@@ -27723,10 +27878,30 @@ public final class QuestBookScreen extends ArmatureScreen
      * label knew only about its own node, so three of them were drawn straight through each other.
      */
     private void drawLabels(GuiRenderer r) {
-        // Built by the stamp, down to the collision test: the frame re-issues fills and runs.
-        // The colour stays here because selection is a press rather than a revision, and a
-        // selected label must answer it on the press rather than on the next stamp.
+        // Built by the stamp; the frame applies the pan shift, clamps against the dock-aware
+        // canvas edge, checks whether a clamped edge label now overlaps a neighbouring node,
+        // and re-issues fills and runs. The colour stays here because selection is a press
+        // rather than a revision, and a selected label must answer it on the press rather than
+        // on the next stamp.
+        int dx = panDx();
+        int dy = panDy();
+        int cLeft = canvasLeft();
+        int cTop = canvasTop();
+        int cBottom = canvasBottom();
+        int vRight = visibleCanvasRight();
         for (FrameLabel label : frameLabels) {
+            int textY = label.y() + dy;
+            if (textY + 9 > cBottom || textY + 9 <= cTop) {
+                continue;
+            }
+            int width = label.cut().advance();
+            int textX = Mth.clamp(label.x() + dx, cLeft + 2, vRight - width - 2);
+            if (textX >= vRight || textX + width <= cLeft) {
+                continue;
+            }
+            if (stampOverlap != null && stampOverlap.over(label.owner(), textX - dx, label.y(), width)) {
+                continue;
+            }
             QuestState state = label.state();
             int textColour = switch (state) {
                 case LOCKED -> ArmatureTheme.blocked();
@@ -27736,9 +27911,9 @@ public final class QuestBookScreen extends ArmatureScreen
 
             // A backdrop, so a label sitting over a connector line is still readable. Opaque rather
             // than shadowed: a shadow does not help against a line of similar brightness.
-            r.fill(label.x() - 2, label.y() - 1, label.x() + label.cut().advance() + 2, label.y() + 9,
+            r.fill(textX - 2, textY - 1, textX + width + 2, textY + 9,
                     ArmatureTheme.labelBackdrop());
-            RichText.draw(r, label.cut(), label.x(), label.y(), textColour);
+            RichText.draw(r, label.cut(), textX, textY, textColour);
         }
     }
 
@@ -27807,20 +27982,39 @@ public final class QuestBookScreen extends ArmatureScreen
         private final ClientQuestCache.Entry from;
         private final ClientQuestCache.Entry to;
         private final DependencyStyle style;
-        private final List<LineArt.Point> path;
+        private final LineArt.Point endFrom;
+        private final LineArt.Point endTo;
+        private final int reachLeft;
+        private final int reachTop;
+        private final int reachRight;
+        private final int reachBottom;
+        private final boolean stamped;
         private final int baseColour;
+
+        private List<LineArt.Point> stampPath;
+        private int shiftedDx;
+        private int shiftedDy;
+        private List<LineArt.Point> shiftedPath;
 
         /** Null until the first draw asks; see the class note. */
         private LineArt.EdgeGeometry geometry;
 
         FrameEdge(String fromId, String toId, ClientQuestCache.Entry from, ClientQuestCache.Entry to,
-                  DependencyStyle style, List<LineArt.Point> path, int baseColour) {
+                  DependencyStyle style, LineArt.Point endFrom, LineArt.Point endTo,
+                  int reachLeft, int reachTop, int reachRight, int reachBottom,
+                  boolean stamped, int baseColour) {
             this.fromId = fromId;
             this.toId = toId;
             this.from = from;
             this.to = to;
             this.style = style;
-            this.path = path;
+            this.endFrom = endFrom;
+            this.endTo = endTo;
+            this.reachLeft = reachLeft;
+            this.reachTop = reachTop;
+            this.reachRight = reachRight;
+            this.reachBottom = reachBottom;
+            this.stamped = stamped;
             this.baseColour = baseColour;
         }
 
@@ -27844,8 +28038,47 @@ public final class QuestBookScreen extends ArmatureScreen
             return style;
         }
 
-        List<LineArt.Point> path() {
-            return path;
+        private List<LineArt.Point> stampPath() {
+            List<LineArt.Point> held = stampPath;
+            if (held == null) {
+                held = stylePath(style, endFrom, endTo);
+                stampPath = held;
+            }
+            return held;
+        }
+
+        boolean reaches(int panDx, int panDy, int left, int top, int right, int bottom) {
+            int dx = stamped ? panDx : 0;
+            int dy = stamped ? panDy : 0;
+            return reachLeft + dx < right && reachRight + dx > left
+                    && reachTop + dy < bottom && reachBottom + dy > top;
+        }
+
+        LineArt.Point origin(int panDx, int panDy) {
+            List<LineArt.Point> base = stampPath();
+            LineArt.Point first = base.get(0);
+            if (!stamped || (panDx == 0 && panDy == 0)) {
+                return first;
+            }
+            return new LineArt.Point(first.x() + panDx, first.y() + panDy);
+        }
+
+        List<LineArt.Point> path(int panDx, int panDy) {
+            List<LineArt.Point> base = stampPath();
+            if (!stamped || (panDx == 0 && panDy == 0)) {
+                return base;
+            }
+            if (shiftedPath != null && shiftedDx == panDx && shiftedDy == panDy) {
+                return shiftedPath;
+            }
+            List<LineArt.Point> shifted = new ArrayList<>(base.size());
+            for (LineArt.Point p : base) {
+                shifted.add(new LineArt.Point(p.x() + panDx, p.y() + panDy));
+            }
+            shiftedDx = panDx;
+            shiftedDy = panDy;
+            shiftedPath = shifted;
+            return shifted;
         }
 
         int baseColour() {
@@ -27868,7 +28101,7 @@ public final class QuestBookScreen extends ArmatureScreen
         LineArt.EdgeGeometry geometry() {
             LineArt.EdgeGeometry held = geometry;
             if (held == null) {
-                held = LineArt.geometry(path, style, LineArt.ArrowSpec.of(style));
+                held = LineArt.geometry(stampPath(), style, LineArt.ArrowSpec.of(style));
                 geometry = held;
             }
             return held;
@@ -27895,19 +28128,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * Every line the chapter draws, this frame, in draw order — dependencies plus a linear chapter's road.
-     *
-     * <p>One list rather than one loop per caller: the routes used to be rebuilt by the drawing, again by
-     * the hover and again by the handle layer, which is up to three full walks of every curve per frame.
-     * Building them once is the CPU half of the zoom fix; the batch wrapper in {@code drawCanvas} is the
-     * GPU half.
-     *
-     * <p>A line that cannot reach the canvas is left out entirely — see {@link #mayReachCanvas} — because
-     * a clipped fill is still a fill that was built and submitted, and at high zoom most of a chapter is
-     * off-canvas.
-     */
-    /**
-     * The chapter's edges and its on-canvas nodes, as they were last built, and the frame state they were
+     * The chapter's edges and its nodes, as they were last built, and the frame state they were
      * built from.
      *
      * <h2>Why this exists at all, when the individual reads are cheap</h2>
@@ -27921,10 +28142,11 @@ public final class QuestBookScreen extends ArmatureScreen
      * <h2>The key, and why every field is in it</h2>
      *
      * <p>A node's screen position depends on the tree (its own coordinates), the draft (a position or size
-     * being edited), the editor session's pending moves, the node being dragged right now, and the viewport;
-     * an edge's colour depends on progress and on the theme; and the cull depends on the canvas rectangle
-     * and which chapter is on screen. Anything left out would show as a node, a line or a colour that is one
-     * gesture behind — so all of it is in, and the epoch is what makes the live drags expressible at all.
+     * being edited), the editor session's pending moves, the node being dragged right now, and the viewport
+     * scale; an edge's colour depends on progress and on the theme; and the chapter decides which quests are
+     * built. Pan offsets ({@code offsetX}, {@code offsetY}) are deliberately left out of the key: panning
+     * shifts every screen position by {@code (panDx(), panDy())} at draw and hit-test time without
+     * re-stamping.
      *
      * <p><b>Including whether this client may edit</b>, which is not a detail: an author sees every quest,
      * hidden flags and all, and a reader sees only the visible ones — that filter is what
@@ -27936,7 +28158,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * taken before it would describe the position the frame started at rather than the one it draws.
      */
     private record CanvasState(long tree, long progress, long draft, long editors, String dragging,
-                               float dragX, float dragY, float scale, int offsetX, int offsetY,
+                               float dragX, float dragY, float scale,
                                int left, int top, int right, int bottom, int visibleRight, String chapter,
                                Object theme, boolean authoring, long text, CanvasElement elementPreview,
                                long elementShape, String selectedElement, long linkShape,
@@ -27944,7 +28166,18 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     private CanvasState canvasState;
+    private int stampOriginX;
+    private int stampOriginY;
+    private LabelOverlap stampOverlap;
     private List<FrameEdge> canvasEdges;
+
+    private int panDx() {
+        return canvasState == null ? 0 : viewport().originX() + viewport().offsetX() - stampOriginX;
+    }
+
+    private int panDy() {
+        return canvasState == null ? 0 : viewport().originY() + viewport().offsetY() - stampOriginY;
+    }
 
     /**
      * One node ready to draw: everything {@code drawNode} recomputed per frame, worked
@@ -27966,15 +28199,15 @@ public final class QuestBookScreen extends ArmatureScreen
      * visibility question (a cached map lookup and a mode flag, both cheaper than the
      * record they would have to ride in on).
      */
-    private record FrameNode(String id, String chapterId, int x, int y, int size,
-                             QuestState state, QuestShape shape,
+    private record FrameNode(ClientQuestCache.Entry entry, String id, String chapterId, int x, int y,
+                             int size, QuestState state, QuestShape shape,
                              dev.ellipog.armature.client.ui.shape.Shape geometry,
                              ItemStack icon, String texture, String sprite, double iconScale,
                              int edge, int wash, boolean hideLock) {
 
         /** The same node with a new icon: the cycling-icon refresh below. */
         FrameNode withIcon(ItemStack icon) {
-            return new FrameNode(id, chapterId, x, y, size, state, shape, geometry, icon,
+            return new FrameNode(entry, id, chapterId, x, y, size, state, shape, geometry, icon,
                     texture, sprite, iconScale, edge, wash, hideLock);
         }
     }
@@ -27989,7 +28222,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * is a press rather than a revision, and a selected label must answer it on the
      * press rather than on the next stamp.
      */
-    private record FrameLabel(String id, QuestState state, int x, int y, RichText.Cut cut) {
+    private record FrameLabel(String id, QuestState state, int owner, int x, int y, RichText.Cut cut) {
     }
 
     /** The chapter's nodes as the frame draws them, in draw order. Rebuilt by the stamp. */
@@ -28036,6 +28269,25 @@ public final class QuestBookScreen extends ArmatureScreen
      * what a stamp produces, like the box.
      */
     private record ElementSlot(CanvasElement element, CanvasElementArt.Box box, boolean marked) {
+
+        ElementSlot shifted(int dx, int dy) {
+            if (dx == 0 && dy == 0) {
+                return this;
+            }
+            return new ElementSlot(element,
+                    new CanvasElementArt.Box(box.left() + dx, box.top() + dy,
+                            box.right() + dx, box.bottom() + dy),
+                    marked);
+        }
+
+        boolean overlaps(int dx, int dy, int left, int top, int right, int bottom) {
+            CanvasElementArt.Box shiftedBox = dx == 0 && dy == 0 ? box
+                    : new CanvasElementArt.Box(box.left() + dx, box.top() + dy,
+                            box.right() + dx, box.bottom() + dy);
+            CanvasElementArt.Box bounds = CanvasElementArt.turnedBounds(element, shiftedBox);
+            return bounds.left() < right && bounds.right() > left
+                    && bounds.top() < bottom && bounds.bottom() > top;
+        }
     }
 
     private List<ElementSlot> canvasElements = List.of();
@@ -28050,6 +28302,22 @@ public final class QuestBookScreen extends ArmatureScreen
      * resynced.
      */
     private record LinkSlot(QuestLinkArt.Slot slot, ClientQuestCache.Entry target) {
+
+        LinkSlot shifted(int dx, int dy) {
+            if (dx == 0 && dy == 0) {
+                return this;
+            }
+            CanvasElementArt.Box b = slot.box();
+            CanvasElementArt.Box shiftedBox = new CanvasElementArt.Box(
+                    b.left() + dx, b.top() + dy, b.right() + dx, b.bottom() + dy);
+            return new LinkSlot(new QuestLinkArt.Slot(slot.link(), shiftedBox, slot.geometry()), target);
+        }
+
+        boolean overlaps(int dx, int dy, int left, int top, int right, int bottom) {
+            CanvasElementArt.Box b = slot.box();
+            return b.left() + dx < right && b.right() + dx > left
+                    && b.top() + dy < bottom && b.bottom() + dy > top;
+        }
     }
 
     /** The chapter's markers, in declaration order. Rebuilt by the stamp, like everything drawn. */
@@ -28199,7 +28467,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private void stampCanvas(GuiRenderer r, List<ClientQuestCache.Entry> quests) {
         CanvasState key = new CanvasState(ClientQuestCache.treeRevision(),
                 ClientQuestCache.progressRevision(), fieldDraft.version(), editors.epoch(), draggedNode,
-                dragNodeX, dragNodeY, viewport().scale(), viewport().offsetX(), viewport().offsetY(),
+                dragNodeX, dragNodeY, viewport().scale(),
                 canvasLeft(), canvasTop(), canvasRight(), canvasBottom(), visibleCanvasRight(),
                 effectiveChapter(),
                 ArmatureTheme.current(), mayEditNow(), ClientQuestCache.textRevision(),
@@ -28262,22 +28530,31 @@ public final class QuestBookScreen extends ArmatureScreen
             canvasAnimSecond = nowSecond;
             return;
         }
+        stampOriginX = viewport().originX() + viewport().offsetX();
+        stampOriginY = viewport().originY() + viewport().offsetY();
         canvasEdges = frameEdges(quests);
-        List<ClientQuestCache.Entry> visible = quests.stream().filter(this::nodeVisible).toList();
 
-        // One node ready to draw, per drawn node: the position and size, the shown state,
-        // the drafted shape and rotation resolved to geometry, the adopted icon, the icon
-        // scale, the edge and the wash. Sixty frames a second of draft lookups, dependency
-        // walks and task walks become one stamp's worth, because every answer rides state
-        // the key above already names. The ring, the LOD answer and the hidden mark stay
-        // per frame — see FrameNode for why each is the wrong kind of thing to keep.
-        List<FrameNode> nodes = new ArrayList<>(visible.size());
+        // One node ready to draw, per quest in the chapter: the position and size at the stamp
+        // origin, the shown state, the drafted shape and rotation resolved to geometry, the
+        // adopted icon, the icon scale, the edge and the wash. Sixty frames a second of draft
+        // lookups, dependency walks and task walks become one stamp's worth, because every answer
+        // rides state the key above already names. Off-canvas culling happens at draw time against
+        // the pan-shifted screen coordinates so panning never re-stamps.
+        List<FrameNode> nodes = new ArrayList<>(quests.size());
         boolean cycling = false;
-        for (ClientQuestCache.Entry entry : visible) {
+        int visibleNodes = 0;
+        int cLeft = canvasLeft();
+        int cTop = canvasTop();
+        int cRight = canvasRight();
+        int cBottom = canvasBottom();
+        for (ClientQuestCache.Entry entry : quests) {
             QuestState state = shownState(entry);
             int size = nodeSize(entry);
             int x = nodeScreenX(entry);
             int y = nodeScreenY(entry);
+            if (x < cRight && x + size > cLeft && y < cBottom && y + size > cTop) {
+                visibleNodes++;
+            }
             // The border reads the node-edge tokens rather than the state inks, and that is the
             // whole of what those four tokens are for — see QuestNodeArt.edgeFor, which owns the
             // switch so the canvas's nodes and links cannot disagree about it.
@@ -28298,7 +28575,7 @@ public final class QuestBookScreen extends ArmatureScreen
             if (adopted && ClientQuestCache.adoptionCycles(entry)) {
                 cycling = true;
             }
-            nodes.add(new FrameNode(entry.id(), entry.chapterId(), x, y, size, state, drawnShape,
+            nodes.add(new FrameNode(entry, entry.id(), entry.chapterId(), x, y, size, state, drawnShape,
                     draftedLook ? ClientQuestCache.geometry(drawnShape, drawnRotation)
                             : entry.geometry(),
                     nodeIcon, entry.textureIcon(), entry.spriteIcon(),
@@ -28309,13 +28586,11 @@ public final class QuestBookScreen extends ArmatureScreen
         canvasCycling = cycling;
         canvasAnimSecond = nowSecond;
 
-        // The canvas's decoration: the chapter's own elements, gated and culled, with the boxes the press
+        // The canvas's decoration: the chapter's own elements, gated and measured, with the boxes the press
         // path will use. Rebuilt with everything else, because an element edit re-sends the tree -- which is
         // why `tree` is already in the key -- and because a label's box moves when the language does, which
-        // is what `text` is in the key for.
+        // is what `text` is in the key for. Culled against the canvas bounds per frame using the pan shift.
         CanvasElementArt.Frame frame = elementFrame(r);
-        CanvasElementArt.Box canvas = new CanvasElementArt.Box(canvasLeft(), canvasTop(), canvasRight(),
-                canvasBottom());
         // A gesture in flight changes the element it is carrying, and it changes it *here* -- in the stamp
         // rather than in the model, so the file is untouched until the release and the drawing cannot disagree
         // with what will be written. The substitution is by id and it is the whole of the preview: the gesture
@@ -28326,15 +28601,9 @@ public final class QuestBookScreen extends ArmatureScreen
             CanvasElement element = elementPreview != null && model.id().equals(elementPreview.id())
                     ? elementPreview : model;
             CanvasElementArt.Box box = CanvasElementArt.boxOf(element, frame);
-            // Culled on the box, which is the same test the nodes get: the scissor already hides what is off
-            // the canvas, but a clipped fill is still a fill that was built. An element of a type this build
-            // cannot read has no box at all and is culled here -- the chapter tab's list is where one is
-            // reached, since the canvas has nothing to aim at.
-            //
-            // A turned picture is culled against its box grown by its diagonal, because that is how far it can
-            // reach outside the box it is stored as -- the alternative is a picture that vanishes while part
-            // of it is still on screen.
-            if (!CanvasElementArt.turnedBounds(element, box).overlaps(canvas)) {
+            // An element of a type this build cannot read has no box at all and is skipped here -- the
+            // chapter tab's list is where one is reached, since the canvas has nothing to aim at.
+            if (box.width() <= 0 || box.height() <= 0) {
                 continue;
             }
             boolean shown = CanvasElementArt.shown(element, frame);
@@ -28385,23 +28654,18 @@ public final class QuestBookScreen extends ArmatureScreen
                     continue;
                 }
                 CanvasElementArt.Box box = QuestLinkArt.boxOf(link, viewport());
-                if (!box.overlaps(canvas)) {
-                    continue;
-                }
                 links.add(new LinkSlot(new QuestLinkArt.Slot(link, box,
                         ClientQuestCache.geometry(link.shape(), 0)), target));
             }
         }
         canvasLinks = List.copyOf(links);
 
-        // One label ready to draw, per named node that survives the collision test: placed
-        // against its node's box, cut to the room, and tested against every node — named or
-        // not, because a label drawn over an unnamed quest's icon is just as unreadable as
-        // one drawn over a named node. The room is measured from the named nodes alone, for
-        // the opposite reason: an unnamed quest draws nothing between two nodes, so it
-        // cannot crowd a label. All of it from state the key already names, so a still
-        // canvas pays for it once instead of sixty times a second; a tierless chapter
-        // builds them at every zoom, for the same reason the draw forces FULL.
+        // One label ready to draw, per named node: placed against its node's box and cut to the
+        // room. The collision test against neighbouring nodes runs both here (for the unclamped
+        // position) and in `drawLabels` (in case the canvas-edge clamp pushed an edge label into
+        // a neighbour). All of it from state the key already names, so a panned or still canvas
+        // pays for text measurement and truncation once instead of sixty times a second; a tierless
+        // chapter builds them at every zoom, for the same reason the draw forces FULL.
         //
         // The working buffers are reused across stamps rather than rebuilt: a drag re-stamps
         // every frame, and the containers — five lists and maps sized by the quest count — were
@@ -28412,6 +28676,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // would be work for nothing.
         List<FrameLabel> labels = stampLabels;
         labels.clear();
+        stampOverlap = null;
         if (ClientQuestCache.lodDisabledFor(effectiveChapter())
                 || CanvasDetail.of(viewport().scale()).labels()) {
             List<ClientQuestCache.Entry> named = stampNamed;
@@ -28446,6 +28711,7 @@ public final class QuestBookScreen extends ArmatureScreen
                             nodeSize(entry)));
                 }
                 LabelOverlap overlap = new LabelOverlap(boxes);
+                stampOverlap = overlap;
                 dev.ellipog.armature.client.ui.kit.Measure measure = textMeasure(r);
                 for (ClientQuestCache.Entry entry : named) {
                     // Sorted once above rather than per label: the columns cannot move between labels,
@@ -28460,18 +28726,9 @@ public final class QuestBookScreen extends ArmatureScreen
                     int size = box.size();
                     RichText.Cut cut = RichText.truncate(titleOfRaw(entry), room, measure);
                     int width = cut.advance();
-                    // Clamped inward so a label on the edge node is not half off the canvas,
-                    // but never so far that it slides away from the node it belongs to. The
-                    // clamp reads the dock-aware edge, which is why it sits in the key.
-                    int textX = Mth.clamp(box.x() + size / 2 - width / 2, canvasLeft() + 2,
-                            visibleCanvasRight() - width - 2);
+                    int textX = box.x() + size / 2 - width / 2;
                     int textY = box.y() + size + LABEL_GAP;
-                    if (textY + 9 > canvasBottom() || overlap.over(owner, textX, textY, width)) {
-                        // A label drawn over the node below it, or out of the canvas, is worse
-                        // than no label.
-                        continue;
-                    }
-                    labels.add(new FrameLabel(entry.id(), shownState(entry), textX, textY, cut));
+                    labels.add(new FrameLabel(entry.id(), shownState(entry), owner, textX, textY, cut));
                 }
             }
         }
@@ -28483,7 +28740,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // describe the canvas's *contents*, which only move when it is rebuilt -- and because `rebuilds` is
         // the number that says a drag is re-stamping, which no frame counter can show. See `CanvasStats`.
         dev.ellipog.tenet.client.dev.CanvasStats.published(
-                quests.size(), canvasEdges.size(), frameLabels.size(), frameNodes.size());
+                quests.size(), canvasEdges.size(), frameLabels.size(), visibleNodes);
     }
 
     /**
@@ -28640,8 +28897,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * is the one that needs a tolerance — the same one the dependency lines' hover uses.
      */
     private String elementAt(double mouseX, double mouseY) {
+        int dx = panDx();
+        int dy = panDy();
         for (int i = canvasElements.size() - 1; i >= 0; i--) {
-            ElementSlot slot = canvasElements.get(i);
+            ElementSlot slot = canvasElements.get(i).shifted(dx, dy);
             double reach = slot.element() instanceof CanvasElement.Line ? ELEMENT_LINE_HIT : 0;
             if (CanvasElementArt.distanceTo(slot.element(), slot.box(), viewport(), mouseX, mouseY) <= reach) {
                 return slot.element().id();
@@ -28655,9 +28914,11 @@ public final class QuestBookScreen extends ArmatureScreen
         if (id == null) {
             return null;
         }
+        int dx = panDx();
+        int dy = panDy();
         for (ElementSlot slot : canvasElements) {
             if (slot.element().id().equals(id)) {
-                return slot;
+                return slot.shifted(dx, dy);
             }
         }
         return null;
@@ -28765,56 +29026,46 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * One line, ready to draw — or null when it cannot reach the canvas.
+     * One line, ready to draw.
      *
      * <p>{@code dependencyId} is the quest the dependent waits on — the key its override is stored
      * under — and the pairing matters: the style belongs to the edge, and the edge is owned by the
      * quest that depends, not by the quest that is depended upon.
+     *
+     * <p>Conservative reach bounds are stored on the edge so draw-time and hover-time passes can skip
+     * off-canvas lines after applying the pan delta, without rebuilding the edge list on a pan.
      */
     private FrameEdge frameEdge(ClientQuestCache.Entry from, ClientQuestCache.Entry to, String dependencyId,
                                 int baseColour) {
+        return frameEdge(from, to, dependencyId, baseColour, true);
+    }
+
+    private FrameEdge frameEdge(ClientQuestCache.Entry from, ClientQuestCache.Entry to, String dependencyId,
+                                int baseColour, boolean stamped) {
         DependencyStyle style = styleFor(to, dependencyId);
         LineArt.Point[] ends = lineEnds(from, to, style);
-        if (!mayReachCanvas(ends, from, to)) {
-            return null;
-        }
-        // The halves are zero because the path already ends on each node's rim: the arrowhead only needs
-        // its gap, and the ink is not hidden under a node any more.
-        return new FrameEdge(from.id(), to.id(), from, to, style, stylePath(style, ends[0], ends[1]), baseColour);
-    }
-
-    /**
-     * Whether a line between these ends could put any pixel on the canvas.
-     *
-     * <p>Conservative by construction: the route stays inside the convex hull of the ends and the two
-     * control points, which are at most a chord away, so the box is the ends' bounding box grown by the
-     * chord, both node sizes and a margin. A line this box cannot hold would not have been visible; one
-     * it can hold is drawn even if most of it is off-canvas, which is the honest direction for a cull.
-     */
-    private boolean mayReachCanvas(LineArt.Point[] ends, ClientQuestCache.Entry from,
-                                   ClientQuestCache.Entry to) {
         double chord = Math.hypot(ends[1].x() - ends[0].x(), ends[1].y() - ends[0].y());
-        double slack = chord + nodeSize(from) + nodeSize(to) + 32;
-        double left = Math.min(ends[0].x(), ends[1].x()) - slack;
-        double top = Math.min(ends[0].y(), ends[1].y()) - slack;
-        double right = Math.max(ends[0].x(), ends[1].x()) + slack;
-        double bottom = Math.max(ends[0].y(), ends[1].y()) + slack;
-        return left < canvasRight() && right > canvasLeft() && top < canvasBottom() && bottom > canvasTop();
-    }
-
-    /** Whether a node's screen square overlaps the canvas at all. */
-    private boolean nodeVisible(ClientQuestCache.Entry entry) {
-        int size = nodeSize(entry);
-        int x = nodeScreenX(entry);
-        int y = nodeScreenY(entry);
-        return x < canvasRight() && x + size > canvasLeft() && y < canvasBottom() && y + size > canvasTop();
+        int slack = (int) Math.ceil(chord) + nodeSize(from) + nodeSize(to) + 32;
+        int reachLeft = Math.min(ends[0].x(), ends[1].x()) - slack;
+        int reachTop = Math.min(ends[0].y(), ends[1].y()) - slack;
+        int reachRight = Math.max(ends[0].x(), ends[1].x()) + slack;
+        int reachBottom = Math.max(ends[0].y(), ends[1].y()) + slack;
+        return new FrameEdge(from.id(), to.id(), from, to, style, ends[0], ends[1],
+                reachLeft, reachTop, reachRight, reachBottom, stamped, baseColour);
     }
 
     /** The frame's edges as hover candidates — the paths already computed, so a walk costs only distance. */
-    private static List<LineArt.Candidate<String[]>> frameCandidates(List<FrameEdge> edges) {
-        List<LineArt.Candidate<String[]>> candidates = new ArrayList<>(edges.size());
+    private List<LineArt.Candidate<String[]>> frameCandidates(List<FrameEdge> edges, int panDx, int panDy) {
+        int cLeft = canvasLeft();
+        int cTop = canvasTop();
+        int cRight = canvasRight();
+        int cBottom = canvasBottom();
+        List<LineArt.Candidate<String[]>> candidates = new ArrayList<>();
         for (FrameEdge edge : edges) {
-            candidates.add(new LineArt.Candidate<>(edge.key(), edge.path()));
+            if (!edge.reaches(panDx, panDy, cLeft, cTop, cRight, cBottom)) {
+                continue;
+            }
+            candidates.add(new LineArt.Candidate<>(edge.key(), edge.path(panDx, panDy)));
         }
         return candidates;
     }
@@ -28955,12 +29206,12 @@ public final class QuestBookScreen extends ArmatureScreen
      * nothing, so pulling back keeps the flow instead of losing it. Motion off still stills
      * everything, which is the reduced-motion promise.
      */
-    private void drawEdgePulse(GuiRenderer r, FrameEdge edge, long now) {
+    private void drawEdgePulse(GuiRenderer r, FrameEdge edge, long now, int panDx, int panDy) {
         float glow = lineGlow(edge.fromId(), edge.toId(), now);
         if (glow < 0.05F || !ClientAppearance.LOOK.motion()) {
             return;
         }
-        List<LineArt.Point> path = edge.path();
+        List<LineArt.Point> path = edge.path(panDx, panDy);
         double length = LineArt.length(path);
         double travel = length - EdgePulse.ARROW_KEEP;
         double len = EdgePulse.packetLength(length);
@@ -29021,7 +29272,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * <p>The cached value is the edge key only. The hover's brightening is applied where the ink is
      * chosen, so the fade still animates while the answer stands.
      */
-    private String[] lineHover(List<FrameEdge> edges, double mouseX, double mouseY) {
+    private String[] lineHover(List<FrameEdge> edges, double mouseX, double mouseY, int panDx, int panDy) {
         boolean moving = draggedNode != null || bendDragFrom != null || edgeDragLive;
         float scale = viewport().scale();
         int panX = viewport().offsetX();
@@ -29048,7 +29299,7 @@ public final class QuestBookScreen extends ArmatureScreen
         lastLineHoverDraft = draft;
         lastLineHoverEditors = editors;
         lastLineHoverMoving = moving;
-        lastLineHover = LineArt.nearest(frameCandidates(edges), mouseX, mouseY, LINE_HIT);
+        lastLineHover = LineArt.nearest(frameCandidates(edges, panDx, panDy), mouseX, mouseY, LINE_HIT);
         return lastLineHover;
     }
 
@@ -29154,7 +29405,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 break;
             }
         }
-        return frameEdge(dependency, dependent, bendDragFrom, baseColour);
+        return frameEdge(dependency, dependent, bendDragFrom, baseColour, false);
     }
 
     /**
@@ -29190,6 +29441,23 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** The node under the pointer, or null. */
     private ClientQuestCache.Entry nodeAt(double mouseX, double mouseY, List<ClientQuestCache.Entry> quests) {
+        if (canvasState != null) {
+            int dx = panDx();
+            int dy = panDy();
+            for (int i = frameNodes.size() - 1; i >= 0; i--) {
+                FrameNode node = frameNodes.get(i);
+                int size = node.size();
+                int x = node.x() + dx;
+                int y = node.y() + dy;
+                if (mouseX < x || mouseX >= x + size || mouseY < y || mouseY >= y + size) {
+                    continue;
+                }
+                if (node.geometry().contains(mouseX, mouseY, x, y, size)) {
+                    return node.entry();
+                }
+            }
+            return null;
+        }
         // Reverse order, so the node drawn last -- and therefore on top -- is the one picked. Two
         // quests may legitimately share a position, and the validator warns about it.
         for (int i = quests.size() - 1; i >= 0; i--) {
@@ -29231,9 +29499,11 @@ public final class QuestBookScreen extends ArmatureScreen
      * pointer is concerned.
      */
     private String linkAtId(double mouseX, double mouseY) {
+        int dx = panDx();
+        int dy = panDy();
         List<QuestLinkArt.Slot> slots = new ArrayList<>(canvasLinks.size());
         for (LinkSlot slot : canvasLinks) {
-            slots.add(slot.slot());
+            slots.add(slot.shifted(dx, dy).slot());
         }
         QuestLinkArt.Slot hit = QuestLinkArt.at(slots, mouseX, mouseY);
         return hit == null ? null : hit.link().id();
@@ -29244,9 +29514,11 @@ public final class QuestBookScreen extends ArmatureScreen
         if (id == null) {
             return null;
         }
+        int dx = panDx();
+        int dy = panDy();
         for (LinkSlot slot : canvasLinks) {
             if (id.equals(slot.slot().link().id())) {
-                return slot;
+                return slot.shifted(dx, dy);
             }
         }
         return null;
@@ -37438,6 +37710,17 @@ public final class QuestBookScreen extends ArmatureScreen
                 rebuildWidgets();
             }
         }
+        else if (overlay == PanelKind.QUEST && !mayEditNow()) {
+            ClientQuestCache.Entry entry = entryFor(overlayQuest);
+            if (entry != null) {
+                int taskIndex = firstManualTask(entry);
+                java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
+                boolean claimable = self != null && claimableWithMarks(self, entry);
+                if (claimable != readerFooterClaimable || taskIndex != readerFooterTaskIndex) {
+                    rebuildWidgets();
+                }
+            }
+        }
 
         long revision = ClientQuestCache.treeRevision();
         ClientChapterReplica.Copy copy = ClientChapterReplica.of(effectiveChapter());
@@ -37796,6 +38079,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
     public static void forgetViewState() {
         selectedChapter = null;
+        frameChapterActive = false;
         selectedQuest = null;
         multiSelection.clear();
         // The viewer request goes with the selection: it names a quest of the server being left, and a
@@ -37839,7 +38123,9 @@ public final class QuestBookScreen extends ArmatureScreen
         // and `-1` means the next tree definitely re-seeds rather than possibly matching a revision it
         // happens to share.
         sidebar = null;
+        sidebarChapters = List.of();
         sidebarRevision = -1;
+        sidebarProgress = -1;
         sidebarText = -1;
         // And the player's own expansions, for the reason the outline goes: they belong to a questline
         // on a server this client has left.

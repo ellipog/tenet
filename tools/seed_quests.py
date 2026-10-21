@@ -98,7 +98,12 @@ LOADERS = ("fabric", "neoforge")
 # The launcher's profiles, where the mod actually runs for a person. Resolved from the home
 # directory rather than written down, so nothing here is a path to this machine.
 LAUNCH_PROFILES = pathlib.Path.home() / "AppData" / "Roaming" / "ModrinthApp" / "profiles"
-PROFILE_NAMES = ("Mod Testing Fabric 1.21.1", "Mod Testing NeoForge 1.21.1")
+PROFILE_NAMES = (
+    "Mod Testing Fabric 1.21.1",
+    "Mod Testing NeoForge 1.21.1",
+    "Fabric 26.3",
+    "NeoForge 26.3",
+)
 
 # Relative to a config directory. Must match QuestLoader.DIRECTORY in the mod.
 QUEST_DIRECTORY = pathlib.Path("config") / "tenet" / "quests"
