@@ -17,7 +17,6 @@ import dev.ellipog.armature.client.ui.ArmatureScreen;
 import dev.ellipog.armature.client.ui.Theme;
 import dev.ellipog.armature.client.ui.Themes;
 import dev.ellipog.armature.client.ui.CanvasBackground;
-import dev.ellipog.armature.client.ui.art.CanvasBackgroundArt;
 import dev.ellipog.armature.client.render.GuiGraphicsRenderer;
 import dev.ellipog.armature.client.render.GuiRenderer;
 import dev.ellipog.armature.client.render.TextEpoch;
@@ -49,7 +48,6 @@ import dev.ellipog.tenet.client.viewer.QuestBookFocus;
 import dev.ellipog.tenet.client.viewer.RecipeLookups;
 import dev.ellipog.tenet.client.dev.HexColour;
 import dev.ellipog.tenet.quest.CanvasElement;
-import dev.ellipog.tenet.quest.ClickAction;
 import dev.ellipog.tenet.quest.QuestLink;
 import dev.ellipog.tenet.client.dev.ChapterPanelLayout;
 import dev.ellipog.tenet.client.dev.ChapterTheme;
@@ -64,8 +62,6 @@ import dev.ellipog.tenet.client.dev.ItemPicker;
 import dev.ellipog.tenet.client.dev.ItemPickerLayout;
 import dev.ellipog.tenet.client.dev.Labels;
 import dev.ellipog.tenet.client.dev.LineArt;
-import dev.ellipog.tenet.client.dev.MenuFlyout;
-import dev.ellipog.tenet.client.dev.MenuFlyoutArt;
 import dev.ellipog.tenet.client.dev.MenuPlacement;
 import dev.ellipog.tenet.client.dev.ProblemText;
 import dev.ellipog.tenet.client.dev.QuestPanel;
@@ -239,6 +235,12 @@ public final class QuestBookScreen extends ArmatureScreen
     /** The sidebar's footer, as two rows of its own. Four controls do not fit across one. */
     private static final int ROW_HEIGHT = BookGeometry.ROW_HEIGHT;
     private static final int ROW_GAP = BookGeometry.ROW_GAP;
+
+    /** The quest book's canvas. See {@link BookCanvas}. */
+    final BookCanvas bookCanvas = new BookCanvas(this);
+
+    /** The quest book's input. See {@link BookInput}. */
+    final BookInput bookInput = new BookInput(this);
 
     /** The quest book's sidebar. See {@link BookSidebar}. */
     final BookSidebar bookSidebar = new BookSidebar(this);
@@ -472,40 +474,11 @@ public final class QuestBookScreen extends ArmatureScreen
     private static final int EMPTY_HINT_HEIGHT = 10;
 
     /**
-     * Node labels, and the room they are allowed to take.
-     *
-     * <h2>The garbled-text bug this replaces</h2>
-     *
-     * <p>Node titles were truncated to {@code (int) (size / zoom / 5)} <b>characters</b> — a number with
-     * no relationship to the font, to the title, or to the space between nodes. And the space between
-     * nodes was never consulted at all, so with a questline authored 64px apart, three labels of about
-     * 90px were drawn centred on nodes 64px apart and ran straight into each other. In the screenshot
-     * that read as <em>"Punch a SomewherStone To…"</em>, which is three quest titles interleaved and
-     * looks like a corrupt string rather than like three labels that are too wide.
-     *
-     * <p>So the room is <b>measured</b> — each node's own nearest columns, in screen pixels — and every
-     * label is truncated to it by <b>width</b> ({@code Font.plainSubstrByWidth}), not by character
-     * count. A label with not enough room of its own is not drawn at all and the hover caption
-     * carries the name, while its neighbours keep theirs. One measured rule per node, instead of a
-     * zoom threshold that was a guess.
-     */
-    // Aliases again, for the same reason as the layout constants above: the number lives in
-    // BookGeometry, where BookGeometryTest can assert the invariant that depends on it -- that a
-    // label's half-width is always strictly less than its nearest gap.
-    private static final int MAX_LABEL_WIDTH = BookGeometry.MAX_LABEL_WIDTH;
-
-    /** Below this there is no room for a readable label, so none are drawn. */
-    private static final int MIN_LABEL_WIDTH = BookGeometry.MIN_LABEL_WIDTH;
-
-    /** The gap kept between a label and the node beside it. */
-    private static final int LABEL_GAP = BookGeometry.LABEL_GAP;
-
-    /**
      * The zoom range: how far the view may be pulled back, and how far pushed in.
      *
      * <p>The floor is 0.2 rather than the 0.35 it was first, so a sprawling chapter can be taken in at
      * once. Nothing else has to agree with it: labels are dropped by measured room rather than by a zoom
-     * threshold -- see the note above {@link #MAX_LABEL_WIDTH} -- so a further-out view reads as fewer
+     * threshold -- see the note above {@link BookCanvas#MAX_LABEL_WIDTH} -- so a further-out view reads as fewer
      * names, not as a broken one.
      */
     private static final float MIN_ZOOM = 0.2F;
@@ -514,7 +487,7 @@ public final class QuestBookScreen extends ArmatureScreen
     /**
      * How far the pointer must move before a press counts as a drag rather than a click.
      */
-    private static final double DRAG_THRESHOLD = 4.0;
+    static final double DRAG_THRESHOLD = 4.0;
 
     /**
      * The longest the panel's arrival may take, whatever the theme's motion asks for.
@@ -525,73 +498,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * exactly this long, and with motion off the window is not there at all.
      */
     private static final int PANEL_REVEAL_MAX = 180;
-
-    // --- view state, kept between openings -----------------------------------
-
-    /**
-     * How hovered each node looks, and each row of the overlay's body.
-     *
-     * <h2>Two trackers rather than one, because two things are never hovered at once</h2>
-     *
-     * <p>A pointer is either over the canvas or over the overlay — the overlay covers the canvas
-     * entirely — so one tracker would work. Two are used anyway because the keys would otherwise share
-     * a namespace: a quest id and a row key like {@code "task:0"} can never collide today, and nothing
-     * would notice if a future key scheme made them collide, because a hover that lit the wrong thing
-     * for one frame is not a thing anyone reports.
-     *
-     * <p>Instances rather than static, unlike the selection above: a hover is <b>per screen</b>, and a
-     * screen that reopened with the last one's hovered row still lit would point at whatever now sits
-     * at that index. {@code clear()} is called when the overlay opens and closes for the same reason.
-     */
-    private final Hover nodeHover = new Hover();
     final Hover rowHover = new Hover();
-    /** The dependency line under the pointer, keyed by its two ids: the brightening before a right-click. */
-    private final Hover edgeHover = new Hover();
-
-    /**
-     * The quest whose lines glow steadily: the one being read, else a lone selection.
-     *
-     * <p>Its own tracker rather than a second key in {@link #nodeHover}, because a pointer glow and
-     * a reading glow overlap -- the quest under the pointer is often the quest being read -- and one
-     * tracker holds one thing. It eases like every hover, so opening a quest fades its lines up and
-     * closing one fades them down instead of snapping.
-     */
-    private final Hover selectionGlow = new Hover();
-
-    /**
-     * The last line-hover answer, and the pointer/view state it was computed under.
-     *
-     * <p>The nearest-line walk reads every point of every route, and it used to run every frame in edit
-     * mode. A still pointer over a still canvas cannot change the answer, so it is kept until the
-     * pointer, the view or the chapter's geometry moves -- see {@link #lineHover}.
-     */
-    private double lastLineHoverX = Double.NaN;
-    private double lastLineHoverY = Double.NaN;
-    private float lastLineHoverScale = -1F;
-    private int lastLineHoverPanX;
-    private int lastLineHoverPanY;
-    private int lastLineHoverEdges = -1;
-    private long lastLineHoverRevision = -1L;
-
-    /**
-     * The two revisions the routes also depend on, and their absence was a stale answer rather than a
-     * missed saving.
-     *
-     * <p>A line's geometry is a function of its endpoints, and those move for reasons the tree revision
-     * does not record: a **draft** write — a stepper press, a size nudge, a scrub's release — changes a
-     * node's position or its size with the tree untouched, and {@code EditorSession}'s pending moves change
-     * one without moving either. So with only the revision and the edge *count* in the key, a nudge that
-     * moved a node left the hover answering for the route the line used to be: the pointer sits still, the
-     * count is the same, and the highlight stays on a line that is no longer under it.
-     *
-     * <p>The count was never enough on its own for the same reason: it catches a line being added or
-     * removed, and says nothing about one having moved. {@code CanvasState} already carries both of these
-     * for the edges themselves — this is the same key, one layer up.
-     */
-    private long lastLineHoverDraft = Long.MIN_VALUE;
-    private long lastLineHoverEditors = Long.MIN_VALUE;
-    private boolean lastLineHoverMoving;
-    private String[] lastLineHover;
 
     static String selectedChapter;
     static String selectedQuest;
@@ -608,15 +515,6 @@ public final class QuestBookScreen extends ArmatureScreen
     static final Set<String> multiSelection = new LinkedHashSet<>();
 
     /**
-     * The tree revision the selection was last checked against; see {@link #pruneSelection}.
-     *
-     * <p>Static with the selection it guards, because the selection outlives the screen and so must the
-     * memory of which tree it was checked against -- an instance field would re-prune (harmlessly) on
-     * every reopen and, worse, would not notice a reload that happened while the book was closed.
-     */
-    private static long selectionRevision = -1L;
-
-    /**
      * The marquee: where the rectangle started, and where the pointer is now, in screen coordinates.
      *
      * <p>Screen coordinates because the rectangle is drawn as it is dragged and a zoom mid-drag should
@@ -624,10 +522,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * space, so the rectangle and the test it feeds agree about what "inside" means.
      */
     boolean marqueeActive;
-    private int marqueeX0;
-    private int marqueeY0;
-    private int marqueeX1;
-    private int marqueeY1;
+    int marqueeX0;
+    int marqueeY0;
+    int marqueeX1;
+    int marqueeY1;
 
     /**
      * The quest an edge drag is carrying from, once the drag is live.
@@ -637,16 +535,16 @@ public final class QuestBookScreen extends ArmatureScreen
      * draws the line to the pointer and lands on whatever node is under the release -- the arrow
      * points the way the drag went: from the prerequisite to the quest that depends on it.
      */
-    private String edgeDragFrom;
-    private boolean edgeDragLive;
-    private double edgeDragX;
-    private double edgeDragY;
+    String edgeDragFrom;
+    boolean edgeDragLive;
+    double edgeDragX;
+    double edgeDragY;
 
     /** Whether the next canvas click adds a dependency instead of selecting. Escape cancels. */
-    private boolean pickingDependency;
+    boolean pickingDependency;
 
     /** What the pick is for, and the rules a click follows: see {@code DependencyPick}. */
-    private dev.ellipog.tenet.client.dev.DependencyPick pendingPick;
+    dev.ellipog.tenet.client.dev.DependencyPick pendingPick;
 
     /**
      * Whether the drag in progress began on the open field's own frame, so it extends the field's mark
@@ -729,7 +627,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * <p>This was {@code float zoom}, {@code int panX}, {@code int panY} and the bound arithmetic
      * beside them — and every place that needed a coordinate wrote the conversion out itself: the two
      * methods that turn a quest into a screen position, the hit test, the pan on drag, the zoom about
-     * the pointer, and {@link #centreCanvas}, which solved the same equation a second time from the
+     * the pointer, and {@link BookCanvas#centreCanvas}, which solved the same equation a second time from the
      * content's bounding box. Five copies of one transform, and the copy that decided what a click
      * selected was the one nothing could check.
      *
@@ -1354,16 +1252,16 @@ public final class QuestBookScreen extends ArmatureScreen
      * card hides the canvas — and cancelled by any manual pan or zoom, because a camera that fights the
      * hand is worse than no camera move at all.
      */
-    private String glideQuest;
-    private long glideStart;
-    private int glideFromX;
-    private int glideFromY;
-    private int glideToX;
-    private int glideToY;
+    String glideQuest;
+    long glideStart;
+    int glideFromX;
+    int glideFromY;
+    int glideToX;
+    int glideToY;
 
     /** The node whose outline is flashing after a locate, and when the flash began. */
-    private String flashQuest;
-    private long flashStart;
+    String flashQuest;
+    long flashStart;
 
     /**
      * The party panel's laid-out rows, and the scroll view that places its controls from them.
@@ -1705,7 +1603,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * <p>The nodes are custom-drawn and hit-tested, so they are invisible to focus, tab order and the
      * narrator — this is the screen's half of the answer. See {@link CanvasFocus} for the rule.
      */
-    private final CanvasFocus canvasFocus = new CanvasFocus();
+    final CanvasFocus canvasFocus = new CanvasFocus();
 
     /**
      * The chapter list, as a scroll view over {@link BookGeometry#sidebarViewport()}.
@@ -1985,8 +1883,8 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private final List<AbstractWidget> viewClusterWidgets = new ArrayList<>();
 
-    private boolean dragging;
-    private boolean pressMoved;
+    boolean dragging;
+    boolean pressMoved;
 
     /**
      * Whether the press that started this gesture landed on a column without anything in it claiming it.
@@ -1997,7 +1895,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * and this is what tells the two apart at the release: without it, letting go over the panel would read
      * as "press blank space" and close the panel the reader was dragging from.
      */
-    private boolean panelPress;
+    boolean panelPress;
 
     /**
      * The scrollbar the pointer is holding, or null.
@@ -2017,8 +1915,8 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private ScrollBar heldBar;
 
-    private double pressX;
-    private double pressY;
+    double pressX;
+    double pressY;
 
     /**
      * The content point the pan is holding, not the offset it started at.
@@ -2029,11 +1927,11 @@ public final class QuestBookScreen extends ArmatureScreen
      * where the drag began -- because the pan put back an offset that the zoom had deliberately
      * changed. See {@code Viewport.dragTo}, which is that arithmetic with a test.
      */
-    private float panContentX;
-    private float panContentY;
+    float panContentX;
+    float panContentY;
 
     /** The node under the pointer when the press began, if any. */
-    private String pressedNode;
+    String pressedNode;
 
     /**
      * The element the press landed on, until the release decides what it meant.
@@ -2053,7 +1951,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * another chapter must not throw it away.
      */
     /** Positions asked for and not yet answered. Built once: it holds no chapter, so nothing to reset. */
-    private final EditorSession editors = new EditorSession();
+    final EditorSession editors = new EditorSession();
 
     /**
      * Which panel the dock is showing: the tools this panel started as, or the quest the canvas has
@@ -2425,7 +2323,7 @@ public final class QuestBookScreen extends ArmatureScreen
     final List<EditTarget> editTargets = new ArrayList<>();
 
     /** The book's own transient messages; see {@link ToastStack} for why chat is not enough. */
-    private final ToastStack toasts = new ToastStack();
+    final ToastStack toasts = new ToastStack();
 
     /**
      * The reward counts the badges read, rebuilt only when the progress, the tree or the marks move.
@@ -2742,7 +2640,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * the two are read together in {@link #linksNow}. See {@code LinkDraft} for why one draft could not
      * do both — and why this is not the element draft with a second list in it.
      */
-    private static final dev.ellipog.tenet.client.dev.LinkDraft linkDraft =
+    static final dev.ellipog.tenet.client.dev.LinkDraft linkDraft =
             new dev.ellipog.tenet.client.dev.LinkDraft();
 
     /**
@@ -3189,7 +3087,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * selection the author was never asked about. See {@link ArmedDelete}, which is where the rule lives
      * so it can be tested without a running client.
      */
-    private final ArmedDelete armedDelete = new ArmedDelete();
+    final ArmedDelete armedDelete = new ArmedDelete();
 
     /** The modal's Delete, so a press anywhere else can disarm it. The party's Disband set the shape. */
     private ArmatureButton questDeleteButton;
@@ -3261,8 +3159,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * cannot move the thing it is dragging. The names are the fix; the state machine around them is
      * the rewrite.
      */
-    private float dragNodeX;
-    private float dragNodeY;
+    float dragNodeX;
+    float dragNodeY;
     private float dragGrabX;
     private float dragGrabY;
 
@@ -4495,7 +4393,7 @@ public final class QuestBookScreen extends ArmatureScreen
             closeColourPopover();
             applyColumns(PanelStack.afterClose(columns(), false));
         }
-        authorReport(previewAsPlayer ? "Previewing as a player" : "Back to editing");
+        bookInput.authorReport(previewAsPlayer ? "Previewing as a player" : "Back to editing");
         rebuildWidgets();
     }
 
@@ -5214,7 +5112,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * {@code minRequired} and the started-based modes are the same here as everywhere else), and how
      * many of its tasks have any progress.
      */
-    private static boolean questVisible(String id) {
+    static boolean questVisible(String id) {
         // Remembered per tree and per progress, and those two are the whole of the answer's inputs: the
         // rules read the quest's own flags (the tree), its state, its prerequisite rule and how many of its
         // tasks have progress (progress) — and the exclusion answer below reads the file's setting (the
@@ -5523,35 +5421,6 @@ public final class QuestBookScreen extends ArmatureScreen
                 ? (float) editors.movedY(entry.id()) : entry.y();
     }
 
-    /**
-     * A click that opens a card, without discarding the set the node is already part of.
-     *
-     * <p>A plain click normally means "this node and nothing else" -- clearing the multi-selection is
-     * what says so. The exception is a click on a node that is <b>already selected</b>: the author has
-     * collected a set with ctrl-click or the marquee, is clicking one of its members to edit it, and
-     * clearing would throw away the very set they are about to say "Add selected" over. So the clicked
-     * node becomes the primary and the rest of the set stays.
-     *
-     * <p>The old behaviour is kept for everything else, including a second click on a lone primary,
-     * which still deselects: a set of one is not a set, and "click it again to let go" is a gesture
-     * people already have.
-     */
-    private static void selectForCard(String id) {
-        if (multiSelection.contains(id)) {
-            multiSelection.remove(id);
-            selectedQuest = id;
-            return;
-        }
-        if (id.equals(selectedQuest)) {
-            if (multiSelection.isEmpty()) {
-                selectedQuest = null;
-            }
-            return;
-        }
-        selectedQuest = id;
-        multiSelection.clear();
-    }
-
     /** Whether a node is selected at all: the primary the panel edits, or one of the multi-selection. */
     static boolean isSelected(String id) {
         return id.equals(selectedQuest) || multiSelection.contains(id);
@@ -5569,31 +5438,6 @@ public final class QuestBookScreen extends ArmatureScreen
             }
         }
         return all;
-    }
-
-    /**
-     * Drops selected ids the tree no longer holds.
-     *
-     * <p>The selection is static, and a tree arrives after every edit -- including the edit that deletes
-     * a selected quest, an undo of its creation, or a file hand-edited and reloaded. An id the cache no
-     * longer knows would otherwise stay in the set and be acted on by the next gesture: the same failure
-     * as a selection carried across a chapter switch, arriving by a different road. So the revision that
-     * expires the editor's remembered positions expires the selection too -- once per tree, by a guard
-     * that lives with the selection it protects, and nothing that still exists is touched.
-     */
-    private static void pruneSelection(long revision) {
-        if (revision == selectionRevision) {
-            return;
-        }
-        selectionRevision = revision;
-        Set<String> live = new java.util.HashSet<>();
-        for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
-            live.add(entry.id());
-        }
-        multiSelection.removeIf(id -> !live.contains(id));
-        if (selectedQuest != null && !live.contains(selectedQuest)) {
-            selectedQuest = null;
-        }
     }
 
     /**
@@ -5650,7 +5494,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * reader's size, and the way back out is the floating pill over the canvas rather than the band,
      * which a reader's geometry does not have.
      */
-    private boolean previewAsPlayer;
+    boolean previewAsPlayer;
 
     /**
      * Whether the showing preview was entered through {@code /tenet preview} rather than the pill.
@@ -5663,7 +5507,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * <p>It also hides vanilla chat — see {@link #tickPreviewChat} — for the same reason: the
      * command and its reply sit in the history a player would never have.
      */
-    private boolean previewFromCommand;
+    boolean previewFromCommand;
 
     /**
      * The intro's anchors and buttons, re-placed every frame it shows.
@@ -5726,7 +5570,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * Whether the player's-view preview is actually showing: the latch lit, and still an operator.
      *
      * <p>Both halves, because the latch outlives neither a de-op (cleared in
-     * {@link #refreshEditingView}) nor edit mode being turned off (cleared in {@link #setEditing}).
+     * {@link BookCanvas#refreshEditingView}) nor edit mode being turned off (cleared in {@link #setEditing}).
      * The geometry and the band guard both read this one method, so the panel's shape and the
      * controls on it cannot disagree about whether a preview is showing.
      */
@@ -5799,151 +5643,6 @@ public final class QuestBookScreen extends ArmatureScreen
      * somebody who may not be an author.
      */
     static boolean editingView;
-
-    /** Re-reads {@link #editingView}. See its note for who calls it and why. */
-    private void refreshEditingView() {
-        if (!mayEdit()) {
-            previewAsPlayer = false;
-            previewFromCommand = false;
-        }
-        editingView = mayEditNow();
-    }
-
-    /**
-     * Centres the content the first time a chapter is shown, and on a reset.
-     *
-     * <p>Computed from the content's own bounding box rather than from zero, so a questline authored
-     * at negative coordinates — which the editor will produce, since it grows in every direction —
-     * still lands in the middle of the canvas instead of off the edge.
-     */
-    private void centreCanvas() {
-        String chapter = effectiveChapter();
-        if (chapter == null) {
-            return;
-        }
-        if (centred && chapter.equals(pannedChapter)) {
-            return;
-        }
-
-        List<ClientQuestCache.Entry> quests = questsIn(chapter);
-        // A chapter that names a quest centres on it rather than on the whole canvas — the legacy
-        // `autofocus_id`. Resolved by id or alias within this chapter; a name that resolves nowhere
-        // (or elsewhere, which the loader already refused) falls through to the bounding box, which
-        // is the honest fallback: the chapter still lands in the middle rather than off the edge.
-        for (ClientQuestCache.ChapterEntry candidate : ClientQuestCache.chapters()) {
-            if (candidate.id().equals(chapter) && candidate.hasAutofocus()) {
-                for (ClientQuestCache.Entry entry : quests) {
-                    if (entry.matches(candidate.autofocus())) {
-                        viewport().centreOn(entry.x(), entry.y(),
-                                entry.x() + entry.size(), entry.y() + entry.size());
-                        pannedChapter = chapter;
-                        centred = true;
-                        return;
-                    }
-                }
-                break;
-            }
-        }
-        float minX = Float.MAX_VALUE;
-        float maxX = -Float.MAX_VALUE;
-        float minY = Float.MAX_VALUE;
-        float maxY = -Float.MAX_VALUE;
-        for (ClientQuestCache.Entry entry : quests) {
-            minX = Math.min(minX, entry.x());
-            maxX = Math.max(maxX, entry.x() + 48);
-            minY = Math.min(minY, entry.y());
-            maxY = Math.max(maxY, entry.y() + 48);
-        }
-        if (quests.isEmpty()) {
-            minX = maxX = minY = maxY = 0;
-        }
-
-        // Centred in the view port rather than in the canvas: the canvas minus the floating strip. The
-        // strip covers nothing, at the cost of a chapter looking slightly high when nothing is selected
-        // -- which is the right trade against the alternative, where the bottom row of a chapter slides
-        // under the bar the instant a player clicks a node, because clicking is what makes it appear.
-        // Centred in the canvas, which is the whole area below the header. There used to be a summary
-        // strip floating over its bottom, and content was centred in the canvas minus that strip so the
-        // bar could not cover the last row of a chapter -- but the strip is gone (clicking a node opens
-        // the quest), so there is nothing on the canvas for content to be kept clear of.
-        // Given the bounding box rather than a size and an origin, which is what makes the
-        // negative-coordinate case above fall out instead of needing the handling it used to get. No
-        // clamp is applied, deliberately: this is the call that defines where a canvas starts, so
-        // applying one would move content the caller had just positioned.
-        viewport().centreOn(minX, minY, maxX, maxY);
-        pannedChapter = chapter;
-        centred = true;
-    }
-
-    /**
-     * Applies a new zoom while keeping the world point under {@code (mouseX, mouseY)} fixed.
-     *
-     * <p>The arithmetic is the kit's, and it is asserted there rather than here: the content point
-     * under the pointer is the same point after the zoom, the limits clamp, and a zoom already at a
-     * limit does not drift. This method exists only to name the canvas for it — which is the whole
-     * argument for the transform living in {@link Viewport}, because in a {@code Screen} that
-     * calculation could only ever be judged by eye.
-     */
-    private void zoomAt(double mouseX, double mouseY, float factor) {
-        // A zoom is the hand taking the camera: a glide still in flight must not fight it.
-        glideQuest = null;
-        zoomGlideStart = -1L;
-        viewport().zoomAt(mouseX, mouseY, factor);
-    }
-
-    /**
-     * Zooms about the view port's centre, for the buttons, which have no pointer position.
-     *
-     * <p>Gliding rather than jumping: the wheel above stays direct — the hand is the animation — but a
-     * button is a 25% step with no gesture behind it, and a step that size reads as a cut. Retargeted
-     * from wherever the scale stands, so hammering the button walks up smoothly instead of queueing
-     * jumps; the hand cancels it like any other glide, and the locate glide goes with it, because two
-     * cameras moving at once is not a thing the view can do.
-     */
-    private void zoomCentre(float factor) {
-        glideQuest = null;
-        zoomGlideFrom = viewport().scale();
-        zoomGlideTo = zoomGlideFrom * factor;
-        zoomGlideStart = net.minecraft.util.Util.getMillis();
-    }
-
-    /** How long a zoom button's glide takes: felt as a settle rather than watched as a move. */
-    private static final long ZOOM_GLIDE_MILLIS = 140L;
-
-    /** A zoom glide in flight: where it started, where it is headed, and when — or -1 for none. */
-    private float zoomGlideFrom;
-    private float zoomGlideTo;
-    private long zoomGlideStart = -1L;
-
-    /**
-     * Advances the zoom buttons' glide, if one is in flight.
-     *
-     * <p>Beside {@link #advanceGlide} and on its terms: stepped through {@code zoomAboutCentre} because
-     * the limits live in the viewport and the button has no right to jump past them — each frame asks
-     * for the eased scale and the viewport clamps. A frame that moved nothing hit a limit, so the glide
-     * ends there rather than pushing against it for the rest of its time; motion off lands at once,
-     * because the eased answer is the target on the first frame.
-     */
-    private void advanceZoomGlide(long now) {
-        if (zoomGlideStart < 0) {
-            return;
-        }
-        long elapsed = now - zoomGlideStart;
-        float current = viewport().scale();
-        if (elapsed >= ZOOM_GLIDE_MILLIS) {
-            if (zoomGlideTo != current) {
-                viewport().zoomAboutCentre(zoomGlideTo / current);
-            }
-            zoomGlideStart = -1L;
-            return;
-        }
-        float t = Math.max(0F, Math.min(1F, (float) elapsed / ZOOM_GLIDE_MILLIS));
-        float eased = Motion.defaultEasing().between(zoomGlideFrom, zoomGlideTo, t);
-        if (eased != current && CanvasDetail.of(eased) != CanvasDetail.of(current)
-                && !viewport().zoomAboutCentre(eased / current)) {
-            zoomGlideStart = -1L;
-        }
-    }
 
     // ------------------------------------------------------------------
     // Widgets
@@ -6758,7 +6457,7 @@ public final class QuestBookScreen extends ArmatureScreen
                             // Which element the fields under the list belong to. Null is the ordinary state:
                             // an author who has not chosen one sees the list and nothing under it. And which
                             // link: the same ordinary state, for the same reason, one list below.
-                            selectedElement, selectedLink)
+                            selectedElement, BookCanvas.selectedLink)
                     : ChapterPanelLayout.notEditing();
             // The appearance section: the same rows the book tab shows, under one fold, writing the
             // chapter's own theme and patch. Absent for a reader -- there are no controls for a file
@@ -6916,7 +6615,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // theme's -- see `ToolsLayout.bookRows`. Its own fold, so an operator theming the book can put
         // the pack's fields away.
         List<ToolsLayout.Action> bookRows = new ArrayList<>(
-                ToolsLayout.bookRows(toolsBookOpen, bookLodValue(), bookStarterValue()));
+                ToolsLayout.bookRows(toolsBookOpen, bookInput.bookLodValue(), bookInput.bookStarterValue()));
         bookRows.addAll(ToolsLayout.rows(ClientAppearance.LOOK.motion(), DevMode.snap(),
                 DevMode.progress(), toolsColoursOpen, paletteOptions(), toolsPaletteOpen,
                 editedBackground(), toolsCanvasOpen, canvasCopyLabel()));
@@ -6979,8 +6678,8 @@ public final class QuestBookScreen extends ArmatureScreen
                 if (ToolsLayout.BOOK_TITLE.equals(row.key())) {
                     // The book's name: a field in the row's right-hand side, its label in the room
                     // `valueField` keeps. The value is the pending edit first, then the tree's own.
-                    ArmatureTextField field = new ArmatureTextField(0, 0, 0, 0, bookTitleValue());
-                    field.onSubmit(this::commitBookTitle);
+                    ArmatureTextField field = new ArmatureTextField(0, 0, 0, 0, bookInput.bookTitleValue());
+                    field.onSubmit(bookInput::commitBookTitle);
                     field.colours(ArmatureTheme.title(), ArmatureTheme.recessed(),
                             ArmatureTheme.panelEdge());
                     toolsView.put(row.key(), field,
@@ -7051,7 +6750,6 @@ public final class QuestBookScreen extends ArmatureScreen
     // ------------------------------------------------------------------
     // The drawer's controls
     // ------------------------------------------------------------------
-
 
     /** Opens the shared menu under a rectangle: the pill's menu, the drawer's and a chooser's, one path. */
     private void openMenuAt(List<BookMenu.MenuItem> rows, int x, int y) {
@@ -7948,7 +7646,7 @@ public final class QuestBookScreen extends ArmatureScreen
         super.rebuildWidgets();
         // Before the panel passes, because `chapters()` and the sidebar both ask it and both cache their
         // answers against it. See `editingView`.
-        refreshEditingView();
+        bookCanvas.refreshEditingView();
         refreshOverlayMute();
     }
 
@@ -8064,14 +7762,14 @@ public final class QuestBookScreen extends ArmatureScreen
             // Explicit either way, like the chapter tab's toggles: a cleared draft is
             // indistinguishable from no draft, so writing null would show the old state
             // until the tree answers. The file saying `false` is the honest reading.
-            sendBookField("disableCanvasLod", new JsonPrimitive(wanted));
+            bookInput.sendBookField("disableCanvasLod", new JsonPrimitive(wanted));
             status(wanted ? "Canvas LOD off \u2014 icons always drawn" : "Canvas LOD on", false);
             rebuildWidgets();
         }
         else if (key.equals(ToolsLayout.BOOK_STARTER)) {
             // Explicit either way, for the same reason as the LOD row above: the switch
             // shows the pending edit first, and null would read as the old state.
-            sendBookField("giveBookOnFirstJoin", new JsonPrimitive(wanted));
+            bookInput.sendBookField("giveBookOnFirstJoin", new JsonPrimitive(wanted));
             status(wanted ? "First join grants a quest book" : "No book on first join", false);
             rebuildWidgets();
         }
@@ -8126,7 +7824,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * and only the ink differs. Measuring still takes the stripped reading, because colours are
      * widthless and the two must agree about how wide the words are.
      */
-    private static String titleOfRaw(ClientQuestCache.Entry entry) {
+    static String titleOfRaw(ClientQuestCache.Entry entry) {
         return fieldDraft.text(entry.chapterId(), entry.id(), "title", entry.titleTextRaw());
     }
 
@@ -8138,19 +7836,6 @@ public final class QuestBookScreen extends ArmatureScreen
     /** The subtitle with its legacy tokens still in it. See {@link #titleOfRaw}. */
     private static String subtitleOfRaw(ClientQuestCache.Entry entry) {
         return fieldDraft.text(entry.chapterId(), entry.id(), "subtitle", entry.subtitleTextRaw());
-    }
-
-    /** The shape the canvas should draw, with a pending settings-page change winning over the tree. */
-    private static QuestShape drawnShape(ClientQuestCache.Entry entry) {
-        String name = fieldDraft.text(entry.chapterId(), entry.id(), "shape", "");
-        if (!name.isEmpty()) {
-            for (QuestShape shape : QuestShape.values()) {
-                if (shape.name().equalsIgnoreCase(name)) {
-                    return shape;
-                }
-            }
-        }
-        return entry.shape();
     }
 
     /**
@@ -9309,7 +8994,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * is checked here rather than trusted: a {@code file:} target or a made-up scheme is refused with a word
      * in the status line, never opened and never silently ignored.
      */
-    private void openLink(String url) {
+    void openLink(String url) {
         java.net.URI uri;
         try {
             uri = java.net.URI.create(url);
@@ -9350,7 +9035,7 @@ public final class QuestBookScreen extends ArmatureScreen
         pendingPick = new dev.ellipog.tenet.client.dev.DependencyPick(quest, effectiveChapter(),
                 QuestPanelLayout.strings(replicaQuest(), "dependsOn"));
         pickingDependency = true;
-        pendingLinkPick = null;
+        bookCanvas.pendingLinkPick = null;
         closeOverlay();
         status("Click the quest to depend on \u2014 any chapter or group \u2014 Escape cancels", false);
     }
@@ -9386,7 +9071,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // Sent to the chapter that was being edited, not to the one on screen: the pick may have been
         // taken in another chapter or group entirely — and the draft goes under that chapter too, since
         // that is whose replica will answer for it.
-        sendField(pick.chapter(), pick.quest(), "dependsOn", stringArray(result.dependsOn()));
+        bookInput.sendField(pick.chapter(), pick.quest(), "dependsOn", stringArray(result.dependsOn()));
         status(pick.quest() + " now depends on " + id, false);
         returnToEditedQuest(pick);
     }
@@ -10165,7 +9850,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // Through the author's door, because every caller is an editor affordance: a canvas pattern, a
         // motion switch, a task added, a dependency picked, a table row. A player who may not edit cannot
         // reach any of them, and the gate is what makes that true of the message as well as the control.
-        authorToast(Component.translatable(message).getString(), error);
+        bookInput.authorToast(Component.translatable(message).getString(), error);
     }
 
     /**
@@ -10597,7 +10282,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // First, because the panels built below ask what this viewer may see: a chapter withheld until
         // its gate is met is a row to an author and not a row to a reader, and the static helpers that
         // decide it read this flag. `rebuildWidgets` re-reads it too. See `editingView`.
-        refreshEditingView();
+        bookCanvas.refreshEditingView();
         // A command can ask for a table's editor -- `/tenet table edit` -- and the request waits in
         // `ClientTableOpen` until there is a screen to open it on. Taken here rather than in the payload
         // handler because the handler cannot assume this screen exists, and read before the dispatch
@@ -10816,7 +10501,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         viewClusterWidgets.clear();
 
-        ArmatureButton zoomIn = control(controls.get("zoomIn"), Component.literal("+"), () -> zoomCentre(1.25F));
+        ArmatureButton zoomIn = control(controls.get("zoomIn"), Component.literal("+"), () -> bookCanvas.zoomCentre(1.25F));
         if (zoomIn != null) {
             zoomIn.tooltip(List.of(Component.translatable("tenet.screen.zoom_in"),
                             Component.translatable("tenet.screen.or_scroll_up_over_the_canvas")))
@@ -10847,7 +10532,7 @@ public final class QuestBookScreen extends ArmatureScreen
             }
         }
 
-        ArmatureButton zoomOut = control(controls.get("zoomOut"), Component.literal("\u2212"), () -> zoomCentre(0.8F));
+        ArmatureButton zoomOut = control(controls.get("zoomOut"), Component.literal("\u2212"), () -> bookCanvas.zoomCentre(0.8F));
         if (zoomOut != null) {
             zoomOut.tooltip(List.of(Component.translatable("tenet.screen.zoom_out"),
                             Component.translatable("tenet.screen.or_scroll_down_over_the_canvas")))
@@ -10863,7 +10548,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // not, and drew as the missing-glyph box. See `BookGeometry.TOOLS_PILL_WIDTH`.
         ArmatureButton centre = control(controls.get("centre"), Component.literal("\u2302"), () -> {
             centred = false;
-            centreCanvas();
+            bookCanvas.centreCanvas();
         });
         if (centre != null) {
             centre.tooltip(List.of(Component.translatable("tenet.screen.re_centre_the_view"),
@@ -11076,7 +10761,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * than through a command source. The two cannot drift because there is one number and this comment
      * names it -- and the day the rule changes, the command is where it should change.
      */
-    private boolean mayEdit() {
+    boolean mayEdit() {
         if (frameActive) {
             return frameMayEdit;
         }
@@ -11138,7 +10823,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // fallback one, and it belongs to the Author button rather than to the mode.
             applyColumns(PanelStack.afterClose(columns(), false));
         }
-        authorReport(on ? "Edit mode on" : "Edit mode off");
+        bookInput.authorReport(on ? "Edit mode on" : "Edit mode off");
         rebuildWidgets();
     }
 
@@ -11172,7 +10857,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // A page that only exists at one depth: the Assets panel remembers the section the author was
         // reading, and a section this depth does not show would draw a list with nothing selected over it.
         assetsSection = dev.ellipog.tenet.client.dev.AssetsLayout.shownOrFirst(assetsSection);
-        authorReport(on ? "Advanced mode on" : "Advanced mode off");
+        bookInput.authorReport(on ? "Advanced mode on" : "Advanced mode off");
         rebuildWidgets();
     }
 
@@ -14608,7 +14293,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 rebuildWidgets();
                 return;
             }
-            sendBookField("bookIcon", icon);
+            bookInput.sendBookField("bookIcon", icon);
             status(icon == null ? "tenet.status.cleared" : "Set to " + word, false);
             rebuildWidgets();
             return;
@@ -14891,7 +14576,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 rebuildWidgets();
                 return;
             }
-            sendBookField("bookIcon", id == null ? null : new JsonPrimitive(id));
+            bookInput.sendBookField("bookIcon", id == null ? null : new JsonPrimitive(id));
             status(id == null ? "tenet.status.cleared" : "Set to " + id, false);
             rebuildWidgets();
             return;
@@ -15590,48 +15275,6 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * The grips a selected element wears: a small square per handle, and a stem up to the rotate grip.
-     *
-     * <h2>Why the drawn grip is smaller than the grab</h2>
-     *
-     * <p>The rule every control in this screen follows: the ink says where the control is and the grab is
-     * generous around it, so a press a pixel or two off still lands. A grip drawn at the grab's own size would
-     * be a five-pixel-square dot scaled up to sixteen, sitting over the very edge an author is trying to see.
-     *
-     * <p>The stem is drawn only for a picture, because only a picture has a rotate grip to reach — a square
-     * floating above a box would read as a stray mark rather than as a control, which is the same reason every
-     * editor draws the line.
-     */
-    private void drawElementGrips(GuiRenderer r, ElementSlot slot) {
-        int ink = ArmatureTheme.selectedRing();
-        int half = CanvasElementArt.GRIP_SIZE / 2;
-        CanvasElement element = slot.element();
-        // **The frame turns with the picture.** The grips are kept in the picture's own frame — see
-        // `CanvasElementArt.handles` — so the whole frame is drawn inside one turn about the same pivot the
-        // picture itself is drawn about, and a rotated picture wears a rotated frame. Without this the grips
-        // sat square to the screen around a turned picture, which is a frame that does not belong to what is
-        // inside it.
-        GuiRenderer.Scoped turn = CanvasElementArt.degreesOf(element) == 0 ? null
-                : r.turned(CanvasElementArt.pivotX(element, slot.box()),
-                        CanvasElementArt.pivotY(element, slot.box()),
-                        CanvasElementArt.degreesOf(element));
-        try {
-            for (CanvasElementArt.Grip grip : CanvasElementArt.handles(element, slot.box())) {
-                r.fill(grip.x() - half, grip.y() - half, grip.x() + half + 1, grip.y() + half + 1, ink);
-            }
-            if (element instanceof CanvasElement.Image) {
-                int x = slot.box().left() + slot.box().width() / 2;
-                r.fill(x, slot.box().top() - CanvasElementArt.ROTATE_OFFSET, x + 1, slot.box().top(), ink);
-            }
-        }
-        finally {
-            if (turn != null) {
-                turn.close();
-            }
-        }
-    }
-
-    /**
      * The chapter's canvas elements as this client currently believes them to be, in draw order.
      *
      * <h2>The one read the whole feature goes through</h2>
@@ -15647,7 +15290,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * made — and it is the whole of "no rubberband", because there is no second path that could still be
      * showing the old value.
      */
-    private List<CanvasElement> elementsNow() {
+    List<CanvasElement> elementsNow() {
         String chapter = effectiveChapter();
         if (chapter == null) {
             return List.of();
@@ -15706,7 +15349,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * showing the old value. The element form's own note says the same for decorations, and for the
      * same reason.
      */
-    private List<QuestLink> linksNow() {
+    List<QuestLink> linksNow() {
         String chapter = effectiveChapter();
         if (chapter == null) {
             return List.of();
@@ -15772,30 +15415,30 @@ public final class QuestBookScreen extends ArmatureScreen
      * pointer's target, and an angle is a direction rather than a distance.
      */
     private CanvasElement draggedElement(double mouseX, double mouseY) {
-        if (elementDragBase == null) {
+        if (bookCanvas.elementDragBase == null) {
             return null;
         }
-        if (elementHandle == null) {
+        if (bookCanvas.elementHandle == null) {
             int x = (int) Math.round(BookGeometry.snap(viewport().contentX(mouseX) - dragGrabX,
                     BookGeometry.SNAP_GRID, snappingNow()));
             int y = (int) Math.round(BookGeometry.snap(viewport().contentY(mouseY) - dragGrabY,
                     BookGeometry.SNAP_GRID, snappingNow()));
-            return elementDragBase.translated(x - CanvasElementArt.originX(elementDragBase),
-                    y - CanvasElementArt.originY(elementDragBase));
+            return bookCanvas.elementDragBase.translated(x - CanvasElementArt.originX(bookCanvas.elementDragBase),
+                    y - CanvasElementArt.originY(bookCanvas.elementDragBase));
         }
         // A resize and a line's endpoint are not snapped: a grid is for placing things, and a box being sized
         // to the pixel is the point of dragging its corner. The rotate is not snapped either, because an angle
         // on an eight-pixel grid would jump in eleven-degree steps.
         int contentX = (int) Math.round(viewport().contentX(mouseX));
         int contentY = (int) Math.round(viewport().contentY(mouseY));
-        return switch (elementHandle) {
+        return switch (bookCanvas.elementHandle) {
             case RESIZE_NW, RESIZE_NE, RESIZE_SW, RESIZE_SE ->
-                    CanvasElementArt.resized(elementDragBase, elementHandle, contentX, contentY);
+                    CanvasElementArt.resized(bookCanvas.elementDragBase, bookCanvas.elementHandle, contentX, contentY);
             case END_FROM, END_TO ->
-                    CanvasElementArt.endMoved(elementDragBase, elementHandle, contentX, contentY);
+                    CanvasElementArt.endMoved(bookCanvas.elementDragBase, bookCanvas.elementHandle, contentX, contentY);
             case ROTATE -> {
-                int degrees = CanvasElementArt.rotationTo(elementDragBase, contentX, contentY);
-                yield elementDragBase.withRotation(degrees);
+                int degrees = CanvasElementArt.rotationTo(bookCanvas.elementDragBase, contentX, contentY);
+                yield bookCanvas.elementDragBase.withRotation(degrees);
             }
         };
     }
@@ -15965,11 +15608,11 @@ public final class QuestBookScreen extends ArmatureScreen
         linkDraft.remove(effectiveChapter(), id, Util.getMillis());
         fieldDraft.forgetOwner(effectiveChapter(), LINK_OWNER_PREFIX + id);
         send(new EditorOp.RemoveLink(id));
-        if (id.equals(selectedLink)) {
-            selectedLink = null;
+        if (id.equals(BookCanvas.selectedLink)) {
+            BookCanvas.selectedLink = null;
         }
-        if (id.equals(linkConfirmingDelete)) {
-            linkConfirmingDelete = null;
+        if (id.equals(bookCanvas.linkConfirmingDelete)) {
+            bookCanvas.linkConfirmingDelete = null;
         }
     }
 
@@ -15998,7 +15641,7 @@ public final class QuestBookScreen extends ArmatureScreen
             case dev.ellipog.tenet.client.dev.LinkPanelLayout.JUMP_TARGET -> button = control(0, 0, 0, 0,
                     Component.literal(Labels.of("tenet.dev.link.jump")), () -> jumpToLink(link[0]));
             case dev.ellipog.tenet.client.dev.LinkPanelLayout.DELETE_LINK -> {
-                boolean armed = link[0].equals(linkConfirmingDelete);
+                boolean armed = link[0].equals(bookCanvas.linkConfirmingDelete);
                 button = control(0, 0, 0, 0,
                         Component.literal(armed
                                 ? Labels.of("tenet.dev.link.delete_confirm")
@@ -16043,13 +15686,13 @@ public final class QuestBookScreen extends ArmatureScreen
         if (!mayEditNow() || linkNow(id) == null) {
             return;
         }
-        if (id.equals(linkConfirmingDelete)) {
-            linkConfirmingDelete = null;
+        if (id.equals(bookCanvas.linkConfirmingDelete)) {
+            bookCanvas.linkConfirmingDelete = null;
             deleteLink(id);
             rebuildWidgets();
             return;
         }
-        linkConfirmingDelete = id;
+        bookCanvas.linkConfirmingDelete = id;
         status("Press Delete again to remove this link", false);
         rebuildWidgets();
     }
@@ -16086,8 +15729,8 @@ public final class QuestBookScreen extends ArmatureScreen
         QuestLink optimistic = QuestLink.fromJson(tree).orElse(null);
         linkDraft.insert(effectiveChapter(), optimistic, Integer.MAX_VALUE, Util.getMillis());
         send(new EditorOp.InsertLink(Integer.MAX_VALUE, tree));
-        selectedLink = id;
-        linkConfirmingDelete = null;
+        BookCanvas.selectedLink = id;
+        bookCanvas.linkConfirmingDelete = null;
         rebuildWidgets();
     }
 
@@ -16105,7 +15748,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         pickingDependency = false;
         pendingPick = null;
-        pendingLinkPick = new dev.ellipog.tenet.client.dev.LinkPick(id, effectiveChapter());
+        bookCanvas.pendingLinkPick = new dev.ellipog.tenet.client.dev.LinkPick(id, effectiveChapter());
         status("Click the quest to point the link at \u2014 any chapter \u2014 Escape cancels", false);
         rebuildWidgets();
     }
@@ -16119,13 +15762,13 @@ public final class QuestBookScreen extends ArmatureScreen
      * needs no rules of its own.
      */
     private void landLinkPick(ClientQuestCache.Entry target) {
-        dev.ellipog.tenet.client.dev.LinkPick pick = pendingLinkPick;
-        pendingLinkPick = null;
+        dev.ellipog.tenet.client.dev.LinkPick pick = bookCanvas.pendingLinkPick;
+        bookCanvas.pendingLinkPick = null;
         if (pick == null || target == null) {
             return;
         }
         draftLinkFieldFor(pick.chapter(), pick.link(), "quest", new JsonPrimitive(target.id()));
-        send(new EditorOp.SetLink(pick.link(), "quest", new JsonPrimitive(target.id())), pick.chapter());
+        bookInput.send(new EditorOp.SetLink(pick.link(), "quest", new JsonPrimitive(target.id())), pick.chapter());
         status("The link now points at \"" + target.id() + "\"", false);
         rebuildWidgets();
     }
@@ -16147,7 +15790,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (id == null || elementNow(id) == null) {
             return;
         }
-        elementPanelId = id;
+        bookCanvas.elementPanelId = id;
         selectedElement = id;
         applyColumns(PanelStack.afterOpen(columns(), PanelKind.ELEMENT));
         rebuildWidgets();
@@ -16161,10 +15804,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * canvas does, which is a different gesture saying a different thing.
      */
     private void closeElementPanel() {
-        if (elementPanelId == null) {
+        if (bookCanvas.elementPanelId == null) {
             return;
         }
-        elementPanelId = null;
+        bookCanvas.elementPanelId = null;
         applyColumns(PanelStack.afterClose(columns(), false));
         rebuildWidgets();
     }
@@ -16178,43 +15821,43 @@ public final class QuestBookScreen extends ArmatureScreen
      * <b>drafted</b> element, so a field an author has just typed shows here and on the canvas at once.
      */
     private void buildElementWidgets() {
-        CanvasElement element = elementNow(elementPanelId);
+        CanvasElement element = elementNow(bookCanvas.elementPanelId);
         if (element == null) {
             // The element went away under the panel -- deleted on another client, or by an undo. Putting the
             // panel away is the only honest answer; its rows would address nothing.
-            elementPanelId = null;
+            bookCanvas.elementPanelId = null;
             return;
         }
-        elementRows = dev.ellipog.tenet.client.dev.ElementPanelLayout.rowsForPanel(
-                CanvasElement.asJson(element), elementFolded);
-        if (elementConfirmingDelete != null && !elementConfirmingDelete.equals(elementPanelId)) {
+        bookCanvas.elementRows = dev.ellipog.tenet.client.dev.ElementPanelLayout.rowsForPanel(
+                CanvasElement.asJson(element), bookCanvas.elementFolded);
+        if (bookCanvas.elementConfirmingDelete != null && !bookCanvas.elementConfirmingDelete.equals(bookCanvas.elementPanelId)) {
             // Armed for another element: a Delete left asking its question must not fire on this one.
-            elementConfirmingDelete = null;
+            bookCanvas.elementConfirmingDelete = null;
         }
-        elementTargets.clear();
+        bookCanvas.elementTargets.clear();
         BookGeometry.Rect body = overlayBodyRect();
-        elementLayout = ToolsLayout.stack(elementRows, InspectLayout.Mode.STACKED)
+        bookCanvas.elementLayout = ToolsLayout.stack(bookCanvas.elementRows, InspectLayout.Mode.STACKED)
                 .build(body.width(), Measure.monospace(6, 9));
         // **Forgotten first**, because this view outlives the element it was showing: its children are keyed
         // `element.<id>.<field>`, so a press that opens a second element would leave the first one's widgets
         // registered under keys no layout holds -- hidden, and kept for the session. `ScrollView.put` hides
         // what it registers until the next `apply`, so clearing here cannot flash a stale control.
-        elementView.clear();
-        elementView.viewport().bounds(body.x(), body.y() + BookRewards.ELEMENT_PREVIEW_HEIGHT, body.width(),
+        bookCanvas.elementView.clear();
+        bookCanvas.elementView.viewport().bounds(body.x(), body.y() + BookRewards.ELEMENT_PREVIEW_HEIGHT, body.width(),
                 Math.max(0, body.height() - BookRewards.ELEMENT_PREVIEW_HEIGHT));
-        elementView.whole(true);
+        bookCanvas.elementView.whole(true);
         // **The list's own row pitch, which is what `ScrollBar.pitch` is for**: a wheel notch lands on a row
         // boundary instead of thirty pixels into one, and the row it lands on is a whole stacked row -- the
         // label's band and the control's, plus the gap between them. The sidebar states its own the same way.
-        elementView.bar().pitch(InspectLayout.STACKED_ROW_HEIGHT + InspectLayout.STACKED_ROW_GAP);
-        for (ToolsLayout.Action row : elementRows) {
+        bookCanvas.elementView.bar().pitch(InspectLayout.STACKED_ROW_HEIGHT + InspectLayout.STACKED_ROW_GAP);
+        for (ToolsLayout.Action row : bookCanvas.elementRows) {
             switch (row.kind()) {
                 case TEXT -> {
                     ArmatureTextField field = new ArmatureTextField(0, 0, 0, 0, row.value());
                     String key = row.key();
                     field.onSubmit(text -> commitField(key, text, true));
                     field.colours(ArmatureTheme.title(), ArmatureTheme.recessed(), ArmatureTheme.panelEdge());
-                    elementView.put(row.key(), field, InspectLayout::controlBand);
+                    bookCanvas.elementView.put(row.key(), field, InspectLayout::controlBand);
                     addRenderableWidget(field);
                 }
                 case SWITCH -> {
@@ -16228,7 +15871,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     ArmatureSwitch toggle = new ArmatureSwitch(0, 0,
                             ToolsLayout.ON.equals(row.buttonLabel()));
                     toggle.onToggle(() -> pressChapterToggle(row.key(), toggle.selected()));
-                    elementView.put(row.key(), toggle, slot -> ToolsLayout.switchSlot(slot,
+                    bookCanvas.elementView.put(row.key(), toggle, slot -> ToolsLayout.switchSlot(slot,
                             InspectLayout.Mode.STACKED));
                     addRenderableWidget(toggle);
                 }
@@ -16245,9 +15888,9 @@ public final class QuestBookScreen extends ArmatureScreen
                     ArmatureButton pick = control(0, 0, 0, 0,
                             Component.literal(row.value().isEmpty()
                                     ? Labels.of("tenet.dev.element.pick_file") : row.value()),
-                            () -> texturePicker.openTexturePickerFor(elementPanelId));
+                            () -> texturePicker.openTexturePickerFor(bookCanvas.elementPanelId));
                     pick.ink(ArmatureButton.Ink.BODY).alignLeft(true);
-                    elementView.put(row.key(), pick, InspectLayout::controlBand);
+                    bookCanvas.elementView.put(row.key(), pick, InspectLayout::controlBand);
                 }
                 case HEADING -> {
                     // A section's fold: the same flat invisible button the Chapter tab hangs on every
@@ -16256,7 +15899,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     ArmatureButton foldButton = control(0, 0, 0, 0, Component.literal(""),
                             () -> foldElementSection(row.key()));
                     foldButton.flat(true);
-                    elementView.put(row.key(), foldButton);
+                    bookCanvas.elementView.put(row.key(), foldButton);
                 }
                 default -> {
                     // A read-only row holds no widget: the panel draws it, like the chapter tab's.
@@ -16272,8 +15915,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // showed: the same call used to register every one of these in the *dock's* scroll view, whose layout
         // holds no element key, so each one was hidden the moment it was placed -- and the element form is the
         // stacked composition, so a control belongs in its row's band rather than across the whole of it.
-        buildRowControls(elementView, elementRows, true);
-        elementView.apply(elementLayout, body.width());
+        buildRowControls(bookCanvas.elementView, bookCanvas.elementRows, true);
+        bookCanvas.elementView.apply(bookCanvas.elementLayout, body.width());
         buildElementFooter(element);
     }
 
@@ -16321,7 +15964,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 .tooltip(Component.translatable("tenet.dev.element.raise_tip"));
         control(duplicate, Component.translatable("tenet.screen.duplicate"),
                 () -> duplicateElementOpen(id)).ink(ArmatureButton.Ink.BODY);
-        boolean armed = id.equals(elementConfirmingDelete);
+        boolean armed = id.equals(bookCanvas.elementConfirmingDelete);
         ArmatureButton remove = control(delete,
                 Component.literal(armed ? "Really delete?" : "Delete"),
                 () -> pressDeleteElement(id));
@@ -16333,8 +15976,8 @@ public final class QuestBookScreen extends ArmatureScreen
     /** Folds or unfolds one of the element panel's sections. The Chapter tab folds through its own set. */
     private void foldElementSection(String key) {
         closeColourPopover();
-        if (!elementFolded.remove(key)) {
-            elementFolded.add(key);
+        if (!bookCanvas.elementFolded.remove(key)) {
+            bookCanvas.elementFolded.add(key);
         }
         rebuildWidgets();
     }
@@ -16383,13 +16026,13 @@ public final class QuestBookScreen extends ArmatureScreen
         if (!mayEditNow() || elementNow(id) == null) {
             return;
         }
-        if (id.equals(elementConfirmingDelete)) {
-            elementConfirmingDelete = null;
+        if (id.equals(bookCanvas.elementConfirmingDelete)) {
+            bookCanvas.elementConfirmingDelete = null;
             deleteElement(id);
             closeOverlay();
             return;
         }
-        elementConfirmingDelete = id;
+        bookCanvas.elementConfirmingDelete = id;
         rebuildWidgets();
     }
 
@@ -16706,10 +16349,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * element's own actions, built beside the rows.
      */
     private void drawElementPanel(GuiRenderer r, int mouseX, int mouseY) {
-        if (elementLayout == null || elementPanelId == null) {
+        if (bookCanvas.elementLayout == null || bookCanvas.elementPanelId == null) {
             return;
         }
-        CanvasElement element = elementNow(elementPanelId);
+        CanvasElement element = elementNow(bookCanvas.elementPanelId);
         if (element == null) {
             // The subject went away under an open picker too: its anchor rows address nothing, so the
             // picker goes with the panel rather than floating over whatever is there instead.
@@ -16719,32 +16362,32 @@ public final class QuestBookScreen extends ArmatureScreen
         // And it belongs to the chip it was opened from: a row scrolled out of this list would leave the
         // picker anchored to a chip that is no longer drawn. The dock runs the same check over its own
         // list; an anchor that belongs there is none of this panel's business.
-        if (colourPopover.isOpen() && popoverChip != null && popoverChip.view() == elementView
-                && !chipOnScreen(elementView)) {
+        if (colourPopover.isOpen() && popoverChip != null && popoverChip.view() == bookCanvas.elementView
+                && !chipOnScreen(bookCanvas.elementView)) {
             closeColourPopover();
         }
-        elementTargets.clear();
+        bookCanvas.elementTargets.clear();
         // The panel's own surface, title and close chip -- the same chrome the pack's panel and the table
         // browser wear. The first version of this drew its rows on bare canvas: no background, no name and no
         // way out but Escape, which read as a list floating over the graph rather than as a panel.
         bookRewards.drawModalCardChrome(r, elementTitle(element), mouseX, mouseY, EditAction.ELEMENT_CLOSE,
-                elementTargets);
+                bookCanvas.elementTargets);
         drawElementPreview(r, element, overlayBodyRect());
-        ToolsPanel.drawRows(r, overlayBodyRect(), elementView.viewport(), elementLayout, elementRows,
+        ToolsPanel.drawRows(r, overlayBodyRect(), bookCanvas.elementView.viewport(), bookCanvas.elementLayout, bookCanvas.elementRows,
                 new ToolsPanel.State(editedTheme(), editedBackground(), currentPalette()), mouseX, mouseY,
                 InspectLayout.Mode.STACKED);
         // The row under the pointer, like the dock's: the sentences live with the rows that name them
         // (`ElementPanelLayout.help`), and the box is collected for the tooltip layer so the body's own
         // clip cannot cut it off at the list's edge.
-        ToolsLayout.Hovered hovered = ToolsLayout.helpAt(elementRows, elementLayout,
-                elementView.viewport(), mouseX, mouseY, this::elementHelp);
-        if (hovered != null && elementLayout.slot(hovered.key()) != null) {
+        ToolsLayout.Hovered hovered = ToolsLayout.helpAt(bookCanvas.elementRows, bookCanvas.elementLayout,
+                bookCanvas.elementView.viewport(), mouseX, mouseY, this::elementHelp);
+        if (hovered != null && bookCanvas.elementLayout.slot(hovered.key()) != null) {
             rowTooltips.add(new RowTooltip(
-                    ToolsLayout.onScreen(elementView.viewport(),
-                            elementLayout.slot(hovered.key())),
+                    ToolsLayout.onScreen(bookCanvas.elementView.viewport(),
+                            bookCanvas.elementLayout.slot(hovered.key())),
                     List.of(Labels.of(hovered.help()))));
         }
-        drawBar(r, elementView.bar(), mouseX, mouseY);
+        drawBar(r, bookCanvas.elementView.bar(), mouseX, mouseY);
     }
 
     /** The card's title: what the element is, and what it calls itself. */
@@ -16827,7 +16470,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Whether one of the element panel's own drawn targets -- or one of its colour chips -- is under it. */
     private boolean onElementTarget(double mouseX, double mouseY) {
-        for (EditTarget target : elementTargets) {
+        for (EditTarget target : bookCanvas.elementTargets) {
             if (target.box().contains(mouseX, mouseY)) {
                 return true;
             }
@@ -16837,7 +16480,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** What a press on one of them does. */
     private void pressElementPanel(double mouseX, double mouseY) {
-        for (EditTarget target : elementTargets) {
+        for (EditTarget target : bookCanvas.elementTargets) {
             if (target.box().contains(mouseX, mouseY)) {
                 switch (target.action()) {
                     case ELEMENT_CLOSE -> closeOverlay();
@@ -16851,14 +16494,14 @@ public final class QuestBookScreen extends ArmatureScreen
         // rectangle the drawing used -- the rule every drawn control in this screen follows.
         ToolsLayout.Action chip = elementChipAt(mouseX, mouseY);
         if (chip != null) {
-            openElementColourPopover(chip, elementView, InspectLayout.Mode.STACKED,
+            openElementColourPopover(chip, bookCanvas.elementView, InspectLayout.Mode.STACKED,
                     elementChipRect(chip));
         }
     }
 
     /** The colour chip row under the pointer, or null. */
     private ToolsLayout.Action elementChipAt(double mouseX, double mouseY) {
-        for (ToolsLayout.Action row : elementRows) {
+        for (ToolsLayout.Action row : bookCanvas.elementRows) {
             if (!row.isChip()) {
                 continue;
             }
@@ -16872,14 +16515,14 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** One row's chip rectangle, from the same layout the drawing walks and the band its rows are in. */
     private BookGeometry.Rect elementChipRect(ToolsLayout.Action row) {
-        if (elementLayout == null || row == null) {
+        if (bookCanvas.elementLayout == null || row == null) {
             return null;
         }
-        dev.ellipog.armature.client.ui.kit.Slot slot = elementLayout.slot(row.key());
+        dev.ellipog.armature.client.ui.kit.Slot slot = bookCanvas.elementLayout.slot(row.key());
         if (slot == null) {
             return null;
         }
-        return ToolsLayout.chipOf(ToolsLayout.onScreen(elementView.viewport(), slot),
+        return ToolsLayout.chipOf(ToolsLayout.onScreen(bookCanvas.elementView.viewport(), slot),
                 dev.ellipog.armature.client.ui.inspect.InspectLayout.Mode.STACKED);
     }
 
@@ -16966,7 +16609,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private dev.ellipog.tenet.client.dev.AssetsLayout.Frame assetsFrame;
 
     /** The panel's pressable pieces, from the last frame's drawing -- the house rule, one list. */
-    private final List<EditTarget> assetsTargets = new ArrayList<>();
+    final List<EditTarget> assetsTargets = new ArrayList<>();
 
     /**
      * One line of the panel's page: a group heading, or a row.
@@ -18370,7 +18013,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** Ctrl+Z in the editor: the frame's own history, and never past the table it opened on. */
-    private void tableUndo() {
+    void tableUndo() {
         if (tableAddress == null || tableApplied <= 0) {
             status("Nothing to undo in this table", true);
             return;
@@ -18381,7 +18024,7 @@ public final class QuestBookScreen extends ArmatureScreen
         bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Undo(tableAddress));
     }
 
-    private void tableRedo() {
+    void tableRedo() {
         if (tableAddress == null || tableUndone <= 0) {
             status("Nothing to redo in this table", true);
             return;
@@ -18517,12 +18160,12 @@ public final class QuestBookScreen extends ArmatureScreen
             overlayView.scrollTo(0);
             // And the element panel is about nothing once it is closed: its rows were built for one element, and a
             // subject left behind would be a panel that could be reopened onto whatever that id means later.
-            elementPanelId = null;
-            elementRows = List.of();
-            elementLayout = null;
+            bookCanvas.elementPanelId = null;
+            bookCanvas.elementRows = List.of();
+            bookCanvas.elementLayout = null;
             // And a Delete left asking its question goes with it: the next element opened gets one press, like
             // the quest card's own Delete, which this exit also forgets. See `clearPickers` below.
-            elementConfirmingDelete = null;
+            bookCanvas.elementConfirmingDelete = null;
             // The chain of jumps ends with the card: a stale stack would replay a trail from a card the
             // reader closed, and the next card they open is a fresh session with its own history.
             overlayHistory.clear();
@@ -18549,7 +18192,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // And the colour picker when it belongs to this panel: its anchor rows are gone with it, and a
         // picker left standing would commit to an element nobody is looking at. A dock-anchored picker
         // stays -- the dock is not what closed.
-        if (popoverChip != null && popoverChip.view() == elementView) {
+        if (popoverChip != null && popoverChip.view() == bookCanvas.elementView) {
             closeColourPopover();
         }
         // The editor's transient state goes with the card: a picker left armed would greet the next
@@ -18674,7 +18317,7 @@ public final class QuestBookScreen extends ArmatureScreen
         glideStart = Util.getMillis();
         // The locate takes the whole camera: a zoom glide still stepping must not fight it, for the same
         // reason the hand cancels either of them.
-        zoomGlideStart = -1L;
+        bookCanvas.zoomGlideStart = -1L;
         glideFromX = view.offsetX();
         glideFromY = view.offsetY();
         // Content coordinates for the node's middle, through the drawing's own helpers — so the target
@@ -18682,34 +18325,6 @@ public final class QuestBookScreen extends ArmatureScreen
         // is. The zoom does not change: "show me where it is" is not "zoom in on it".
         glideToX = CanvasReveal.offsetX(view.viewWidth(), view.contentX(bookRewards.nodeCentreX(entry)), view.scale());
         glideToY = CanvasReveal.offsetY(view.viewHeight(), view.contentY(bookRewards.nodeCentreY(entry)), view.scale());
-    }
-
-    /**
-     * Advances the camera's glide, if one is in flight.
-     *
-     * <p>Called once a frame from the canvas drawing, which is the only place the move can be seen: the
-     * canvas is not drawn while a card is up, so a glide cannot run on behind one.
-     */
-    private void advanceGlide(long now) {
-        if (glideQuest == null) {
-            return;
-        }
-        ClientQuestCache.Entry target = entryFor(glideQuest);
-        if (target == null || !target.chapterId().equals(effectiveChapter())) {
-            // The chapter changed under the glide (a sidebar press mid-flight): the view belongs to the
-            // chapter now, and dragging it to a node that is not on screen is the wrong kind of help.
-            glideQuest = null;
-            return;
-        }
-        long elapsed = now - glideStart;
-        Viewport view = viewport();
-        if (elapsed >= CanvasReveal.GLIDE_MILLIS) {
-            view.setOffset(glideToX, glideToY);
-            glideQuest = null;
-            return;
-        }
-        view.setOffset(CanvasReveal.glide(glideFromX, glideToX, elapsed, CanvasReveal.GLIDE_MILLIS),
-                CanvasReveal.glide(glideFromY, glideToY, elapsed, CanvasReveal.GLIDE_MILLIS));
     }
 
     /** The first task a player hands over by hand <b>and still has to</b>, or -1. */
@@ -18887,7 +18502,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // The canvas caption, carried out of the batch above: what the pointer hovered, for the
         // TOOLTIP band below. Read here rather than re-derived there, because the hover is this
         // frame's and a second hit test could answer differently.
-        CanvasCaption captioned =
+        BookCanvas.CanvasCaption captioned =
                 renderer.batched(() -> renderWith(renderer, hoverX, hoverY, partialTick));
 
 
@@ -19245,10 +18860,10 @@ public final class QuestBookScreen extends ArmatureScreen
             // and drawn late it stays over pictures by submission order, the same as tooltips.
             if (captioned != null) {
                 if (captioned.quest() != null) {
-                    drawNodeCaption(renderer, captioned.quest());
+                    bookCanvas.drawNodeCaption(renderer, captioned.quest());
                 }
                 if (captioned.link() != null) {
-                    drawLinkCaption(renderer, captioned.link());
+                    bookCanvas.drawLinkCaption(renderer, captioned.link());
                 }
                 // The hovered line names itself at the pointer: a line brightens where the menu
                 // opens, and the caption says which line that is. A tooltip rather than a caption
@@ -19260,7 +18875,7 @@ public final class QuestBookScreen extends ArmatureScreen
             }
             // The notices first, so a tooltip -- which is what the pointer is asking for -- stays on top.
             // They keep the main theme: a toast is the book talking, not the chapter.
-            drawToasts(renderer, Util.getMillis());
+            bookInput.drawToasts(renderer, Util.getMillis());
             // The tooltips describe what is under the pointer, so they wear that surface's palette: a
             // caption over a chapter's canvas is that chapter's, and one over the sidebar is the book's
             // own. The toasts above are outside this scope on purpose.
@@ -19444,7 +19059,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * drawn</i>, so a scope that leaks shows up as chrome drawn in a chapter's colours rather than as a
      * missing call. {@code ArmatureTheme.scopeDepth} is the blunt check for the same thing.
      */
-    public CanvasCaption renderWith(GuiRenderer renderer, int mouseX, int mouseY, float partialTick) {
+    public BookCanvas.CanvasCaption renderWith(GuiRenderer renderer, int mouseX, int mouseY, float partialTick) {
         // **Tenet's look, scoped to Tenet's drawing.** The theme is an instance this mod owns now, and
         // this is where it reaches the toolkit: a scope opened around the whole of the book's own drawing,
         // closed however this returns. Another mod's screens open their own and see their own -- which is
@@ -19468,8 +19083,8 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** The book's own drawing, inside the look's scope. See {@link #renderWith}. */
-    private CanvasCaption renderBook(GuiRenderer renderer, int mouseX, int mouseY, float partialTick) {
-        centreCanvas();
+    private BookCanvas.CanvasCaption renderBook(GuiRenderer renderer, int mouseX, int mouseY, float partialTick) {
+        bookCanvas.centreCanvas();
 
         // A tree that arrived since the sidebar was built means the outline is describing a questline
         // this client no longer holds — and the same is true of a gate that opened, an author's view
@@ -19512,7 +19127,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // tried and erased the card. Both are worth keeping in view: the fault was real, and its cause
         // was that a post-process leaves the pipeline set for its own passes, so the one layer drawn
         // with no clip of its own had nothing to draw into. `GuiRenderer.blur` puts the pipeline back.
-        CanvasCaption captioned = drawBook(renderer, mouseX, mouseY, now);
+        BookCanvas.CanvasCaption captioned = drawBook(renderer, mouseX, mouseY, now);
 
         // The scrim and the tools panel used to be drawn here, and both moved into `render`'s raised-Z
         // layer -- the same move, for the same reason, as the view cluster's backing panel: a fill at
@@ -20042,7 +19657,7 @@ public final class QuestBookScreen extends ArmatureScreen
         return null;
     }
 
-    private CanvasCaption drawBook(GuiRenderer r, int mouseX, int mouseY, long now) {
+    private BookCanvas.CanvasCaption drawBook(GuiRenderer r, int mouseX, int mouseY, long now) {
         // The server's own answer for a moved node arrives with a tree, and that is the moment the editor's
         // remembered position is no longer needed. Noticed here rather than in a handler because this is a
         // comparison of two numbers on the frame path that already reads them.
@@ -20106,7 +19721,7 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         // And the selection, because an id this tree does not hold is a phantom the next gesture would
         // act on -- see `pruneSelection` for why the revision is the right moment and the only one.
-        pruneSelection(revision);
+        BookCanvas.pruneSelection(revision);
         // And the same revision decides whether a panel's copy of the chapter is current. `claim` is what
         // keeps this from being one request per frame: it says yes only while no usable copy exists, and
         // no faster than its retry window -- so a refusal or an empty answer is retried rather than
@@ -20243,9 +19858,9 @@ public final class QuestBookScreen extends ArmatureScreen
         // which clears them by the arithmetic that constant already documents. The sidebar and the header
         // stay in both arrangements, because those are what "have it in the background" is about: where you
         // are, not what you were looking at. Null unless the canvas below names something hoverable.
-        CanvasCaption captioned = null;
+        BookCanvas.CanvasCaption captioned = null;
         if (chapter != null) {
-            captioned = drawCanvas(r, mouseX, mouseY, questsIn(chapter), now);
+            captioned = bookCanvas.drawCanvas(r, mouseX, mouseY, questsIn(chapter), now);
         }
 
         // The canvas is done, and the view cluster's backing panel is *not* drawn here any more.
@@ -20355,7 +19970,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // rather than over a control, and a title suppressed by a button that happened to sit above the canvas
         // would be a tooltip that came and went. Only a title the author did not paint into the picture gets
         // one -- see `hoveredElementTitle`.
-        String elementTitle = hoveredElementTitle();
+        String elementTitle = bookCanvas.hoveredElementTitle();
         if (elementTitle != null) {
             drawTooltip(r, List.of(elementTitle), mouseX, mouseY);
             return;
@@ -20686,486 +20301,6 @@ public final class QuestBookScreen extends ArmatureScreen
     // The canvas
     // ------------------------------------------------------------------
 
-    /**
-     * What the canvas asks to have captioned: the hovered quest, the hovered link's slot, and the
-     * hovered dependency line's caption, or nulls when the pointer names none of them.
-     *
-     * <p>Returned rather than drawn because captions belong over everything, at {@code TOOLTIP_Z}
-     * in {@code render}: a caption drawn here, at canvas Z, loses the depth test wherever a
-     * depth-writing picture sits — which is how node textures ended up covering the title they
-     * name. The values are this frame's, so there is no stale caption when the canvas is hidden.
-     */
-    private record CanvasCaption(ClientQuestCache.Entry quest, LinkSlot link, String line) {
-    }
-
-    private CanvasCaption drawCanvas(GuiRenderer r, int mouseX, int mouseY,
-                                     List<ClientQuestCache.Entry> quests, long now) {
-        ClientQuestCache.Entry hovered;
-
-        // Clipped to the canvas, so a node panned past the edge is cut off at the edge rather than
-        // drawn over the sidebar. A scoped clip rather than a raw enable/disable pair: the pop is
-        // placed by the compiler on every exit path, so the two calls cannot come apart -- and a
-        // missing pop does not fail loudly, it leaves every later draw in the frame clipped to a
-        // rectangle nobody chose.
-        //
-        // The scope is the seam's own type, so this file no longer knows what a scissor is. What that
-        // bought beyond the port: `RecordingRenderer` can now assert that the clip was opened and
-        // closed exactly once, which a screen cannot be asked without one.
-        // Two scopes, and they are different kinds of thing. The clip is where the drawing is allowed
-        // to land; the theme is what it is drawn in. Both are closed by the compiler on every exit path,
-        // which is the property that matters for each — a clip left open cuts the rest of the frame off,
-        // and a theme left open paints every later screen in one chapter's colours.
-        //
-        // The chapter's palette covers the canvas and everything on it: the backdrop, the connector
-        // lines, the nodes, their rings, their washes. The sidebar beside it is chrome and keeps the
-        // player's own theme — that is what lets a themed canvas and an ordinary sidebar be visible in
-        // the same frame with no precedence rule between them.
-        //
-        // The node caption is deliberately outside all of this (see CanvasCaption): it is a label
-        // floating over the canvas in the same family as a tooltip, and a caption that changed
-        // colour with the chapter would read as part of the node it names rather than as a label
-        // about it.
-        try (GuiRenderer.Scoped clip = r.clip(canvasLeft(), canvasTop(), canvasRight(), canvasBottom());
-             ArmatureTheme.Scope theme = ArmatureTheme.scope(viewportTheme())) {
-            // Everything on the canvas in **one batch**, and the placement is the whole correctness
-            // argument: the clip is open, the batch flushes before the clip closes, so every queued fill
-            // is submitted under the canvas's own scissor. See GuiRenderer#batched.
-            //
-            // Without it this is one GPU batch submission per fill -- the context a screen draws into is
-            // unmanaged, so every fill ends in its own flush -- and a chapter of curved lines is one fill
-            // per screen pixel of ink. The count is what the player feels as zoom lag: the same chapter
-            // issues tens of thousands of submissions at 2.2x and a handful with this wrapper.
-            hovered = r.batched(() -> drawCanvasContents(r, mouseX, mouseY, quests, now));
-        }
-
-        // No caption here: see CanvasCaption. The hovered link's slot is resolved now, while the
-        // frame that placed it is current, so the render pass has nothing to look up.
-        LinkSlot link = hoveredQuestLink == null ? null : linkSlot(hoveredQuestLink);
-        return new CanvasCaption(hovered, link, hoveredEdgeCaption);
-    }
-
-    /** The canvas's own drawing, inside the clip. Returns the hovered node, for the caption above. */
-    private ClientQuestCache.Entry drawCanvasContents(GuiRenderer r, int mouseX, int mouseY,
-                                                      List<ClientQuestCache.Entry> quests, long now) {
-        // The locate glide first, before anything reads a screen position: a frame is the unit the
-        // camera moves in, and this is the only drawing the move can be seen in -- the canvas is not
-        // drawn while a card is up.
-        advanceGlide(now);
-        // And the zoom buttons' glide beside it: same frame, same camera, no fighting.
-        advanceZoomGlide(now);
-        // The frame's canvas — its edges and its on-canvas nodes — rebuilt only if something it is drawn
-        // from has moved. Stamped here rather than earlier because the glide above moves the camera, and
-        // this is the first point at which the viewport is the one the frame will draw with.
-        stampCanvas(r, quests);
-        int dx = panDx();
-        int dy = panDy();
-        int cLeft = canvasLeft();
-        int cTop = canvasTop();
-        int cRight = canvasRight();
-        int cBottom = canvasBottom();
-        r.fill(cLeft, cTop, cRight, cBottom, ArmatureTheme.canvas());
-        // The chapter's surface over its colour, inside the same batch and the same theme scope as
-        // everything else on the canvas -- so a chapter that names a patterned theme gets it here,
-        // and CanvasBackgroundArt's own bounds keep it decorative. See that class for the fades.
-        CanvasBackgroundArt.draw(r, viewport(), ArmatureTheme.background(), ArmatureTheme.canvasPattern());
-
-        // The node under the pointer first, because a node owns the right-click and so owns the hover
-        // cue too -- a line brightening under a node would promise a menu the press will not open. The
-        // line test mirrors `edgeAt` exactly (the same candidates and the same reach), so the ink lights
-        // precisely where the menu opens; and it is edit-gated with the menu, so it never offers an
-        // action this client cannot take.
-        ClientQuestCache.Entry hovered = nodeAt(mouseX, mouseY, quests);
-
-        // Every line the chapter draws, this frame: endpoints, style and route computed **once**. The
-        // drawing, the hover and the handle layer all read this list -- they used to each rebuild every
-        // path, which is up to three full walks of every curve per frame, the CPU half of the zoom cost.
-        // And "once" is now once per *canvas*, not once per frame: see stampCanvas.
-        List<FrameEdge> edges = drawnEdges();
-
-        // The line hover, recomputed only when the pointer or the view moved: a still pointer over a
-        // still canvas cannot change which line is nearest, and the walk it would redo is every pixel
-        // of every route.
-        String[] hoveredEdge = mayEditNow() && hovered == null ? lineHover(edges, mouseX, mouseY, dx, dy) : null;
-        // A value-equal key -- a List, not the candidate's own array -- because Hover compares by
-        // equals, and a fresh array every frame would restart the fade every frame and never arrive.
-        edgeHover.update(hoveredEdge == null ? null : List.of(hoveredEdge[0], hoveredEdge[1]), now);
-        // The caption the tooltip pass reads: what the line menu would act on, in the titles the
-        // canvas draws rather than the ids the files hold. Published like hoveredQuestLink, read
-        // with the captions at TOOLTIP_Z so a depth-writing icon cannot cover it.
-        hoveredEdgeCaption = hoveredEdge == null ? null : lineCaption(hoveredEdge[0], hoveredEdge[1]);
-
-        // The canvas's decoration, under everything else on it: a box behind a cluster of quests, a label over
-        // the backdrop, a rule between two tiers. After the chapter's own background and **before** the
-        // dependency lines, which is the legacy format's own arrangement and the reason a box is a container rather than a
-        // lid over what it names. Culled per frame against the pan-shifted bounds; the look is read per frame,
-        // because hover eases and a selection changes on a press.
-        CanvasElementArt.Frame elementFrame = elementFrame(r);
-        for (ElementSlot slot : canvasElements) {
-            if (!slot.overlaps(dx, dy, cLeft, cTop, cRight, cBottom)) {
-                continue;
-            }
-            CanvasElementArt.draw(elementFrame, slot.element(), elementLook(slot));
-        }
-        // And the grips, over the elements and under the lines and the nodes. That order is the press order
-        // read backwards: a node keeps the press over a grip, so a grip must not draw over a node -- an
-        // invisible control that acted would be worse than one that cannot be reached. Only the selected
-        // element wears them, and only while editing: a reader has no gestures for them at all.
-        ElementSlot gripped = mayEditNow() ? elementSlot(selectedElement) : null;
-        if (gripped != null) {
-            drawElementGrips(r, gripped);
-        }
-
-        // The element under the pointer, and only when no node is: a node is drawn over an element, so a press
-        // that lands on both belongs to the node. Asked here rather than in the element pass below because the
-        // tooltip pass reads it after the canvas is done.
-        hoveredQuestLink = hovered == null ? linkAtId(mouseX, mouseY) : null;
-        hoveredElement = hovered == null && hoveredQuestLink == null ? elementAt(mouseX, mouseY) : null;
-
-        // Told what the pointer is over and what is being read, once, before the lines and the nodes
-        // are drawn. Then every node asks how hovered it is -- which is what makes the ring ease in
-        // as the pointer arrives and ease out as it leaves -- and every line asks how much glow
-        // reaches it, so a sweep across a chapter hands the lines over instead of snapping them.
-        // See Hover for why both halves have to ease.
-        //
-        // A hovered link answers here too, under its own id: link ids can never equal quest ids --
-        // the index refuses the file -- so one map holds both without either reaching through the
-        // other. The steady glow is told separately, for the reason its field gives.
-        nodeHover.update(hoveredQuestLink != null ? hoveredQuestLink : hovered == null ? null : hovered.id(),
-                now);
-        selectionGlow.update(glowSelection(), now);
-
-        // How far out this frame is, once, for everything below it. Zooming out is what puts the most
-        // nodes on screen at once, and it is also where the fine detail stops being readable -- so the
-        // tier is read here rather than decided per drawing. See CanvasDetail for the tiers and for why
-        // both thresholds sit below the zoom the project's pictures are taken at.
-        //
-        // A chapter or book that disabled the LOD skips the tiers outright: FULL at every zoom,
-        // so rings, titles and badges draw where a tiered chapter would have dropped them.
-        // The icon half of the same promise is per node, in `drawNode`; this is the rest.
-        CanvasDetail detail = ClientQuestCache.lodDisabledFor(effectiveChapter())
-                ? CanvasDetail.FULL
-                : CanvasDetail.of(viewport().scale());
-
-        // Dependency lines first, so nodes draw over them.
-        //
-        // Through the edge's own geometry rather than through `drawStyledPath(path, style, ...)`: the
-        // rectangles and the arrowheads were worked out when this edge was built, so a frame re-issues
-        // them and measures nothing. The pan-shifted origin is added per fill (see `drawStyledPath`'s overload).
-        for (FrameEdge edge : edges) {
-            if (!edge.reaches(dx, dy, cLeft, cTop, cRight, cBottom)) {
-                continue;
-            }
-            drawStyledPath(r, edge.geometry(), edge.origin(dx, dy),
-                    lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now));
-            drawEdgePulse(r, edge, now, dx, dy);
-        }
-
-        // The chapter's markers, in the node layer but beneath the nodes: a shortcut beside the quests
-        // it points at, wearing each target's state. Before the nodes so a node keeps the press over a
-        // marker -- the same rule that puts the elements behind both, and for the same reason: the
-        // thing drawn on top is the thing a press belongs to, and a press that landed elsewhere than
-        // what it opened would be a fault with no visible cause.
-        for (LinkSlot slot : canvasLinks) {
-            if (!slot.overlaps(dx, dy, cLeft, cTop, cRight, cBottom)) {
-                continue;
-            }
-            drawLink(r, slot.shifted(dx, dy), nodeHover.amount(slot.slot().link().id(), now), detail);
-        }
-
-        // Only the nodes the canvas can show. The scissor already hides the rest, but a clipped fill is
-        // still a fill that was built, transformed and submitted -- and at high zoom most of a chapter is
-        // off-canvas, which is why this is the node half of the zoom fix. Culled against the pan-shifted
-        // screen box so panning does not re-stamp.
-        // The focused id unwrapped once for the loop rather than per node: `focused()` answers an
-        // Optional, and mapping it per node allocates two throwaways per visible node per frame.
-        String focusedId = canvasFocus.focused().orElse(null);
-        List<FrameNode> nodes = frameNodes;
-        for (FrameNode node : nodes) {
-            int nx = node.x() + dx;
-            int ny = node.y() + dy;
-            int nSize = node.size();
-            if (nx >= cRight || nx + nSize <= cLeft || ny >= cBottom || ny + nSize <= cTop) {
-                continue;
-            }
-            float flash = node.id().equals(flashQuest)
-                    ? CanvasReveal.flash(now - flashStart, CanvasReveal.FLASH_MILLIS) : 0F;
-            drawNode(r, node, nx, ny, nodeHover.amount(node.id(), now), flash, detail, focusedId);
-        }
-        // Titles in their own pass, after every node, so a label can see the other nodes -- see the
-        // stamp for what happened when it could not. Placed and cut there; the frame applies the pan
-        // shift and re-issues fills and runs.
-        drawLabels(r);
-        // The reward badges last of the node furniture: a title's backdrop is opaque and reaches the
-        // corner on a long name, so a badge drawn with the nodes would vanish exactly when the chapter
-        // is busiest.
-        bookSidebar.drawRewardBadges(r, nodes, dx, dy, detail);
-        // The padlocks after everything node-shaped, straddling their node's top-right corner:
-        // a large icon reaches the corner the lock would sit inside, and vanilla's item pipeline
-        // draws over fills whatever order they are issued in — a lock drawn with its node ends up
-        // under the item. Half outside the panel the icon cannot reach it, and the half that stays
-        // reads as pinned to the node rather than floating beside it. the legacy `show_lock_icons`
-        // with the quest's own `hide_lock_icon`, either silence winning; a locked node without one
-        // still reads locked — the blocked edge and the dim wash stay — because the mark is the
-        // announcement, not the state.
-        bookSidebar.drawLockMarks(r, nodes, dx, dy, detail);
-
-        // The handle layer **after the nodes**, deliberately: a dot that overlaps a node -- an anchor
-        // dragged round to its far side -- has to be on top of it, or the thing in your hand disappears.
-        // The frame's own edge list, so the paths it grabs against are the ones that were drawn.
-        bookRewards.drawEdgeHandles(r, mouseX, mouseY, edges, dx, dy);
-
-        // The editor's in-progress gestures, drawn over everything they touch: the marquee is what the
-        // author is reaching for, and the rubber line is the edge they are about to make.
-        if (marqueeActive) {
-            drawMarquee(r);
-        }
-        if (edgeDragLive && edgeDragFrom != null) {
-            ClientQuestCache.Entry from = entryFor(edgeDragFrom);
-            if (from != null) {
-                // The chapter's default, because the landing quest -- whose style the new edge will wear --
-                // is not known until the pointer lets go. It is the same style the line gets unless that
-                // quest overrides it, which is the closest the drag can honestly promise.
-                drawStyled(r, from.chapterDependencyStyle(),
-                        new LineArt.Point(nodeScreenX(from) + nodeSize(from) / 2,
-                                nodeScreenY(from) + nodeSize(from) / 2),
-                        new LineArt.Point((int) edgeDragX, (int) edgeDragY),
-                        // The pointer end has no node, so its half is zero and the head rides at the
-                        // pointer exactly; the source's own half keeps its end clear of its rim.
-                        nodeSize(from) / 2, 0, ArmatureTheme.hoverRing());
-            }
-        }
-        if (pickingDependency) {
-            // Named, because the pick survives a chapter switch: the author may be looking at another
-            // chapter's nodes and needs to know which quest is gaining the prerequisite.
-            String hint = pendingPick == null
-                    ? "click the quest to depend on \u00b7 escape cancels"
-                    : "click the quest to depend on \u00b7 for " + pendingPick.quest()
-                            + " \u00b7 escape cancels";
-            int hintX = canvasLeft() + 10;
-            int hintY = canvasTop() + 10;
-            // A tooltip's tokens rather than a label's: this is a floating sentence over the canvas,
-            // not a node label, and only the tooltip pair stays readable on a light theme — a label
-            // backdrop is dark on every shipped theme (it carries white node ink) while body ink
-            // is dark on paper, so that pairing is dark-on-dark there.
-            r.fill(hintX - 3, hintY - 2, hintX + r.textWidth(hint) + 3, hintY + 10,
-                    ArmatureTheme.tooltipFill());
-            r.text(hint, hintX, hintY, ArmatureTheme.tooltipText());
-        }
-
-        if (quests.isEmpty()) {
-            r.text("No quests in this chapter", canvasLeft() + 10, canvasTop() + 10,
-                    ArmatureTheme.faint());
-        }
-
-        return hovered;
-    }
-
-    /**
-     * The marquee, as a one-pixel ring in the selection's own colour: the rectangle the release will
-     * select is the rectangle being drawn, which is the whole honesty a rubber band has.
-     */
-    private void drawMarquee(GuiRenderer r) {
-        int left = Math.min(marqueeX0, marqueeX1);
-        int right = Math.max(marqueeX0, marqueeX1);
-        int top = Math.min(marqueeY0, marqueeY1);
-        int bottom = Math.max(marqueeY0, marqueeY1);
-        r.fill(left, top, right + 1, top + 1, ArmatureTheme.selectedRing());
-        r.fill(left, bottom, right + 1, bottom + 1, ArmatureTheme.selectedRing());
-        r.fill(left, top, left + 1, bottom + 1, ArmatureTheme.selectedRing());
-        r.fill(right, top, right + 1, bottom + 1, ArmatureTheme.selectedRing());
-    }
-
-    /** The hovered node's title, under the pointer. */
-    private void drawNodeCaption(GuiRenderer r, ClientQuestCache.Entry entry) {
-        QuestNodeArt.caption(r, nodeScreenX(entry), nodeScreenY(entry), nodeSize(entry),
-                titleOf(entry), canvasLeft(), visibleCanvasRight(), canvasBottom());
-    }
-
-    /** The hovered link's target title, under the pointer: what the press will open. */
-    private void drawLinkCaption(GuiRenderer r, LinkSlot slot) {
-        QuestNodeArt.caption(r, slot.slot().box().left(), slot.slot().box().top(),
-                slot.slot().box().width(), titleOf(slot.target()), canvasLeft(), visibleCanvasRight(),
-                canvasBottom());
-    }
-
-    /** A dependency line's caption: the two quests it joins, in the titles the canvas draws. */
-    private String lineCaption(String fromId, String toId) {
-        ClientQuestCache.Entry from = entryFor(fromId);
-        ClientQuestCache.Entry to = entryFor(toId);
-        return (from == null ? fromId : titleOf(from)) + " \u2192 " + (to == null ? toId : titleOf(to));
-    }
-
-    /**
-     * The quest whose lines glow steadily, or null: the quest being read, else a lone selection.
-     *
-     * <p>The overlay first, because reading is what the glow is for -- and a lone selection second,
-     * like FTB's single-selection highlight, because a marquee of six quests has no one set of lines
-     * to name. A stale id glows nothing: an edge that no longer exists cannot touch it, so a deleted
-     * quest leaves no light behind.
-     */
-    private String glowSelection() {
-        if (overlay == PanelKind.QUEST && overlayQuest != null) {
-            return overlayQuest;
-        }
-        List<String> sel = selection();
-        return sel.size() == 1 ? sel.get(0) : null;
-    }
-
-    // drawIcon(GuiGraphics, ...) used to be here, delegating to ArmatureTheme's copy. Both are gone:
-    // the operation is `GuiRenderer.icon` now, so the screen calls it on the renderer it was handed
-    // rather than on a helper, and there is no static method on either side to pass the wrong thing to.
-    //
-    // Worth keeping as a note because of what the indirection cost. This method existed only to forward
-    // to another class's static helper, and that helper existed only because a colour table had been
-    // asked to solve a rendering problem. Two layers of forwarding around one pose-stack manipulation,
-    // and the manipulation is the only part that had anything to say.
-
-    private void drawNode(GuiRenderer r, FrameNode node, int x, int y, float hover, float flash,
-                          CanvasDetail detail, String focusedId) {
-        int size = node.size();
-        int edge = node.edge();
-
-        boolean isSelected = isSelected(node.id());
-
-        // The hover ring's alpha is scaled by the eased hover, so it fades in and out rather than
-        // appearing. `translucent` rather than `alphaOf`: HOVER_RING is already 0x80 alpha, and
-        // `alphaOf` would discard that and make a fully-hovered ring twice as bright as it has always
-        // been. Selection is not animated at all -- the row you are on is a state, not a transition.
-        //
-        // The locate flash outranks both while it lasts: it is the answer to "where did that quest
-        // go", and the one moment the node must not blend in with its neighbours.
-        // The keyboard's focus rings like a selection, and that is deliberate: it is the pointer for
-        // somebody who has no pointer, so it has to be as loud as the mouse's own mark. See CanvasFocus.
-        // Unwrapped by the caller: `focused()` answers an Optional, and mapping it here would
-        // allocate two throwaways per node per frame for an answer that cannot move mid-loop.
-        boolean isFocused = node.id().equals(focusedId);
-        int ring = 0;
-        if (flash > 0F) {
-            ring = Colour.translucent(ArmatureTheme.selectedRing(), flash);
-        }
-        else if (hover > 0F || isSelected || isFocused) {
-            ring = isSelected || isFocused
-                    ? ArmatureTheme.selectedRing()
-                    : Colour.translucent(ArmatureTheme.hoverRing(), hover);
-        }
-        if (!detail.rings()) {
-            // A one-pixel ring round a twelve-pixel node is a thicker border rather than a cue, and the
-            // selection is still legible as the node's own ink. The flash goes with it: it answers
-            // "where did that quest go", and at this zoom every node looks the same anyway.
-            ring = 0;
-        }
-
-        // The wash FOLLOWS THE SHAPE, and that is the whole point of drawing it here rather than with a
-        // `fill` rectangle over the icon's box -- see `QuestNodeArt` for the drawing and for why it is
-        // shared with the settings preview rather than written twice.
-        int wash = node.wash();
-
-        QuestNodeArt.draw(r, x, y, new QuestNodeArt.Look(size, node.shape(), node.geometry(),
-                // The icon was offered at stamp time, and the node's own box decided whether it
-                // is drawn. See CanvasSettings and QuestNodeArt for why the zoom never did.
-                node.icon(), node.texture(), node.sprite(), node.iconScale(),
-                // A chapter or book that disabled the LOD draws every icon at every zoom — legacy
-                // parity, resolved per chapter so one tierless chapter does not tierless the rest.
-                // One map lookup per node per frame, which is what the chapter index is for.
-                ClientQuestCache.lodDisabledFor(node.chapterId()),
-                edge, ring, wash));
-
-        if (mayEditNow() && !questVisible(node.id())) {
-            // Marked, because the author is looking at a node the reader's book does not draw -- and
-            // without a mark the only way to find out would be to open the book as a player and notice
-            // something missing. A dashed square, deliberately unlike every other ring on this canvas:
-            // those mean selection or hover, and this means "you are seeing this and nobody else is".
-            drawHiddenMark(r, x, y, size);
-        }
-    }
-
-    /**
-     * One marker, wearing its target's state.
-     *
-     * <p>The icon is the target's own, read through the drafts: a shape or a target the tree has not
-     * carried yet is drawn as the hand has it, which is what keeps a drag from snapping the marker
-     * back under the pointer. The ring is hover plus selection, for the reason a node's is: the row
-     * the author is on is a state, not a transition.
-     */
-    private void drawLink(GuiRenderer r, LinkSlot slot, float hover, CanvasDetail detail) {
-        QuestState state = ClientQuestCache.stateOf(slot.target().id());
-        int ring = hover > 0F ? Colour.translucent(ArmatureTheme.hoverRing(), hover) : 0;
-        if (!detail.rings()) {
-            // The same mercy the nodes get at this zoom: a one-pixel ring round a twelve-pixel node
-            // is a thicker border rather than a cue.
-            ring = 0;
-        }
-        // The selection ring, unanimated like a node's: the row the author is on is a state, not a
-        // transition. Outranks the hover, because a selected link under the pointer is still the
-        // thing the tab is editing.
-        if (slot.slot().link().id().equals(selectedLink)) {
-            ring = ArmatureTheme.selectedRing();
-        }
-        QuestLinkArt.draw(new QuestLinkArt.Frame(r, viewport()), slot.slot(), slot.target().icon(),
-                slot.target().textureIcon(), slot.target().spriteIcon(), state, ring,
-                ClientQuestCache.lodDisabledFor(slot.target().chapterId()));
-    }
-
-    /** A dashed one-pixel square around a node that is hidden from players. */
-    private static void drawHiddenMark(GuiRenderer r, int x, int y, int size) {
-        int colour = ArmatureTheme.faint();
-        for (int i = 0; i < size; i += 4) {
-            int length = Math.min(2, size - i);
-            r.fill(x + i, y, x + i + length, y + 1, colour);
-            r.fill(x + i, y + size - 1, x + i + length, y + size, colour);
-            r.fill(x, y + i, x + 1, y + i + length, colour);
-            r.fill(x + size - 1, y + i, x + size, y + i + length, colour);
-        }
-    }
-
-    /**
-     * Node titles, drawn once after every node.
-     *
-     * <p>A separate pass rather than part of {@link #drawNode}, because a label needs to know about the
-     * <i>other</i> nodes: how much room there is beside it, and whether the space under it is occupied.
-     * Drawing labels inside the node loop is what produced the garbled text in the screenshot — each
-     * label knew only about its own node, so three of them were drawn straight through each other.
-     */
-    private void drawLabels(GuiRenderer r) {
-        // Built by the stamp; the frame applies the pan shift, clamps against the dock-aware
-        // canvas edge, checks whether a clamped edge label now overlaps a neighbouring node,
-        // and re-issues fills and runs. The colour stays here because selection is a press
-        // rather than a revision, and a selected label must answer it on the press rather than
-        // on the next stamp.
-        int dx = panDx();
-        int dy = panDy();
-        int cLeft = canvasLeft();
-        int cTop = canvasTop();
-        int cBottom = canvasBottom();
-        int vRight = visibleCanvasRight();
-        for (FrameLabel label : frameLabels) {
-            int textY = label.y() + dy;
-            if (textY + 9 > cBottom || textY + 9 <= cTop) {
-                continue;
-            }
-            int width = label.cut().advance();
-            int textX = Mth.clamp(label.x() + dx, cLeft + 2, vRight - width - 2);
-            if (textX >= vRight || textX + width <= cLeft) {
-                continue;
-            }
-            if (stampOverlap != null && stampOverlap.over(label.owner(), textX - dx, label.y(), width)) {
-                continue;
-            }
-            QuestState state = label.state();
-            int textColour = switch (state) {
-                case LOCKED -> ArmatureTheme.blocked();
-                case COMPLETED -> ArmatureTheme.complete();
-                default -> isSelected(label.id()) ? ArmatureTheme.title() : ArmatureTheme.body();
-            };
-
-            // A backdrop, so a label sitting over a connector line is still readable. Opaque rather
-            // than shadowed: a shadow does not help against a line of similar brightness.
-            r.fill(textX - 2, textY - 1, textX + width + 2, textY + 9,
-                    ArmatureTheme.labelBackdrop());
-            RichText.draw(r, label.cut(), textX, textY, textColour);
-        }
-    }
-
     // `overlapsAnotherNode` used to live here: a scan of every node, per label, recomputing each
     // candidate's size and screen position inside the loop. It is `LabelOverlap` now — one set of boxes
     // for the frame and a window search rather than a full scan — which is also what makes the rule
@@ -21344,7 +20479,7 @@ public final class QuestBookScreen extends ArmatureScreen
          * line the style <i>does</i> change under it: {@code styleFor} lays the live preview over the
          * committed style, and a preview is not a tree, a draft or a theme, so the key does not move. That
          * is why the line used to sit still until the release. It is handled by rebuilding that one edge
-         * per frame rather than by patching this one — see {@link #liveBendEdge} — so the stamped edge's
+         * per frame rather than by patching this one — see {@link BookCanvas#liveBendEdge} — so the stamped edge's
          * geometry here is simply the committed one and is not what gets drawn.
          */
         LineArt.EdgeGeometry geometry() {
@@ -21374,58 +20509,6 @@ public final class QuestBookScreen extends ArmatureScreen
         boolean matches(String from, String to) {
             return fromId.equals(from) && toId.equals(to);
         }
-    }
-
-    /**
-     * The chapter's edges and its nodes, as they were last built, and the frame state they were
-     * built from.
-     *
-     * <h2>Why this exists at all, when the individual reads are cheap</h2>
-     *
-     * <p>Because there are so many of them and they are re-done every frame. Building the edges alone costs
-     * a hash map of every quest in the chapter, a dependency read per quest, two rim searches per edge and a
-     * list per edge; culling the nodes costs a lookup and a viewport mapping each. None of that scales with
-     * what is on screen — only with how big the chapter is — which is exactly the shape of the report that
-     * prompted this: a nine-hundred-node chapter at 20 fps while an empty one ran at the refresh rate.
-     *
-     * <h2>The key, and why every field is in it</h2>
-     *
-     * <p>A node's screen position depends on the tree (its own coordinates), the draft (a position or size
-     * being edited), the editor session's pending moves, the node being dragged right now, and the viewport
-     * scale; an edge's colour depends on progress and on the theme; and the chapter decides which quests are
-     * built. Pan offsets ({@code offsetX}, {@code offsetY}) are deliberately left out of the key: panning
-     * shifts every screen position by {@code (panDx(), panDy())} at draw and hit-test time without
-     * re-stamping.
-     *
-     * <p><b>Including whether this client may edit</b>, which is not a detail: an author sees every quest,
-     * hidden flags and all, and a reader sees only the visible ones — that filter is what
-     * {@code questsIn(chapter)} applies. Leaving it out of the key would leave the reader's node set on
-     * screen after switching into edit mode, until something else happened to move the canvas. It was left
-     * out of the first version of this record, and an outside review found it.
-     *
-     * <p>Stamped **after** the locate glide has advanced the camera, because that moves the viewport: a key
-     * taken before it would describe the position the frame started at rather than the one it draws.
-     */
-    private record CanvasState(long tree, long progress, long draft, long editors, String dragging,
-                               float dragX, float dragY, float scale,
-                               int left, int top, int right, int bottom, int visibleRight, String chapter,
-                               Object theme, boolean authoring, long text, CanvasElement elementPreview,
-                               long elementShape, String selectedElement, long linkShape,
-                               QuestLink linkPreview, String selectedLink) {
-    }
-
-    private CanvasState canvasState;
-    private int stampOriginX;
-    private int stampOriginY;
-    private LabelOverlap stampOverlap;
-    private List<FrameEdge> canvasEdges;
-
-    private int panDx() {
-        return canvasState == null ? 0 : viewport().originX() + viewport().offsetX() - stampOriginX;
-    }
-
-    private int panDy() {
-        return canvasState == null ? 0 : viewport().originY() + viewport().offsetY() - stampOriginY;
     }
 
     /**
@@ -21460,47 +20543,6 @@ public final class QuestBookScreen extends ArmatureScreen
                     texture, sprite, iconScale, edge, wash, hideLock);
         }
     }
-
-    /**
-     * One label ready to draw: placed, cut and collision-tested per stamp, re-issued
-     * per frame.
-     *
-     * <p>The cut carries the runs the draw would have decided on, so the frame draws
-     * fills and runs and measures nothing — not the title's locale resolution, not the
-     * truncation walk, not the legacy token parse. The colour stays per frame: selection
-     * is a press rather than a revision, and a selected label must answer it on the
-     * press rather than on the next stamp.
-     */
-    private record FrameLabel(String id, QuestState state, int owner, int x, int y, RichText.Cut cut) {
-    }
-
-    /** The chapter's nodes as the frame draws them, in draw order. Rebuilt by the stamp. */
-    private List<FrameNode> frameNodes = List.of();
-
-    /** The chapter's labels as the frame draws them, placed and cut. Rebuilt by the stamp. */
-    private List<FrameLabel> frameLabels = List.of();
-
-    /**
-     * The label pass's working buffers, reused across stamps rather than rebuilt.
-     *
-     * <p>Cleared and refilled on every pass that uses them; the published labels leave as a copy,
-     * so reuse can never show a previous stamp's rows. See the label pass for why the pass cannot
-     * be skipped on a drag (positions move) but its containers can survive one.
-     */
-    private final List<ClientQuestCache.Entry> stampNamed = new ArrayList<>();
-    private final List<Integer> stampColumns = new ArrayList<>();
-    private final List<LabelOverlap.Box> stampBoxes = new ArrayList<>();
-    private final Map<String, Integer> stampBoxOf = new HashMap<>();
-    private final List<FrameLabel> stampLabels = new ArrayList<>();
-
-    /**
-     * Whether any drawn node wears a cycling adopted icon, and the second it was last
-     * drawn for. A cycling icon advances once a second, so a stamp that could not see
-     * the clock would freeze it — the stamp re-runs when the second turns, but only
-     * while one is actually on screen. See {@link ClientQuestCache#adoptionCycles}.
-     */
-    private boolean canvasCycling;
-    private long canvasAnimSecond;
 
     /**
      * One canvas element as this canvas draws it: the element, its measured box, and whether it is hidden.
@@ -21539,48 +20581,6 @@ public final class QuestBookScreen extends ArmatureScreen
         }
     }
 
-    private List<ElementSlot> canvasElements = List.of();
-
-    /**
-     * One link ready to draw: the marker, its box on screen, and the target it mirrors.
-     *
-     * <p>The target is resolved at stamp time rather than per frame, because the draw needs its
-     * icon and the click needs its chapter — and both are answers the tree already gave. A link
-     * whose target the tree does not know never becomes a slot: the validator refuses the file,
-     * and this is the second line of defence for a pack edited under a client that has not
-     * resynced.
-     */
-    private record LinkSlot(QuestLinkArt.Slot slot, ClientQuestCache.Entry target) {
-
-        LinkSlot shifted(int dx, int dy) {
-            if (dx == 0 && dy == 0) {
-                return this;
-            }
-            CanvasElementArt.Box b = slot.box();
-            CanvasElementArt.Box shiftedBox = new CanvasElementArt.Box(
-                    b.left() + dx, b.top() + dy, b.right() + dx, b.bottom() + dy);
-            return new LinkSlot(new QuestLinkArt.Slot(slot.link(), shiftedBox, slot.geometry()), target);
-        }
-
-        boolean overlaps(int dx, int dy, int left, int top, int right, int bottom) {
-            CanvasElementArt.Box b = slot.box();
-            return b.left() + dx < right && b.right() + dx > left
-                    && b.top() + dy < bottom && b.bottom() + dy > top;
-        }
-    }
-
-    /** The chapter's markers, in declaration order. Rebuilt by the stamp, like everything drawn. */
-    private List<LinkSlot> canvasLinks = List.of();
-
-    /** The link under the pointer, by id, or null. Published by the draw, read by the press. */
-    private String hoveredQuestLink;
-
-    /** The hovered dependency line's caption, or null. Published by the draw, read with the captions. */
-    private String hoveredEdgeCaption;
-
-    /** The link a press took hold of, by id, or null. Decided on release, like a node's. */
-    private String pressedQuestLink;
-
     /**
      * The element the author has selected, or empty.
      *
@@ -21593,116 +20593,6 @@ public final class QuestBookScreen extends ArmatureScreen
     static String selectedElement;
 
     /**
-     * The link the author has selected, or empty.
-     *
-     * <p>Deliberately <b>not</b> folded into the quest selection or the element's, for the reason both
-     * give: three namespaces, three selections, and every bulk operation would otherwise have to ask
-     * which kind each id is. One link at a time is the honest shape of the gesture — an author moves
-     * one marker, and its fields are the only thing the selection opens.
-     */
-    private static String selectedLink;
-
-    /** The link whose delete button is asking its question, or null. Asked twice, like every delete. */
-    private String linkConfirmingDelete;
-
-    /** A link-target pick in flight, or null. The next node click names the target; Escape cancels. */
-    private dev.ellipog.tenet.client.dev.LinkPick pendingLinkPick;
-
-    /** The element under the pointer, or empty. Published by the draw, read by the tooltip pass. */
-    private String hoveredElement;
-
-    /**
-     * The element a gesture is carrying, the element it started from, and the version being previewed.
-     *
-     * <h2>Why a previewed element rather than a set of drag offsets</h2>
-     *
-     * <p>Because there are three gestures now — a move, a resize and a rotate — and each produces a
-     * <i>different element</i> rather than a different offset: a resize changes the box, a rotate changes one
-     * number, and a line's grip changes an endpoint. Holding the result means the drawing has one thing to
-     * substitute, the commit has one thing to diff against {@link #elementDragBase}, and a fourth gesture
-     * would need no new field at all.
-     *
-     * <p>{@code elementDragBase} is the element as this client believes it to be when the press takes hold —
-     * the tree plus the drafts, not the canvas's cached copy — captured once: the diff is against where the
-     * gesture started, so the file is written with what changed rather than with everything, and a gesture that
-     * started from the cached copy would compound its own last frame.
-     */
-    private String elementDragging;
-    private boolean elementDragLive;
-    private CanvasElement elementDragBase;
-    private CanvasElement elementPreview;
-
-    /**
-     * The link a gesture is carrying, the link it started from, and the version being previewed.
-     *
-     * <p>One gesture rather than three: a link has no grips, so there is nothing to resize or rotate
-     * and the body is the whole of it. Otherwise the same arrangement as an element's drag — the base
-     * is captured once at the press from the settled belief, every frame is derived from it, and the
-     * release diffs the two into field writes — because a drag that compounded its own last frame
-     * would run away from the pointer the same way.
-     */
-    private String linkDragging;
-    private boolean linkDragLive;
-    private QuestLink linkDragBase;
-    private QuestLink linkPreview;
-
-    /**
-     * The grip the gesture took hold of, or null when it is moving the element's body.
-     *
-     * <p>Null is the ordinary case and the one a press on the middle of a box is. A grip is claimed only on the
-     * <b>selected</b> element, because that is the only one wearing any — see {@code CanvasElementArt.handles}.
-     */
-    private CanvasElementArt.Handle elementHandle;
-
-    /**
-     * The element panel's own rows, scroll view and layout: the same pair the Chapter tab keeps, for the
-     * same kind of content. The element it is about is {@link #elementPanelId}, because a panel's subject is
-     * per-kind state rather than part of the arrangement -- see {@code PanelStack}'s own note on that.
-     */
-    private final dev.ellipog.armature.client.ui.kit.ScrollView elementView =
-            dev.ellipog.armature.client.ui.kit.ScrollView.of(
-                    dev.ellipog.armature.client.ui.kit.Viewport.fixed());
-    private List<ToolsLayout.Action> elementRows = List.of();
-    private Layout elementLayout;
-
-    /**
-     * Which of the element panel's sections are put away, by heading key.
-     *
-     * <p>The screen owns it the way it owns {@code questFolded}: the layout only reads which blocks to
-     * skip. Keys carry the element's id, so folds belong to the element they were made on and never leak
-     * onto another.
-     */
-    private final Set<String> elementFolded = new LinkedHashSet<>();
-
-    /**
-     * The element whose Delete is asking its question, or null when none is.
-     *
-     * <p>The two-press arm every destructive control in this editor has: the first press says "Really
-     * delete?", the second deletes, and anything that changes the subject disarms it. Stored as the id
-     * rather than a boolean because the panel can move between elements without closing.
-     */
-    private String elementConfirmingDelete;
-
-    /**
-     * Which canvas element the panel is about, or null when it is not open.
-     *
-     * <p>Its own field rather than a read of {@code selectedElement}, because the two are not the same
-     * question: a selection survives the panel being closed (Escape puts the panel away and leaves the ring),
-     * and the panel is what knows which element its rows were built for — so a row press can never land on a
-     * different element from the one it was drawn for.
-     */
-    private String elementPanelId;
-
-    /**
-     * The element panel's drawn targets: what the chrome registers, and what its own press walks.
-     *
-     * <p>Its own list rather than the editor's, for the reason the pack's panel has one: the editor's list
-     * still holds the marks the panel behind it drew, and a press inside this panel must not be able to land
-     * on one of those.
-     */
-    private final List<EditTarget> elementTargets = new ArrayList<>();
-
-    /**
      * Which element the texture picker is choosing a file for, or null for the canvas's own surface.
      *
      * <p>Set by {@code openTexturePickerFor} and read by the list and the commit, so one picker serves both
@@ -21711,425 +20601,6 @@ public final class QuestBookScreen extends ArmatureScreen
      * other's list.
      */
     String texturePickElement;
-
-    /** Rebuilds the frame's canvas if anything it is drawn from has moved. See {@link CanvasState}. */
-    private void stampCanvas(GuiRenderer r, List<ClientQuestCache.Entry> quests) {
-        CanvasState key = new CanvasState(ClientQuestCache.treeRevision(),
-                ClientQuestCache.progressRevision(), fieldDraft.version(), editors.epoch(), draggedNode,
-                dragNodeX, dragNodeY, viewport().scale(),
-                canvasLeft(), canvasTop(), canvasRight(), canvasBottom(), visibleCanvasRight(),
-                effectiveChapter(),
-                ArmatureTheme.current(), mayEditNow(), ClientQuestCache.textRevision(),
-                // A gesture in flight re-stamps, exactly as a node's drag does: the canvas draws the element as
-                // the hand has it, and the previewed element is the whole of what the frame draws differently.
-                // It is one component rather than a set of offsets because the three gestures produce three
-                // different elements -- see the fields above.
-                elementPreview,
-                // The shape draft, because an element added or deleted re-stamps: the canvas has to draw the
-                // element the author has just asked for, and stop drawing the one they have just asked away.
-                // The *values* need no component here -- `draft` above is `fieldDraft`'s own version, which
-                // moves whenever an element's field is drafted.
-                elementDraft.version(),
-                // The element the Chapter tab's list has chosen, so the ring on the canvas follows the
-                // panel's own selection: two views of one choice, and a ring that arrived a frame late
-                // because the stamp could not see it would be the one place they disagreed.
-                selectedElement,
-                // And the link draft's version, for the same reason as the element's: a marker added or
-                // deleted re-stamps. The *values* need no component here either -- `draft` above is
-                // `fieldDraft`'s own version, which moves whenever a link's field is drafted.
-                linkDraft.version(),
-                // A gesture in flight re-stamps, exactly as an element's drag does: the canvas draws the
-                // link as the hand has it. One component, because a link has one gesture -- a move.
-                linkPreview,
-                // The link the Chapter tab's list has chosen, so its ring follows the panel's selection
-                // the way an element's does.
-                selectedLink);
-        // A still canvas pays nothing here. The one exception is a cycling adopted icon,
-        // which advances once a second with no revision behind it: while one is drawn the
-        // second is part of the key's world, and the stamp re-runs when it turns.
-        long nowSecond = Util.getMillis() / 1000L;
-        if (key.equals(canvasState) && (!canvasCycling || canvasAnimSecond == nowSecond)) {
-            return;
-        }
-        if (key.equals(canvasState)) {
-            // Only the second turned: a cycling adopted icon advances, and nothing else moves.
-            // Refresh the icons in place rather than rebuilding the canvas. Edges, labels,
-            // elements and links all ride state the key already names — re-running them is a
-            // line re-walk and a label re-place every second for answers that cannot have
-            // changed, which is exactly the periodic spike the frame overlay showed. States,
-            // sizes and boxes are untouched: a progress or tree change moves the key and takes
-            // the full path below, so by the time this runs the only thing stale is icon
-            // frames. Not published as a rebuild, because nothing was rebuilt.
-            java.util.Map<String, ItemStack> fresh = new java.util.HashMap<>();
-            for (ClientQuestCache.Entry entry : quests) {
-                ItemStack icon = entry.icon();
-                if (icon.isEmpty()) {
-                    ItemStack adopted = ClientQuestCache.adoptedQuestIcon(entry);
-                    if (!adopted.isEmpty()) {
-                        icon = adopted;
-                    }
-                }
-                fresh.put(entry.id(), icon);
-            }
-            List<FrameNode> refreshed = new ArrayList<>(frameNodes.size());
-            for (FrameNode node : frameNodes) {
-                refreshed.add(node.withIcon(fresh.getOrDefault(node.id(), node.icon())));
-            }
-            frameNodes = List.copyOf(refreshed);
-            canvasAnimSecond = nowSecond;
-            return;
-        }
-        stampOriginX = viewport().originX() + viewport().offsetX();
-        stampOriginY = viewport().originY() + viewport().offsetY();
-        canvasEdges = frameEdges(quests);
-
-        // One node ready to draw, per quest in the chapter: the position and size at the stamp
-        // origin, the shown state, the drafted shape and rotation resolved to geometry, the
-        // adopted icon, the icon scale, the edge and the wash. Sixty frames a second of draft
-        // lookups, dependency walks and task walks become one stamp's worth, because every answer
-        // rides state the key above already names. Off-canvas culling happens at draw time against
-        // the pan-shifted screen coordinates so panning never re-stamps.
-        List<FrameNode> nodes = new ArrayList<>(quests.size());
-        boolean cycling = false;
-        int visibleNodes = 0;
-        int cLeft = canvasLeft();
-        int cTop = canvasTop();
-        int cRight = canvasRight();
-        int cBottom = canvasBottom();
-        for (ClientQuestCache.Entry entry : quests) {
-            QuestState state = shownState(entry);
-            int size = nodeSize(entry);
-            int x = nodeScreenX(entry);
-            int y = nodeScreenY(entry);
-            if (x < cRight && x + size > cLeft && y < cBottom && y + size > cTop) {
-                visibleNodes++;
-            }
-            // The border reads the node-edge tokens rather than the state inks, and that is the
-            // whole of what those four tokens are for — see QuestNodeArt.edgeFor, which owns the
-            // switch so the canvas's nodes and links cannot disagree about it.
-            // The geometry is the outline with its rotation applied: a pending shape or rotation
-            // — a settings-page change the tree has not carried yet — resolves through the same
-            // cached outline table, so the canvas follows the click. A quest with no icon of its
-            // own wears its first task's, cycling for a filter — see adoptedQuestIcon.
-            QuestShape drawnShape = drawnShape(entry);
-            int drawnRotation = fieldDraft.number(entry.chapterId(), entry.id(), "rotation",
-                    entry.rotation());
-            boolean draftedLook = drawnShape != entry.shape() || drawnRotation != entry.rotation();
-            ItemStack nodeIcon = entry.icon();
-            boolean adopted = false;
-            if (nodeIcon.isEmpty()) {
-                nodeIcon = ClientQuestCache.adoptedQuestIcon(entry);
-                adopted = !nodeIcon.isEmpty();
-            }
-            if (adopted && ClientQuestCache.adoptionCycles(entry)) {
-                cycling = true;
-            }
-            nodes.add(new FrameNode(entry, entry.id(), entry.chapterId(), x, y, size, state, drawnShape,
-                    draftedLook ? ClientQuestCache.geometry(drawnShape, drawnRotation)
-                            : entry.geometry(),
-                    nodeIcon, entry.textureIcon(), entry.spriteIcon(),
-                    fieldDraft.decimal(entry.chapterId(), entry.id(), "iconScale", entry.iconScale()),
-                    QuestNodeArt.edgeFor(state), QuestNodeArt.washFor(state), entry.hideLockIcon()));
-        }
-        frameNodes = List.copyOf(nodes);
-        canvasCycling = cycling;
-        canvasAnimSecond = nowSecond;
-
-        // The canvas's decoration: the chapter's own elements, gated and measured, with the boxes the press
-        // path will use. Rebuilt with everything else, because an element edit re-sends the tree -- which is
-        // why `tree` is already in the key -- and because a label's box moves when the language does, which
-        // is what `text` is in the key for. Culled against the canvas bounds per frame using the pan shift.
-        CanvasElementArt.Frame frame = elementFrame(r);
-        // A gesture in flight changes the element it is carrying, and it changes it *here* -- in the stamp
-        // rather than in the model, so the file is untouched until the release and the drawing cannot disagree
-        // with what will be written. The substitution is by id and it is the whole of the preview: the gesture
-        // already produced the element it wants drawn, so there is no offset arithmetic to get wrong and no
-        // second definition of what a move is.
-        List<ElementSlot> elements = new ArrayList<>();
-        for (CanvasElement model : elementsNow()) {
-            CanvasElement element = elementPreview != null && model.id().equals(elementPreview.id())
-                    ? elementPreview : model;
-            CanvasElementArt.Box box = CanvasElementArt.boxOf(element, frame);
-            // An element of a type this build cannot read has no box at all and is skipped here -- the
-            // chapter tab's list is where one is reached, since the canvas has nothing to aim at.
-            if (box.width() <= 0 || box.height() <= 0) {
-                continue;
-            }
-            boolean shown = CanvasElementArt.shown(element, frame);
-            if (!shown && !mayEditNow()) {
-                continue;
-            }
-            elements.add(new ElementSlot(element, box, !shown));
-        }
-        canvasElements = List.copyOf(elements);
-
-        // The chapter's markers: the links it draws among its quests, each with the target it
-        // mirrors resolved once rather than per frame. Rebuilt with everything else, because a link
-        // arrives on the tree — which is why `tree` is already in the key — and because what it
-        // wears is its target's state, which is why `progress` is.
-        //
-        // A link whose target the tree does not know is skipped rather than taking the chapter with
-        // it, for the same reason an unreadable element is: one marker missing from a canvas rather
-        // than a chapter that will not draw. It should not happen — the validator refuses the file —
-        // and if it does, the honest outcome is a canvas without the shortcut.
-        //
-        // A target the reader may not see hides its marker too: the tooltip names the quest, so
-        // drawing the node would leak a title the book withholds. An author sees every marker,
-        // marked by nothing — a link is content, and content is what edit mode is for.
-        List<LinkSlot> links = new ArrayList<>();
-        String canvasChapter = effectiveChapter();
-        if (canvasChapter != null) {
-            // From the drafts rather than the tree, so a link being added, moved or deleted is drawn
-            // as the hand has it: the canvas follows the gesture, not the round trip.
-            List<QuestLink> models = new ArrayList<>(linksNow());
-            // A gesture in flight changes the link it is carrying, and it changes it *here* -- in the stamp
-            // rather than in the model, so the file is untouched until the release and the drawing cannot
-            // disagree with what will be written. The substitution is by id and it is the whole of the
-            // preview: the gesture already produced the link it wants drawn, so there is no offset
-            // arithmetic to get wrong. The element path does the same; see the stamp above it.
-            if (linkPreview != null) {
-                for (int i = 0; i < models.size(); i++) {
-                    if (models.get(i).id().equals(linkPreview.id())) {
-                        models.set(i, linkPreview);
-                    }
-                }
-            }
-            for (QuestLink link : models) {
-                ClientQuestCache.Entry target = entryFor(link.quest().id());
-                if (target == null) {
-                    continue;
-                }
-                if (!mayEditNow() && !questVisible(target.id())) {
-                    continue;
-                }
-                CanvasElementArt.Box box = QuestLinkArt.boxOf(link, viewport());
-                links.add(new LinkSlot(new QuestLinkArt.Slot(link, box,
-                        ClientQuestCache.geometry(link.shape(), 0)), target));
-            }
-        }
-        canvasLinks = List.copyOf(links);
-
-        // One label ready to draw, per named node: placed against its node's box and cut to the
-        // room. The collision test against neighbouring nodes runs both here (for the unclamped
-        // position) and in `drawLabels` (in case the canvas-edge clamp pushed an edge label into
-        // a neighbour). All of it from state the key already names, so a panned or still canvas
-        // pays for text measurement and truncation once instead of sixty times a second; a tierless
-        // chapter builds them at every zoom, for the same reason the draw forces FULL.
-        //
-        // The working buffers are reused across stamps rather than rebuilt: a drag re-stamps
-        // every frame, and the containers — five lists and maps sized by the quest count — were
-        // a five-figure byte churn per frame before a single label was placed. Clearing and
-        // refilling is sound because every buffer is fully rewritten before it is read; the
-        // published labels leave as a copy. An untitled chapter skips the pass whole: with no
-        // named node there is nothing to place, and the boxes built for the collision test
-        // would be work for nothing.
-        List<FrameLabel> labels = stampLabels;
-        labels.clear();
-        stampOverlap = null;
-        if (ClientQuestCache.lodDisabledFor(effectiveChapter())
-                || CanvasDetail.of(viewport().scale()).labels()) {
-            List<ClientQuestCache.Entry> named = stampNamed;
-            named.clear();
-            for (ClientQuestCache.Entry entry : quests) {
-                if (fieldDraft.flag(entry.chapterId(), entry.id(), "showTitle", entry.showTitle())) {
-                    named.add(entry);
-                }
-            }
-            if (!named.isEmpty()) {
-                // One room per node, from its own neighbours: a single crowded pair used to decide
-                // every label in the chapter, so the airy majority truncated to a gap they were nowhere
-                // near. A label with no room of its own is not built at all -- the hover caption carries
-                // the name -- while its neighbours keep theirs. Skipping it here rather than drawing it
-                // is what keeps one tight cluster from reading as a corrupt string.
-                List<Integer> columns = stampColumns;
-                columns.clear();
-                for (ClientQuestCache.Entry entry : named) {
-                    columns.add(nodeScreenX(entry));
-                }
-                columns.sort(Integer::compareTo);
-                // One box per node on the canvas, and the index that finds a node's own box:
-                // the placement and the collision test read the same boxes, so the two cannot
-                // disagree about where a node is.
-                List<LabelOverlap.Box> boxes = stampBoxes;
-                boxes.clear();
-                Map<String, Integer> boxOf = stampBoxOf;
-                boxOf.clear();
-                for (ClientQuestCache.Entry entry : quests) {
-                    boxOf.put(entry.id(), boxes.size());
-                    boxes.add(new LabelOverlap.Box(nodeScreenX(entry), nodeScreenY(entry),
-                            nodeSize(entry)));
-                }
-                LabelOverlap overlap = new LabelOverlap(boxes);
-                stampOverlap = overlap;
-                dev.ellipog.armature.client.ui.kit.Measure measure = textMeasure(r);
-                for (ClientQuestCache.Entry entry : named) {
-                    // Sorted once above rather than per label: the columns cannot move between labels,
-                    // so each call was copying and sorting the same list.
-                    int room = BookGeometry.labelRoomForSorted(columns, nodeScreenX(entry), LABEL_GAP,
-                            MAX_LABEL_WIDTH);
-                    if (room < MIN_LABEL_WIDTH) {
-                        continue;
-                    }
-                    int owner = boxOf.get(entry.id());
-                    LabelOverlap.Box box = boxes.get(owner);
-                    int size = box.size();
-                    RichText.Cut cut = RichText.truncate(titleOfRaw(entry), room, measure);
-                    int width = cut.advance();
-                    int textX = box.x() + size / 2 - width / 2;
-                    int textY = box.y() + size + LABEL_GAP;
-                    labels.add(new FrameLabel(entry.id(), shownState(entry), owner, textX, textY, cut));
-                }
-            }
-        }
-        // Zoomed far enough out that no title is drawn, the labels stay empty: the boxes
-        // above would be work for nothing.
-        frameLabels = List.copyOf(labels);
-        canvasState = key;
-        // What this rebuild produced, for the overlay. Published here rather than per frame because these
-        // describe the canvas's *contents*, which only move when it is rebuilt -- and because `rebuilds` is
-        // the number that says a drag is re-stamping, which no frame counter can show. See `CanvasStats`.
-        dev.ellipog.tenet.client.dev.CanvasStats.published(
-                quests.size(), canvasEdges.size(), frameLabels.size(), visibleNodes);
-    }
-
-    /**
-     * What the element art cannot answer for itself: the renderer, the view, the words, the states, the mode.
-     *
-     * <p>Built per stamp rather than per frame, and per frame for the drawing — it is five references and a
-     * record, and the alternative (the screen holding one) would be a renderer remembered across frames, which
-     * is exactly the thing this codebase refuses to cache anywhere.
-     */
-    private CanvasElementArt.Frame elementFrame(GuiRenderer r) {
-        return new CanvasElementArt.Frame(r, viewport(), ClientQuestCache::elementWords,
-                ClientQuestCache::stateOf, mayEditNow());
-    }
-
-    /**
-     * What pressing a pressable element does, in play mode.
-     *
-     * <h2>Why this is a switch over a closed set rather than a lookup</h2>
-     *
-     * <p>Because the set is the legacy seven names and this build runs all seven: the two the client cannot
-     * run itself cross the wire as identity, and the server reads what the press does from its own
-     * index. The default arm is a no-op rather than a message because a message here could only be
-     * reached by a client that had resynced against a server whose validator said nothing — which is
-     * not a state this build produces.
-     *
-     * <h2>What a press is not allowed to do silently</h2>
-     *
-     * <p>A press that does nothing reads as a broken control rather than as a gap in the mod, so an
-     * {@code open_quest} whose target cannot be resolved says so. The validator reports the same thing at load,
-     * and this is the second line of defence: a pack edited under a client that has not resynced.
-     */
-    private void pressElement(CanvasElement element) {
-        if (!(element instanceof CanvasElement.Image image) || image.click().isNone()) {
-            return;
-        }
-        ClickAction click = image.click();
-        switch (click.type()) {
-            case OPEN_QUEST -> openQuest(click.data());
-            // The description links' own opener, so a picture's URL and a sentence's URL are refused and
-            // opened by one rule: http and https only, and a bad address says so.
-            case OPEN_URI -> openLink(click.data());
-            case SHOW_RECIPE -> showRecipe(click.data());
-            case SHOW_DOCS -> showDocs(click.data());
-            // The two the client cannot run itself: the chapter and the element travel, and the server
-            // reads the authoritative click from its own index -- never the command, never the event id.
-            // A press naming either is a request, and the request carries identity and nothing else.
-            case RUN_COMMAND, CUSTOM_EVENT -> {
-                String chapter = effectiveChapter();
-                if (chapter != null) {
-                    ArmatureNetwork.sendToServer(
-                            new dev.ellipog.tenet.net.ClickPayload(chapter, image.id()));
-                }
-            }
-            default -> {
-            }
-        }
-    }
-
-    /**
-     * A press naming a quest, by id or alias in any letter case: the book opens it, or says so.
-     *
-     * <p>One rule for a picture's {@code open_quest} click and a sentence's {@code change_page}:
-     * the legacy own reader treats the latter as the former, so this build does too. A press naming
-     * nothing is the validator's miss reaching the reader — a stale client, or a pack edited
-     * under one — and it is answered rather than silent, the second line of defence.
-     */
-    private void openQuest(String idOrAlias) {
-        String quest = idOrAlias == null ? "" : idOrAlias;
-        int page = quest.indexOf('/');
-        if (page >= 0) {
-            quest = quest.substring(0, page);
-        }
-        ClientQuestCache.Entry target = entryFor(quest);
-        if (target == null) {
-            status("No quest with id or alias \"" + idOrAlias + "\" to open", true);
-            return;
-        }
-        // Through the entry's own id rather than the string in the file: the press may name an
-        // alias, and opening by an alias works only as long as every lookup resolves one.
-        // A `change_page` value may carry the legacy `/page` suffix after its quest id; the card
-        // scrolls rather than pages, so the suffix is read and left behind.
-        selectedQuest = target.id();
-        selectedElement = null;
-        multiSelection.clear();
-        bookRewards.openOverlay(target.id());
-    }
-
-    /**
-     * A press asking for a recipe: the chosen viewer opens, and the press is answered.
-     *
-     * <p>Answered rather than silent in every direction: an id with nothing behind it says which id,
-     * and a press with no viewer installed says that there is none — because a viewer is a soft
-     * dependency, and a book that needs one hard would be a book that breaks pack by pack. The
-     * target is an item alone, never a tag: a click carries one id, and tags are the task rows'
-     * vocabulary rather than a press's.
-     */
-    private void showRecipe(String data) {
-        net.minecraft.world.item.ItemStack stack = ClientQuestCache.iconOf(data, null);
-        if (stack.isEmpty()) {
-            status("No item \"" + data + "\" to look up", true);
-            return;
-        }
-        if (!RecipeLookups.open(RecipeLookups.Target.of(stack))) {
-            status("No recipe viewer is installed to show \"" + data + "\"", true);
-        }
-    }
-
-    /**
-     * A press asking for a guide page: a message naming where it would have gone.
-     *
-     * <p>A message rather than an opener, because there is no docs integration to open with — and a
-     * recorded loss rather than a silent one, because a click that does nothing reads as a bug in
-     * this mod rather than as a gap in it. The validator checks the address's shape at load, so by
-     * the time this runs the address is well-formed and only the shelf is missing.
-     */
-    private void showDocs(String data) {
-        status("Guide page \"" + data + "\" is not installed: guide books have no integration here",
-                true);
-    }
-
-    /**
-     * How one element is being looked at: selected if it is the author's, hovered if the pointer is on it.
-     *
-     * <p>The hover ring is shown in edit mode <b>and</b> for a pressable element in play mode, and the second
-     * half is the point of it: a picture that does something when pressed has to say so before it is pressed,
-     * or the only way to find out is to press it. A decorative element gets no ring in play mode, because a
-     * ring on a box that does nothing promises something.
-     */
-    private CanvasElementArt.Look elementLook(ElementSlot slot) {
-        String id = slot.element().id();
-        boolean selected = mayEditNow() && id.equals(selectedElement);
-        boolean hovered = id.equals(hoveredElement)
-                && (mayEditNow() || pressable(slot.element()));
-        return new CanvasElementArt.Look(selected, hovered, slot.marked());
-    }
-
-    /** Whether pressing this element would do something, which is what a play-mode hover cue promises. */
-    private static boolean pressable(CanvasElement element) {
-        return element instanceof CanvasElement.Image image && !image.click().isNone();
-    }
 
     /**
      * The element under the pointer, or null.
@@ -22146,10 +20617,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * is the one that needs a tolerance — the same one the dependency lines' hover uses.
      */
     String elementAt(double mouseX, double mouseY) {
-        int dx = panDx();
-        int dy = panDy();
-        for (int i = canvasElements.size() - 1; i >= 0; i--) {
-            ElementSlot slot = canvasElements.get(i).shifted(dx, dy);
+        int dx = bookCanvas.panDx();
+        int dy = bookCanvas.panDy();
+        for (int i = bookCanvas.canvasElements.size() - 1; i >= 0; i--) {
+            ElementSlot slot = bookCanvas.canvasElements.get(i).shifted(dx, dy);
             double reach = slot.element() instanceof CanvasElement.Line ? BookRewards.ELEMENT_LINE_HIT : 0;
             if (CanvasElementArt.distanceTo(slot.element(), slot.box(), viewport(), mouseX, mouseY) <= reach) {
                 return slot.element().id();
@@ -22163,212 +20634,14 @@ public final class QuestBookScreen extends ArmatureScreen
         if (id == null) {
             return null;
         }
-        int dx = panDx();
-        int dy = panDy();
-        for (ElementSlot slot : canvasElements) {
+        int dx = bookCanvas.panDx();
+        int dy = bookCanvas.panDy();
+        for (ElementSlot slot : bookCanvas.canvasElements) {
             if (slot.element().id().equals(id)) {
                 return slot.shifted(dx, dy);
             }
         }
         return null;
-    }
-
-    /**
-     * The title of the hovered element, or null when it has none to show.
-     *
-     * <p>A title painted into a picture is not a tooltip: the author has already said where those words go, and
-     * a second copy floating under the pointer would be the same sentence twice.
-     */
-    private String hoveredElementTitle() {
-        ElementSlot slot = elementSlot(hoveredElement);
-        if (slot == null || !(slot.element() instanceof CanvasElement.Image image)) {
-            return null;
-        }
-        if (image.label().filter(dev.ellipog.tenet.quest.ElementLabel::onImage).isPresent()) {
-            return null;
-        }
-        return image.title()
-                .map(title -> ClientQuestCache.elementWords(image, "title", title))
-                .filter(words -> !words.isBlank())
-                .orElse(null);
-    }
-
-    private List<FrameEdge> frameEdges(List<ClientQuestCache.Entry> quests) {
-        // An id-keyed map for the lookups, so the loops below are linear rather than a scan of every
-        // quest per dependency -- the same O(E*N) scan the drawing used to do per frame.
-        java.util.Map<String, ClientQuestCache.Entry> byId = new java.util.HashMap<>();
-        for (ClientQuestCache.Entry quest : quests) {
-            byId.put(quest.id(), quest);
-        }
-
-        List<FrameEdge> edges = new ArrayList<>();
-        for (ClientQuestCache.Entry quest : quests) {
-            if (!dev.ellipog.tenet.client.dev.QuestVisibility
-                    .drawsDependencyLines(quest.hideDependencyLines())) {
-                // The author asked for the hub without the spokes: the quest is drawn and the lines
-                // arriving at it are not. Only the incoming side, so a quest that hides its own lines
-                // still appears as a prerequisite of everything that depends on it.
-                continue;
-            }
-            for (String dependencyId : dependenciesOf(quest)) {
-                ClientQuestCache.Entry dependency = byId.get(dependencyId);
-                if (dependency == null) {
-                    // A dependency in another chapter, or one filtered out. Not drawn: a line to
-                    // nowhere reads as a rendering fault, and the overlay names the dependency.
-                    continue;
-                }
-                // The outgoing half: the source quest asked for the fan-out without the spokes. Read
-                // on the dependency (the line's source), beside the incoming read on the dependent
-                // above — either silence wins, and a quest that hides its own outgoing lines still
-                // appears as a prerequisite everywhere its name is read.
-                if (!dev.ellipog.tenet.client.dev.QuestVisibility
-                        .drawsDependentLines(dependency.hideDependentLines())) {
-                    continue;
-                }
-                // Coloured by the *dependent's* rule rather than by completion: under the two
-                // started-based modes a prerequisite with any task progress already satisfies, and a
-                // line drawn dark for it was the canvas telling a player they were stuck when they
-                // were not.
-                boolean done = dependencyProgressOf(quest)
-                        .satisfies(dependencyId, ClientQuestCache::stateOf);
-                FrameEdge edge = frameEdge(dependency, quest, dependencyId,
-                        done ? ArmatureTheme.lineDone() : ArmatureTheme.line());
-                if (edge != null) {
-                    edges.add(edge);
-                }
-            }
-        }
-
-        // A linear chapter's road. Drawn from the list order rather than from dependencies, because a
-        // linear chapter declares none -- that is what makes it linear. Without this the client would
-        // draw five unconnected boxes for a chapter that is unmistakably a sequence, which reads as a
-        // missing feature rather than as a missing line.
-        //
-        // Consecutive pairs only, so the road has no shortcuts across it.
-        if (!quests.isEmpty() && quests.get(0).chapterLinear()) {
-            List<ClientQuestCache.Entry> ordered = quests.stream()
-                    .sorted(java.util.Comparator.comparingInt(ClientQuestCache.Entry::orderInChapter))
-                    .toList();
-            for (int i = 1; i < ordered.size(); i++) {
-                ClientQuestCache.Entry previous = ordered.get(i - 1);
-                ClientQuestCache.Entry dependent = ordered.get(i);
-                if (!dev.ellipog.tenet.client.dev.QuestVisibility
-                        .drawsDependencyLines(dependent.hideDependencyLines())) {
-                    continue;
-                }
-                // The road's outgoing half, for the same reason as the edge above: a quest that hides
-                // its outgoing lines breaks the road after itself, and the chapters after it read as
-                // unconnected rather than as hidden.
-                if (!dev.ellipog.tenet.client.dev.QuestVisibility
-                        .drawsDependentLines(previous.hideDependentLines())) {
-                    continue;
-                }
-                boolean done = ClientQuestCache.stateOf(previous.id()) == QuestState.COMPLETED;
-                FrameEdge edge = frameEdge(previous, dependent, previous.id(),
-                        done ? ArmatureTheme.lineDone() : ArmatureTheme.line());
-                if (edge != null) {
-                    edges.add(edge);
-                }
-            }
-        }
-        return edges;
-    }
-
-    /**
-     * One line, ready to draw.
-     *
-     * <p>{@code dependencyId} is the quest the dependent waits on — the key its override is stored
-     * under — and the pairing matters: the style belongs to the edge, and the edge is owned by the
-     * quest that depends, not by the quest that is depended upon.
-     *
-     * <p>Conservative reach bounds are stored on the edge so draw-time and hover-time passes can skip
-     * off-canvas lines after applying the pan delta, without rebuilding the edge list on a pan.
-     */
-    private FrameEdge frameEdge(ClientQuestCache.Entry from, ClientQuestCache.Entry to, String dependencyId,
-                                int baseColour) {
-        return frameEdge(from, to, dependencyId, baseColour, true);
-    }
-
-    private FrameEdge frameEdge(ClientQuestCache.Entry from, ClientQuestCache.Entry to, String dependencyId,
-                                int baseColour, boolean stamped) {
-        DependencyStyle style = styleFor(to, dependencyId);
-        LineArt.Point[] ends = lineEnds(from, to, style);
-        double chord = Math.hypot(ends[1].x() - ends[0].x(), ends[1].y() - ends[0].y());
-        int slack = (int) Math.ceil(chord) + nodeSize(from) + nodeSize(to) + 32;
-        int reachLeft = Math.min(ends[0].x(), ends[1].x()) - slack;
-        int reachTop = Math.min(ends[0].y(), ends[1].y()) - slack;
-        int reachRight = Math.max(ends[0].x(), ends[1].x()) + slack;
-        int reachBottom = Math.max(ends[0].y(), ends[1].y()) + slack;
-        return new FrameEdge(from.id(), to.id(), from, to, style, ends[0], ends[1],
-                reachLeft, reachTop, reachRight, reachBottom, stamped, baseColour);
-    }
-
-    /** The frame's edges as hover candidates — the paths already computed, so a walk costs only distance. */
-    private List<LineArt.Candidate<String[]>> frameCandidates(List<FrameEdge> edges, int panDx, int panDy) {
-        int cLeft = canvasLeft();
-        int cTop = canvasTop();
-        int cRight = canvasRight();
-        int cBottom = canvasBottom();
-        List<LineArt.Candidate<String[]>> candidates = new ArrayList<>();
-        for (FrameEdge edge : edges) {
-            if (!edge.reaches(panDx, panDy, cLeft, cTop, cRight, cBottom)) {
-                continue;
-            }
-            candidates.add(new LineArt.Candidate<>(edge.key(), edge.path(panDx, panDy)));
-        }
-        return candidates;
-    }
-
-    /** One styled line along a path that is already computed, with the arrowhead gaps the caller wants. */
-    private static void drawStyledPath(GuiRenderer r, List<LineArt.Point> path, DependencyStyle style,
-                                       int fromHalf, int toHalf, int colour) {
-        // Asks for the route **measured from its own first point**, and adds that point back as it draws.
-        // A pan moves every edge's endpoints, so the absolute route is a new cache key for every edge on
-        // every frame of the gesture; a line's shape is the differences between its points, and those do not
-        // move. So panning now costs the path construction and the fills, and none of the walking, merging
-        // or allocating that used to happen per edge per frame while the view moved. See LineArt.
-        LineArt.Point origin = path.get(0);
-        DependencyStyle.Weight weight = style.weightOr(DependencyStyle.Weight.THIN);
-        for (LineArt.Fill fill : LineArt.fillsRelative(path, weight,
-                style.dashOr(DependencyStyle.Dash.SOLID))) {
-            r.fill(origin.x() + fill.x1(), origin.y() + fill.y1(),
-                    origin.x() + fill.x2(), origin.y() + fill.y2(),
-                    MenuFlyoutArt.ink(fill.tone(), colour));
-        }
-        // The head is drawn at the line's own weight: a six-pixel conduit ending in a hairline arrow was
-        // the report, and the head's standoff and reach grow with the weight so it still clears its node.
-        for (LineArt.Fill fill : LineArt.arrowsRelative(path, style.headOr(DependencyStyle.ArrowHead.CHEVRON),
-                style.placeOr(DependencyStyle.ArrowPlace.TARGET), style.arrowSpacing(),
-                fromHalf, toHalf, weight)) {
-            r.fill(origin.x() + fill.x1(), origin.y() + fill.y1(),
-                    origin.x() + fill.x2(), origin.y() + fill.y2(), colour);
-        }
-    }
-
-    /**
-     * The same, for an edge that has already worked its geometry out.
-     *
-     * <p>The whole of {@link FrameEdge}'s reason for existing: the rectangles are re-issued here and nothing
-     * about the route is measured, copied or hashed. The origin is still added per fill, which is the one
-     * thing that cannot be precomputed — it is what makes a panned line the same memo entry.
-     */
-    private static void drawStyledPath(GuiRenderer r, LineArt.EdgeGeometry geometry,
-                                       LineArt.Point origin, int colour) {
-        for (LineArt.Fill fill : geometry.fills()) {
-            r.fill(origin.x() + fill.x1(), origin.y() + fill.y1(),
-                    origin.x() + fill.x2(), origin.y() + fill.y2(),
-                    MenuFlyoutArt.ink(fill.tone(), colour));
-        }
-        for (LineArt.Fill fill : geometry.arrows()) {
-            r.fill(origin.x() + fill.x1(), origin.y() + fill.y1(),
-                    origin.x() + fill.x2(), origin.y() + fill.y2(), colour);
-        }
-    }
-
-    /** The same, for a drawn line whose path is already computed and whose ends sit on the rims. */
-    private static void drawStyledPath(GuiRenderer r, List<LineArt.Point> path, DependencyStyle style,
-                                       int colour) {
-        drawStyledPath(r, path, style, 0, 0, colour);
     }
 
     /**
@@ -22383,173 +20656,8 @@ public final class QuestBookScreen extends ArmatureScreen
         LineArt.Point fromCentre = new LineArt.Point(bookRewards.nodeCentreX(from), bookRewards.nodeCentreY(from));
         LineArt.Point toCentre = new LineArt.Point(bookRewards.nodeCentreX(to), bookRewards.nodeCentreY(to));
         return new LineArt.Point[] {
-                endPoint(from, fromCentre, toCentre, style.fromAnchorOrNull()),
-                endPoint(to, toCentre, fromCentre, style.toAnchorOrNull()) };
-    }
-
-    /** One end: the anchor angle when the line names one, else the node's own rim. */
-    private LineArt.Point endPoint(ClientQuestCache.Entry entry, LineArt.Point centre,
-                                   LineArt.Point towards, Double anchor) {
-        int size = nodeSize(entry);
-        int screenX = nodeScreenX(entry);
-        int screenY = nodeScreenY(entry);
-        // A point along the anchor's direction, then the shape's real rim along it: an anchor on a square
-        // or a diamond used to land at half the size, which is inside the shape for any off-axis angle.
-        LineArt.Point aim = anchor == null ? towards : LineArt.anchorPoint(centre, size * 2, anchor);
-        return LineArt.rimPoint(centre, aim, size,
-                (x, y) -> entry.geometry().contains(x, y, screenX, screenY, size));
-    }
-
-    /**
-     * One styled line between two screen points — the shapes the dependency lines and the edge gesture's
-     * rubber line both draw, because a rubber line that bent by different rules than the real ones would
-     * promise a route the real line would not take.
-     *
-     * <p>The path comes from {@link LineArt}, which is the same function the hover and the right-click
-     * hit test call: that is what makes a line you can see a line you can click, whatever its form.
-     */
-    private static void drawStyled(GuiRenderer r, DependencyStyle style, LineArt.Point from,
-                                   LineArt.Point to, int fromHalf, int toHalf, int colour) {
-        drawStyledPath(r, stylePath(style, from, to), style, fromHalf, toHalf, colour);
-    }
-
-    /**
-     * A line's ink with every brightening on it: the direct hover's, the hovered node's, and the
-     * steady glow's.
-     *
-     * <p>The direct hover is the cue that a right-click lands here, and it stays the loudest. The
-     * other two name the line's place in the graph instead: the lines joined to the quest under the
-     * pointer, and the lines joined to the quest being read or solely selected. All three ease --
-     * the trackers crossfade, so a sweep hands the glow over and opening a quest fades it up --
-     * and {@code shade} lightens towards white without picking a hue, so a completed line stays
-     * recognisably completed underneath.
-     */
-    private int lineInk(int base, String from, String to, long now) {
-        float glow = lineGlow(from, to, now);
-        return glow <= 0F ? base : Colour.shade(base, glow);
-    }
-
-    /**
-     * How much glow reaches one line, before it becomes ink: the direct hover's share or the
-     * brightest neighbour's, whichever is louder.
-     *
-     * <p>Beside {@link #lineInk} because the pulse needs the amount rather than the colour: its
-     * packets fade in and out with the same crossfade the ink does, so a sweep hands the flow over
-     * instead of blinking it.
-     */
-    private float lineGlow(String from, String to, long now) {
-        float direct = edgeHover.amount(List.of(from, to), now) * BookRewards.LINE_HOVER_BRIGHTEN;
-        float beside = Math.max(adjacency(nodeHover, from, to, now),
-                adjacency(selectionGlow, from, to, now)) * BookRewards.ADJACENT_LINE_BRIGHTEN;
-        return Math.max(direct, beside);
-    }
-
-    /**
-     * The direction cue on a glowing line: bright comets travelling prerequisite to dependent.
-     *
-     * <p>An overlay over the stamped geometry, never a rebuild of it: the route's rectangles stay as
-     * the frame built them and a few dots ride above, only while the line glows, so quiet chapters
-     * pay nothing. The packets ease in with the hover (their ink carries the same glow), stop short
-     * of the arrowhead (which already says the direction, statically), and read the same at every
-     * zoom: routes are measured in screen pixels and short ones carry short comets rather than
-     * nothing, so pulling back keeps the flow instead of losing it. Motion off still stills
-     * everything, which is the reduced-motion promise.
-     */
-    private void drawEdgePulse(GuiRenderer r, FrameEdge edge, long now, int panDx, int panDy) {
-        float glow = lineGlow(edge.fromId(), edge.toId(), now);
-        if (glow < 0.05F || !ClientAppearance.LOOK.motion()) {
-            return;
-        }
-        List<LineArt.Point> path = edge.path(panDx, panDy);
-        double length = LineArt.length(path);
-        double travel = length - EdgePulse.ARROW_KEEP;
-        double len = EdgePulse.packetLength(length);
-        List<Double> centers = EdgePulse.centers(length, now, edgeSeed(edge));
-        if (centers.isEmpty() || len <= 0) {
-            return;
-        }
-        int hue = Colour.shade(edge.baseColour(), Math.min(1F, glow + 0.35F));
-        for (double center : centers) {
-            for (double s = center - len; s <= center; s += 2) {
-                if (s < 0 || s > travel) {
-                    continue;
-                }
-                // 0 at the tail, 1 at the head: the packet brightens towards arrival.
-                double t = (s - (center - len)) / len;
-                LineArt.Point p = LineArt.pointAt(path, s);
-                r.fill(p.x() - 1, p.y() - 1, p.x() + 1, p.y() + 1,
-                        Colour.translucent(hue, EdgePulse.packetAlpha(glow, t)));
-            }
-        }
-    }
-
-    /** Per-edge variety for the pulse loops, so neighbouring lines do not march in lockstep. */
-    private static int edgeSeed(FrameEdge edge) {
-        return (edge.fromId() + '>' + edge.toId()).hashCode();
-    }
-
-    /**
-     * How much of a tracker's glow reaches one line: the eased amount when the tracker names an end
-     * of it, the fade-out included.
-     *
-     * <p>Both ends of the crossfade, because a line the pointer just left should dim as the one
-     * arrived at lights -- a glow that snapped off would stutter where the ring glides. A link id
-     * never matches an end, so a marker's hover reaches no line without being asked not to.
-     */
-    private static float adjacency(Hover tracker, String from, String to, long now) {
-        float glow = 0F;
-        Object current = tracker.current();
-        if (current instanceof String id && LineArt.touches(from, to, id)) {
-            glow = Math.max(glow, tracker.amount(id, now));
-        }
-        Object previous = tracker.previous();
-        if (previous instanceof String id && LineArt.touches(from, to, id)) {
-            glow = Math.max(glow, tracker.amount(id, now));
-        }
-        return glow;
-    }
-
-    /**
-     * The line nearest the pointer — recomputed only when the pointer, the view or the geometry moved.
-     *
-     * <p>{@link LineArt#nearest} reads every point of every candidate route, and in edit mode it ran on
-     * every frame whether anything had changed or not. A still pointer over a still canvas has the same
-     * nearest line as it did a frame ago, so the answer is kept until one of the things that can change
-     * it does: the pointer, the pan, the zoom, the tree revision (a reload or a chapter switch) or a live
-     * gesture (a node or handle being dragged moves the geometry without moving the view).
-     *
-     * <p>The cached value is the edge key only. The hover's brightening is applied where the ink is
-     * chosen, so the fade still animates while the answer stands.
-     */
-    private String[] lineHover(List<FrameEdge> edges, double mouseX, double mouseY, int panDx, int panDy) {
-        boolean moving = draggedNode != null || bendDragFrom != null || edgeDragLive;
-        float scale = viewport().scale();
-        int panX = viewport().offsetX();
-        int panY = viewport().offsetY();
-        long revision = ClientQuestCache.treeRevision();
-        // The two the geometry also depends on, and they are not optional -- see the note below.
-        long draft = fieldDraft.version();
-        long editors = this.editors.epoch();
-        boolean same = !moving && !lastLineHoverMoving
-                && mouseX == lastLineHoverX && mouseY == lastLineHoverY
-                && scale == lastLineHoverScale && panX == lastLineHoverPanX && panY == lastLineHoverPanY
-                && edges.size() == lastLineHoverEdges && revision == lastLineHoverRevision
-                && draft == lastLineHoverDraft && editors == lastLineHoverEditors;
-        if (same) {
-            return lastLineHover;
-        }
-        lastLineHoverX = mouseX;
-        lastLineHoverY = mouseY;
-        lastLineHoverScale = scale;
-        lastLineHoverPanX = panX;
-        lastLineHoverPanY = panY;
-        lastLineHoverEdges = edges.size();
-        lastLineHoverRevision = revision;
-        lastLineHoverDraft = draft;
-        lastLineHoverEditors = editors;
-        lastLineHoverMoving = moving;
-        lastLineHover = LineArt.nearest(frameCandidates(edges, panDx, panDy), mouseX, mouseY, BookRewards.LINE_HIT);
-        return lastLineHover;
+                bookCanvas.endPoint(from, fromCentre, toCentre, style.fromAnchorOrNull()),
+                bookCanvas.endPoint(to, toCentre, fromCentre, style.toAnchorOrNull()) };
     }
 
     /**
@@ -22607,84 +20715,13 @@ public final class QuestBookScreen extends ArmatureScreen
                 style.arrowHead(), style.arrowPlace(), style.arrowDensity());
     }
 
-    /**
-     * The line a hand is bending right now, rebuilt from the live preview — or null when none is, or when
-     * the drag has taken it somewhere it cannot be drawn from.
-     *
-     * <h2>Why this exists, and the assumption it corrects</h2>
-     *
-     * <p>{@code frameEdge} is the only thing that reads {@link #styleFor}, and it runs inside
-     * {@code frameEdges}, which runs inside {@code stampCanvas} — which returns early unless its key moved.
-     * The preview is not in that key, so during a bend drag the line kept the route it was stamped with and
-     * moved only when the release changed something the key does name: the draft, or the tree. That is the
-     * whole of "it only renders when I let go", and it is why the hit test was live while the drawing was
-     * not — {@code handleAt} and {@code edgeAt} call {@code styleFor} directly.
-     *
-     * <p><b>One edge, not a wider key.</b> Putting the preview into {@code CanvasState} would re-stamp every
-     * edge's route, the visible-quest filter and the whole label pass — a box per node and a collision sort
-     * — on every mouse move, which is the cost that cache exists to avoid. A bend moves one line, so one
-     * line is what gets rebuilt.
-     */
-    private FrameEdge liveBendEdge() {
-        if (bendDragFrom == null || bendDragTo == null) {
-            return null;
-        }
-        ClientQuestCache.Entry dependency = entryFor(bendDragFrom);
-        ClientQuestCache.Entry dependent = entryFor(bendDragTo);
-        if (dependency == null || dependent == null) {
-            return null;
-        }
-        // The completion colour is the committed edge's, so a preview cannot change what a line *means* --
-        // only where it goes. Falling back to the undimmed ink is for the case where the stamped edge is
-        // not in the list at all, which `frameEdge` then re-decides anyway.
-        int baseColour = ArmatureTheme.line();
-        for (FrameEdge edge : canvasEdges) {
-            if (edge.matches(bendDragFrom, bendDragTo)) {
-                baseColour = edge.baseColour();
-                break;
-            }
-        }
-        return frameEdge(dependency, dependent, bendDragFrom, baseColour, false);
-    }
-
-    /**
-     * The lines to draw this frame: the stamped ones, with the bent line rebuilt from the live preview.
-     *
-     * <p>One seam, because the ink, the hover's candidate walk and the handle layer all read the same list
-     * and all three have to agree — a handle drawn on the committed route while the line follows the
-     * pointer is a handle in the wrong place. The copy is references and only happens while a bend drag is
-     * live, so the common frame pays nothing.
-     */
-    private List<FrameEdge> drawnEdges() {
-        if (bendDragFrom == null || bendDragTo == null) {
-            return canvasEdges;
-        }
-        FrameEdge bent = liveBendEdge();
-        List<FrameEdge> live = new ArrayList<>(canvasEdges);
-        for (int i = 0; i < live.size(); i++) {
-            if (!live.get(i).matches(bendDragFrom, bendDragTo)) {
-                continue;
-            }
-            if (bent == null) {
-                // The drag has taken the line off the canvas, or made it unreachable: it goes, rather than
-                // staying at the route it was stamped with. `frameEdge` is what decided that.
-                live.remove(i);
-            }
-            else {
-                live.set(i, bent);
-            }
-            break;
-        }
-        return live;
-    }
-
     /** The node under the pointer, or null. */
     ClientQuestCache.Entry nodeAt(double mouseX, double mouseY, List<ClientQuestCache.Entry> quests) {
-        if (canvasState != null) {
-            int dx = panDx();
-            int dy = panDy();
-            for (int i = frameNodes.size() - 1; i >= 0; i--) {
-                FrameNode node = frameNodes.get(i);
+        if (bookCanvas.canvasState != null) {
+            int dx = bookCanvas.panDx();
+            int dy = bookCanvas.panDy();
+            for (int i = bookCanvas.frameNodes.size() - 1; i >= 0; i--) {
+                FrameNode node = bookCanvas.frameNodes.get(i);
                 int size = node.size();
                 int x = node.x() + dx;
                 int y = node.y() + dy;
@@ -22724,40 +20761,6 @@ public final class QuestBookScreen extends ArmatureScreen
             // drawn".
             if (entry.geometry().contains(mouseX, mouseY, x, y, size)) {
                 return entry;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The link under the pointer, by id, or null.
-     *
-     * <p>After the nodes and before the elements: a node owns the press over a marker, and a marker
-     * owns it over a decoration — the pick order is the draw order read backwards, so what a click
-     * opens is what was on top. The shape test is the art's, because a link is a node where the
-     * pointer is concerned.
-     */
-    private String linkAtId(double mouseX, double mouseY) {
-        int dx = panDx();
-        int dy = panDy();
-        List<QuestLinkArt.Slot> slots = new ArrayList<>(canvasLinks.size());
-        for (LinkSlot slot : canvasLinks) {
-            slots.add(slot.shifted(dx, dy).slot());
-        }
-        QuestLinkArt.Slot hit = QuestLinkArt.at(slots, mouseX, mouseY);
-        return hit == null ? null : hit.link().id();
-    }
-
-    /** One stamped marker, by link id, or null when the stamp holds none by that name. */
-    private LinkSlot linkSlot(String id) {
-        if (id == null) {
-            return null;
-        }
-        int dx = panDx();
-        int dy = panDy();
-        for (LinkSlot slot : canvasLinks) {
-            if (id.equals(slot.slot().link().id())) {
-                return slot.shifted(dx, dy);
             }
         }
         return null;
@@ -24851,7 +22854,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * satisfied" is how the two would come to disagree -- and they did: both asked about completion,
      * which is the wrong question for half the modes.
      */
-    private static dev.ellipog.tenet.client.dev.DependencyProgress dependencyProgressOf(
+    static dev.ellipog.tenet.client.dev.DependencyProgress dependencyProgressOf(
             ClientQuestCache.Entry entry) {
         return new dev.ellipog.tenet.client.dev.DependencyProgress(entry.effectivePrerequisiteMode(),
                 entry.minRequired(), dependenciesOf(entry));
@@ -24866,7 +22869,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * this — submit buttons, accumulation and completion keep judging engine states — and neither
      * does the narrator, whose "worth opening" is true of a measurable quest.
      */
-    private static QuestState shownState(ClientQuestCache.Entry entry) {
+    static QuestState shownState(ClientQuestCache.Entry entry) {
         return dev.ellipog.tenet.client.dev.QuestVisibility.displayState(
                 ClientQuestCache.stateOf(entry.id()), entry.flexible(),
                 dependencyProgressOf(entry).met(ClientQuestCache::stateOf));
@@ -25034,6 +23037,10 @@ public final class QuestBookScreen extends ArmatureScreen
         r.fill(slot.x() - 3, top, right, bottom, Colour.translucent(ArmatureTheme.rowHover(), hover));
     }
 
+    // ------------------------------------------------------------------
+    // Remembered rows
+    // ------------------------------------------------------------------
+
     /**
      * One task, with a highlight that eases in and out as the pointer arrives and leaves.
      *
@@ -25066,10 +23073,6 @@ public final class QuestBookScreen extends ArmatureScreen
      *     the box the hover test asks about is the box the highlight is drawn from
      * @param hover 0 at rest, 1 fully hovered, eased. See {@link Hover}
      */
-    // ------------------------------------------------------------------
-    // Remembered rows
-    // ------------------------------------------------------------------
-
     /**
      * Which list a remembered row belongs to: the task rows, or the reward rows below them.
      */
@@ -25794,77 +23797,6 @@ public final class QuestBookScreen extends ArmatureScreen
     // Input
     // ------------------------------------------------------------------
 
-    /**
-     * Begins a pan from a press that landed on a rail, which is the one tail every panel's press shares.
-     *
-     * <h2>Why this is a method rather than a block in the press dispatch</h2>
-     *
-     * <p>Because it is the answer to one question — <i>may the graph be moved from here?</i> — and the answer
-     * has to be the same for every kind. It was a block inside one arm, so the kinds whose arms returned
-     * early never reached it: the reader and the editor could be panned from, the settings page, the tables,
-     * the pack's files and the rewards list could not, and the fault read as "some work, some do not".
-     *
-     * <p>It sets the pan up by hand rather than leaving it to the canvas branch, because that branch asks what
-     * node is under the pointer — and the pointer is over a rail, so it would open whatever node the panel
-     * happens to be covering. {@code panelPress} is the other half: it keeps the release from reading the same
-     * press as a click on empty canvas, so a drag pans and a click on a panel does nothing rather than closing
-     * the panel the reader was working in.
-     *
-     * @return whether a pan was started. False for a button that is not a pan's — the right button belongs to
-     *         the edges and the menus, and a held right press on a panel is neither.
-     */
-    private boolean startPanelPan(double mouseX, double mouseY, int button) {
-        if (button != InputConstants.MOUSE_BUTTON_LEFT && button != InputConstants.MOUSE_BUTTON_RIGHT) {
-            return false;
-        }
-        dragging = true;
-        panelPress = true;
-        pressMoved = false;
-        pressedNode = null;
-        pressedQuestLink = null;
-        pressX = mouseX;
-        pressY = mouseY;
-        panContentX = viewport().contentX(mouseX);
-        panContentY = viewport().contentY(mouseY);
-        // A pan is the hand taking the camera: a glide still in flight must not fight it.
-        glideQuest = null;
-        return true;
-    }
-
-    /**
-     * Whether one of the panel's own drawn targets is under the pointer.
-     *
-     * <p>Asked of the same list the press methods walk, so the two cannot disagree about what is on screen:
-     * this is a membership test over {@code editTargets}, not a second derivation of where a row is. It is
-     * what lets an arm answer "did I claim this press" without its press methods having to return anything —
-     * and a press that hit no row has to reach {@link #startPanelPan} rather than being swallowed by the
-     * panel it happened to be over.
-     */
-    private boolean onEditTarget(double mouseX, double mouseY) {
-        for (EditTarget target : editTargets) {
-            if (target.box().contains(mouseX, mouseY)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * The same question for the pack's panel, whose rows are its own list rather than the editor's.
-     *
-     * <p>Two lists rather than one is deliberate and documented at the drawing site: the editor's list still
-     * holds the marks the panel behind it drew, and a press inside the pack's panel must not be able to land
-     * on one of those.
-     */
-    private boolean onAssetsTarget(double mouseX, double mouseY) {
-        for (EditTarget target : assetsTargets) {
-            if (target.box().contains(mouseX, mouseY)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
     public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
         double mouseX = event.x();
@@ -26104,7 +24036,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 // claims the press: the press methods themselves answer nothing, and a press that hit no row
                 // must reach the tail rather than being swallowed by the panel it happened to be over.
                 boolean onRow = on == PanelKind.ASSETS
-                        ? onAssetsTarget(mouseX, mouseY) : onEditTarget(mouseX, mouseY);
+                        ? bookInput.onAssetsTarget(mouseX, mouseY) : bookInput.onEditTarget(mouseX, mouseY);
                 if (onRow) {
                     if (on == PanelKind.TABLE_BROWSER) {
                         bookRewards.pressTableBrowser(mouseX, mouseY);
@@ -26350,7 +24282,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 if (armLabelScrub(mouseX, mouseY)) {
                     return true;
                 }
-                if (pressBar(elementView.bar(), mouseX, mouseY)) {
+                if (pressBar(bookCanvas.elementView.bar(), mouseX, mouseY)) {
                     return true;
                 }
                 if (onElementTarget(mouseX, mouseY)) {
@@ -26390,7 +24322,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // reading surface, its blank space has always swallowed a press, and its own branch below is where
             // its rows, chips and bar are answered.
             if (on != null && on != PanelKind.TOOLS && (button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_RIGHT)) {
-                if (startPanelPan(mouseX, mouseY, button)) {
+                if (bookInput.startPanelPan(mouseX, mouseY, button)) {
                     return true;
                 }
             }
@@ -26503,8 +24435,8 @@ public final class QuestBookScreen extends ArmatureScreen
                 if (link != null) {
                     // Pressing the chosen one again lets it go, which is how every other selection in this
                     // screen behaves and the only way to put the fields away without leaving the tab.
-                    selectedLink = link.equals(selectedLink) ? null : link;
-                    linkConfirmingDelete = null;
+                    BookCanvas.selectedLink = link.equals(BookCanvas.selectedLink) ? null : link;
+                    bookCanvas.linkConfirmingDelete = null;
                     rebuildWidgets();
                     return true;
                 }
@@ -26670,10 +24602,10 @@ public final class QuestBookScreen extends ArmatureScreen
             // that lands on both belongs to the node. A link claims the press the way a node does, and
             // what the press *means* is decided on release, the same gesture rule both have: hold to
             // pan, click to open the target.
-            pressedQuestLink = under == null ? linkAtId(mouseX, mouseY) : null;
+            bookCanvas.pressedQuestLink = under == null ? bookCanvas.linkAtId(mouseX, mouseY) : null;
             // And the element under the pointer, when neither is: a marker is drawn over a decoration,
             // so a press that lands on both belongs to the marker, for the same reason as above.
-            pressedElement = under == null && pressedQuestLink == null ? elementAt(mouseX, mouseY) : null;
+            pressedElement = under == null && bookCanvas.pressedQuestLink == null ? elementAt(mouseX, mouseY) : null;
 
             // A left press on a curve's handle is the handle's: claimed before the node and the pan, so
             // bending a line cannot also pick a node up or start a marquee.
@@ -26733,7 +24665,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // middle-click that happens not to move would select whatever it landed on.
             if (button == InputConstants.MOUSE_BUTTON_MIDDLE) {
                 pressedNode = null;
-                pressedQuestLink = null;
+                bookCanvas.pressedQuestLink = null;
             }
 
             // Right claims the press for the edge gesture, on a node with an editor open. Anywhere else
@@ -26770,7 +24702,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     // Ctrl-click toggles one node in or out of the selection -- the standard gesture,
                     // and the reason the edge drag lives on the right button. It is a statement about
                     // the selection and nothing else: no pick-up, no open, no drag.
-                    toggleSelection(under.id());
+                    BookInput.toggleSelection(under.id());
                     return true;
                 }
                 if (pressedShift) {
@@ -26778,7 +24710,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     // around a chapter collects nodes. The press still picks the node up, which is
                     // what makes shift-drag "add this one and move everything with it"; and a
                     // shift-click opens nothing, because collecting and opening are different jobs.
-                    addToSelection(under.id());
+                    BookInput.addToSelection(under.id());
                 }
                 // **Read before claiming.** `nodeX` answers with `dragNodeX` for the node the drag is
                 // carrying, so claiming first would have read the *last* drag's leftover position --
@@ -26808,11 +24740,11 @@ public final class QuestBookScreen extends ArmatureScreen
                 CanvasElementArt.Handle handle = slot == null ? null
                         : CanvasElementArt.handleAt(slot.element(), slot.box(), mouseX, mouseY);
                 if (handle != null && slot != null) {
-                    elementDragging = selectedElement;
-                    elementDragLive = false;
-                    elementDragBase = elementNow(selectedElement);
-                    elementPreview = null;
-                    elementHandle = handle;
+                    bookCanvas.elementDragging = selectedElement;
+                    bookCanvas.elementDragLive = false;
+                    bookCanvas.elementDragBase = elementNow(selectedElement);
+                    bookCanvas.elementPreview = null;
+                    bookCanvas.elementHandle = handle;
                     // **And the press is still the element's.** A grip sits on the element's own edge, which a
                     // hit test counts as outside it -- so `pressedElement` is null for a press here, and a click
                     // on a grip that never moved would fall through to the empty-canvas branch and *deselect*
@@ -26821,7 +24753,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     // And it is not a link's: a grip is the selected element's own control, so a marker under
                     // it does not get the press -- the release opens the element's panel, as it always has.
                     pressedElement = selectedElement;
-                    pressedQuestLink = null;
+                    bookCanvas.pressedQuestLink = null;
                     return true;
                 }
             }
@@ -26833,12 +24765,12 @@ public final class QuestBookScreen extends ArmatureScreen
             if (button == InputConstants.MOUSE_BUTTON_LEFT && mayEditNow() && pressedElement != null) {
                 CanvasElement held = elementNow(pressedElement);
                 if (held != null) {
-                    elementDragging = pressedElement;
-                    elementDragLive = false;
-                    elementDragBase = held;
-                    elementPreview = null;
+                    bookCanvas.elementDragging = pressedElement;
+                    bookCanvas.elementDragLive = false;
+                    bookCanvas.elementDragBase = held;
+                    bookCanvas.elementPreview = null;
                     // No grip: this is the body, so the gesture is a move.
-                    elementHandle = null;
+                    bookCanvas.elementHandle = null;
                     // The same grab offset the node drag uses, and the same two fields: a press is one gesture
                     // whichever object it landed on, and only one of the three is ever claimed.
                     dragGrabX = viewport().contentX(mouseX) - CanvasElementArt.originX(held);
@@ -26852,13 +24784,13 @@ public final class QuestBookScreen extends ArmatureScreen
             // Edit mode only: in play mode a press on a marker is its shortcut and nothing else, and a
             // marker that could be dragged by a player would be a shortcut that moved under them. A link
             // has no grips, so the body is the whole of it and the gesture is always a move.
-            if (button == InputConstants.MOUSE_BUTTON_LEFT && mayEditNow() && pressedQuestLink != null) {
-                QuestLink held = linkNow(pressedQuestLink);
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && mayEditNow() && bookCanvas.pressedQuestLink != null) {
+                QuestLink held = linkNow(bookCanvas.pressedQuestLink);
                 if (held != null) {
-                    linkDragging = pressedQuestLink;
-                    linkDragLive = false;
-                    linkDragBase = held;
-                    linkPreview = null;
+                    bookCanvas.linkDragging = bookCanvas.pressedQuestLink;
+                    bookCanvas.linkDragLive = false;
+                    bookCanvas.linkDragBase = held;
+                    bookCanvas.linkPreview = null;
                     // The same grab offset the node drag uses: a press is one gesture whichever object it
                     // landed on, and only one of the three is ever claimed.
                     dragGrabX = viewport().contentX(mouseX) - held.x();
@@ -26893,72 +24825,8 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     @Override
     public void mouseMoved(double mouseX, double mouseY) {
-        updateSubmenuHover(mouseX, mouseY);
+        bookInput.updateSubmenuHover(mouseX, mouseY);
         super.mouseMoved(mouseX, mouseY);
-    }
-
-    /**
-     * Which submenu should be showing for a pointer at this position.
-     *
-     * <p>Over a menu row: that row's, if it has one. Anywhere inside the open submenu, in the bridge to
-     * it, or on its parent row: unchanged. Anywhere else: shut. The middle case is the one the first
-     * version lacked — it asked only "is the pointer on the parent row", so the panel disappeared the
-     * moment the pointer left it, which made the destinations unreachable.
-     */
-    private void updateSubmenuHover(double mouseX, double mouseY) {
-        if (menu.isEmpty()) {
-            submenuRow = -1;
-            return;
-        }
-        int row = bookMenu.menuRowAt(mouseX, mouseY);
-        if (row >= 0) {
-            submenuRow = menu.get(row).submenu() ? row : -1;
-            return;
-        }
-        if (submenuRow >= 0 && insideOpenSubmenu(mouseX, mouseY)) {
-            return;
-        }
-        submenuRow = -1;
-    }
-
-    /** Whether the pointer is on the open flyout, or on the way to it. */
-    private boolean insideOpenSubmenu(double mouseX, double mouseY) {
-        if (submenuRow < 0) {
-            return false;
-        }
-        MenuFlyout.Placed placed = bookMenu.submenuPlacement(submenuRow);
-        if (placed.rows().isEmpty()) {
-            return false;
-        }
-        if (placed.contains(mouseX, mouseY)) {
-            return true;
-        }
-        BookGeometry.Rect bridge = submenuBridge(placed);
-        return bridge != null && bridge.contains(mouseX, mouseY);
-    }
-
-    /**
-     * The rectangle between the parent row and its panel.
-     *
-     * <p>Without it a pointer travelling diagonally crosses a sliver that is neither the row nor the
-     * panel, and the submenu shuts under the hand — which is the same fault in a smaller place.
-     */
-    private BookGeometry.Rect submenuBridge(MenuFlyout.Placed placed) {
-        if (placed.rows().isEmpty() || submenuRow < 0) {
-            return null;
-        }
-        List<BookGeometry.Rect> main = bookMenu.menuRects();
-        if (submenuRow >= main.size()) {
-            return null;
-        }
-        List<BookGeometry.Rect> rects = placed.rows();
-        BookGeometry.Rect parent = main.get(submenuRow);
-        BookGeometry.Rect last = rects.get(rects.size() - 1);
-        int left = Math.min(parent.x(), rects.get(0).x() - 2);
-        int right = Math.max(parent.right(), last.right() + 2);
-        int top = Math.min(parent.y(), rects.get(0).y() - 3);
-        int bottom = Math.max(parent.bottom(), last.bottom() + 3);
-        return BookGeometry.Rect.at(left, top, right - left, bottom - top);
     }
 
     @Override
@@ -27159,10 +25027,10 @@ public final class QuestBookScreen extends ArmatureScreen
             return true;
         }
 
-        if (elementDragging != null) {
+        if (bookCanvas.elementDragging != null) {
             // Press, threshold, follow -- the node drag's three steps, because a decoration that twitched
             // under every click would read as jitter in exactly the same way a node would.
-            if (!elementDragLive) {
+            if (!bookCanvas.elementDragLive) {
                 if (Math.abs(mouseX - pressX) <= DRAG_THRESHOLD
                         && Math.abs(mouseY - pressY) <= DRAG_THRESHOLD) {
                     return true;
@@ -27170,17 +25038,17 @@ public final class QuestBookScreen extends ArmatureScreen
                 // A pinned picture refuses here rather than at the press, so a click still selects it
                 // and only a gesture that would have moved it is turned away -- with the way out named.
                 // Grips funnel through the same drag, so a resize and a rotate are refused with it.
-                if (elementDragBase instanceof CanvasElement.Image image && image.locked()) {
-                    String pinned = elementDragging;
-                    elementDragging = null;
-                    elementDragLive = false;
-                    elementDragBase = null;
-                    elementPreview = null;
+                if (bookCanvas.elementDragBase instanceof CanvasElement.Image image && image.locked()) {
+                    String pinned = bookCanvas.elementDragging;
+                    bookCanvas.elementDragging = null;
+                    bookCanvas.elementDragLive = false;
+                    bookCanvas.elementDragBase = null;
+                    bookCanvas.elementPreview = null;
                     status("\"" + pinned + "\" is pinned: switch off Pinned in its Position section"
                             + " to move it", false);
                     return true;
                 }
-                elementDragLive = true;
+                bookCanvas.elementDragLive = true;
                 pressMoved = true;
             }
             // What the gesture has produced so far, built from the element the press took hold of rather than
@@ -27188,19 +25056,19 @@ public final class QuestBookScreen extends ArmatureScreen
             // would compound the change every frame. Committed on release rather than here: a gesture is one
             // edit, and a file write per mouse move would be a file write per mouse move. What is committed is
             // what was last drawn, because release takes this one field.
-            elementPreview = draggedElement(mouseX, mouseY);
+            bookCanvas.elementPreview = draggedElement(mouseX, mouseY);
             return true;
         }
 
-        if (linkDragging != null) {
+        if (bookCanvas.linkDragging != null) {
             // Press, threshold, follow -- the node drag's three steps, because a marker that twitched
             // under every click would read as jitter in exactly the same way a node would.
-            if (!linkDragLive) {
+            if (!bookCanvas.linkDragLive) {
                 if (Math.abs(mouseX - pressX) <= DRAG_THRESHOLD
                         && Math.abs(mouseY - pressY) <= DRAG_THRESHOLD) {
                     return true;
                 }
-                linkDragLive = true;
+                bookCanvas.linkDragLive = true;
                 pressMoved = true;
             }
             // What the gesture has produced so far, built from the link the press took hold of rather than
@@ -27208,12 +25076,12 @@ public final class QuestBookScreen extends ArmatureScreen
             // would compound the change every frame. A move follows the pointer with the grab offset kept,
             // snapped when the switch says so and Alt is not held -- the free placement, read per event so
             // it can be pressed mid-drag. Committed on release rather than here: a gesture is one edit.
-            QuestLink base = linkDragBase;
+            QuestLink base = bookCanvas.linkDragBase;
             int x = base == null ? 0 : (int) Math.round(BookGeometry.snap(
                     viewport().contentX(mouseX) - dragGrabX, BookGeometry.SNAP_GRID, snappingNow()));
             int y = base == null ? 0 : (int) Math.round(BookGeometry.snap(
                     viewport().contentY(mouseY) - dragGrabY, BookGeometry.SNAP_GRID, snappingNow()));
-            linkPreview = base == null ? null : base.translated(x - base.x(), y - base.y());
+            bookCanvas.linkPreview = base == null ? null : base.translated(x - base.x(), y - base.y());
             return true;
         }
 
@@ -27363,7 +25231,7 @@ public final class QuestBookScreen extends ArmatureScreen
             dragRowLive = false;
             dragging = false;
             pressedNode = null;
-            pressedQuestLink = null;
+            bookCanvas.pressedQuestLink = null;
             if (live) {
                 rowDrag.commitRowDrop(member, quest, from, pointerY);
             }
@@ -27398,7 +25266,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     openLink(link.url());
                 }
                 else if (!link.quest().isEmpty()) {
-                    openQuest(link.quest());
+                    bookCanvas.openQuest(link.quest());
                 }
             }
             return true;
@@ -27455,7 +25323,7 @@ public final class QuestBookScreen extends ArmatureScreen
             edgeDragLive = false;
             dragging = false;
             pressedNode = null;
-            pressedQuestLink = null;
+            bookCanvas.pressedQuestLink = null;
 
             if (live) {
                 // The edge lands on whatever node is under the release, and the arrow points the way
@@ -27473,7 +25341,7 @@ public final class QuestBookScreen extends ArmatureScreen
                                 landing.id(), "dependsOn", QuestPanelLayout.strings(quest, "dependsOn")));
                         if (!dependencies.contains(from)) {
                             dependencies.add(from);
-                            sendField(chapter, landing.id(), "dependsOn",
+                            bookInput.sendField(chapter, landing.id(), "dependsOn",
                                     stringArray(dependencies));
                         }
                         else {
@@ -27501,16 +25369,16 @@ public final class QuestBookScreen extends ArmatureScreen
             return true;
         }
 
-        if (elementDragging != null) {
-            String id = elementDragging;
-            boolean live = elementDragLive;
-            CanvasElement base = elementDragBase;
-            CanvasElement now = elementPreview;
-            elementDragging = null;
-            elementDragLive = false;
-            elementDragBase = null;
-            elementPreview = null;
-            elementHandle = null;
+        if (bookCanvas.elementDragging != null) {
+            String id = bookCanvas.elementDragging;
+            boolean live = bookCanvas.elementDragLive;
+            CanvasElement base = bookCanvas.elementDragBase;
+            CanvasElement now = bookCanvas.elementPreview;
+            bookCanvas.elementDragging = null;
+            bookCanvas.elementDragLive = false;
+            bookCanvas.elementDragBase = null;
+            bookCanvas.elementPreview = null;
+            bookCanvas.elementHandle = null;
 
             if (live && base != null && now != null) {
                 // What the canvas showed when the pointer let go is what is committed: this is the drawn
@@ -27530,15 +25398,15 @@ public final class QuestBookScreen extends ArmatureScreen
             // the tail runs, which is where the click was always meant to be handled.
         }
 
-        if (linkDragging != null) {
-            String id = linkDragging;
-            boolean live = linkDragLive;
-            QuestLink base = linkDragBase;
-            QuestLink now = linkPreview;
-            linkDragging = null;
-            linkDragLive = false;
-            linkDragBase = null;
-            linkPreview = null;
+        if (bookCanvas.linkDragging != null) {
+            String id = bookCanvas.linkDragging;
+            boolean live = bookCanvas.linkDragLive;
+            QuestLink base = bookCanvas.linkDragBase;
+            QuestLink now = bookCanvas.linkPreview;
+            bookCanvas.linkDragging = null;
+            bookCanvas.linkDragLive = false;
+            bookCanvas.linkDragBase = null;
+            bookCanvas.linkPreview = null;
 
             if (live && base != null && now != null) {
                 // What the canvas showed when the pointer let go is what is committed: this is the drawn,
@@ -27562,7 +25430,7 @@ public final class QuestBookScreen extends ArmatureScreen
             nodeDragLive = false;
             dragging = false;
             pressedNode = null;
-            pressedQuestLink = null;
+            bookCanvas.pressedQuestLink = null;
 
             if (live) {
                 // What the canvas showed when the pointer let go is what is committed: these are the
@@ -27579,7 +25447,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 // dragged node never entered the id list, never got recorded, and no op was sent -- the node
                 // snapped back on the next frame with nothing in any log. The locals above exist for exactly
                 // this, which is why `x` and `y` were already arguments.
-                commitMoveBatch(id, new ArrayList<>(dragStarts.keySet()), x, y,
+                bookInput.commitMoveBatch(id, new ArrayList<>(dragStarts.keySet()), x, y,
                         ClientQuestCache.treeRevision());
                 dragStarts.clear();
             }
@@ -27597,7 +25465,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     bookRewards.straightenNode(id);
                     return true;
                 }
-                selectForCard(id);
+                BookCanvas.selectForCard(id);
                 bookRewards.openOverlay(id);
             }
             return true;
@@ -27608,9 +25476,9 @@ public final class QuestBookScreen extends ArmatureScreen
             boolean moved = pressMoved;
             dragging = false;
             pressedNode = null;
-            pressedQuestLink = null;
+            bookCanvas.pressedQuestLink = null;
             if (moved) {
-                selectInsideMarquee();
+                bookInput.selectInsideMarquee();
             }
             // A shift-click on the empty canvas adds nothing and takes nothing away: the marquee's
             // modifier means "add", and an empty marquee adds an empty set. Clearing is the plain
@@ -27639,13 +25507,13 @@ public final class QuestBookScreen extends ArmatureScreen
                     // A press that travelled never reaches this branch, so a drag still opens nothing.
                     openElementPanel(pressedElement);
                     selectedQuest = null;
-                    selectedLink = null;
+                    BookCanvas.selectedLink = null;
                     multiSelection.clear();
                 }
                 else {
                     ElementSlot slot = elementSlot(pressedElement);
                     if (slot != null) {
-                        pressElement(slot.element());
+                        bookCanvas.pressElement(slot.element());
                     }
                 }
                 pressedElement = null;
@@ -27661,9 +25529,9 @@ public final class QuestBookScreen extends ArmatureScreen
             // Before the node's branch for the same reason the element's is: at most one of the three
             // is ever claimed, so the order is documentation rather than arbitration -- and the pick
             // order is the draw order read backwards, which is what makes a click open what was on top.
-            if (!pressMoved && pressedQuestLink != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
-                LinkSlot slot = linkSlot(pressedQuestLink);
-                pressedQuestLink = null;
+            if (!pressMoved && bookCanvas.pressedQuestLink != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
+                BookCanvas.LinkSlot slot = bookCanvas.linkSlot(bookCanvas.pressedQuestLink);
+                bookCanvas.pressedQuestLink = null;
                 if (slot == null) {
                     return true;
                 }
@@ -27682,10 +25550,10 @@ public final class QuestBookScreen extends ArmatureScreen
                     // another chapter for trying to move a marker, which is the opposite of the gesture.
                     selectedQuest = null;
                     multiSelection.clear();
-                    selectedLink = selectedLink != null
-                            && selectedLink.equals(slot.slot().link().id()) ? null : slot.slot().link()
+                    BookCanvas.selectedLink = BookCanvas.selectedLink != null
+                            && BookCanvas.selectedLink.equals(slot.slot().link().id()) ? null : slot.slot().link()
                                     .id();
-                    linkConfirmingDelete = null;
+                    bookCanvas.linkConfirmingDelete = null;
                     rebuildWidgets();
                     return true;
                 }
@@ -27699,14 +25567,14 @@ public final class QuestBookScreen extends ArmatureScreen
                 // A link-target pick in flight names this quest: only a node click lands one, because
                 // only quests resolve -- a click on another marker would name a shortcut, and the file
                 // wants the quest it stands in for.
-                if (pendingLinkPick != null) {
+                if (bookCanvas.pendingLinkPick != null) {
                     ClientQuestCache.Entry picked = entryFor(pressedNode);
                     pressedNode = null;
                     if (picked != null) {
                         landLinkPick(picked);
                     }
                     else {
-                        pendingLinkPick = null;
+                        bookCanvas.pendingLinkPick = null;
                         rebuildWidgets();
                     }
                     return true;
@@ -27722,8 +25590,8 @@ public final class QuestBookScreen extends ArmatureScreen
                 }
 
                 selectedQuest = pressedNode.equals(selectedQuest) ? null : pressedNode;
-                selectedLink = null;
-                linkConfirmingDelete = null;
+                BookCanvas.selectedLink = null;
+                bookCanvas.linkConfirmingDelete = null;
                 multiSelection.clear();
 
                 // A click on a node opens it, rather than only selecting it.
@@ -27747,8 +25615,8 @@ public final class QuestBookScreen extends ArmatureScreen
                 // for the same reason: a marker is a third kind of selection, and letting go means all three.
                 selectedQuest = null;
                 selectedElement = null;
-                selectedLink = null;
-                linkConfirmingDelete = null;
+                BookCanvas.selectedLink = null;
+                bookCanvas.linkConfirmingDelete = null;
                 multiSelection.clear();
 
                 // And it closes the panel as well, which is the same gesture read the same way: a click on a
@@ -27771,7 +25639,7 @@ public final class QuestBookScreen extends ArmatureScreen
             }
             panelPress = false;
             pressedNode = null;
-            pressedQuestLink = null;
+            bookCanvas.pressedQuestLink = null;
             return true;
         }
         return super.mouseReleased(event);
@@ -27932,7 +25800,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // belongs to the rows under the pointer -- and the clamp is the viewport's, set from the same rows the
         // drawing walks, so a short form cannot be scrolled past its end.
         if (wheel == PanelKind.ELEMENT) {
-            elementView.bar().wheel(scrollY);
+            bookCanvas.elementView.bar().wheel(scrollY);
             return true;
         }
 
@@ -28029,7 +25897,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (inCanvas(mouseX, mouseY)) {
             // Zoom, about the pointer. Not a scroll: a canvas that pans by dragging and also scrolls is
             // two controls for one idea, and the wheel is the one people reach for to zoom.
-            zoomAt(mouseX, mouseY, scrollY > 0 ? 1.15F : 1F / 1.15F);
+            bookCanvas.zoomAt(mouseX, mouseY, scrollY > 0 ? 1.15F : 1F / 1.15F);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
@@ -28403,8 +26271,8 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         // And a link-target pick is cancelled the same way: Escape forgets the armed link, and the tab
         // goes back to showing its fields rather than waiting for a click that will never land.
-        if (pendingLinkPick != null && keyCode == InputConstants.KEY_ESCAPE) {
-            pendingLinkPick = null;
+        if (bookCanvas.pendingLinkPick != null && keyCode == InputConstants.KEY_ESCAPE) {
+            bookCanvas.pendingLinkPick = null;
             status("tenet.status.add_cancelled", false);
             rebuildWidgets();
             return true;
@@ -28484,7 +26352,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // its Ctrl+A is a selection; a screen that answered those with "delete the selected quest" and
         // "select every quest" would make typing in the editor a trap. Escape still reaches the card
         // above, and closing the card submits the focused field on the way out.
-        if (mayEditNow() && getFocused() == null && keysForEditor(event)) {
+        if (mayEditNow() && getFocused() == null && bookInput.keysForEditor(event)) {
             return true;
         }
 
@@ -28505,209 +26373,11 @@ public final class QuestBookScreen extends ArmatureScreen
         // them by returning false: a focused field's Backspace is a character and its Ctrl+A is a
         // selection, so the destructive chords stay behind the no-focus guard above. A text field
         // consumes Z and Y itself and keeps that meaning -- see `ArmatureTextField`.
-        if (!handled && getFocused() != null && mayEditNow() && unclaimedEditorChord(keyCode, event.hasControlDown())
-                && keysForEditor(event)) {
+        if (!handled && getFocused() != null && mayEditNow() && BookInput.unclaimedEditorChord(keyCode, event.hasControlDown())
+                && bookInput.keysForEditor(event)) {
             return true;
         }
         return handled;
-    }
-
-    /**
-     * The editor's chords a non-text control has no meaning for: the undo pair, and the save report.
-     *
-     * <p>Deliberately not Delete, Ctrl+D, Ctrl+N, Ctrl+A or Ctrl+V: those are the keys a focused control
-     * could be about to use for something of its own, and a screen that deleted a selection because a
-     * number field had the keyboard would be the trap the guard above exists to prevent.
-     */
-    private static boolean unclaimedEditorChord(int keyCode, boolean ctrl) {
-        if (!ctrl) {
-            return false;
-        }
-        return keyCode == InputConstants.KEY_Z || keyCode == InputConstants.KEY_Y || keyCode == InputConstants.KEY_S;
-    }
-
-    /** @return whether the key was one of the editor's, and was handled */
-    private boolean keysForEditor(net.minecraft.client.input.KeyEvent event) {
-        int keyCode = event.key();
-        boolean ctrl = event.hasControlDown();
-
-        if (ctrl && keyCode == InputConstants.KEY_S) {
-            // Nothing to save, and that is the design rather than an omission: every edit is an operation the
-            // server validates and writes as it is made, so there is no unsaved state for this key to reach.
-            // Said out loud rather than ignored, because Ctrl+S is the key a person presses when a panel full
-            // of edits makes them nervous, and a key that does nothing reads as a key that failed.
-            authorReport("Every edit is saved as it is made");
-            return true;
-        }
-        if (ctrl && keyCode == InputConstants.KEY_Z) {
-            // The table editor's undo is its own frame's: the file it is showing, and no further back
-            // than the table the author opened. See `tableApplied` for why that floor exists. Shift is
-            // the redo half here as well, which is the pair every editor has.
-            if (overlay == PanelKind.TABLE_EDITOR) {
-                if (event.hasShiftDown()) {
-                    tableRedo();
-                }
-                else {
-                    tableUndo();
-                }
-                return true;
-            }
-            if (event.hasShiftDown()) {
-                redoEdit();
-            }
-            else {
-                undoEdit();
-            }
-            return true;
-        }
-        if (ctrl && keyCode == InputConstants.KEY_Y) {
-            if (overlay == PanelKind.TABLE_EDITOR) {
-                tableRedo();
-                return true;
-            }
-            redoEdit();
-            return true;
-        }
-        // The shifted pair, read before the plain keys below: `Ctrl+N` is a new *quest*, and on the same
-        // key the shift is the difference between "a node in this chapter" and "a chapter in this book".
-        if (ctrl && event.hasShiftDown() && keyCode == InputConstants.KEY_N) {
-            bookSidebar.newChapterFromToolbar();
-            return true;
-        }
-        if (ctrl && event.hasShiftDown() && keyCode == InputConstants.KEY_G) {
-            bookSidebar.newGroupFromToolbar();
-            return true;
-        }
-        if (ctrl && keyCode == InputConstants.KEY_N) {
-            createQuest();
-            return true;
-        }
-        if (ctrl && keyCode == InputConstants.KEY_A && mayEditNow()) {
-            selectAllInChapter();
-            return true;
-        }
-        if (ctrl && keyCode == InputConstants.KEY_C) {
-            copySelection();
-            return true;
-        }
-        if (ctrl && keyCode == InputConstants.KEY_V && !ClientEditorClipboard.isEmpty()) {
-            pasteClipboard();
-            return true;
-        }
-        if (ctrl && keyCode == InputConstants.KEY_D && selectedQuest != null) {
-            // The whole selection duplicates, as one edit per chapter it spans: seventy quests are one
-            // gesture, one history step and one save, and one Ctrl+Z takes them all back. See `sendBulk`.
-            duplicateSelection(selection());
-            return true;
-        }
-        if ((keyCode == InputConstants.KEY_DELETE || keyCode == InputConstants.KEY_BACKSPACE)
-                && selectedQuest != null) {
-            // **The first press asks, the second deletes.** This key used to be the one destructive
-            // control in the book that acted on a single press — and the one that reaches furthest, since
-            // Ctrl+A then Delete takes a whole chapter. `ArmedDelete` holds the rule, the ids that were
-            // named and the chapter they were named in, so a second press deletes exactly what the
-            // sentence described and nothing else.
-            List<String> targets = selection();
-            switch (armedDelete.press(effectiveChapter(), targets, Util.getMillis())) {
-                case ArmedDelete.Armed ignored -> authorReport("Press Delete again to remove"
-                        + questDeleteNote(targets) + " - Ctrl+Z takes it back");
-                case ArmedDelete.Confirmed confirmed -> deleteSelection(confirmed.ids());
-                case ArmedDelete.Nothing ignored -> {
-                }
-            }
-            return true;
-        }
-
-        // The canvas's keyboard focus, read last so every meaning above wins first: arrows walk the
-        // nodes, Enter opens the focused one, Escape drops the focus. Gated on nothing else wanting
-        // the keys -- no overlay, no focused widget -- because an arrow key inside a text field is a
-        // caret move, and inside a card it belongs to the card. See CanvasFocus.
-        if (overlay == PanelKind.NONE && getFocused() == null) {
-            CanvasFocus.Direction direction = null;
-            // An if-chain rather than a switch: the SDL constants are not compile-time constants.
-            if (keyCode == InputConstants.KEY_LEFT) {
-                direction = CanvasFocus.Direction.LEFT;
-            }
-            else if (keyCode == InputConstants.KEY_RIGHT) {
-                direction = CanvasFocus.Direction.RIGHT;
-            }
-            else if (keyCode == InputConstants.KEY_UP) {
-                direction = CanvasFocus.Direction.UP;
-            }
-            else if (keyCode == InputConstants.KEY_DOWN) {
-                direction = CanvasFocus.Direction.DOWN;
-            }
-            if (direction != null) {
-                canvasFocus.step(canvasNodes(), direction).ifPresent(this::narrateFocus);
-                return true;
-            }
-            if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
-                canvasFocus.focused().ifPresent(bookRewards::openOverlay);
-                return true;
-            }
-            if (keyCode == InputConstants.KEY_ESCAPE && canvasFocus.focused().isPresent()) {
-                canvasFocus.clear();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * The nodes the arrow keys may stand on: the chapter in view, as it is drawn.
-     *
-     * <p>{@code questsIn} already answers what is drawn — every quest for an author, the reader's own
-     * visible set otherwise — and an {@code invisible} quest is excluded on top of that, because a
-     * focus ring around nothing is worse than no focus.
-     */
-    private List<CanvasFocus.Node> canvasNodes() {
-        String chapter = effectiveChapter();
-        if (chapter == null) {
-            return List.of();
-        }
-        List<CanvasFocus.Node> nodes = new ArrayList<>();
-        for (ClientQuestCache.Entry entry : questsIn(chapter)) {
-            if (!entry.invisible()) {
-                nodes.add(new CanvasFocus.Node(entry.id(), entry.x(), entry.y(), entry.size()));
-            }
-        }
-        return List.copyOf(nodes);
-    }
-
-    /**
-     * Says the focused node through the narrator, because a custom-drawn canvas is invisible to it.
-     *
-     * <p>Said on a step and not per frame: narration is a voice, and one that repeated the same
-     * sentence sixty times a second would be a stutter. Title and state are enough to know which node
-     * the keyboard is on and whether it is worth opening.
-     */
-    private void narrateFocus(String questId) {
-        ClientQuestCache.Entry entry = ClientQuestCache.entry(questId);
-        if (entry == null || minecraft == null) {
-            return;
-        }
-        // `say` is gone; the immediate system narration is its successor. Spoken at once rather
-        // than queued, because a focus that moves twice in a second should narrate where it is, not
-        // where it was.
-        minecraft.getNarrator().saySystemNow(Component.translatable("tenet.narrate.quest", titleOf(entry),
-                stateLabel(ClientQuestCache.stateOf(questId))));
-    }
-
-    /**
-     * Adds a quest where the middle of the view is, which is where the author is looking.
-     *
-     * <p>The id is the server's to choose — it is the one that knows which names are taken — so this asks and
-     * forgets: the reply carries the id, and {@code tick} selects it. Nothing is written here, and there is
-     * nothing to save afterwards.
-     */
-    private void createQuest() {
-        float x = viewport().contentX(canvasLeft() + (visibleCanvasRight() - canvasLeft()) / 2.0);
-        float y = viewport().contentY(canvasTop() + (canvasBottom() - canvasTop()) / 2.0);
-        // A new quest lands on the grid like a moved one: a position an author would have typed, by
-        // the same rule, from the same switch — and free under Alt, like everywhere else.
-        boolean on = snappingNow();
-        send(new EditorOp.Create(Math.round(BookGeometry.snap(x, BookGeometry.SNAP_GRID, on)),
-                Math.round(BookGeometry.snap(y, BookGeometry.SNAP_GRID, on))));
     }
 
     /**
@@ -28724,97 +26394,17 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Asks the server for one edit. The client writes nothing: see {@code TenetNetworking.sendEditorOp}. */
     void send(EditorOp op) {
-        send(op, effectiveChapter());
-    }
-
-    /**
-     * The same, aimed at the chapter that owns the edit.
-     *
-     * <p>The chapter is a parameter because a selection can name quests in another chapter — a
-     * multi-selection survives a chapter change — and a bulk op has to reach the editor that holds those
-     * quests, not the one the author happens to be looking at.
-     */
-    private void send(EditorOp op, String chapter) {
-        // Recorded so the reply can be told apart from a table op's: the two travel on one payload and
-        // answer in order, and a table's answer carries a table id in the field a quest's carries a
-        // quest id. See the reply loop for what each kind does to the table panel. One marker per
-        // payload: a gesture that becomes several payloads gets several answers, in order.
-        //
-        // **Every op in the book goes through here**, so this one guard is what keeps the queue and the
-        // wire in step: a request the queue refused means this op is not sent, and the requests already in
-        // flight stay matched to their own answers. The id minted here is what the reply echoes, so the
-        // answer is matched to this op however many others are in flight. See `ClientEditReplies.noteSent`.
-        ClientEditReplies.Request request = ClientEditReplies.noteSent("");
-        if (request == null) {
-            return;
-        }
-        // Empty rather than null when the book has no chapters yet. The payload's chapter is the
-        // session a structural edit is recorded on, and "no session" is the empty string the server
-        // reads the same way -- which is what lets an empty pack make its first chapter.
-        TenetNetworking.sendEditorOp(chapter == null ? "" : chapter, op, request.id());
-    }
-
-    /**
-     * A bulk gesture: every id in the selection, as <b>one</b> edit per chapter.
-     *
-     * <h2>Why the selection is not simply looped over</h2>
-     *
-     * <p>Because a gesture is not an operation. Looping sent one op per quest, and each op cost a history
-     * snapshot and a save — so "duplicate these seventy" was seventy presses of Ctrl+Z to take back,
-     * which is not an undo. One batch per chapter is one step per chapter, which is what the model can
-     * honestly offer: the history lives in a chapter's editor.
-     *
-     * <p>A chapter whose share of the selection is a single quest is sent as that plain op rather than as
-     * a one-element batch, because a create or a duplicate answers with the id it made — that is what
-     * selects the new node on the canvas. See {@code EditorOps.batch}.
-     */
-    private void sendBulk(List<String> ids, java.util.function.Function<String, EditorOp> opFor) {
-        java.util.Map<String, List<String>> byChapter =
-                dev.ellipog.tenet.client.dev.BatchPlan.byChapter(ids, id -> {
-                    ClientQuestCache.Entry entry = entryFor(id);
-                    return entry == null ? null : entry.chapterId();
-                });
-        for (java.util.Map.Entry<String, List<String>> chapter : byChapter.entrySet()) {
-            List<EditorOp> ops = new ArrayList<>(chapter.getValue().size());
-            for (String id : chapter.getValue()) {
-                ops.add(opFor.apply(id));
-            }
-            send(dev.ellipog.tenet.editor.EditorOps.batch(ops), chapter.getKey());
-        }
+        bookInput.send(op, effectiveChapter());
     }
 
     /** Duplicates the whole selection: one history step per chapter it spans. */
     void duplicateSelection(List<String> ids) {
-        sendBulk(ids, EditorOp.Duplicate::new);
+        bookInput.sendBulk(ids, EditorOp.Duplicate::new);
     }
 
     /** Deletes the whole selection: one history step per chapter it spans. */
     void deleteSelection(List<String> ids) {
-        sendBulk(ids, EditorOp.Delete::new);
-    }
-
-    /**
-     * Ctrl+Z: one step back, with this client's pending values dropped first.
-     *
-     * <p>The drafts go before the op goes out, for the reason {@code tableUndo} gives for the table's:
-     * the server is about to put the file back, and a pending value still holding what was undone would
-     * keep drawing it — a Ctrl+Z that looks like it did nothing.
-     */
-    private void undoEdit() {
-        fieldDraft.forgetChapter(effectiveChapter());
-        elementDraft.clear(effectiveChapter());
-        linkDraft.clear(effectiveChapter());
-        settingsDraft.clear();
-        send(new EditorOp.Undo());
-    }
-
-    /** The same, forward. */
-    private void redoEdit() {
-        fieldDraft.forgetChapter(effectiveChapter());
-        elementDraft.clear(effectiveChapter());
-        linkDraft.clear(effectiveChapter());
-        settingsDraft.clear();
-        send(new EditorOp.Redo());
+        bookInput.sendBulk(ids, EditorOp.Delete::new);
     }
 
     /**
@@ -28825,29 +26415,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * not here: a chapter or group field is drawn from the tree, and its draft is the settings one.
      */
     void sendField(String quest, String path, JsonElement value) {
-        sendField(effectiveChapter(), quest, path, value);
-    }
-
-    /**
-     * The same, for an edit aimed at another chapter: a dependency pick taken in one chapter can be
-     * for a quest in the chapter it was opened from, and the draft has to live under the chapter whose
-     * replica will answer for it.
-     */
-    private void sendField(String chapter, String quest, String path, JsonElement value) {
-        if (quest == null) {
-            return;
-        }
-        fieldDraft.set(chapter, quest, path, value,
-                ClientQuestCache.treeRevision(), Util.getMillis());
-        // The draft is stamped whether or not the op goes: it is the *preview*, and a value the author
-        // asked for should show even if the request could not be sent. What must not happen is an op
-        // without its request, so the send is what a refused one stops.
-        ClientEditReplies.Request request = ClientEditReplies.noteSent("");
-        if (request == null) {
-            return;
-        }
-        TenetNetworking.sendEditorOp(chapter == null ? "" : chapter,
-                new EditorOp.SetField(quest, path, value), request.id());
+        bookInput.sendField(effectiveChapter(), quest, path, value);
     }
 
     /**
@@ -28863,223 +26431,9 @@ public final class QuestBookScreen extends ArmatureScreen
         send(new EditorOp.SetChapter(path, value));
     }
 
-    /** The book's name as its field should show it: the pending edit first, then the tree's own. */
-    private String bookTitleValue() {
-        // Raw rather than resolved: the field edits the file, and a translation written back would
-        // replace the author's own words with somebody else's translation of them.
-        return fieldDraft.text(effectiveChapter(),
-                dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER, "bookTitle",
-                ClientQuestCache.bookTitleRaw());
-    }
-
-    /** The book's LOD answer as its switch should show it: the pending edit first, then the tree's own. */
-    private boolean bookLodValue() {
-        return fieldDraft.flag(effectiveChapter(),
-                dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER, "disableCanvasLod",
-                ClientQuestCache.bookLodDisabled());
-    }
-
-    /** The first-join book answer as its switch should show it: the pending edit first, then the tree's own. */
-    private boolean bookStarterValue() {
-        return fieldDraft.flag(effectiveChapter(),
-                dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER, "giveBookOnFirstJoin",
-                ClientQuestCache.bookOnFirstJoin());
-    }
-
-    /** Commits the book's name. Blank clears it, so the client's own title comes back. */
-    private void commitBookTitle(String text) {
-        sendBookField("bookTitle", text.isBlank() ? null : new JsonPrimitive(text));
-        status(text.isBlank() ? "Book name cleared" : "Book name: " + text, false);
-        rebuildWidgets();
-    }
-
-    /**
-     * Writes one key of the pack's own book settings, through the same editor op every other edit uses.
-     *
-     * <p>The draft is scoped to the open chapter, which is the only scope the draft has; the value it
-     * holds converges like any other, and expires if no copy confirms it. Unlike a chapter field, this
-     * edit is not on the undo stack — the history is chapter- and group-shaped and the settings block
-     * is not modelled — which the Book section's own docs say plainly.
-     */
-    private void sendBookField(String key, JsonElement value) {
-        if (!mayEditNow()) {
-            status("Edit mode is off, so the book's settings were not written", true);
-            return;
-        }
-        fieldDraft.set(effectiveChapter(), dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER,
-                key, value, ClientQuestCache.treeRevision(), Util.getMillis());
-        send(new EditorOp.SetIndex(key, value));
-    }
-
-    /**
-     * Commits a finished drag.
-     *
-     * <p>The position is rounded to whole content units, which is the grid a quest file is authored on:
-     * a node at x=37.4182 is a number nobody typed on purpose, and the canvas is drawn at a zoom where
-     * the difference is invisible — so the file would carry noise that only shows up in a diff.
-     */
-    private void commitMove(String id, float x, float y) {
-        commitMove(id, x, y, ClientQuestCache.treeRevision());
-    }
-
-    /** The same, at a revision the caller already read: a selection's nodes commit against one tree. */
-    private void commitMove(String id, float x, float y, long revision) {
-        if (!mayEditNow()) {
-            return;
-        }
-        recordMove(id, x, y, revision);
-        send(new EditorOp.Move(id, Math.round(x), Math.round(y)));
-    }
-
-    /**
-     * Remembers where a node was moved to, without sending anything.
-     *
-     * <p>Split from the send because a <b>multi-node drag commits as one batch</b> and every node in it still
-     * has to be recorded as pending: the canvas draws these positions until the server's tree agrees, so a
-     * node that is moved but not recorded snaps back on the next frame while its neighbour does not.
-     */
-    private void recordMove(String id, float x, float y, long revision) {
-        editors.moved(id, Math.round(x), Math.round(y), revision);
-    }
-
-    /**
-     * Commits a whole drag as <b>one operation per chapter</b> rather than one per node.
-     *
-     * <h2>Why a gesture is not an operation</h2>
-     *
-     * <p>Dragging a selection of seventy quests used to send seventy ops, and each one cost a history snapshot
-     * and a save, so taking the drag back was seventy presses of Ctrl+Z, which is not an undo. The history
-     * lives in a chapter's editor, so one batch per chapter is the honest granularity: a selection spanning two
-     * chapters is two steps, which is what the model can offer.
-     *
-     * <p>The moves are recorded here and the ops sent as a batch, in that order, so the positions the canvas
-     * draws and the positions the server is asked for are the same list. Recording without sending would leave
-     * the tree disagreeing for a round trip; sending without recording would leave the canvas showing the
-     * server's old answer for the same round trip.
-     *
-     * <p>A chapter whose share of the drag is one node is sent as that plain op rather than as a one-element
-     * batch, which is the rule {@code sendBulk} follows and for the same reason: a gesture with one node in
-     * this chapter is one edit.
-     */
-    private void commitMoveBatch(String draggedId, List<String> moved, float dragX, float dragY,
-                                 long revision) {
-        if (!mayEditNow()) {
-            return;
-        }
-        // **The decision is `MoveCommit`'s; this method has only the two side effects left.** That split is
-        // the whole point of the class: both faults this path has had were decisions — a position invented
-        // for a node that had none, and a dragged node that never entered the list — and neither was visible
-        // to a test because the decision and the write lived in the same place, on a screen no test builds.
-        java.util.function.Function<String, String> chapterOf = id -> {
-            ClientQuestCache.Entry entry = entryFor(id);
-            return entry == null ? null : entry.chapterId();
-        };
-
-        // The selection's positions are the ones the canvas is drawing it at -- the pending values, guarded,
-        // because `movedX` answers zero for an id it does not hold and that zero was the (0,0) fault. A node
-        // with no pending position is not passed at all, so the planner has nothing to invent a coordinate
-        // from.
-        List<dev.ellipog.tenet.client.dev.MoveCommit.Move> selection = new ArrayList<>();
-        for (String id : moved) {
-            if (editors.hasMoved(id)) {
-                selection.add(new dev.ellipog.tenet.client.dev.MoveCommit.Move(
-                        id, (float) editors.movedX(id), (float) editors.movedY(id)));
-            }
-        }
-
-        // Recorded and sent from the same grouping, so the canvas and the wire cannot disagree: recording
-        // without sending leaves the tree wrong for a round trip, and sending without recording leaves the
-        // canvas showing the server's old answer for the same round trip.
-        for (dev.ellipog.tenet.client.dev.MoveCommit.Move move
-                : dev.ellipog.tenet.client.dev.MoveCommit.carried(
-                        draggedId, dragX, dragY, selection, chapterOf)) {
-            recordMove(move.id(), move.x(), move.y(), revision);
-        }
-        for (dev.ellipog.tenet.client.dev.MoveCommit.Chapter chapter
-                : dev.ellipog.tenet.client.dev.MoveCommit.plan(
-                        draggedId, dragX, dragY, selection, chapterOf)) {
-            send(chapter.op(), chapter.chapterId());
-        }
-    }
-
     // ------------------------------------------------------------------
     // The multi-selection's whole-hand gestures
     // ------------------------------------------------------------------
-
-    /**
-     * Adds one quest to the selection, which is what a shift-press on a node means.
-     *
-     * <p>Additive and idempotent: shift-clicking around a chapter collects nodes, and shift-clicking
-     * one that is already selected changes nothing -- taking something out is Ctrl-click's job. The
-     * first quest ever added becomes the primary, which is the one the property panel edits.
-     */
-    private static void addToSelection(String id) {
-        if (selectedQuest == null) {
-            selectedQuest = id;
-        }
-        else if (!isSelected(id)) {
-            multiSelection.add(id);
-        }
-    }
-
-    /**
-     * Turns one quest's selection on or off, which is what a ctrl-click on a node means.
-     *
-     * <p>The one gesture that subtracts a single node, and the reason the edge drag moved to the right
-     * button. A primary that is toggled off hands its slot to an extra rather than leaving the panel
-     * with no target, so the selection and the panel cannot disagree about what is being edited.
-     */
-    private static void toggleSelection(String id) {
-        if (multiSelection.remove(id)) {
-            return;
-        }
-        if (id.equals(selectedQuest)) {
-            selectedQuest = multiSelection.isEmpty() ? null : multiSelection.iterator().next();
-            multiSelection.remove(selectedQuest);
-            return;
-        }
-        if (selectedQuest == null) {
-            selectedQuest = id;
-        }
-        else {
-            multiSelection.add(id);
-        }
-    }
-
-    /**
-     * Adds every node the marquee rectangle covers to the selection.
-     *
-     * <p>The rectangle is in screen coordinates and so are the nodes' hit rects, which is what makes
-     * "inside" one question: the same space on both sides, and a zoom that happened during the drag
-     * already accounted for. Shape-exact is the wrong strictness here -- a marquee is about regions, and
-     * a node half-covered is a node the rectangle was reaching for -- so this is the bounding box, not
-     * the shape's own span test.
-     *
-     * <p>Additive, and by definition of the gesture: the marquee only starts under shift, and the
-     * modifier is read at the press rather than at the release, so a marquee that ends with shift let
-     * go still adds rather than replaces. To replace, clear first -- a plain click on the canvas.
-     * {@code addToSelection} gives the first covered node the primary slot when nothing was selected,
-     * so a marquee onto an empty selection behaves like a marquee onto nothing at all.
-     */
-    private void selectInsideMarquee() {
-        int left = Math.min(marqueeX0, marqueeX1);
-        int right = Math.max(marqueeX0, marqueeX1);
-        int top = Math.min(marqueeY0, marqueeY1);
-        int bottom = Math.max(marqueeY0, marqueeY1);
-        // A click's worth of rectangle selects nothing: that press was a mis-aimed click, not a
-        // marquee, and wiping the selection for it would be a gesture that punishes.
-        if (right - left < DRAG_THRESHOLD && bottom - top < DRAG_THRESHOLD) {
-            return;
-        }
-        for (ClientQuestCache.Entry entry : questsIn(effectiveChapter())) {
-            int x = nodeScreenX(entry);
-            int y = nodeScreenY(entry);
-            int size = nodeSize(entry);
-            if (x + size > left && x < right && y + size > top && y < bottom) {
-                addToSelection(entry.id());
-            }
-        }
-    }
 
     /** Copies the selection's own trees to the session clipboard. */
     void copySelection() {
@@ -29103,19 +26457,6 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         ClientEditorClipboard.copy(trees);
         status("Copied " + trees.size() + (trees.size() == 1 ? " quest" : " quests"), false);
-    }
-
-    /**
-     * Pastes the clipboard, where the author is looking.
-     *
-     * <p>One op per quest, staggered a node apart so a multi-paste is visibly several quests rather
-     * than one drawn over another -- the same step a duplicate takes. The ids are the server's to
-     * choose, which is what makes pasting into the same chapter twice come out with different names
-     * instead of one quest written over another.
-     */
-    private void pasteClipboard() {
-        pasteAt(viewport().contentX(canvasLeft() + (visibleCanvasRight() - canvasLeft()) / 2.0),
-                viewport().contentY(canvasTop() + (canvasBottom() - canvasTop()) / 2.0));
     }
 
     /**
@@ -29151,67 +26492,6 @@ public final class QuestBookScreen extends ArmatureScreen
             multiSelection.add(quests.get(i).id());
         }
         status("Selected " + quests.size() + (quests.size() == 1 ? " quest" : " quests"), false);
-    }
-
-    /** Something changed in the editor that the canvas has to redraw. */
-    private void movedByEditor() {
-        rebuildWidgets();
-    }
-
-    /**
-     * A sentence only an author can act on: said to a player who may edit, and to nobody else.
-     *
-     * <h2>Why this is a door rather than a flag at each call site</h2>
-     *
-     * <p>Because the facts are the pack's and the <i>acting</i> is not. The server used to send the pack's
-     * faults to every player — its own note argued that an author who did not cause one still has to work
-     * with the tree they describe — and a player who may not edit cannot work with the tree at all, so what
-     * they got was a wall of file paths, line numbers and JSON paths with nothing they could do about any of
-     * it. That is fixed at the sender as well, and this is the half that holds if a server over-sends.
-     *
-     * <p>{@link #mayEdit} rather than {@code mayEditNow}: an operator who is not in edit mode is still an
-     * operator, and edit mode is a view of the editor rather than a permission.
-     *
-     * <p>Player-facing sentences do not come through here: a claim's summary, a reward that overflowed, a
-     * choice's verdict, and the optimistic-mark backstop are all things the player did.
-     */
-    private void authorToast(String message, boolean error) {
-        if (mayEdit()) {
-            toast(message, error);
-        }
-    }
-
-    /** The same, for a sentence rather than a complaint. */
-    private void authorReport(String message) {
-        authorToast(message, false);
-    }
-
-    /**
-     * The book's own messages, drawn over the book and under the tooltips.
-     *
-     * <p>Under the tooltips because a tooltip is what the pointer is asking for and a toast is what just
-     * happened. Centred on the screen and standing on its bottom edge, where the eye already is when the
-     * hand is on the canvas; growing upward, so the newest sentence sits where the eye is and the ones
-     * being read move up rather than being pushed away.
-     */
-    private void drawToasts(GuiRenderer r, long now) {
-        List<ToastStack.Toast> visible = toasts.visible(now);
-        if (visible.isEmpty()) {
-            return;
-        }
-        // A quarter of the book, capped: the box has to be narrow enough not to read as a dialogue and wide
-        // enough for a sentence. It was a quarter of the centred card, which was a quarter of the whole
-        // window at a reader's size -- so this is the same number at the same size and an honest one at any
-        // other, rather than a card the class no longer has. The two bounds are `ToastArt`'s, because the
-        // HUD's notice element is the second caller and the two must not disagree about what a notice is.
-        int boxWidth = Math.min(Math.max(ToastArt.MIN_WIDTH, geometry().panel().width() / 4),
-                ToastArt.MAX_WIDTH);
-        // Anchored to the window's bottom edge, newest where the eye is, growing upward -- and the drawing
-        // itself is `ToastArt`'s, shared with the HUD's own stack. See that class for why. Full strength:
-        // the book's stack has no dimmer, and the HUD passes its own.
-        int firstTop = height - 10 - ToastArt.LINE - (visible.size() - 1) * (ToastArt.LINE + ToastArt.GAP);
-        ToastArt.draw(r, textMeasure(r), visible, (width - boxWidth) / 2, firstTop, boxWidth,
-                ClientAppearance.LOOK.motion(), now, 1.0);
     }
 
     /**
@@ -29439,7 +26719,7 @@ public final class QuestBookScreen extends ArmatureScreen
         elementDraft.clear(effectiveChapter());
         linkDraft.clear(effectiveChapter());
             settingsDraft.clear();
-            authorReport("The server reloaded, so the undo history was discarded");
+            bookInput.authorReport("The server reloaded, so the undo history was discarded");
         }
 
         // What the reload found wrong with the pack -- a dangling dependency, a cycle between files, an id in
@@ -29457,7 +26737,7 @@ public final class QuestBookScreen extends ArmatureScreen
             for (String line : report.lines()) {
                 Constants.LOG.info("the pack has a problem: {}", line);
             }
-            authorToast(Component.translatable("tenet.dev.problems.toast", report.count()).getString(), true);
+            bookInput.authorToast(Component.translatable("tenet.dev.problems.toast", report.count()).getString(), true);
         }
 
         // Every answer nobody has read yet, oldest first. A burst of quick edits -- spamming a stepper
@@ -29480,7 +26760,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     : (matched == null ? null : matched.marker());
             boolean replicaAnswer = REPLICA_SENTINEL.equals(answered);
             if (answered != null && !answered.isEmpty() && !replicaAnswer) {
-                applyTableReply(answered, reply);
+                bookInput.applyTableReply(answered, reply);
                 if (!reply.ok()) {
                     // The edit did not stick, so nothing should pretend it did: the drafted value goes
                     // and the panel draws what the file actually holds.
@@ -29529,7 +26809,7 @@ public final class QuestBookScreen extends ArmatureScreen
             }
             for (String line : reply.lines()) {
                 if (reply.ok()) {
-                    authorReport(line);
+                    bookInput.authorReport(line);
                 }
                 else {
                     // Recorded, so the Chapter tab's placeholder can say what the server said instead of
@@ -29539,7 +26819,7 @@ public final class QuestBookScreen extends ArmatureScreen
                         ClientChapterReplica.refuse(reply.chapter(), line);
                     }
                     Constants.LOG.info("reply was refused: {}", line);
-                    authorToast(line, true);
+                    bookInput.authorToast(line, true);
                 }
             }
             if (reply.ok() && !reply.questId().isEmpty() && (answered == null || answered.isEmpty())) {
@@ -29548,7 +26828,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 // Only for a chapter's op: a table op's id is a table's, and selecting a quest named after a
                 // table would move the canvas to a quest that does not exist.
                 selectedQuest = reply.questId();
-                authorReport("Now editing " + reply.questId());
+                bookInput.authorReport("Now editing " + reply.questId());
             }
             if (!tableReply) {
                 // The intro's gates: a made quest, task or reward advances the tour. Chapter ops only —
@@ -29564,43 +26844,6 @@ public final class QuestBookScreen extends ArmatureScreen
         // state does not belong inside a render.
         IntroGuide.tick(mayEdit(), DevMode.on(), previewing(), ClientQuestCache.hasTree(),
                 ClientQuestCache.chapters().size(), ClientQuestCache.entries().size());
-    }
-
-    /**
-     * What an accepted table reply does to the panel: the frame's budget, and the conversions.
-     *
-     * <p>The budget moves only on an <b>accepted</b> reply, which is what makes it honest: a refused
-     * edit changed nothing on disk, so counting it would let Ctrl+Z reach past the table the author
-     * opened into the file's earlier history — an undo of somebody else's edit, off screen.
-     *
-     * <p>The two conversions move the frame rather than closing it, and they do it here rather than when
-     * the op was sent because the id is the server's to choose: `Make inline` mints a handle, `Save as
-     * preset` picks the name. Doing it now means the reload that follows finds a frame that already
-     * points at the table that exists, instead of a handle that no longer does.
-     */
-    private void applyTableReply(String kind, EditorReplyPayload reply) {
-        if (!reply.ok()) {
-            return;
-        }
-        switch (kind) {
-            case "Undo" -> {
-                tableApplied = Math.max(0, tableApplied - 1);
-                tableUndone++;
-            }
-            case "Redo" -> {
-                tableApplied++;
-                tableUndone = Math.max(0, tableUndone - 1);
-            }
-            default -> {
-                tableApplied++;
-                tableUndone = 0;
-            }
-        }
-        if (reply.questId().isEmpty() || tableAddress == null) {
-            return;
-        }
-        // No conversion moves the frame any more: a table is a file, and the ops that made one from a
-        // reward (`Inline`) or a reward's table from a file (`Extract`) are gone with inline tables.
     }
 
     /**
@@ -29844,7 +27087,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * the chapter would let one bad string block a player from their own quests. See
      * {@link #warnAboutThemeOnce}.
      */
-    private static Theme viewportTheme() {
+    static Theme viewportTheme() {
         String chapter = effectiveChapter();
         JsonObject pending = pendingChapterTheme;
         if (chapter != null && pending != null) {
