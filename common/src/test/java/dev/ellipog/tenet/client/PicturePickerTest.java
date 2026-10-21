@@ -36,24 +36,24 @@ class PicturePickerTest {
     @Test
     @DisplayName("each tab writes its whole arm, and nothing else")
     void tabPayloads() {
-        assertNull(QuestBookScreen.iconObjectForKind(QuestBookScreen.PickerKind.ITEM, null),
+        assertNull(BookItemPicker.iconObjectForKind(QuestBookScreen.PickerKind.ITEM, null),
                 "clear is null, on every tab");
 
-        JsonObject item = QuestBookScreen.iconObjectForKind(QuestBookScreen.PickerKind.ITEM, "minecraft:torch");
+        JsonObject item = BookItemPicker.iconObjectForKind(QuestBookScreen.PickerKind.ITEM, "minecraft:torch");
         assertEquals("minecraft:torch", item.get("item").getAsString());
         assertEquals(1, item.size(), "one arm, never two: " + item);
 
-        JsonObject texture = QuestBookScreen.iconObjectForKind(QuestBookScreen.PickerKind.FILE,
+        JsonObject texture = BookItemPicker.iconObjectForKind(QuestBookScreen.PickerKind.FILE,
                 "my_pack:textures/gui/emblem.png");
         assertEquals("my_pack:textures/gui/emblem.png", texture.get("texture").getAsString());
         assertEquals(1, texture.size(), "one arm, never two: " + texture);
 
-        JsonObject sprite = QuestBookScreen.iconObjectForKind(QuestBookScreen.PickerKind.SPRITE,
+        JsonObject sprite = BookItemPicker.iconObjectForKind(QuestBookScreen.PickerKind.SPRITE,
                 "occultism:block/chalk_glyph/0");
         assertEquals("occultism:block/chalk_glyph/0", sprite.get("sprite").getAsString());
         assertEquals(1, sprite.size(), "one arm, never two: " + sprite);
 
-        JsonObject entity = QuestBookScreen.iconObjectForKind(QuestBookScreen.PickerKind.ENTITY,
+        JsonObject entity = BookItemPicker.iconObjectForKind(QuestBookScreen.PickerKind.ENTITY,
                 "minecraft:creeper");
         assertEquals("minecraft:creeper", entity.get("entity").getAsString());
         assertEquals(1, entity.size(), "one arm, never two: " + entity);
@@ -62,18 +62,18 @@ class PicturePickerTest {
     @Test
     @DisplayName("the status names whichever arm the object carries")
     void statusNames() {
-        assertEquals("", QuestBookScreen.describeIcon(null));
+        assertEquals("", BookItemPicker.describeIcon(null));
         assertEquals("minecraft:torch",
-                QuestBookScreen.describeIcon(QuestBookScreen.iconObjectForKind(
+                BookItemPicker.describeIcon(BookItemPicker.iconObjectForKind(
                         QuestBookScreen.PickerKind.ITEM, "minecraft:torch")));
         assertEquals("my_pack:textures/gui/emblem.png",
-                QuestBookScreen.describeIcon(QuestBookScreen.iconObjectForKind(
+                BookItemPicker.describeIcon(BookItemPicker.iconObjectForKind(
                         QuestBookScreen.PickerKind.FILE, "my_pack:textures/gui/emblem.png")));
         assertEquals("occultism:block/chalk_glyph/0",
-                QuestBookScreen.describeIcon(QuestBookScreen.iconObjectForKind(
+                BookItemPicker.describeIcon(BookItemPicker.iconObjectForKind(
                         QuestBookScreen.PickerKind.SPRITE, "occultism:block/chalk_glyph/0")));
         assertEquals("minecraft:creeper",
-                QuestBookScreen.describeIcon(QuestBookScreen.iconObjectForKind(
+                BookItemPicker.describeIcon(BookItemPicker.iconObjectForKind(
                         QuestBookScreen.PickerKind.ENTITY, "minecraft:creeper")));
     }
 }
