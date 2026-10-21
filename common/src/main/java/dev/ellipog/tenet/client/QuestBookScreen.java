@@ -48,7 +48,6 @@ import dev.ellipog.tenet.client.hud.PinnedQuests;
 import dev.ellipog.tenet.client.viewer.QuestBookFocus;
 import dev.ellipog.tenet.client.viewer.RecipeLookups;
 import dev.ellipog.tenet.client.dev.HexColour;
-import dev.ellipog.tenet.quest.ChapterNaming;
 import dev.ellipog.tenet.quest.CanvasElement;
 import dev.ellipog.tenet.quest.ClickAction;
 import dev.ellipog.tenet.quest.QuestLink;
@@ -68,11 +67,9 @@ import dev.ellipog.tenet.client.dev.LineArt;
 import dev.ellipog.tenet.client.dev.MenuFlyout;
 import dev.ellipog.tenet.client.dev.MenuFlyoutArt;
 import dev.ellipog.tenet.client.dev.MenuPlacement;
-import dev.ellipog.tenet.client.dev.ChapterBar;
 import dev.ellipog.tenet.client.dev.ProblemText;
 import dev.ellipog.tenet.client.dev.QuestPanel;
 import dev.ellipog.tenet.client.dev.QuestSettingsLayout;
-import dev.ellipog.tenet.client.dev.RewardBadge;
 import dev.ellipog.tenet.client.dev.QuestSettingsPanel;
 import dev.ellipog.tenet.client.dev.SettingsDraft;
 import dev.ellipog.tenet.quest.DependencyStyle;
@@ -88,10 +85,6 @@ import dev.ellipog.tenet.net.PartySnapshot;
 import dev.ellipog.tenet.Constants;
 import dev.ellipog.tenet.client.ClientPartyCache;
 import dev.ellipog.tenet.net.ClaimRewardPayload;
-import dev.ellipog.tenet.net.ResetQuestPayload;
-import dev.ellipog.tenet.net.ResetChapterPayload;
-import dev.ellipog.tenet.net.ResetAllPayload;
-import dev.ellipog.tenet.net.CompleteQuestPayload;
 import dev.ellipog.tenet.net.ChoiceRewardPayload;
 import dev.ellipog.tenet.net.ClaimChoicePayload;
 import dev.ellipog.tenet.net.SubmitTaskPayload;
@@ -247,6 +240,12 @@ public final class QuestBookScreen extends ArmatureScreen
     private static final int ROW_HEIGHT = BookGeometry.ROW_HEIGHT;
     private static final int ROW_GAP = BookGeometry.ROW_GAP;
 
+    /** The quest book's sidebar. See {@link BookSidebar}. */
+    final BookSidebar bookSidebar = new BookSidebar(this);
+
+    /** The quest book's right-click menus. See {@link BookMenu}. */
+    final BookMenu bookMenu = new BookMenu(this);
+
     /** The quest book's rewards. See {@link BookRewards}. */
     final BookRewards bookRewards = new BookRewards(this);
 
@@ -295,7 +294,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private BookGeometry frameGeometry;
     private Viewport frameViewport;
     private boolean frameMayEdit;
-    private static boolean frameChapterActive;
+    static boolean frameChapterActive;
     private static String frameChapter;
 
     private void snapshotFrame() {
@@ -594,8 +593,8 @@ public final class QuestBookScreen extends ArmatureScreen
     private boolean lastLineHoverMoving;
     private String[] lastLineHover;
 
-    private static String selectedChapter;
-    private static String selectedQuest;
+    static String selectedChapter;
+    static String selectedQuest;
 
     /**
      * The quests selected besides the primary one, which is {@link #selectedQuest}.
@@ -606,7 +605,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * multi-selection exists for the canvas's whole-hand gestures: drag them together, delete them
      * together, copy them together.
      */
-    private static final Set<String> multiSelection = new LinkedHashSet<>();
+    static final Set<String> multiSelection = new LinkedHashSet<>();
 
     /**
      * The tree revision the selection was last checked against; see {@link #pruneSelection}.
@@ -1643,7 +1642,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private String choiceError;
 
     /** The header's way into the panel, kept so its tooltip can say whether anything is waiting. */
-    private ArmatureButton rewardsButton;
+    ArmatureButton rewardsButton;
 
     /** The header's way into the player's settings; for every player, unlike the author's pair. */
     private ArmatureButton settingsHeaderButton;
@@ -1732,7 +1731,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * this object's viewport, so it survives a resize too: a window dragged narrower while the list is
      * scrolled keeps its place, which is what every other list on any platform does.
      */
-    private final ScrollView sidebarView = ScrollView.of(Viewport.fixed());
+    final ScrollView sidebarView = ScrollView.of(Viewport.fixed());
 
     /**
      * Whether the sidebar's rows currently leave room for the scrollbar's gutter.
@@ -1753,7 +1752,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * nothing. Set by the build for the buttons it just made, so a row rebuilt mid-drag carries
      * its suffix from its first frame rather than waiting a tick for it.
      */
-    private Map<String, Integer> sidebarWaiting;
+    Map<String, Integer> sidebarWaiting;
 
     /**
      * The selection the suffix colours were last set for.
@@ -1763,7 +1762,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * next claim. Compared beside the map above: one string equality per tick, and the row walk
      * only when something actually changed.
      */
-    private String sidebarSuffixChapter;
+    String sidebarSuffixChapter;
 
     /**
      * The sidebar's outline, and the tree revision it was built from.
@@ -1786,13 +1785,12 @@ public final class QuestBookScreen extends ArmatureScreen
      * compared and a real one could legitimately be zero on the first tree. A sentinel that cannot be
      * mistaken for a real value is the difference between "definitely stale" and "probably stale".
      */
-    private static SidebarLayout sidebar;
-    private static List<SidebarLayout.ChapterRow> sidebarChapters = List.of();
-    private static long sidebarRevision = -1;
+    static SidebarLayout sidebar;
+    static List<SidebarLayout.ChapterRow> sidebarChapters = List.of();
+    static long sidebarRevision = -1;
 
     /** And the other three inputs the outline's rows depend on. See {@link #sidebar()}. */
-    private static long sidebarProgress = -1;
-    private static boolean sidebarEditing;
+    static long sidebarProgress = -1;
 
     /**
      * And the language, since the rows carry chapter and group <b>names</b>.
@@ -1802,7 +1800,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * expansions are all unchanged, and only the words in them are. Keeping them apart is what lets
      * this rebuild the outline for a language change without pretending the questline moved.
      */
-    private static long sidebarText = -1;
+    static long sidebarText = -1;
 
     /**
      * Which groups the player has opened or closed, over the groups' own defaults.
@@ -1811,7 +1809,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * after every structural edit. Without this the authored {@code collapsedByDefault} won every time,
      * so a group snapped shut the moment something was dragged into it.
      */
-    private static final Map<String, Boolean> sidebarExpansion = new LinkedHashMap<>();
+    static final Map<String, Boolean> sidebarExpansion = new LinkedHashMap<>();
 
     /**
      * The chapter list's slide: when the wipe started, and the rectangle it started from. {@code -1}
@@ -1972,7 +1970,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * hand, so the strip's own icons sit inside the wipe at every frame. The mirror of
      * `slideBaseX`, for the list rather than the rails.
      */
-    private final List<AbstractWidget> sidebarRowWidgets = new ArrayList<>();
+    final List<AbstractWidget> sidebarRowWidgets = new ArrayList<>();
 
     /** Each travelling row's placed position, filed on the first slide frame like the rails' own. */
     private final Map<AbstractWidget, int[]> sidebarTravelBase = new IdentityHashMap<>();
@@ -2439,14 +2437,14 @@ public final class QuestBookScreen extends ArmatureScreen
      * and it moves nothing else: a claim that has not been answered yet is not a progress revision, so
      * without it the badge over a row the player had just pressed would go on counting it.
      */
-    private record RewardCounts(long progress, long tree, long marks, java.util.UUID player,
+    record RewardCounts(long progress, long tree, long marks, java.util.UUID player,
                                 Map<String, Integer> byQuest, Map<String, Integer> byChapter) {
     }
 
     private RewardCounts rewardCounts;
 
     /** The badge counts in force, recomputed when the progress, the tree, the viewer or the marks change. */
-    private RewardCounts rewardCounts() {
+    RewardCounts rewardCounts() {
         long progress = ClientQuestCache.progressRevision();
         long tree = ClientQuestCache.treeRevision();
         long marks = pendingClaims.revision();
@@ -2512,17 +2510,14 @@ public final class QuestBookScreen extends ArmatureScreen
      * header saying 12/20 beside a canvas showing twelve finished nodes is the point; a denominator
      * nobody can see would make the two disagree by design.
      */
-    private record ChapterCounts(long progress, long tree, java.util.UUID player, boolean authoring,
+    record ChapterCounts(long progress, long tree, java.util.UUID player, boolean authoring,
                                  Map<String, ChapterProgress> byChapter) {
     }
 
     private ChapterCounts chapterCounts;
 
-    /** The cache the sidebar tooltips were last built from; its identity is the revision check. */
-    private ChapterCounts tooltippedCounts;
-
     /** The per-chapter completion in force, recomputed when the progress, the tree or the viewer moves. */
-    private ChapterCounts chapterCounts() {
+    ChapterCounts chapterCounts() {
         long progress = ClientQuestCache.progressRevision();
         long tree = ClientQuestCache.treeRevision();
         java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
@@ -2737,7 +2732,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * the two are read together in {@link #elementsNow}. See {@code ElementDraft} for why one draft could not
      * do both.
      */
-    private static final dev.ellipog.tenet.client.dev.ElementDraft elementDraft =
+    static final dev.ellipog.tenet.client.dev.ElementDraft elementDraft =
             new dev.ellipog.tenet.client.dev.ElementDraft();
 
     /**
@@ -3048,19 +3043,19 @@ public final class QuestBookScreen extends ArmatureScreen
      * and a position among its children — so what is kept here is the key and the last answer, not an
      * index into a list that the drop itself may move things out of.
      */
-    private String sidebarDragKey;
-    private boolean sidebarDragGroup;
-    private boolean sidebarDragLive;
-    private double sidebarDragPointerY;
-    private double sidebarDragPressX;
-    private double sidebarDragPressY;
-    private SidebarDrag.Drop sidebarDrop;
+    String sidebarDragKey;
+    boolean sidebarDragGroup;
+    boolean sidebarDragLive;
+    double sidebarDragPointerY;
+    double sidebarDragPressX;
+    double sidebarDragPressY;
+    SidebarDrag.Drop sidebarDrop;
 
     /** Whether the naming card is open, and what it is naming. */
-    private Naming naming;
+    Naming naming;
 
     /** Which of the three things the naming card does. */
-    private enum NamingMode {
+    enum NamingMode {
         CREATE,
         RENAME,
         DUPLICATE
@@ -3073,11 +3068,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * differ only in the op they send and the id they start from -- and a second copy of the card for
      * each would be three places the validation rule could drift apart.
      */
-    private record Naming(String kind, NamingMode mode, String targetId, String groupId, int index) {
+    record Naming(String kind, NamingMode mode, String targetId, String groupId, int index) {
     }
-
-    private ArmatureTextField namingTitle;
-    private ArmatureTextField namingId;
 
     /**
      * The sidebar's inline create or rename, when one is in flight.
@@ -3086,7 +3078,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * list itself now, where the author clicked. The card keeps duplicates, which is the one mode
      * that pre-fills both fields rather than growing an id from a title.
      */
-    private InlineNaming inlineEdit;
+    InlineNaming inlineEdit;
 
     /**
      * One inline create or rename: what is being made, and where it goes.
@@ -3095,7 +3087,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * card, and the commit sends the same ops with the same ids. {@code index} is not carried
      * because a create always appends: the server clamps the index into the target group.
      */
-    private record InlineNaming(String kind, NamingMode mode, String targetId, String groupId,
+    record InlineNaming(String kind, NamingMode mode, String targetId, String groupId,
                                 boolean showId) {
         InlineNaming withShowId(boolean show) {
             return new InlineNaming(kind, mode, targetId, groupId, show);
@@ -3103,32 +3095,22 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** The inline session's title field, and the id field while its disclosure is open. */
-    private ArmatureTextField inlineTitle;
-    private ArmatureTextField inlineId;
-
-    /** Set when a session starts, so the title field takes focus on the build that places it. */
-    private boolean inlineFocusPending;
-
-    /** The synthetic sidebar rows one inline session splices into the list. */
-    private static final String INLINE_EDIT_KEY = SidebarLayout.INLINE_PREFIX + "edit";
-    private static final String INLINE_ID_KEY = SidebarLayout.INLINE_PREFIX + "id";
-    private static final String INLINE_STATUS_KEY = SidebarLayout.INLINE_PREFIX + "status";
+    ArmatureTextField inlineTitle;
+    ArmatureTextField inlineId;
+    static final String INLINE_STATUS_KEY = SidebarLayout.INLINE_PREFIX + "status";
 
     /** The sidebar's right-click menu: its items and where it was opened. Empty when it is shut. */
-    private List<MenuItem> menu = List.of();
-    private int menuX;
-    private int menuY;
+    List<BookMenu.MenuItem> menu = List.of();
+    int menuX;
+    int menuY;
 
     /**
      * When the menu opened, in {@code Util.getMillis()} terms; -1 when it is shut.
      *
-     * <p>Stamped by {@link #openMenu} — the one writer — and read by {@link #menuRise}. Cleared with the
-     * items in {@link #closeMenu}, so a shut menu never owes an arrival.
+     * <p>Stamped by {@link #openMenu} — the one writer — and read by {@link BookMenu#menuRise}. Cleared with the
+     * items in {@link BookMenu#closeMenu}, so a shut menu never owes an arrival.
      */
-    private long menuOpenedAt = -1L;
-
-    /** The chapter a "Move to" submenu would move, or null when the menu has no such row. */
-    private String menuChapter;
+    long menuOpenedAt = -1L;
 
     /**
      * The menu row whose submenu is showing, or -1.
@@ -3138,48 +3120,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * between the two panels — this stays where it was, so travelling to a group does not cross a frame
      * where the row is not hovered and the destinations are gone.
      */
-    private int submenuRow = -1;
-
-    /**
-     * Whether the menu's Delete is armed: the first press asks, the second deletes.
-     *
-     * <p>The same two-press rule the quest card's Delete already follows, and for the same reason: it is
-     * the one row whose mistake cannot be undone by pressing something else. Disarming is what
-     * {@link #closeMenu} does, so every other press, Escape and clicking away all mean "no".
-     */
-    private boolean menuDeleteArmed;
-
-    /**
-     * Whether the menu's progress reset is armed: the first press asks, the second clears.
-     *
-     * <p>Beside {@code menuDeleteArmed} rather than sharing it, because the two mistakes are
-     * different ones: arming a chapter reset must not re-label the Delete row, and arming a delete
-     * must not re-label the reset. A reset clears progress rather than files, so only the wide
-     * rungs — a chapter, the whole book — ask at all; a single quest resets on one press, which is
-     * the speed the playtesting loop exists for. Cleared with the delete arm in
-     * {@link #closeMenu}, so anything that means "no" means it for both.
-     */
-    private boolean menuResetArmed;
-
-    /**
-     * What a canvas menu's row was about: a quest, or a line between two.
-     *
-     * <p>A line's subject is the pair (dependency, dependent) — the same key its override is stored
-     * under — and the two are kept apart from the sidebar's chapter subject because a menu knows which
-     * kind it is and must not have to guess from which field happens to be set.
-     */
-    private String canvasMenuQuest;
-    private String canvasMenuFrom;
-    private String canvasMenuTo;
-
-    /**
-     * The element the open canvas menu is about, or null.
-     *
-     * <p>Beside the three above for the same reason they exist: an armed delete rebuilds the menu in place, and
-     * a menu that had to find its own subject again would be one that could arm a delete for one element and
-     * then remove another.
-     */
-    private String canvasMenuElement;
+    int submenuRow = -1;
 
     /** Whether the press being released was a right-press on the canvas, for the click-vs-drag split. */
     private boolean canvasRightPressed;
@@ -3765,7 +3706,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * screen: {@link ScrollView#apply} places against it and hides what falls outside, and
      * {@link #mouseScrolled} routes the wheel by it.
      */
-    private Viewport sidebarViewport() {
+    Viewport sidebarViewport() {
         BookGeometry.Rect rect = geometry().sidebarViewport(mayEditNow(), sidebarReserveScrollbar);
         // The pitch goes with the bounds, because both are the frame's: this list moves a row at a time
         // -- the wheel snaps to `pitch()`, and the bar's page keeps one of those rows on screen -- and
@@ -4361,317 +4302,6 @@ public final class QuestBookScreen extends ArmatureScreen
         drawBar(r, sidebarView.bar(), mouseX, mouseY);
     }
 
-    // ------------------------------------------------------------------
-    // The sidebar's outline, and what a click on a row does
-    // ------------------------------------------------------------------
-
-    /**
-     * The sidebar's outline: the group headings, the chapters under them, and which the player has open.
-     *
-     * <h2>Rebuilt when a tree arrives, and never when a screen merely reads one</h2>
-     *
-     * <p>Keyed on {@link ClientQuestCache#treeRevision()}, which moves when a tree arrives and when the
-     * cache is cleared, and not when a screen reads one. So a resize, a scroll, a toggle and a redraw all
-     * find the same outline — with the player's collapses still in it — and a reload builds a new one
-     * whose groups are open or closed as their files say.
-     *
-     * <p>That is the whole reason the revision exists rather than this comparing the cache's entries.
-     * Comparing contents would answer the same question a second way, and the two answers would disagree
-     * about one real case: a reload that re-sent an identical tree. "A tree arrived" is a fact; "the tree
-     * is different" is a judgement, and it is the wrong one for the authored defaults to hang on.
-     *
-     * <p>The outline is <b>static</b>, unlike the scroll view beside it, and the difference is what each
-     * describes. A scroll view describes a window — it holds widgets, and a widget belongs to one screen.
-     * An outline describes a questline: the same tree drawn twice should be one outline, or closing and
-     * reopening the book would discard every collapse the player had made. {@link #forgetViewState()}
-     * clears it on a disconnect, alongside the selection and the pan, because the collapses are a fact
-     * about a server this client is no longer connected to.
-     */
-    private static SidebarLayout sidebar() {
-        if (sidebarStale()) {
-            sidebar = buildSidebar();
-            sidebarRevision = ClientQuestCache.treeRevision();
-            sidebarProgress = ClientQuestCache.progressRevision();
-            sidebarEditing = editingView;
-            sidebarText = ClientQuestCache.textRevision();
-        }
-        return sidebar;
-    }
-
-    /**
-     * Whether the outline the client holds is describing something other than what it now has.
-     *
-     * <h2>One predicate, because two callers have to agree</h2>
-     *
-     * <p>Both the builder above and the frame that rebuilds the sidebar's <b>widgets</b> ask this, and
-     * they have to ask the same question: a widget list rebuilt on a different answer from the outline
-     * it draws is a sidebar whose rows and whose click targets disagree. It was two comparisons once,
-     * and they had already drifted — the builder watched the tree, the progress and the editing flag,
-     * while the widget check watched only the tree, so a chapter appearing because its gate opened
-     * rebuilt the outline and left the widgets behind it.
-     *
-     * <p>The four inputs, and each is a different reason for a row to change:
-     *
-     * <ul>
-     *   <li>the <b>tree</b>: a reload can add, remove or rename a chapter, and can move one group to
-     *       another heading.</li>
-     *   <li>the <b>progress</b>: a chapter leaves the sidebar the moment the gate it was hiding behind
-     *       is met, so which chapters are rows at all depends on it.</li>
-     *   <li>the <b>editing flag</b>: an author sees every chapter, a reader only the revealed ones.</li>
-     *   <li>the <b>language</b>: the rows carry chapter and group names, and a locale arriving changes
-     *       those words without changing anything about which rows there are.</li>
-     * </ul>
-     */
-    private static boolean sidebarStale() {
-        if (sidebar == null
-                || sidebarRevision != ClientQuestCache.treeRevision()
-                || sidebarEditing != editingView
-                || sidebarText != ClientQuestCache.textRevision()) {
-            return true;
-        }
-        long progress = ClientQuestCache.progressRevision();
-        if (sidebarProgress == progress) {
-            return false;
-        }
-        for (SidebarLayout.ChapterRow row : sidebarChapters) {
-            if (row.locked() != chapterLocked(row.id()) || row.hidden() != chapterHidden(row.id())) {
-                return true;
-            }
-        }
-        sidebarProgress = progress;
-        return false;
-    }
-
-    /**
-     * Builds an outline from what the server sent.
-     *
-     * <h2>Two lists, and where each comes from</h2>
-     *
-     * <p>The headings come from {@link ClientQuestCache#groups()}, which the server sends explicitly —
-     * so a group with no chapters is still a heading, and the rows say so. The chapters come from
-     * {@link ClientQuestCache#chapters()} when the server sent that list, which every server since the
-     * tree's version 3 does: it carries every chapter, <b>including one with no quests</b>, which is
-     * what makes a newly created chapter visible instead of invisible until somebody writes a quest
-     * into it.
-     *
-     * <p>When that list is empty — an older server — the chapters are derived from the quest entries
-     * exactly as they always were, deduped by chapter id while keeping the order of first sighting. So
-     * absence is a fallback rather than a special case, and the two sources are merged rather than
-     * switched between: a quest naming a chapter the list somehow missed still produces a row, because
-     * losing the row would lose the quests under it.
-     *
-     * <p>A server older than groups sends no headings at all, so every chapter arrives with an empty
-     * group id — which {@link SidebarLayout} reads as "no group" and adds as a root. That draws exactly
-     * the flat chapter list this screen had before, which is why there is no branch here for the old
-     * case and nothing to notice at.
-     */
-    private static SidebarLayout buildSidebar() {
-        List<SidebarLayout.Group> groups = new ArrayList<>();
-        for (ClientQuestCache.GroupEntry group : ClientQuestCache.groups()) {
-            groups.add(new SidebarLayout.Group(group.id(), group.titleText(), group.collapsedByDefault()));
-        }
-
-        Map<String, SidebarLayout.ChapterRow> chapters = new LinkedHashMap<>();
-        for (ClientQuestCache.ChapterEntry chapter : ClientQuestCache.chapters()) {
-            chapters.putIfAbsent(chapter.id(), new SidebarLayout.ChapterRow(
-                    chapter.id(), chapter.titleText(), chapter.groupId(),
-                    chapterLocked(chapter.id()), chapterHidden(chapter.id())));
-        }
-        for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
-            chapters.putIfAbsent(entry.chapterId(), new SidebarLayout.ChapterRow(
-                    entry.chapterId(), entry.chapterTitleText(), entry.chapterGroupId(),
-                    chapterLocked(entry.chapterId()), chapterHidden(entry.chapterId())));
-        }
-
-        sidebarChapters = List.copyOf(chapters.values());
-        SidebarLayout layout = SidebarLayout.of(groups, sidebarChapters);
-        // The player's own expansions, over the authored defaults: this rebuild is what used to throw
-        // them away. And the memory is pruned to the groups that still exist here, so a renamed or
-        // deleted group's key does not accumulate for the life of the session.
-        layout.applyExpansion(sidebarExpansion);
-        sidebarExpansion.keySet().retainAll(layout.groupKeys());
-        return layout;
-    }
-
-    /**
-     * One sidebar row's icon: the stack to draw, the id it was resolved from, the texture path
-     * when the row wears a texture icon, and the atlas region when it wears a sprite.
-     *
-     * <p>The quartet, for the same reason {@link ClientQuestCache.Entry} keeps it: a stack that failed to
-     * resolve with an id behind it is a <b>missing item</b>, which the row can say on hover, while an
-     * empty id is simply no icon, which it cannot. One is a broken pack worth chasing and the other is
-     * a chapter that never declared one. A texture draws through the button's blit rather than its
-     * stack, so the id stays empty for one and no missing branch fires for a picture.
-     */
-    private record SidebarIcon(ItemStack stack, String id, String texture, String sprite) {
-
-        /** The button's texture, or null when the row wears an item, a sprite or nothing. */
-        net.minecraft.resources.Identifier textureId() {
-            if (texture == null || texture.isEmpty()) {
-                return null;
-            }
-            return net.minecraft.resources.Identifier.tryParse(texture);
-        }
-
-        /** The button's atlas region, or null when the row wears an item, a texture or nothing. */
-        net.minecraft.resources.Identifier spriteId() {
-            if (sprite == null || sprite.isEmpty()) {
-                return null;
-            }
-            return net.minecraft.resources.Identifier.tryParse(sprite);
-        }
-    }
-
-    /**
-     * The icon each sidebar row carries, keyed by the row's own key.
-     *
-     * <h2>Why a map beside the layout rather than a field on its rows</h2>
-     *
-     * <p>Because {@link SidebarLayout} is deliberately game-free -- it holds strings and numbers, and
-     * its tests build rows without a client -- and an {@code ItemStack} on a row would end that. The key
-     * is already the join between a row and everything the drawing needs, so the icons ride the same
-     * join as a second map, resolved here where the cache and the registry are both in reach.
-     *
-     * <p>A group with no authored icon borrows the first chapter under it: the chapters are what the
-     * group is made of, and a heading that shows something is easier to find than one that shows
-     * nothing. "First" is the entries' declaration order, which is the order the sidebar draws them in.
-     */
-    private static Map<String, SidebarIcon> sidebarIcons() {
-        Map<String, SidebarIcon> icons = new LinkedHashMap<>();
-        Map<String, SidebarIcon> firstChapter = new LinkedHashMap<>();
-        // The explicit chapter list first, when the server sent one: it has an icon for every chapter,
-        // including a chapter with no quests -- which is the one row that cannot borrow one from a quest.
-        for (ClientQuestCache.ChapterEntry chapter : ClientQuestCache.chapters()) {
-            SidebarIcon icon = new SidebarIcon(chapter.icon(), chapter.iconId(), chapter.textureIcon(),
-                    chapter.spriteIcon());
-            if (!chapter.groupId().isEmpty()) {
-                firstChapter.putIfAbsent(chapter.groupId(), icon);
-            }
-            icons.putIfAbsent(SidebarLayout.chapterKey(chapter.id()), icon);
-        }
-        for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
-            SidebarIcon icon = new SidebarIcon(entry.chapterIcon(), entry.chapterIconId(),
-                    entry.chapterTextureIcon(), entry.chapterSpriteIcon());
-            if (!entry.chapterGroupId().isEmpty()) {
-                firstChapter.putIfAbsent(entry.chapterGroupId(), icon);
-            }
-            icons.putIfAbsent(SidebarLayout.chapterKey(entry.chapterId()), icon);
-        }
-        for (ClientQuestCache.GroupEntry group : ClientQuestCache.groups()) {
-            SidebarIcon authored =
-                    new SidebarIcon(group.icon(), group.iconId(), group.textureIcon(),
-                            group.spriteIcon());
-            SidebarIcon shown = authored.id().isEmpty()
-                    ? firstChapter.getOrDefault(group.id(), authored) : authored;
-            icons.put(SidebarLayout.groupKey(group.id()), shown);
-        }
-        return icons;
-    }
-
-    /**
-     * What a click on a sidebar row does.
-     *
-     * <p>A heading is toggled and a chapter is selected, and the two are told apart by the row's
-     * <b>key</b> rather than by a flag on the button — see {@link SidebarLayout} on why a group and a
-     * chapter share one namespace and are kept apart by a prefix.
-     *
-     * <p>A toggle that changed nothing does <b>not</b> rebuild, and that is the reason
-     * {@link SidebarLayout#toggle} answers a boolean rather than being void. A heading with no chapters
-     * under it is drawn without a chevron and is still clickable — the whole row is the target, which is
-     * the point of chevroning the label rather than adding a second control beside it — so pressing it
-     * is a real thing a player can do. Rebuilding every button for a press that meant nothing costs a
-     * frame and can lose focus.
-     */
-    private void pressSidebarRow(String key) {
-        if (SidebarLayout.isGroupKey(key)) {
-            if (sidebar().toggle(key)) {
-                // Remembered, because the next tree -- which any structural edit produces -- rebuilds
-                // this outline, and a group that shut itself after every drop is the report this answers.
-                sidebarExpansion.put(key, sidebar().isExpanded(key));
-                rebuildWidgets();
-            }
-            return;
-        }
-
-        selectChapter(SidebarLayout.idOf(key));
-        rebuildWidgets();
-    }
-
-    /**
-     * Switches to a chapter, closing the selection with it.
-     *
-     * <p>The selection belongs to the chapter being left -- the primary the panel edits <i>and</i> the
-     * multi-selection the canvas gestures act on, which is the half the first version of this forgot.
-     * Leaving it open would show a quest that is not on screen, with a Submit button, for a chapter you
-     * have walked away from; and the set was worse, because Delete, Ctrl+D, the drag and Copy read
-     * {@link #selection()} rather than the canvas, so they acted on quests in the chapter just left.
-     *
-     * <p>Three paths change chapters -- the sidebar, a row's menu and the naming overlay -- and all
-     * three ask here, so the rule cannot drift between them. The quest card's own target goes with the
-     * selection, which is the same rule one field further out: it is the id the <i>card</i> is open on,
-     * and {@link #editTarget} prefers it over the selection.
-     */
-    private void selectChapter(String id) {
-        if (chapterHidden(id)) {
-            // The sidebar has no row for a withheld chapter, so this is reached only by the paths that
-            // name a chapter directly -- a dependency row's jump, the reward inbox, a rename landing. Each
-            // of those is a way for a reader to arrive somewhere the book does not show, and the refusal
-            // belongs here rather than in five callers.
-            return;
-        }
-        boolean moved = !java.util.Objects.equals(id, selectedChapter);
-        selectedChapter = id;
-        frameChapterActive = false;
-        selectedQuest = null;
-        multiSelection.clear();
-        if (moved) {
-            // The third place an id from the chapter being left survives. Only on a real move: a press on
-            // the chapter already open is a re-select rather than a switch, and dropping the card's target
-            // there would blank a panel still showing the right quest. The jump paths already ask this
-            // question before calling -- see `revealNode`.
-            overlayQuest = null;
-        }
-        centred = false;
-        // A drag's preview belongs to the chapter being left: it is not keyed, and a stale patch would be
-        // composed over the next chapter's theme until that chapter's own first edit replaced it.
-        pendingChapterTheme = null;
-    }
-
-    /**
-     * Scrolls the sidebar by a screen-space delta, snapped so a row is never left half past the top.
-     *
-     * <h2>Why the snapping is here rather than in the viewport</h2>
-     *
-     * <p>Because it is this list's decision and not the kit's. A viewport scrolls by pixels, because that
-     * is what a pan-and-zoom canvas wants; a list of rows wants to stop with a row's top edge against the
-     * list's top edge, and a list left a third of a row out of position reads as a drawing fault rather
-     * than as a scroll. So every offset this produces is a whole multiple of
-     * {@link SidebarLayout#pitch()}.
-     *
-     * <p>That pitch is derived from the same two numbers the rows are spaced with, which is the point:
-     * a scroll rate written out at the call site drifts against the spacing by a couple of pixels a
-     * notch, and the symptom arrives slowly — a row that ends up half under the header after a while,
-     * with nothing in the code looking wrong.
-     *
-     * <p>A delta too small to move a whole row still moves one, in the direction asked for. The
-     * alternative is a trackpad whose small deltas each round back to where they started, which reads as
-     * the wheel being broken; one row per notch is what every other list does.
-     */
-    private void scrollSidebar(int dy) {
-        if (sidebar == null || dy == 0) {
-            return;
-        }
-
-        int pitch = SidebarLayout.pitch();
-        int current = sidebarView.viewport().scrollY();
-        int wanted = current + dy;
-        int snapped = Math.round(wanted / (float) pitch) * pitch;
-        if (snapped == current) {
-            snapped = current + (dy > 0 ? pitch : -pitch);
-        }
-        sidebarView.scrollTo(snapped);
-    }
-
     /**
      * The rectangle one kind draws itself into: its rail, always.
      *
@@ -4861,7 +4491,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // command-entered one keeps hiding it until the command (or closing the book) ends it.
         previewFromCommand = false;
         if (previewAsPlayer) {
-            closeMenu();
+            bookMenu.closeMenu();
             closeColourPopover();
             applyColumns(PanelStack.afterClose(columns(), false));
         }
@@ -5638,7 +5268,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * so the whole of it can be asserted in {@code ChapterVisibilityTest} — the screen cannot be
      * instantiated by a test, and this is behaviour a person only ever sees as a missing row.
      */
-    private static boolean chapterHidden(String chapterId) {
+    static boolean chapterHidden(String chapterId) {
         return !dev.ellipog.tenet.client.dev.ChapterVisibility.visible(chapterId,
                 CHAPTER_VISIBILITY_LOOKUP, editingView);
     }
@@ -5709,11 +5339,6 @@ public final class QuestBookScreen extends ArmatureScreen
     private static long visibleChaptersTree = Long.MIN_VALUE;
     private static long visibleChaptersProgress = Long.MIN_VALUE;
 
-    /** Whether a chapter's gate is unmet, so the row is drawn shut rather than removed. */
-    private static boolean chapterLocked(String chapterId) {
-        return chapterId != null && ClientQuestCache.chapterStateOf(chapterId) == QuestState.LOCKED;
-    }
-
     /**
      * The server's own record of a chapter, or null for one only the quests name.
      *
@@ -5721,44 +5346,13 @@ public final class QuestBookScreen extends ArmatureScreen
      * is a chapter of a server older than the explicit list — and such a server sends no gate either, so
      * "not in the list" and "no gate" are the same answer here.
      */
-    private static ClientQuestCache.ChapterEntry chapterEntryFor(String chapterId) {
+    static ClientQuestCache.ChapterEntry chapterEntryFor(String chapterId) {
         for (ClientQuestCache.ChapterEntry chapter : ClientQuestCache.chapters()) {
             if (chapter.id().equals(chapterId)) {
                 return chapter;
             }
         }
         return null;
-    }
-
-    /**
-     * What a shut chapter is waiting for: the chapters by name, and how many of them are satisfied.
-     *
-     * <p>Read from the chapter's own rule and the server's states rather than derived from progress here:
-     * the bar a dependency has to reach is {@link QuestState#bar}, which is the same answer the engine and
-     * the quest canvas use, so a chapter gate and a quest dependency cannot disagree about what
-     * "satisfied" means.
-     *
-     * <p>A dependency naming a chapter this client has no title for is named by its id, which is the
-     * honest thing to draw: the author knows what it is, and a row that said nothing at all would look
-     * like a chapter with no gate.
-     */
-    private static Component chapterGateLine(String chapterId) {
-        ClientQuestCache.ChapterEntry chapter = chapterEntryFor(chapterId);
-        if (chapter == null || !chapter.waits()) {
-            return null;
-        }
-        QuestState bar = QuestState.bar(chapter.prerequisiteMode());
-        List<String> names = new ArrayList<>();
-        int met = 0;
-        for (String dependency : chapter.dependsOn()) {
-            if (ClientQuestCache.chapterStateOf(dependency).isAtLeast(bar)) {
-                met++;
-            }
-            ClientQuestCache.ChapterEntry target = chapterEntryFor(dependency);
-            names.add(target == null ? dependency : target.titleText());
-        }
-        return Component.translatable("tenet.screen.chapter_needs",
-                String.join(", ", names), met, chapter.dependsOn().size());
     }
 
     /** The cache's answer to the visibility rules' questions, for any quest id -- other chapters too. */
@@ -5959,7 +5553,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** Whether a node is selected at all: the primary the panel edits, or one of the multi-selection. */
-    private static boolean isSelected(String id) {
+    static boolean isSelected(String id) {
         return id.equals(selectedQuest) || multiSelection.contains(id);
     }
 
@@ -6204,7 +5798,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * which is the reader's answer — the direction that hides a chapter rather than showing one to
      * somebody who may not be an author.
      */
-    private static boolean editingView;
+    static boolean editingView;
 
     /** Re-reads {@link #editingView}. See its note for who calls it and why. */
     private void refreshEditingView() {
@@ -7460,7 +7054,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
 
     /** Opens the shared menu under a rectangle: the pill's menu, the drawer's and a chooser's, one path. */
-    private void openMenuAt(List<MenuItem> rows, int x, int y) {
+    private void openMenuAt(List<BookMenu.MenuItem> rows, int x, int y) {
         openMenu(rows);
         menuX = x;
         menuY = y;
@@ -7473,26 +7067,9 @@ public final class QuestBookScreen extends ArmatureScreen
      * rise has one start to measure from. Rebuilding in place (arming Delete) re-stamps: the menu is
      * new content, and a 90-millisecond settle replays rather than sticks.
      */
-    private void openMenu(List<MenuItem> items) {
+    void openMenu(List<BookMenu.MenuItem> items) {
         menu = List.copyOf(items);
         menuOpenedAt = net.minecraft.util.Util.getMillis();
-    }
-
-    /**
-     * How far below its rest the menu still sits: three pixels on the frame it opens, none once settled.
-     *
-     * <p>Read by {@link #menuRects}, which is the one derivation the drawing, the press and the flyout
-     * placement all share — so the menu, its hover and its submenu arrive as one thing climbing into
-     * place rather than three things disagreeing for a tenth of a second. With motion off the theme's
-     * own duration is zero and this is zero with it: a menu that is simply there.
-     */
-    private int menuRise() {
-        if (menu.isEmpty() || menuOpenedAt < 0) {
-            return 0;
-        }
-        float arrived =
-                PanelLayout.revealed(net.minecraft.util.Util.getMillis() - menuOpenedAt, MENU_RISE_MILLIS);
-        return Math.round(MENU_RISE_PX * (1F - arrived));
     }
 
     /**
@@ -7817,13 +7394,13 @@ public final class QuestBookScreen extends ArmatureScreen
      * the rows that reached the arithmetic -- {@code MenuPlacement} clamps what that means at a screen edge.
      */
     private void openChoiceMenu(ToolsLayout.Action row, dev.ellipog.tenet.client.dev.ChoiceField field) {
-        List<MenuItem> items = new ArrayList<>();
+        List<BookMenu.MenuItem> items = new ArrayList<>();
         String[] element = ChapterPanelLayout.elementFieldOf(row.key());
         if (element != null) {
             // Every value the field accepts, read from the model's own enum -- so the menu and the validator
             // cannot disagree, and a value added to one is offered by the other without being written twice.
             for (String value : dev.ellipog.tenet.client.dev.ElementPanelLayout.valuesOf(element[1])) {
-                items.add(MenuItem.of(dev.ellipog.tenet.client.dev.ElementPanelLayout.valueName(value),
+                items.add(BookMenu.MenuItem.of(dev.ellipog.tenet.client.dev.ElementPanelLayout.valueName(value),
                         () -> commitElementField(element[0], element[1], value)));
             }
         }
@@ -7832,7 +7409,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // Every shape the file accepts, read from the model's own enum -- so the menu and the validator
             // cannot disagree, and a shape added to one is offered by the other without being written twice.
             for (String value : dev.ellipog.tenet.client.dev.LinkPanelLayout.valuesOf(link[1])) {
-                items.add(MenuItem.of(dev.ellipog.tenet.client.dev.LinkPanelLayout.valueName(value),
+                items.add(BookMenu.MenuItem.of(dev.ellipog.tenet.client.dev.LinkPanelLayout.valueName(value),
                         () -> commitLinkField(link[0], link[1], value)));
             }
         }
@@ -7842,27 +7419,27 @@ public final class QuestBookScreen extends ArmatureScreen
             // shows. The arrows this replaces could only ever step to the neighbours of the current value.
             ChapterPanelLayout.Choice choice = ChapterPanelLayout.choiceForKey(row.key());
             for (String value : ChapterPanelLayout.choiceValues(choice)) {
-                items.add(MenuItem.of(ChapterPanelLayout.choiceLabel(choice, value),
+                items.add(BookMenu.MenuItem.of(ChapterPanelLayout.choiceLabel(choice, value),
                         () -> setChapterChoice(choice, value)));
             }
         }
         else if (ToolsLayout.CANVAS_PATTERN.equals(row.key())) {
             for (CanvasBackground.Kind kind : CanvasBackground.Kind.values()) {
-                items.add(MenuItem.of(ToolsPanel.patternLabel(kind), () -> setCanvasPattern(kind)));
+                items.add(BookMenu.MenuItem.of(ToolsPanel.patternLabel(kind), () -> setCanvasPattern(kind)));
             }
         }
         else if (ToolsLayout.CANVAS_DIRECTION.equals(row.key())) {
-            items.add(MenuItem.of("/", () -> setCanvasDirection(false)));
-            items.add(MenuItem.of("\\", () -> setCanvasDirection(true)));
+            items.add(BookMenu.MenuItem.of("/", () -> setCanvasDirection(false)));
+            items.add(BookMenu.MenuItem.of("\\", () -> setCanvasDirection(true)));
         }
         else if (ToolsLayout.CANVAS_SPACE.equals(row.key())) {
             for (CanvasBackground.Space space : CanvasBackground.Space.values()) {
-                items.add(MenuItem.of(ToolsPanel.spaceLabel(space), () -> setCanvasSpace(space)));
+                items.add(BookMenu.MenuItem.of(ToolsPanel.spaceLabel(space), () -> setCanvasSpace(space)));
             }
         }
         else if (ToolsLayout.CANVAS_FIT.equals(row.key())) {
             for (CanvasBackground.Fit fit : CanvasBackground.Fit.values()) {
-                items.add(MenuItem.of(ToolsPanel.fitLabel(fit), () -> setCanvasFit(fit)));
+                items.add(BookMenu.MenuItem.of(ToolsPanel.fitLabel(fit), () -> setCanvasFit(fit)));
             }
         }
         if (items.isEmpty() || field == null) {
@@ -7870,7 +7447,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // was never placed has no rectangle to hang one under.
             return;
         }
-        openMenuAt(items, field.getX() + Math.max(0, field.getWidth() - MENU_WIDTH),
+        openMenuAt(items, field.getX() + Math.max(0, field.getWidth() - BookMenu.MENU_WIDTH),
                 field.getY() + field.getHeight() + 2);
     }
 
@@ -7988,7 +7565,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * the round trip; the commit then writes the same patch, and the draft's own reconcile retires both
      * when the tree carries the value.
      */
-    private static JsonObject pendingChapterTheme;
+    static JsonObject pendingChapterTheme;
 
     private JsonObject previewBase() {
         return themeTargetsChapter && effectiveChapter() != null
@@ -10888,7 +10465,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * would make it read as the current chapter — the confusion the fill exists to prevent, one level up.
      */
     private void buildSidebarWidgets() {
-        SidebarLayout layout = sidebar();
+        SidebarLayout layout = BookSidebar.sidebar();
         // Retire what the last build registered on the screen. The full `init` clears every
         // widget first, but this builder also runs on the partial path
         // (`rebuildSidebarAndCluster`), where nothing precedes it: without this each rebuild
@@ -10908,7 +10485,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // travels what this list holds, and the retire above removes what it holds, so a toolbar
         // built before the clears would be registered on the screen and tracked nowhere —
         // frozen through every slide and never removed.
-        buildSidebarToolbar();
+        bookSidebar.buildSidebarToolbar();
         // The gutter only when the list scrolls: decided here, from the same rows the stack below
         // places, so the bounds the binder files two lines down and the width the rows take cannot
         // disagree — and a short list takes the gutter its scrollbar would have drawn nothing in.
@@ -10918,7 +10495,7 @@ public final class QuestBookScreen extends ArmatureScreen
         //
         // The inline session's rows are in the count: two lines more can be what starts the scroll.
         List<SidebarLayout.Row> rows = inlineEdit == null ? layout.rows()
-                : withInlineRows(layout, layout.rows());
+                : bookSidebar.withInlineRows(layout, layout.rows());
         sidebarReserveScrollbar = sidebarReservesScrollbar(rows.size(),
                 geometry().sidebarViewport(mayEditNow()).height());
         sidebarViewport();
@@ -10932,7 +10509,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
         // Resolved once per rebuild, not per frame: the icons come from the cache, which only moves when
         // a tree arrives -- and a tree arriving rebuilds this list anyway.
-        Map<String, SidebarIcon> icons = sidebarIcons();
+        Map<String, BookSidebar.SidebarIcon> icons = BookSidebar.sidebarIcons();
 
         // And the waiting counts with them, for the same reason: a drag rebuilds these rows on every
         // step, and rows born without their suffix draw one frame of full-width title before the
@@ -10943,7 +10520,7 @@ public final class QuestBookScreen extends ArmatureScreen
         for (SidebarLayout.Row row : rows) {
             if (SidebarLayout.isInlineKey(row.key())) {
                 if (!INLINE_STATUS_KEY.equals(row.key())) {
-                    placeInlineField(row);
+                    bookSidebar.placeInlineField(row);
                 }
                 continue;
             }
@@ -10951,14 +10528,14 @@ public final class QuestBookScreen extends ArmatureScreen
             boolean isSelected = !heading && row.id().equals(effectiveChapter());
 
             ArmatureButton button = control(0, 0, 0, 0, Component.literal(row.label()),
-                    () -> pressSidebarRow(row.key()));
+                    () -> bookSidebar.pressSidebarRow(row.key()));
 
             // The row's item, when there is one: a chapter's own icon, or a group's authored icon, or
             // the first chapter under a group that authored none. A missing item leaves the row without
             // a mark rather than with an empty box, and says so on hover -- the id is kept for exactly
             // that, the same "missing is not absent" reading the quest header draws in its corner. A
             // texture draws through the button's blit rather than its stack.
-            SidebarIcon icon = icons.get(row.key());
+            BookSidebar.SidebarIcon icon = icons.get(row.key());
             if (icon != null && !icon.stack().isEmpty()) {
                 button.icon(icon.stack());
             }
@@ -11135,7 +10712,7 @@ public final class QuestBookScreen extends ArmatureScreen
         QuestBookFocus.consume().ifPresent(questId -> {
             ClientQuestCache.Entry entry = cacheEntryFor(questId);
             if (entry != null) {
-                selectChapter(entry.chapterId());
+                bookSidebar.selectChapter(entry.chapterId());
                 selectedQuest = questId;
                 centred = true;
                 // A node click, wherever it came from: the quest takes the first column and the second is
@@ -11160,7 +10737,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // the way in, so the pill would be operator chrome over a player's view.
             previewFromCommand = ask;
             if (ask) {
-                closeMenu();
+                bookMenu.closeMenu();
                 closeColourPopover();
                 applyColumns(PanelStack.afterClose(columns(), false));
             }
@@ -11544,7 +11121,7 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void setEditing(boolean on) {
         DevMode.setOn(on);
-        closeMenu();
+        bookMenu.closeMenu();
         closeColourPopover();
         if (!on) {
             // The preview goes with the mode: it is only built while the mode is on, and a latch kept
@@ -11667,7 +11244,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 case TOOLS -> buildToolsWidgets();
                 case PARTY -> buildPartyWidgets();
                 case REWARDS -> rewardControls = bookRewards.buildRewardWidgets();
-                case NAMING -> buildNamingWidgets();
+                case NAMING -> bookSidebar.buildNamingWidgets();
                 case TABLE_BROWSER -> bookRewards.buildTableBrowserWidgets();
                 case TABLE_EDITOR -> bookRewards.buildTableEditorWidgets();
                 case SETTINGS -> buildSettingsWidgets();
@@ -11844,8 +11421,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // Per player: a teammate having collected their copy must not hide this player's button.
         java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
         boolean claimable = self != null && claimableWithMarks(self, entry);
-        readerFooterTaskIndex = taskIndex;
-        readerFooterClaimable = claimable;
+        bookSidebar.readerFooterTaskIndex = taskIndex;
+        bookSidebar.readerFooterClaimable = claimable;
         Map<String, BookGeometry.Rect> controls = overlayControls(taskIndex >= 0 || claimable);
 
         if (claimable) {
@@ -15771,1445 +15348,13 @@ public final class QuestBookScreen extends ArmatureScreen
         return "";
     }
 
-    /**
-     * The insertion line: two pixels at the gap the pointer names, spanning the rows' own width.
-     *
-     * <p>Drawn inside the caller's clip and skipped when the gap is off it, so a drag past the list's
-     * edge does not paint a line over a header or into the canvas.
-     */
-    // ------------------------------------------------------------------
-    // The sidebar tree drag
-    // ------------------------------------------------------------------
-
-    /**
-     * Reads a press that landed on a sidebar row, without consuming it.
-     *
-     * <p>Before the widget pass, because a row is a button and a button takes the press it is given: the
-     * screen would never see it again, and a drag that cannot start is a click. Not consuming it is the
-     * other half: if the pointer never travels the row is still clicked, and the button's own release is
-     * what does that, exactly as before this gesture existed.
-     */
-    private void rememberSidebarPress(double mouseX, double mouseY, int button) {
-        // The row drag is armed for an author, and nothing takes it away any more: a panel used to make the
-        // whole book inert, and now a rail covers nothing the sidebar was using.
-        if (button != InputConstants.MOUSE_BUTTON_LEFT || !mayEditNow()
-                || !sidebarViewport().containsScreen(mouseX, mouseY)) {
-            return;
-        }
-        for (SidebarLayout.Row row : sidebar().rows()) {
-            if (SidebarLayout.isInlineKey(row.key())) {
-                // The edit in flight is not draggable: a drag is a row moving, and this row is
-                // a field being typed in.
-                continue;
-            }
-            BookGeometry.Rect rect = placedRect(row.key());
-            if (rect != null && rect.contains(mouseX, mouseY)) {
-                sidebarDragKey = row.key();
-                sidebarDragGroup = row.group();
-                sidebarDragLive = false;
-                sidebarDragPointerY = mouseY;
-                sidebarDragPressX = mouseX;
-                sidebarDragPressY = mouseY;
-                sidebarDrop = null;
-                return;
-            }
-        }
-    }
-
-    /** The visible rows as the drop arithmetic wants them: key, kind, container and where they are. */
-    private List<SidebarDrag.Row> sidebarRows() {
-        List<SidebarDrag.Row> rows = new ArrayList<>();
-        String heading = "";
-        for (SidebarLayout.Row row : sidebar().rows()) {
-            if (SidebarLayout.isInlineKey(row.key())) {
-                // Not a row the tree can be dropped on: the edit is not a destination.
-                continue;
-            }
-            if (row.group()) {
-                heading = row.key();
-            }
-            BookGeometry.Rect rect = placedRect(row.key());
-            if (rect == null) {
-                continue;
-            }
-            // The true container, from the layout rather than from a walk back to the nearest heading:
-            // a chapter at depth 0 is a root chapter wherever it is drawn, and every group is drawn
-            // before the root chapters -- so the nearest heading above one is not its parent, which is
-            // what made a drop on the last group read as a no-op and send nothing.
-            String container = row.group() || row.depth() == 0 ? "" : heading;
-            rows.add(new SidebarDrag.Row(row.key(), row.group(), container, rect));
-        }
-        return rows;
-    }
-
-    /**
-     * Where a row is on screen, from the view that placed it.
-     *
-     * <p>From the {@code ScrollView} rather than from the layout, because the rows scroll: the slot the
-     * view holds is the one the widget was moved to this frame, which is the only rectangle a pointer
-     * can be tested against. Null for a row scrolled out of view, which is a row nothing can be dropped
-     * on — and it is absent from the list rather than clamped, so a drop at an edge lands where the
-     * rows actually are.
-     */
-    private BookGeometry.Rect placedRect(String key) {
-        var slot = sidebarView.placedSlot(key);
-        return slot == null ? null
-                : BookGeometry.Rect.at(slot.x(), slot.y(), slot.width(), slot.height());
-    }
-
-    /**
-     * Sends the op a released tree drag asked for.
-     *
-     * <p>Everything that could make the drop meaningless is decided here, once: a drop that changes
-     * nothing sends nothing (the server would rewrite a manifest to say the same thing and broadcast
-     * the tree for it), and a group only ever moves at the root — {@link SidebarDrag} refuses the
-     * nesting, and this refuses to send one.
-     */
-    private void commitSidebarDrop(String key, boolean group, SidebarDrag.Drop drop) {
-        if (!mayEditNow() || drop == null || drop instanceof SidebarDrag.Drop.Nowhere) {
-            return;
-        }
-        List<SidebarDrag.Row> rows = sidebarRows();
-        if (SidebarDrag.isNoOp(rows, key, drop)) {
-            return;
-        }
-        String id = SidebarLayout.idOf(key);
-        if (group) {
-            if (drop instanceof SidebarDrag.Drop.Insert insert) {
-                send(new EditorOp.MoveGroup(id, insert.index()));
-            }
-            return;
-        }
-        switch (drop) {
-            case SidebarDrag.Drop.Insert insert -> send(new EditorOp.MoveChapter(id,
-                    SidebarLayout.isGroupKey(insert.containerKey())
-                            ? SidebarLayout.idOf(insert.containerKey()) : "",
-                    insert.index()));
-            case SidebarDrag.Drop.Into into -> send(new EditorOp.MoveChapter(id,
-                    SidebarLayout.idOf(into.groupKey()),
-                    // Into a group takes the end of its list, which is what the highlight promises: the
-                    // heading has no seam to aim at, and "somewhere in this group" is the answer.
-                    SidebarDrag.childCount(rows, into.groupKey())));
-            case SidebarDrag.Drop.Nowhere ignored -> {
-            }
-        }
-    }
-
-    /**
-     * Draws what the drag is about to do: a seam line at an insert, a ring around a group it is over.
-     *
-     * <p>Inside the list's clip, after the widget pass, so it is above the rows it describes and cannot
-     * reach the header. The two marks are the two answers, and they are different shapes on purpose: a
-     * line says "between these", a ring says "inside this", and drawing both the same way would leave
-     * the reader to guess which of the two places the row is going.
-     */
-    private void drawSidebarDrag(GuiRenderer r) {
-        if (!sidebarDragLive || sidebarDrop == null) {
-            return;
-        }
-        List<SidebarDrag.Row> rows = sidebarRows();
-        switch (sidebarDrop) {
-            case SidebarDrag.Drop.Insert insert -> {
-                int y = SidebarDrag.indicatorY(rows, insert);
-                if (y < 0 || rows.isEmpty()) {
-                    return;
-                }
-                BookGeometry.Rect first = rows.get(0).rect();
-                r.fill(first.x() - 2, y - 1, first.right() + 2, y + 2, ArmatureTheme.hoverRing());
-            }
-            case SidebarDrag.Drop.Into into -> {
-                for (SidebarDrag.Row row : rows) {
-                    if (row.key().equals(into.groupKey())) {
-                        BookGeometry.Rect rect = row.rect();
-                        r.fill(rect.x() - 1, rect.y() - 1, rect.right() + 1, rect.bottom() + 1,
-                                ArmatureTheme.selectedRing());
-                        return;
-                    }
-                }
-            }
-            case SidebarDrag.Drop.Nowhere ignored -> {
-            }
-        }
-    }
-
-    /**
-     * The "(3)" rewards counts, as suffixes on the chapter row buttons.
-     *
-     * <p>A suffix rather than paint over the label: the button truncates its title around the note,
-     * so a long chapter ends before the count instead of under it — which is what the overlay this
-     * replaces could not do, because it never moved the truncation the label was fitted with. The
-     * count keeps the {@code inProgress} accent it has always worn, dimmed on the selected row the
-     * way the overlay dimmed it; hover leaves it alone, which is one subtle wash lost for a whole
-     * overlap cured. Groups get none of it: a heading is not a thing with rewards waiting.
-     *
-     * <p>On the waiting map rather than on a revision: progress, tree, marks and viewer each move
-     * it, and the map is the one value all four arrive as — so a change in any of them that moves
-     * no count touches no button. Called every tick; setting an unchanged suffix is still a write
-     * the button does not need, which is what the comparison is for.
-     */
-    private int readerFooterTaskIndex = -1;
-    private boolean readerFooterClaimable;
-
-    private void syncSidebarSuffixes() {
-        SidebarLayout layout = sidebar();
-        if (layout == null) {
-            return;
-        }
-        RewardCounts counts = rewardCounts();
-        Map<String, Integer> waiting = counts.byChapter();
-        String selectedChapter = effectiveChapter();
-        if (waiting.equals(sidebarWaiting)
-                && java.util.Objects.equals(selectedChapter, sidebarSuffixChapter)) {
-            return;
-        }
-        sidebarWaiting = waiting;
-        sidebarSuffixChapter = selectedChapter;
-        if (rewardsButton != null) {
-            int total = counts.byQuest().size();
-            rewardsButton.tooltip(Component.translatable(total == 0
-                    ? "tenet.screen.rewards.none" : "tenet.screen.rewards.waiting", total));
-        }
-        for (SidebarLayout.Row row : layout.rows()) {
-            if (row.group() || !(sidebarView.get(row.key()) instanceof ArmatureButton button)) {
-                continue;
-            }
-            Integer count = waiting.get(row.id());
-            if (count != null && count > 0) {
-                int accent = themeFor(row.id()).inProgress();
-                button.suffix("(" + count + ")").suffixColour(
-                        row.id().equals(selectedChapter) ? Colour.shade(accent, 0.35F) : accent);
-            }
-            else {
-                button.suffix(null);
-            }
-        }
-    }
-
-    /**
-     * The chapter rows' completion bars, along the bottom of each row.
-     *
-     * <p>The bar is a one-pixel hairline inside the row's own height, so the selection pill wraps it
-     * and nothing about the list's layout moves. It is inset a pixel from each end — just enough to
-     * stay inside a rounded pill's corners without reading as a floating chip — and it is drawn only
-     * when something is done, because a track along every untouched chapter is a groove nobody asked
-     * for.
-     *
-     * <p>The bar's fill is the chapter's {@code complete} and its track its {@code recessed} (the
-     * token a progress bar's track is for). Groups get none of it: a heading is not a thing with a
-     * completion. The "(3)" rewards count used to be drawn here too, at the row's right edge — it
-     * lives on the row button as a suffix now, because a count drawn over the label cannot move the
-     * truncation the label was fitted with, and a long title ran straight under it. See
-     * {@link #syncSidebarSuffixes}.
-     *
-     * <p>The bar answers to {@link DevMode#progress()}, which a reader can turn off from the Tools
-     * panel.
-     */
-    private void drawSidebarChapterProgress(GuiRenderer r, int mouseX, int mouseY) {
-        SidebarLayout layout = sidebar();
-        if (layout == null) {
-            return;
-        }
-        ChapterCounts counts = chapterCounts();
-        if (counts != tooltippedCounts) {
-            refreshSidebarChapterTooltips(layout, counts);
-            tooltippedCounts = counts;
-        }
-
-        // One batch for the whole list: a bar is two fills, and thirty rows drawn without this
-        // would be sixty rounds of per-fill flushes for what is a decoration; see
-        // `GuiRenderer.batched` for the submission argument the canvas makes at length.
-        r.batched(() -> {
-            for (SidebarLayout.Row row : layout.rows()) {
-                if (row.group() || SidebarLayout.isInlineKey(row.key())) {
-                    continue;
-                }
-                BookGeometry.Rect rect = placedRect(row.key());
-                if (rect == null) {
-                    // Scrolled out of the list: its rect is not placed, and drawing at a remembered one
-                    // would paint a mark up through the header.
-                    continue;
-                }
-                Theme theme = themeFor(row.id());
-                boolean selected = row.id().equals(effectiveChapter());
-                boolean hovered = rect.contains(mouseX, mouseY);
-                if (DevMode.progress()) {
-                    ChapterProgress progress = counts.byChapter().get(row.id());
-                    float fraction = progress == null ? 0F : progress.fraction();
-                    if (fraction > 0F) {
-                        int fill = selected ? Colour.shade(theme.complete(), 0.35F)
-                                : hovered ? Colour.shade(theme.complete(), 0.15F)
-                                : theme.complete();
-                        int track = selected ? Colour.shade(theme.recessed(), 0.35F)
-                                : theme.recessed();
-                        // One pixel of breathing room below: flush against the pill's own edge the
-                        // hairline read as part of the row's border rather than as a gauge.
-                        ChapterBar.draw(r, rect.x() + 1, rect.bottom() - ChapterBar.HEIGHT - 1,
-                                rect.width() - 2, ChapterBar.HEIGHT, fraction, fill, track);
-                    }
-                }
-            }
-            // The batch exists for its fills, not its value; `batched` takes a supplier, so this is
-            // the value it has to return.
-            return null;
-        });
-    }
-
-    /**
-     * The chapter rows' hover text: how far through the chapter is.
-     *
-     * <h2>Rebuilt on a revision, not on a frame</h2>
-     *
-     * <p>Tooltip lines are components, and building thirty rows' worth every frame is allocation for
-     * text that only changes when a quest does. The guard is the identity of the cache the lines are
-     * built from: it is replaced exactly when the tree, the progress or the viewer moves, which is
-     * exactly when the text can differ — so reference comparison is the revision check, and no second
-     * revision counter can drift from the first.
-     *
-     * <p>The lines are what a player would otherwise open the chapter to learn: the fraction
-     * ("14/20 quests complete") — the bar is two pixels, so the exact number stays one hover away —
-     * and the missing-item note the row's icon would carry when its item id does not resolve here.
-     * That last is repeated from {@code buildSidebarWidgets} deliberately — setting a tooltip replaces
-     * whatever was there, so a refresh that dropped the missing-item line would quietly answer a
-     * different question than the row does. The rewards waiting are not repeated: they are a "(3)" in
-     * the row's own corner again, and one fact does not need two places to be read from.
-     *
-     * <p>The chapter's subtitle, when it names one, is the hover's second line: the row's label is
-     * the title, so this is the one line under the name, resolved in the player's language like every
-     * other player-facing text. A chapter with no quests carries no entry to read one from, so it
-     * shows none — the same reading an older server gets, which sent no subtitle at all.
-     */
-    private void refreshSidebarChapterTooltips(SidebarLayout layout, ChapterCounts counts) {
-        Map<String, SidebarIcon> icons = sidebarIcons();
-        for (SidebarLayout.Row row : layout.rows()) {
-            if (row.group() || !(sidebarView.get(row.key()) instanceof ArmatureButton button)) {
-                continue;
-            }
-            List<Component> lines = new ArrayList<>(3);
-            SidebarIcon icon = icons.get(row.key());
-            if (icon != null && icon.stack().isEmpty() && !icon.id().isEmpty()) {
-                lines.add(Component.translatable("tenet.screen.missing_item_hint"));
-            }
-            String subtitle = ClientQuestCache.chapterSubtitleText(row.id());
-            if (!subtitle.isEmpty()) {
-                lines.add(Component.literal(subtitle));
-            }
-            // What a shut chapter is waiting for, and how far along that is. Only while it is shut: a
-            // gate that is met explains nothing, and a permanent "Needs X" on an open chapter would read
-            // as a warning about a chapter that is working.
-            if (row.locked()) {
-                Component gate = chapterGateLine(row.id());
-                if (gate != null) {
-                    lines.add(gate);
-                }
-            }
-            ChapterProgress progress = counts.byChapter().get(row.id());
-            if (progress == null || progress.isEmpty()) {
-                lines.add(Component.translatable("tenet.screen.chapter_empty"));
-            }
-            else {
-                lines.add(Component.translatable("tenet.screen.chapter_progress",
-                        progress.done(), progress.total()));
-            }
-            button.tooltip(lines);
-        }
-    }
-
-    /**
-     * The reward badges: a small mark pinned to each node's outline while that quest has rewards this
-     * player has not collected.
-     *
-     * <p>Drawn on the canvas and therefore inside the chapter's theme scope, so the badge is already
-     * the chapter's own colour: a themed chapter's badges take its {@code inProgress}, not the
-     * player's. The count comes from one walk per revision (see {@link #rewardCounts}), and the
-     * badge's own art and anchoring are {@link RewardBadge}'s.
-     */
-    private void drawRewardBadges(GuiRenderer r, List<FrameNode> nodes, int dx, int dy,
-                                  CanvasDetail detail) {
-        Map<String, Integer> waiting = rewardCounts().byQuest();
-        if (waiting.isEmpty()) {
-            return;
-        }
-        if (!detail.badges()) {
-            // A badge is a disc with a number in it, drawn against the node's own outline: at this zoom
-            // the number is unreadable and the disc is larger than the node it sits on. See CanvasDetail.
-            return;
-        }
-        int cLeft = canvasLeft();
-        int cTop = canvasTop();
-        int cRight = canvasRight();
-        int cBottom = canvasBottom();
-        for (FrameNode node : nodes) {
-            Integer count = waiting.get(node.id());
-            if (count == null) {
-                continue;
-            }
-            int nx = node.x() + dx;
-            int ny = node.y() + dy;
-            int size = node.size();
-            if (nx >= cRight || nx + size <= cLeft || ny >= cBottom || ny + size <= cTop) {
-                continue;
-            }
-            // The badge anchors itself to this node's own outline and shrinks with it; the ring is a
-            // darker shade of the badge's own colour rather than a theme edge, because a grey outline
-            // around a gold disc reads as two unrelated things.
-            int fill = ArmatureTheme.inProgress();
-            RewardBadge.draw(r, node.geometry(), nx, ny, size,
-                    count, fill, Colour.shade(fill, -0.45F), ArmatureTheme.canvas());
-        }
-    }
-
-    /**
-     * The padlocks, one per locked node that lets it show, in their own pass after every node.
-     *
-     * <p>Each mark straddles its node's top-right corner — half in, half out — rather than sitting
-     * inside it: see the call site for why the corner's inside is the item's territory. The gating
-     * is the node's own — locked, rings tier, pack and quest flags — read here rather than carried,
-     * so the pass and the node cannot disagree about which nodes wear one.
-     */
-    private void drawLockMarks(GuiRenderer r, List<FrameNode> nodes, int dx, int dy,
-                               CanvasDetail detail) {
-        if (!detail.rings()) {
-            return;
-        }
-        int cLeft = canvasLeft();
-        int cTop = canvasTop();
-        int cRight = canvasRight();
-        int cBottom = canvasBottom();
-        boolean showLockIcons = ClientQuestCache.showLockIcons();
-        for (FrameNode node : nodes) {
-            if (node.state() != QuestState.LOCKED) {
-                continue;
-            }
-            if (!dev.ellipog.tenet.client.dev.QuestVisibility.drawsLockMark(showLockIcons,
-                    node.hideLock())) {
-                continue;
-            }
-            int nx = node.x() + dx;
-            int ny = node.y() + dy;
-            int size = node.size();
-            if (nx >= cRight || nx + size <= cLeft || ny >= cBottom || ny + size <= cTop) {
-                continue;
-            }
-            int box = Math.max(9, size / 4);
-            drawLockMark(r, nx + size - box / 2, ny - box / 2, box);
-        }
-    }
-
-    /**
-     * Scrolls the sidebar while a drag is held near one of its edges.
-     *
-     * <p>One row's pitch a tick, which is the same step a wheel notch takes — the list moves the way it
-     * moves under the wheel, so a reader who has scrolled this list before can predict this. The
-     * margin is small: the top and bottom of the viewport are where the pointer goes when the row it is
-     * carrying has somewhere further to be.
-     */
-    private void autoScrollSidebar() {
-        Viewport view = sidebarViewport();
-        int margin = 12;
-        int step = SidebarLayout.pitch();
-        if (sidebarDragPointerY < view.originY() + margin) {
-            sidebarView.scrollBy(-step);
-        }
-        else if (sidebarDragPointerY > view.viewBottom() - margin) {
-            sidebarView.scrollBy(step);
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // The naming card, the toolbar, and the sidebar's menu
-    // ------------------------------------------------------------------
-
-    /**
-     * Starts an inline create: an editable row where the chapter or group will land, with focus.
-     *
-     * <p>The row is placed at the end of the named group's section — the selected chapter's group
-     * for the toolbar button, the clicked group for its menu — so the author sees where the new
-     * row lands rather than being told afterwards. The id is automatic from the title; the commit
-     * sends the same op the card sent, appended to the group.
-     */
-    private void startInlineCreate(String kind, String groupId) {
-        if (!mayEditNow() || geometry().sidebarState().collapsed()) {
-            return;
-        }
-        closeMenu();
-        if (naming != null) {
-            // One editor at a time: the card and the inline row would otherwise name two things
-            // at once, with one keyboard between them.
-            closeNaming();
-        }
-        inlineEdit = new InlineNaming(kind, NamingMode.CREATE, "",
-                groupId == null ? "" : groupId, false);
-        inlineTitle = null;
-        inlineId = null;
-        inlineFocusPending = true;
-        rebuildWidgets();
-        scrollInlineIntoView();
-    }
-
-    /**
-     * Starts an inline rename: the row's own title in an editable row where the row stood.
-     *
-     * <p>Title-only: the id stays unless the author opens the disclosure, which is a second field
-     * under the first. A title-only commit never validates the unchanged id, so it cannot report
-     * the row's own name as taken.
-     */
-    private void startInlineRename(String kind, String id) {
-        if (!mayEditNow() || geometry().sidebarState().collapsed()) {
-            return;
-        }
-        closeMenu();
-        if (naming != null) {
-            // One editor at a time: see startInlineCreate.
-            closeNaming();
-        }
-        inlineEdit = new InlineNaming(kind, NamingMode.RENAME, id, "", false);
-        inlineTitle = null;
-        inlineId = null;
-        inlineFocusPending = true;
-        rebuildWidgets();
-        scrollInlineIntoView();
-    }
-
-    /** Drops the inline session. The rebuild that follows is the caller's. */
-    private void clearInline() {
-        inlineEdit = null;
-        inlineTitle = null;
-        inlineId = null;
-        inlineFocusPending = false;
-    }
-
-    /** Abandons the inline session with nothing written. */
-    private void cancelInline() {
-        if (inlineEdit == null) {
-            return;
-        }
-        clearInline();
-        rebuildWidgets();
-    }
-
-    /** The ids the inline id is checked against: the live ones, less its own when renaming. */
-    private List<String> inlineTakenIds() {
-        if (inlineEdit == null) {
-            return new ArrayList<>();
-        }
-        return takenIds(inlineEdit.kind(), inlineEdit.mode(), inlineEdit.targetId());
-    }
-
-    /**
-     * The id a create would carry right now: the title slugged, deduped against the live ids, or
-     * the numbered fallback when the title slugs to nothing.
-     */
-    private String inlineAutoId() {
-        String title = inlineTitle == null ? "" : inlineTitle.value().trim();
-        String base = ChapterNaming.slug(title);
-        if (base.isEmpty()) {
-            base = inlineEdit.kind().equals("group") ? "new_group" : "new_chapter";
-        }
-        return ChapterNaming.suggested(base, "", inlineTakenIds());
-    }
-
-    /** Sends the op the inline session is for, or says why it cannot. */
-    private void commitInline() {
-        if (inlineEdit == null) {
-            return;
-        }
-        String title = inlineTitle == null ? "" : inlineTitle.value().trim();
-        String label = title.isEmpty() ? null : title;
-        if (inlineEdit.mode() == NamingMode.CREATE) {
-            String id = inlineAutoId();
-            String problem = ChapterNaming.problemWith(id, inlineTakenIds());
-            if (problem != null) {
-                status(problem, true);
-                return;
-            }
-            if (inlineEdit.kind().equals("group")) {
-                send(new EditorOp.CreateGroup(id, label));
-            }
-            else {
-                send(new EditorOp.CreateChapter(inlineEdit.groupId(), Integer.MAX_VALUE, id, label));
-                selectChapter(id);
-            }
-        }
-        else {
-            String id = inlineEdit.targetId();
-            if (inlineEdit.showId()) {
-                id = inlineId == null ? "" : inlineId.value().trim();
-                String problem = ChapterNaming.problemWith(id, inlineTakenIds());
-                if (problem != null) {
-                    status(problem, true);
-                    return;
-                }
-            }
-            if (inlineEdit.kind().equals("group")) {
-                send(new EditorOp.RenameGroup(inlineEdit.targetId(), id, label));
-            }
-            else {
-                send(new EditorOp.RenameChapter(inlineEdit.targetId(), id, label));
-                selectChapter(id);
-            }
-        }
-        clearInline();
-        rebuildWidgets();
-    }
-
-    /**
-     * The rows with the inline session spliced in: the title field's row where the new row will
-     * land — or in place of the row being renamed — with the id field's row under it while the
-     * disclosure is open, and the drawn status line under those.
-     */
-    private List<SidebarLayout.Row> withInlineRows(SidebarLayout layout, List<SidebarLayout.Row> rows) {
-        List<SidebarLayout.Row> out = new ArrayList<>(rows);
-        if (inlineEdit.mode() == NamingMode.RENAME) {
-            String targetKey = inlineEdit.kind().equals("group")
-                    ? SidebarLayout.groupKey(inlineEdit.targetId())
-                    : SidebarLayout.chapterKey(inlineEdit.targetId());
-            int at = layout.indexOfKey(targetKey);
-            if (at < 0) {
-                // The tree moved under the edit: draw the list as it is, and let the commit be
-                // refused rather than aimed at a row that is gone.
-                return rows;
-            }
-            int depth = out.get(at).depth();
-            out.remove(at);
-            out.add(at, inlineRow(INLINE_EDIT_KEY, depth));
-            int next = at + 1;
-            if (inlineEdit.showId()) {
-                out.add(next++, inlineRow(INLINE_ID_KEY, depth));
-            }
-            out.add(next, inlineRow(INLINE_STATUS_KEY, depth));
-            return out;
-        }
-        int depth;
-        int at;
-        if (inlineEdit.kind().equals("group")) {
-            // Groups live at the root, after everything: the end of the list.
-            depth = 0;
-            at = out.size();
-        }
-        else {
-            depth = inlineEdit.groupId().isEmpty() ? 0 : 1;
-            at = Math.max(0, Math.min(layout.endOfSection(inlineEdit.groupId()), out.size()));
-        }
-        out.add(at, inlineRow(INLINE_EDIT_KEY, depth));
-        out.add(at + 1, inlineRow(INLINE_STATUS_KEY, depth));
-        return out;
-    }
-
-    /** One synthetic row: placed and indented like a real one, carrying no title of its own. */
-    private static SidebarLayout.Row inlineRow(String key, int depth) {
-        return new SidebarLayout.Row(key, "", "", depth, false, false, false);
-    }
-
-    /**
-     * Places the inline session's field for a synthetic row: the title field, or the id field
-     * while its disclosure is open. The status row carries no widget — the screen draws it.
-     *
-     * <p>Typed text survives a rebuild: the field is recreated from the live one's value rather
-     * than from the session's defaults, so a tree broadcast mid-typing costs focus and not words.
-     */
-    private void placeInlineField(SidebarLayout.Row row) {
-        boolean idRow = INLINE_ID_KEY.equals(row.key());
-        String initial;
-        if (idRow) {
-            initial = inlineId == null ? inlineEdit.targetId() : inlineId.value();
-        }
-        else if (inlineTitle != null) {
-            initial = inlineTitle.value();
-        }
-        else if (inlineEdit.mode() == NamingMode.RENAME) {
-            initial = existingTitle(inlineEdit.kind(), inlineEdit.targetId());
-        }
-        else {
-            initial = "";
-        }
-        ArmatureTextField field = new ArmatureTextField(0, 0, 0, 0, initial);
-        field.onSubmit(text -> {
-        });
-        addRenderableWidget(field);
-        sidebarView.put(row.key(), field);
-        sidebarRowWidgets.add(field);
-        if (idRow) {
-            inlineId = field;
-        }
-        else {
-            inlineTitle = field;
-            if (inlineFocusPending) {
-                inlineFocusPending = false;
-                setFocused(field);
-            }
-        }
-    }
-
-    /** Whether a press lands on one of the inline session's fields. */
-    private boolean pressOnInlineField(double mouseX, double mouseY) {
-        // Registered and visible, not just placed: a field scrolled out of the list keeps its last
-        // rectangle, and a field from a previous build is detached altogether. Either way a press
-        // on the row now standing there is that row's, not the edit's.
-        if (inlineTitle != null && children().contains(inlineTitle) && inlineTitle.visible
-                && inlineTitle.isMouseOver(mouseX, mouseY)) {
-            return true;
-        }
-        return inlineId != null && children().contains(inlineId) && inlineId.visible
-                && inlineId.isMouseOver(mouseX, mouseY);
-    }
-
-    /** Whether a press lands on the inline session's drawn status line. */
-    private boolean inlineStatusHit(double mouseX, double mouseY) {
-        BookGeometry.Rect field = placedRect(INLINE_EDIT_KEY);
-        if (field == null) {
-            return false;
-        }
-        BookGeometry.Rect status = BookGeometry.Rect.at(field.x(),
-                field.bottom() + BookGeometry.SIDEBAR_ROW_GAP, field.width(),
-                BookGeometry.SIDEBAR_ROW_HEIGHT);
-        return status.contains(mouseX, mouseY);
-    }
-
-    /** Opens or shuts the rename's id disclosure. */
-    private void toggleInlineId() {
-        if (inlineEdit == null || inlineEdit.mode() != NamingMode.RENAME) {
-            return;
-        }
-        inlineEdit = inlineEdit.withShowId(!inlineEdit.showId());
-        inlineId = null;
-        rebuildWidgets();
-    }
-
-    /**
-     * The status line under the inline field: the file that will land on disk for a create, the
-     * row's id for a rename, or the problem with either. Null when there is nothing to say.
-     */
-    private String inlineStatusText() {
-        if (inlineEdit == null) {
-            return null;
-        }
-        if (inlineEdit.mode() == NamingMode.CREATE) {
-            return folderPath(inlineEdit.kind(), inlineEdit.groupId(), inlineAutoId());
-        }
-        if (!inlineEdit.showId()) {
-            return "id: " + inlineEdit.targetId() + " - click to edit";
-        }
-        String id = inlineId == null ? "" : inlineId.value().trim();
-        String problem = ChapterNaming.problemWith(id, inlineTakenIds());
-        if (problem != null) {
-            return problem;
-        }
-        String group = inlineEdit.kind().equals("group") ? ""
-                : groupOfChapter(inlineEdit.targetId());
-        return folderPath(inlineEdit.kind(), group, id);
-    }
-
-    /** Whether the status line is a refusal rather than a path. */
-    private boolean inlineStatusBlocked() {
-        if (inlineEdit == null || inlineEdit.mode() != NamingMode.RENAME || !inlineEdit.showId()) {
-            return false;
-        }
-        String id = inlineId == null ? "" : inlineId.value().trim();
-        return ChapterNaming.problemWith(id, inlineTakenIds()) != null;
-    }
-
-    /**
-     * Draws the inline session's status line under its field, in the list's clip: the faint path
-     * preview as the author types, or the id line a rename can expand.
-     */
-    private void drawInlineStatus(GuiRenderer r) {
-        if (inlineEdit == null) {
-            return;
-        }
-        BookGeometry.Rect field = placedRect(INLINE_EDIT_KEY);
-        if (field == null) {
-            // Culled with its row: drawing at a remembered rectangle would paint the preview up
-            // through the header.
-            return;
-        }
-        String text = inlineStatusText();
-        if (text == null || text.isEmpty()) {
-            return;
-        }
-        int y = field.bottom() + BookGeometry.SIDEBAR_ROW_GAP;
-        String shown = dev.ellipog.armature.client.ui.kit.Measure.truncate(text, field.width(),
-                textMeasure(r));
-        r.text(shown, field.x(), y,
-                inlineStatusBlocked() ? ArmatureTheme.blocked() : ArmatureTheme.faint());
-    }
-
-    /** Scrolls the sidebar just far enough to show the inline edit. */
-    private void scrollInlineIntoView() {
-        if (sidebarView.layout() == null) {
-            return;
-        }
-        var slot = sidebarView.layout().slot(INLINE_EDIT_KEY);
-        if (slot == null) {
-            return;
-        }
-        var viewport = sidebarView.viewport();
-        int y = viewport.screenY(slot.y());
-        int bottom = y + viewport.scaled(slot.height());
-        int top = viewport.originY();
-        int viewBottom = viewport.viewBottom();
-        if (y < top) {
-            sidebarView.scrollTo(viewport.scrollY() - (top - y));
-        }
-        else if (bottom > viewBottom) {
-            sidebarView.scrollTo(viewport.scrollY() + (bottom - viewBottom));
-        }
-    }
-
-    private void openNaming(String kind, NamingMode mode, String targetId, String groupId, int index) {
-        closeMenu();
-        // The card keeps duplicates only; an inline session would name a second thing at once.
-        clearInline();
-        naming = new Naming(kind, mode, targetId, groupId, index);
-        applyColumns(PanelStack.asRoot(columns(), PanelKind.NAMING));
-        rebuildWidgets();
-    }
-
-    private void closeNaming() {
-        closeOverlay();
-        // Deferred, not dropped: the exiting rail draws from this session for the length of its
-        // slide — the same rule closeOverlay's own nullings follow. Nulling eagerly is a departed
-        // card drawing with no session, which crashes the book in drawNamingOverlay the next frame.
-        deferForLastDeparted(() -> naming = null, PanelKind.NAMING);
-    }
-
-    /** The two fields' rectangles: one derivation for the widgets and for the drawing. */
-    private BookGeometry.Rect[] namingFieldRects() {
-        BookGeometry.Rect card = surfaceCard(PanelKind.NAMING);
-        int left = card.x() + 14;
-        int width = Math.max(60, card.width() - 28);
-        int top = card.y() + 44;
-        return new BookGeometry.Rect[] {
-                BookGeometry.Rect.at(left, top, width, 20),
-                BookGeometry.Rect.at(left, top + 30, width, 20) };
-    }
-
-    private String namingKindWord() {
-        return naming != null && naming.kind().equals("group") ? "group" : "chapter";
-    }
-
-    /** The title the thing being named already has, for the card to open on. */
-    private String namingExistingTitle() {
-        if (naming == null || naming.targetId() == null) {
-            return "";
-        }
-        return existingTitle(naming.kind(), naming.targetId());
-    }
-
-    /** The title a chapter or group already has: what an inline rename opens its field on. */
-    private static String existingTitle(String kind, String id) {
-        if (id == null) {
-            return "";
-        }
-        if (kind.equals("group")) {
-            for (ClientQuestCache.GroupEntry group : ClientQuestCache.groups()) {
-                if (group.id().equals(id)) {
-                    return group.title();
-                }
-            }
-            return "";
-        }
-        return chapters().getOrDefault(id, "");
-    }
-
-    /**
-     * Every id of the kind being named: what the card's collision check is against.
-     *
-     * <h2>What it is not, and why the rename case drops its own name</h2>
-     *
-     * <p>Ids only: the synced tree carries no aliases, so the card cannot see them — and an id that is
-     * another chapter's alias is a clash the loader refuses, which is why the server asks the same question
-     * again against a set it builds from the manifests. The server's answer is the one that decides.
-     *
-     * <p>A rename leaves the thing's own id out, because a list that contained it made the card open red on
-     * the name it already had and refused a title-only rename through this card. Renaming to a name it used
-     * to have is legal too, and the server's check is where that is known.
-     */
-    private List<String> namingTakenIds() {
-        if (naming == null) {
-            return new ArrayList<>();
-        }
-        return takenIds(naming.kind(), naming.mode(), naming.targetId());
-    }
-
-    /**
-     * Every id of the kind being named: what an id check is against. Shared by the card and the
-     * inline session, because two lists would drift — see {@link #namingTakenIds} for why the
-     * rename case drops its own name.
-     */
-    private static List<String> takenIds(String kind, NamingMode mode, String targetId) {
-        List<String> taken = new ArrayList<>();
-        if (kind.equals("group")) {
-            for (ClientQuestCache.GroupEntry group : ClientQuestCache.groups()) {
-                taken.add(group.id());
-            }
-        }
-        else {
-            taken.addAll(chapters().keySet());
-        }
-        if (mode == NamingMode.RENAME) {
-            taken.remove(targetId);
-        }
-        return taken;
-    }
-
-    /** Where the thing being named will live, as a path an author can find. */
-    private String namingFolderPath(String id) {
-        if (naming == null || id.isBlank()) {
-            return "";
-        }
-        String group = naming.mode() == NamingMode.CREATE
-                ? naming.groupId() : groupOfChapter(naming.targetId());
-        return folderPath(naming.kind(), group, id);
-    }
-
-    /**
-     * Where an id will live, as a path an author can find. Shared by the card and the inline
-     * session's faint preview, which must name the file that lands on disk.
-     */
-    private static String folderPath(String kind, String group, String id) {
-        if (id == null || id.isBlank()) {
-            return "";
-        }
-        if (kind.equals("group")) {
-            return id + "/group.json";
-        }
-        return group == null || group.isEmpty()
-                ? id + "/chapter.json" : group + "/" + id + "/chapter.json";
-    }
-
-    /** The group a chapter is in, from the cache, or empty. */
-    private static String groupOfChapter(String chapterId) {
-        if (chapterId == null) {
-            return "";
-        }
-        for (ClientQuestCache.ChapterEntry chapter : ClientQuestCache.chapters()) {
-            if (chapter.id().equals(chapterId)) {
-                return chapter.groupId();
-            }
-        }
-        for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
-            if (entry.chapterId().equals(chapterId)) {
-                return entry.chapterGroupId();
-            }
-        }
-        return "";
-    }
-
-    private void buildNamingWidgets() {
-        if (naming == null) {
-            namingTitle = null;
-            namingId = null;
-            return;
-        }
-        BookGeometry.Rect[] fields = namingFieldRects();
-        String title = naming.mode() == NamingMode.CREATE ? "" : namingExistingTitle();
-        String id = switch (naming.mode()) {
-            case CREATE -> ChapterNaming.suggested(
-                    naming.kind().equals("group") ? "new_group" : "new_chapter", "", namingTakenIds());
-            case RENAME -> naming.targetId();
-            case DUPLICATE -> ChapterNaming.suggested(naming.targetId(), "_copy", namingTakenIds());
-        };
-        namingTitle = new ArmatureTextField(fields[0].x(), fields[0].y(), fields[0].width(),
-                fields[0].height(), title);
-        namingId = new ArmatureTextField(fields[1].x(), fields[1].y(), fields[1].width(),
-                fields[1].height(), id);
-        // Enter and Escape are the screen's while this card is open -- see `keyPressed` -- so a blur
-        // must commit nothing.
-        namingTitle.onSubmit(text -> { });
-        namingId.onSubmit(text -> { });
-        addRenderableWidget(namingTitle);
-        addRenderableWidget(namingId);
-        // Nothing is recorded for the two fields, and the reason is the round's own: a rail is drawn
-        // before the widget pass, so the pass paints them on top of it. The clip these two carried was
-        // for a card that was painted *after* the pass -- see the settings page's note for what that
-        // costs a rail, and why a second copy cannot help.
-        Map<String, BookGeometry.Rect> controls = overlayControls(true);
-        BookGeometry.Rect back = controls.get("back");
-        if (back != null) {
-            control(back, Component.translatable("tenet.screen.cancel"), this::closeNaming)
-                    .ink(ArmatureButton.Ink.BODY);
-        }
-        BookGeometry.Rect primary = controls.get("submit");
-        if (primary != null) {
-            control(primary, Component.literal(switch (naming.mode()) {
-                case CREATE -> "Create";
-                case RENAME -> "Rename";
-                case DUPLICATE -> "Duplicate";
-            }), this::submitNaming).accent(true);
-        }
-        setFocused(namingId);
-    }
-
-    /** Sends the op the card is for, or says why it cannot. */
-    private void submitNaming() {
-        if (naming == null || namingId == null) {
-            return;
-        }
-        String id = namingId.value().trim();
-        String title = namingTitle == null ? "" : namingTitle.value().trim();
-        String problem = ChapterNaming.problemWith(id, namingTakenIds());
-        if (problem != null) {
-            status(problem, true);
-            return;
-        }
-        String label = title.isEmpty() ? null : title;
-        switch (naming.mode()) {
-            case CREATE -> {
-                if (naming.kind().equals("group")) {
-                    send(new EditorOp.CreateGroup(id, label));
-                }
-                else {
-                    send(new EditorOp.CreateChapter(naming.groupId(), naming.index(), id, label));
-                    selectChapter(id);
-                }
-            }
-            case RENAME -> {
-                if (naming.kind().equals("group")) {
-                    send(new EditorOp.RenameGroup(naming.targetId(), id, label));
-                }
-                else {
-                    send(new EditorOp.RenameChapter(naming.targetId(), id, label));
-                    selectChapter(id);
-                }
-            }
-            case DUPLICATE -> {
-                if (naming.kind().equals("group")) {
-                    send(new EditorOp.DuplicateGroup(naming.targetId(), id, label));
-                }
-                else {
-                    send(new EditorOp.DuplicateChapter(naming.targetId(), id, label));
-                    selectChapter(id);
-                }
-            }
-        }
-        closeNaming();
-    }
-
-    /** The card itself: heading, field labels, and the live verdict on the id. */
-    private void drawNamingOverlay(GuiRenderer r) {
-        if (naming == null) {
-            // No session, no card — the same guard buildNamingWidgets keeps. The close defers the
-            // nulling so a departed rail still draws, but a draw without one must never dereference.
-            return;
-        }
-        BookGeometry.Rect card = surfaceCard(PanelKind.NAMING);
-        ArmatureTheme.panel(r, card.x(), card.y(), card.width(), card.height(),
-                ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-        String heading = switch (naming.mode()) {
-            case CREATE -> "New " + namingKindWord();
-            case RENAME -> "Rename " + namingKindWord();
-            case DUPLICATE -> "Duplicate " + namingKindWord();
-        };
-        r.text(heading, card.x() + 14, card.y() + 12, ArmatureTheme.title());
-        BookGeometry.Rect[] fields = namingFieldRects();
-        r.text("Title", fields[0].x(), fields[0].y() - 10, ArmatureTheme.body());
-        r.text("Id - becomes the folder name", fields[1].x(), fields[1].y() - 10, ArmatureTheme.body());
-        String id = namingId == null ? "" : namingId.value().trim();
-        String problem = ChapterNaming.problemWith(id, namingTakenIds());
-        r.text(problem == null ? namingFolderPath(id) : problem,
-                fields[1].x(), fields[1].bottom() + 8,
-                problem == null ? ArmatureTheme.faint() : ArmatureTheme.blocked());
-    }
-
-    /** The two add buttons above the list. Built wherever the sidebar is, drawn only for an author. */
-    private void buildSidebarToolbar() {
-        if (geometry().sidebarState().collapsed()) {
-            // No room on the strip for two half-width buttons: an author expands to add chapters,
-            // which is one more reason the strip is a preview rather than a home.
-            return;
-        }
-        Map<String, BookGeometry.Rect> toolbar = geometry().sidebarToolbar();
-        BookGeometry.Rect addChapter = toolbar.get("addChapter");
-        if (addChapter != null) {
-            ArmatureButton button = control(addChapter, Component.translatable("tenet.screen.chapter"),
-                    this::newChapterFromToolbar);
-            button.ink(ArmatureButton.Ink.BODY).flat(true).tooltip(
-                    Component.translatable("tenet.screen.add_a_chapter_to_the_selected_group"));
-            button.visible = mayEditNow();
-            sidebarRowWidgets.add(button);
-        }
-        BookGeometry.Rect addGroup = toolbar.get("addGroup");
-        if (addGroup != null) {
-            ArmatureButton button = control(addGroup, Component.translatable("tenet.screen.group"),
-                    this::newGroupFromToolbar);
-            button.ink(ArmatureButton.Ink.BODY).flat(true).tooltip(
-                    Component.translatable("tenet.screen.add_a_group_at_the_end_of_the_list"));
-            button.visible = mayEditNow();
-            sidebarRowWidgets.add(button);
-        }
-    }
-
-    private void newChapterFromToolbar() {
-        if (!mayEditNow()) {
-            return;
-        }
-        // At the end of the selected chapter's group, where the inline row lands too: the button,
-        // the tooltip and the new row finally agree about where "a chapter" goes.
-        startInlineCreate("chapter", groupOfChapter(effectiveChapter()));
-    }
-
-    private void newGroupFromToolbar() {
-        if (!mayEditNow()) {
-            return;
-        }
-        startInlineCreate("group", "");
-    }
-
-    /**
-     * One line of a right-click menu.
-     *
-     * @param action  what a press runs, or null for a row that is not pressable (a flyout parent, or
-     *                the "…" row a capped submenu ends with)
-     * @param submenu whether hovering this row opens the flyout beside it
-     */
-    private record MenuItem(String label, Runnable action, boolean danger, List<MenuFlyout.Row> children) {
-
-        static MenuItem of(String label, Runnable action) {
-            return new MenuItem(label, action, false, List.of());
-        }
-
-        static MenuItem destructive(String label, Runnable action) {
-            return new MenuItem(label, action, true, List.of());
-        }
-
-        /** A row that opens the flyout beside the menu. Its rows are built with it, not looked up. */
-        static MenuItem parent(String label, List<MenuFlyout.Row> children) {
-            return new MenuItem(label, null, false, List.copyOf(children));
-        }
-
-        boolean submenu() {
-            return !children.isEmpty();
-        }
-    }
-
-    /** The rows of a menu row's flyout, for a caller holding only the row's index. */
-    private List<MenuFlyout.Row> childrenOf(int row) {
-        return row >= 0 && row < menu.size() ? menu.get(row).children() : List.of();
-    }
-
     static final int MENU_ROW_HEIGHT = 16;
-    private static final int MENU_WIDTH = 150;
 
     /** How far below its rest a menu opens before climbing into place. A nudge, not a travel. */
     static final int MENU_RISE_PX = 3;
 
     /** How long the climb takes: felt as a settle rather than watched as a transition. */
     static final int MENU_RISE_MILLIS = 90;
-
-    /** Opens the menu for whatever the pointer is on: a chapter, a group, or the empty list. */
-    private boolean openSidebarMenuAt(double mouseX, double mouseY) {
-        if (!sidebarViewport().containsScreen(mouseX, mouseY)) {
-            return false;
-        }
-        for (SidebarLayout.Row row : sidebar().rows()) {
-            if (SidebarLayout.isInlineKey(row.key())) {
-                // The edit answers its own presses: the field takes focus, the status line
-                // toggles the id disclosure, and anything else cancels it first (see mouseClicked).
-                continue;
-            }
-            BookGeometry.Rect rect = placedRect(row.key());
-            if (rect == null || !rect.contains(mouseX, mouseY)) {
-                continue;
-            }
-            openMenu(row.group() ? groupMenu(row.id()) : chapterMenu(row.id()));
-            // Only a chapter menu has a "Move to" submenu, so only then is there a chapter to move.
-            menuChapter = row.group() ? null : row.id();
-            menuX = (int) mouseX;
-            menuY = (int) mouseY;
-            return true;
-        }
-        openMenu(sidebarEmptyMenu());
-        menuChapter = null;
-        menuX = (int) mouseX;
-        menuY = (int) mouseY;
-        return true;
-    }
-
-    /**
-     * What the sidebar's empty list offers besides new chapters and groups: clearing the whole
-     * book's progress for playtesting.
-     *
-     * <p>Built by the caller rather than folded into the list above, because this row arms and the
-     * other two do not: a menu built armed has one job and a menu built unarmed has the other, the
-     * same rule the chapter menu's Delete follows.
-     */
-    private List<MenuItem> sidebarEmptyMenu() {
-        List<MenuItem> items = new ArrayList<>();
-        items.add(MenuItem.of("New chapter",
-                () -> startInlineCreate("chapter", "")));
-        items.add(MenuItem.of("New group",
-                () -> startInlineCreate("group", "")));
-        boolean resetArmed = menuResetArmed;
-        items.add(MenuItem.destructive(
-                resetArmed ? "Really reset everything?" : "Reset whole book progress",
-                resetArmed
-                        ? this::resetAll
-                        : () -> armReset(() -> openMenu(sidebarEmptyMenu()), null)));
-        return items;
-    }
-
-    private List<MenuItem> chapterMenu(String id) {
-        List<MenuItem> items = new ArrayList<>();
-        items.add(MenuItem.of("Open", () -> {
-            selectChapter(id);
-            rebuildWidgets();
-        }));
-        items.add(MenuItem.of("Rename",
-                () -> startInlineRename("chapter", id)));
-        items.add(MenuItem.of("Duplicate...",
-                () -> openNaming("chapter", NamingMode.DUPLICATE, id, "", 0)));
-        // One row, and the groups appear beside it on hover: a flat list of every destination is what
-        // made this menu taller than the window, and a menu whose last entries are clipped away is a
-        // destination that cannot be reached at all.
-        items.add(MenuItem.parent("Move to \u203a", moveToItems(id)));
-        // The label and the action are chosen together, from the arming state this menu was built in.
-        // The first version tested the flag inside the action instead -- and the press that runs an
-        // action closes the menu first, which clears the flag, so "Really delete?" re-armed forever and
-        // never deleted. A menu built armed has one job; a menu built unarmed has the other.
-        boolean armed = menuDeleteArmed;
-        items.add(MenuItem.destructive(
-                armed ? "Really delete?" + chapterDeleteNote(id) : "Delete",
-                armed
-                        ? () -> send(new EditorOp.DeleteChapter(id))
-                        : () -> armDelete(() -> openMenu(chapterMenu(id)), id)));
-        // Playtesting the chapter: clearing its progress so reveals and states can be checked again.
-        // Armed like the delete above but on its own flag, so the two mistakes stay different rows.
-        boolean resetArmed = menuResetArmed;
-        items.add(MenuItem.destructive(
-                resetArmed ? "Really reset chapter?" + chapterResetNote(id) : "Reset chapter progress",
-                resetArmed
-                        ? () -> resetChapter(id)
-                        : () -> armReset(() -> openMenu(chapterMenu(id)), id)));
-        return items;
-    }
-
-    private List<MenuItem> groupMenu(String id) {
-        List<MenuItem> items = new ArrayList<>();
-        items.add(MenuItem.of("New chapter here",
-                () -> startInlineCreate("chapter", id)));
-        items.add(MenuItem.of("Rename",
-                () -> startInlineRename("group", id)));
-        items.add(MenuItem.of("Duplicate...",
-                () -> openNaming("group", NamingMode.DUPLICATE, id, "", 0)));
-        boolean armed = menuDeleteArmed;
-        items.add(MenuItem.destructive(
-                armed ? "Really delete?" + groupDeleteNote(id) : "Delete",
-                armed
-                        ? () -> send(new EditorOp.DeleteGroup(id))
-                        : () -> armDelete(() -> openMenu(groupMenu(id)), null)));
-        return items;
-    }
-
-    /**
-     * Arms the menu's Delete and re-labels it in place.
-     *
-     * <p>The menu is closed by the press before its action runs — that is how every other row behaves —
-     * so arming puts a rebuilt menu back where the old one was, anchored at the same point. The chapter
-     * is re-established too, or the "Move to" submenu would come back empty on a rebuilt chapter menu.
-     */
-    private void armDelete(Runnable rebuild, String chapterId) {
-        menuDeleteArmed = true;
-        menuChapter = chapterId;
-        rebuild.run();
-    }
-
-    /**
-     * Arms the menu's progress reset and re-labels it in place.
-     *
-     * <p>The same mechanics as {@link #armDelete}: the press closes the menu before its action
-     * runs, so arming puts a rebuilt menu back where the old one was, anchored at the same point.
-     * A separate flag, because arming a reset must not re-label the Delete row beside it.
-     */
-    private void armReset(Runnable rebuild, String chapterId) {
-        menuResetArmed = true;
-        menuChapter = chapterId;
-        rebuild.run();
-    }
-
-    /** How many quests the chapter holds, for the reset confirm. */
-    private static String chapterResetNote(String chapterId) {
-        int quests = 0;
-        for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
-            if (entry.chapterId().equals(chapterId)) {
-                quests++;
-            }
-        }
-        return quests == 1 ? " (1 quest)" : " (" + quests + " quests)";
-    }
-
-    /** How many quests the chapter holds, and how many elsewhere depend on them. */
-    private static String chapterDeleteNote(String chapterId) {
-        Set<String> ids = new HashSet<>();
-        for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
-            if (entry.chapterId().equals(chapterId)) {
-                ids.add(entry.id());
-            }
-        }
-        int dependents = 0;
-        if (!ids.isEmpty()) {
-            for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
-                if (entry.chapterId().equals(chapterId)) {
-                    continue;
-                }
-                for (String dependency : dependenciesOf(entry)) {
-                    if (ids.contains(dependency)) {
-                        dependents++;
-                        break;
-                    }
-                }
-            }
-        }
-        return note(ids.size(), "quest", dependents, "dependent");
-    }
-
-    /** How many chapters a group holds, and how many quests they hold between them. */
-    private static String groupDeleteNote(String groupId) {
-        Set<String> chapters = new HashSet<>();
-        for (ClientQuestCache.ChapterEntry chapter : ClientQuestCache.chapters()) {
-            if (chapter.groupId().equals(groupId)) {
-                chapters.add(chapter.id());
-            }
-        }
-        int quests = 0;
-        for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
-            if (entry.chapterGroupId().equals(groupId)) {
-                quests++;
-                chapters.add(entry.chapterId());
-            }
-        }
-        return note(chapters.size(), "chapter", quests, "quest");
-    }
-
-    /** "(3 quests, 1 dependent)", or empty when there is nothing to warn about. */
-    private static String note(int first, String firstWord, int second, String secondWord) {
-        if (first == 0 && second == 0) {
-            return "";
-        }
-        StringBuilder note = new StringBuilder(" (");
-        if (first > 0) {
-            note.append(first).append(' ').append(firstWord).append(first == 1 ? "" : "s");
-        }
-        if (second > 0) {
-            if (first > 0) {
-                note.append(", ");
-            }
-            note.append(second).append(' ').append(secondWord).append(second == 1 ? "" : "s");
-        }
-        return note.append(')').toString();
-    }
-
-    /**
-     * The destinations for one chapter: no group, then every other group.
-     *
-     * <p>Longer than fits is handled here rather than at the drawing: the list is cut to the rows the
-     * panel can show and a final unpressable "…" says the rest exist, so what is drawn is always exactly
-     * what can be pressed and the panel never runs past the bottom of the book.
-     */
-    private List<MenuFlyout.Row> moveToItems(String id) {
-        List<MenuFlyout.Row> items = new ArrayList<>();
-        String current = groupOfChapter(id);
-        if (!current.isEmpty()) {
-            items.add(MenuFlyout.text(Labels.of("tenet.dev.menu.no_group"),
-                    () -> send(new EditorOp.MoveChapter(id, "", Integer.MAX_VALUE))));
-        }
-        for (ClientQuestCache.GroupEntry entry : ClientQuestCache.groups()) {
-            if (entry.id().equals(current)) {
-                continue;
-            }
-            items.add(MenuFlyout.text(Labels.of("tenet.dev.menu.move_to", entry.titleText()),
-                    () -> send(new EditorOp.MoveChapter(id, entry.id(), Integer.MAX_VALUE))));
-        }
-        int room = Math.max(0, (panelRect().height() - 16) / MENU_ROW_HEIGHT - 2);
-        if (items.size() > room && room >= 2) {
-            List<MenuFlyout.Row> cut = new ArrayList<>(items.subList(0, room - 1));
-            cut.add(MenuFlyout.text("\u2026", null));
-            return cut;
-        }
-        return items;
-    }
-
-    private void closeMenu() {
-        menu = List.of();
-        menuChapter = null;
-        submenuRow = -1;
-        menuDeleteArmed = false;
-        menuResetArmed = false;
-        canvasMenuQuest = null;
-        canvasMenuFrom = null;
-        canvasMenuTo = null;
-        menuOpenedAt = -1L;
-    }
-
-    /**
-     * Every item's rectangle, from the one derivation the drawing and the press both read.
-     *
-     * <p>The rise included, so a menu climbing into place is hit where it is drawn: a press landing
-     * mid-arrival answers the row under the pointer rather than the row three pixels above it.
-     */
-    private List<BookGeometry.Rect> menuRects() {
-        List<BookGeometry.Rect> rects = new ArrayList<>();
-        int x = menuLeft();
-        int y = menuTop() + menuRise();
-        for (int i = 0; i < menu.size(); i++) {
-            rects.add(BookGeometry.Rect.at(x, y + i * MENU_ROW_HEIGHT, MENU_WIDTH, MENU_ROW_HEIGHT));
-        }
-        return rects;
-    }
-
-    /**
-     * The open flyout, placed: one derivation the drawing, the presses and the hover's bridge all read.
-     *
-     * <p>Beside the menu when there is room and on its other side when there is not, and its top pulled
-     * up until it fits above the book's bottom edge. The top is also held below the chapter list's top,
-     * because the flyout is drawn inside that clip band and the preview rows are taller than any text
-     * submenu was — a tall panel anchored near the header is the one thing that could be eaten by it.
-     */
-    private MenuFlyout.Placed submenuPlacement(int parentIndex) {
-        List<MenuFlyout.Row> rows = childrenOf(parentIndex);
-        if (parentIndex < 0 || parentIndex >= menu.size() || rows.isEmpty()) {
-            return MenuFlyout.place(0, 0, List.of());
-        }
-        BookGeometry.Rect main = menuRects().get(parentIndex);
-        int width = MenuFlyout.width(rows);
-        int height = MenuFlyout.height(rows);
-        int x = MenuPlacement.submenuX(menuPlacement(), width, 4);
-        int top = Math.max(panelRect().y() + 4, geometry().chapterListTop() + 4);
-        int y = Math.max(top, Math.min(main.y(), panelRect().bottom() - 4 - height));
-        return MenuFlyout.place(x, y, rows);
-    }
-
-    /**
-     * Where the menu goes, and which side its flyout opens on.
-     *
-     * <p>The pointer decides, and the window bounds it — one rule for the sidebar's menus and the
-     * canvas's, in {@link MenuPlacement}, because the first version measured x from the sidebar column's
-     * right edge and so put every canvas menu beside the sidebar whatever the click was near.
-     */
-    private MenuPlacement.Placed menuPlacement() {
-        BookGeometry.Rect window = panelRect();
-        int flyoutWidth = submenuRow >= 0 ? MenuFlyout.width(childrenOf(submenuRow)) : MENU_WIDTH;
-        return MenuPlacement.place(menuX, menuY, MENU_WIDTH, menu.size() * MENU_ROW_HEIGHT + 6,
-                flyoutWidth, window.x() + 4, window.y() + 4, window.right() - 4, window.bottom() - 4, 8);
-    }
-
-    private int menuLeft() {
-        return menuPlacement().x();
-    }
-
-    private int menuTop() {
-        return menuPlacement().y();
-    }
-
-    /** Which menu row the pointer is on, or -1. */
-    private int menuRowAt(double mouseX, double mouseY) {
-        List<BookGeometry.Rect> rects = menuRects();
-        for (int i = 0; i < rects.size(); i++) {
-            if (rects.get(i).contains(mouseX, mouseY)) {
-                return i;
-            }
-        }
-        return -1;
-    }
 
     /**
      * A label cut to the panel's width.
@@ -17219,7 +15364,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * than as a long name. Same rule as a control's label, on the same terms.
      */
     static String fitLabel(GuiRenderer r, String label) {
-        int room = MENU_WIDTH - 8;
+        int room = BookMenu.MENU_WIDTH - 8;
         if (r.textWidth(label) <= room) {
             return label;
         }
@@ -17228,51 +15373,6 @@ public final class QuestBookScreen extends ArmatureScreen
             cut = cut.substring(0, cut.length() - 1);
         }
         return cut + "\u2026";
-    }
-
-    /** Whether a press is the menu's: a row runs, a flyout tunes or chooses, anything else just closes. */
-    private boolean pressMenu(double mouseX, double mouseY) {
-        if (menu.isEmpty()) {
-            return false;
-        }
-        int parent = submenuRow;
-        if (parent >= 0) {
-            MenuFlyout.Placed placed = submenuPlacement(parent);
-            MenuFlyout.Hit hit = MenuFlyout.hit(placed, mouseX, mouseY);
-            if (hit instanceof MenuFlyout.Hit.Choose choose) {
-                closeMenu();
-                choose.run().run();
-                return true;
-            }
-            if (hit instanceof MenuFlyout.Hit.Tune tune) {
-                tune.run().run();
-                // The rows are rebuilt in place, with the flyout still open: the selection, the reset
-                // chips and the rows another axis switches off all read the style the press just wrote,
-                // and rebuilding is what keeps the panel showing the line as it now is. The pointer is
-                // still on the same parent row, so `submenuRow` survives -- `closeMenu` is not called.
-                if (canvasMenuFrom != null && canvasMenuTo != null) {
-                    openMenu(lineMenuItems(canvasMenuFrom, canvasMenuTo));
-                }
-                return true;
-            }
-            if (hit != null) {
-                return true;  // on the flyout, on nothing pressable
-            }
-        }
-        int row = menuRowAt(mouseX, mouseY);
-        if (row >= 0) {
-            MenuItem item = menu.get(row);
-            if (item.submenu()) {
-                // The flyout is hover-driven and already open under this pointer; a press on its parent
-                // chooses nothing, and closing here would make the row impossible to use at all.
-                return true;
-            }
-            closeMenu();
-            item.action().run();
-            return true;
-        }
-        closeMenu();
-        return true;
     }
 
     /**
@@ -17304,7 +15404,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // The shared menu and the flyout beside it. `pressMenu` already means "a row runs, a flyout tunes or
         // chooses, anything else closes and is spent", so the whole of this half is asking it first.
         if (!menu.isEmpty()) {
-            return pressMenu(mouseX, mouseY);
+            return bookMenu.pressMenu(mouseX, mouseY);
         }
         // The table editor's Import popover, on the menu's terms: two drawn rows in a box, and a press
         // anywhere inside that box that is not on one of them dismisses it rather than reaching the entry
@@ -17396,264 +15496,9 @@ public final class QuestBookScreen extends ArmatureScreen
                 || colourPopover.isOpen();
     }
 
-    /** The menu, drawn after the widget pass so it can overhang the list it describes. */
-    /**
-     * How much ink the menu has: nothing on the frame it opens, full once settled.
-     *
-     * <p>Beside the rise rather than instead of it: the climb says where the menu came from and the
-     * fade says it arrived. One envelope for the main panel and its rows — the flyout beside it keeps
-     * rise-only, because its preview inks cannot take alpha without a second ink path. Motion off is
-     * full ink at once, like every other arrival.
-     */
-    private float menuFade() {
-        if (menu.isEmpty() || menuOpenedAt < 0) {
-            return 1F;
-        }
-        return PanelLayout.revealed(net.minecraft.util.Util.getMillis() - menuOpenedAt, MENU_RISE_MILLIS);
-    }
-
-    private void drawMenu(GuiRenderer r, int mouseX, int mouseY) {
-        if (menu.isEmpty()) {
-            return;
-        }
-        float fade = menuFade();
-        List<BookGeometry.Rect> rects = menuRects();
-        BookGeometry.Rect first = rects.get(0);
-        int bottom = rects.get(rects.size() - 1).bottom();
-        ArmatureTheme.panel(r, first.x() - 2, first.y() - 3, MENU_WIDTH + 4,
-                bottom - first.y() + 6, Colour.alphaOf(ArmatureTheme.raised(), fade),
-                Colour.alphaOf(ArmatureTheme.panelEdge(), fade));
-        for (int i = 0; i < rects.size(); i++) {
-            drawMenuItem(r, rects.get(i), menu.get(i), mouseX, mouseY, fade);
-        }
-
-        int parent = submenuRow;
-        if (parent < 0) {
-            return;
-        }
-        MenuFlyout.Placed placed = submenuPlacement(parent);
-        if (placed.rows().isEmpty()) {
-            return;
-        }
-        ArmatureTheme.panel(r, placed.panel().x(), placed.panel().y(), placed.panel().width(),
-                placed.panel().height(), ArmatureTheme.raised(), ArmatureTheme.panelEdge());
-        MenuFlyoutArt.draw(r, placed, mouseX, mouseY);
-    }
-
-    /** One row of either panel: its hover wash, and its label in the ink its meaning asks for. */
-    private void drawMenuItem(GuiRenderer r, BookGeometry.Rect rect, MenuItem item,
-                              int mouseX, int mouseY, float fade) {
-        boolean pressable = item.action() != null || item.submenu();
-        if (pressable && rect.contains(mouseX, mouseY)) {
-            r.fill(rect.x(), rect.y(), rect.right(), rect.bottom(),
-                    Colour.alphaOf(ArmatureTheme.rowHover(), fade));
-        }
-        // A submenu parent is a live row, not a disabled one: it opened the panel beside it. Only a row
-        // that can do nothing at all -- the "…" that says the rest did not fit -- is drawn faint.
-        int colour = item.submenu() ? ArmatureTheme.body()
-                : item.action() == null ? ArmatureTheme.faint()
-                : item.danger() ? ArmatureTheme.blocked() : ArmatureTheme.body();
-        r.text(fitLabel(r, item.label()), rect.x() + 4, rect.y() + (MENU_ROW_HEIGHT - 8) / 2,
-                Colour.alphaOf(colour, fade));
-    }
-
-
-
-    // ------------------------------------------------------------------
-    // The canvas's menus
-    // ------------------------------------------------------------------
-
-    /**
-     * Opens the canvas's menu at the pointer: for a quest, for a line, or for the empty canvas.
-     *
-     * <p>Node first, then line, then empty — the same priority as the press, so what a click opens is
-     * what it looked like it was on. Edit mode owns every entry that edits; a reader gets the two entries
-     * that do not -- open the quest, and pin it -- because pinning is the reader's own action on a quest
-     * and a menu that only exists in edit mode is one a player can never open. Lines, elements and empty
-     * canvas stay edit-only: there is nothing there a reader can do.
-     */
-    private boolean openCanvasMenuAt(double mouseX, double mouseY) {
-        String chapter = effectiveChapter();
-        if (chapter == null) {
-            return false;
-        }
-        List<ClientQuestCache.Entry> quests = questsIn(chapter);
-        ClientQuestCache.Entry node = nodeAt(mouseX, mouseY, quests);
-        if (!mayEditNow()) {
-            if (node == null) {
-                return false;
-            }
-            // The node under the pointer and nothing else: selection is an edit-mode concept, and acting
-            // on a set the reader never made would be the menu pinning something they were not pointing
-            // at -- the same reason the edit path re-selects first.
-            openMenu(readerNodeMenuItems(node.id()));
-            menuX = (int) mouseX;
-            menuY = (int) mouseY;
-            submenuRow = -1;
-            menuDeleteArmed = false;
-            menuResetArmed = false;
-            return true;
-        }
-        canvasMenuQuest = null;
-        canvasMenuFrom = null;
-        canvasMenuTo = null;
-        canvasMenuElement = null;
-        if (node != null) {
-            // A right-click on a node outside the selection makes it the subject: acting on a set the
-            // pointer is not on would be the menu editing something the author was not pointing at.
-            if (!isSelected(node.id())) {
-                selectedQuest = node.id();
-                multiSelection.clear();
-            }
-            canvasMenuQuest = node.id();
-            openMenu(nodeMenuItems(node.id()));
-        }
-        else {
-            List<String> edge = bookRewards.edgeAt(mouseX, mouseY, quests);
-            if (edge != null) {
-                canvasMenuFrom = edge.get(0);
-                canvasMenuTo = edge.get(1);
-                openMenu(lineMenuItems(edge.get(0), edge.get(1)));
-            }
-            else {
-                // And then an element, before the empty canvas: an element is drawn over the canvas, so a
-                // right-click that lands on one is a right-click on it -- the same priority the press and the
-                // hover use, and the reason a decoration can be duplicated or removed from where it sits.
-                String element = elementAt(mouseX, mouseY);
-                if (element != null) {
-                    selectedElement = element;
-                    selectedQuest = null;
-                    multiSelection.clear();
-                    canvasMenuElement = element;
-                    openMenu(elementMenuItems(element));
-                }
-                else {
-                    openMenu(emptyCanvasItems(mouseX, mouseY));
-                }
-            }
-        }
-        menuX = (int) mouseX;
-        menuY = (int) mouseY;
-        submenuRow = -1;
-        menuDeleteArmed = false;
-        menuResetArmed = false;
-        return true;
-    }
-
-    /** What a quest node offers. A multi-selection is acted on as one, and the labels say so. */
-    private List<MenuItem> nodeMenuItems(String id) {
-        List<String> targets = selection().contains(id) ? selection() : List.of(id);
-        String many = targets.size() > 1 ? " " + targets.size() + " quests" : "";
-        List<MenuItem> items = new ArrayList<>();
-        items.add(MenuItem.of("Open", () -> bookRewards.openOverlay(id)));
-        items.addAll(pinItems(targets, many));
-        items.add(MenuItem.of("Duplicate" + many, () -> duplicateSelection(targets)));
-        items.add(MenuItem.of("Copy" + many, this::copySelection));
-        // Playtesting, not editing: clearing progress so reveals and states can be checked again,
-        // without leaving the book for a command. One press, like the command it sends — progress
-        // is replayable, so unlike Delete this is not the row whose mistake cannot be undone.
-        items.add(MenuItem.of("Reset progress" + many, () -> resetQuests(targets)));
-        // Playtesting in the other direction: reaching a late quest without earning the way
-        // there. Same trust shape as Reset above — one packet per quest, the server resolving
-        // each id and re-checking the permission — and the same no-arm press, because completing
-        // is replayable too: one Reset press undoes it. Rewards land as waiting-to-claim, never
-        // handed over, which is the command's own rule for the same press.
-        items.add(MenuItem.of("Complete" + many, () -> completeQuests(targets)));
-        if (targets.size() == 1) {
-            items.add(MenuItem.of("Complete with dependencies\u2026",
-                    () -> completeQuestWithDependencies(id)));
-        }
-        if (targets.size() == 1) {
-            items.add(MenuItem.of("Add dependency\u2026", () -> {
-                selectedQuest = id;
-                multiSelection.clear();
-                armDependencyPick();
-            }));
-        }
-        boolean armed = menuDeleteArmed;
-        items.add(MenuItem.destructive(
-                armed ? "Really delete?" + questDeleteNote(targets) : "Delete" + many,
-                armed
-                        ? () -> {
-                            deleteSelection(targets);
-                            selectedQuest = null;
-                            multiSelection.clear();
-                        }
-                        : () -> {
-                            menuDeleteArmed = true;
-                            canvasMenuQuest = id;
-                            openMenu(nodeMenuItems(id));
-                        }));
-        return items;
-    }
-
     // ------------------------------------------------------------------
     // Pinning to the HUD
     // ------------------------------------------------------------------
-
-    /**
-     * What a quest node offers a reader: open it, or pin it.
-     *
-     * <p>Two rows and never more: Duplicate, Copy, dependencies and Delete are edits, and an edit in a
-     * reader's menu would be a promise the game must then refuse -- the server re-checks the permission
-     * before anything lands, so the refusal would arrive one round trip later, wearing the menu's own
-     * words. Pinning is here because it writes the reader's own file, which needs no permission at all.
-     */
-    private List<MenuItem> readerNodeMenuItems(String id) {
-        List<MenuItem> items = new ArrayList<>();
-        items.add(MenuItem.of("Open", () -> bookRewards.openOverlay(id)));
-        items.addAll(pinItems(List.of(id), ""));
-        return items;
-    }
-
-    /**
-     * The node menu's pinning rows: one, or none.
-     *
-     * <h2>Why the rows change rather than one row that toggles</h2>
-     *
-     * <p>Because "pin" and "unpin" are two different acts and a single row whose label flipped would be one
-     * control that does the opposite of what a player last read. It is the same rule the fold control follows
-     * -- two labels, because it is two acts -- and it costs a row that is simply absent when it means
-     * nothing.
-     *
-     * <p>Labels are literals, like every other row in this menu: it is English-only throughout, and one
-     * translatable row among eight would be a promise the other seven do not keep.
-     */
-    private List<MenuItem> pinItems(List<String> targets, String many) {
-        boolean allPinned = true;
-        for (String target : targets) {
-            allPinned &= PinnedQuests.isPinned(target);
-        }
-
-        List<MenuItem> items = new ArrayList<>();
-        if (!allPinned) {
-            items.add(MenuItem.of("Pin" + many + " to HUD", () -> pinAll(targets)));
-        }
-        else {
-            items.add(MenuItem.of("Unpin" + many + " from HUD", () -> unpinAll(targets)));
-        }
-        return items;
-    }
-
-    /** Pins every target, and says so when the panel is full rather than dropping one of somebody's pins. */
-    private void pinAll(List<String> targets) {
-        boolean refused = false;
-        for (String target : targets) {
-            if (!PinnedQuests.pin(target)) {
-                refused = true;
-            }
-        }
-        if (refused) {
-            toast(Component.translatable("tenet.screen.hud_pins_full", PinnedQuests.MAX_PINS).getString(),
-                    true);
-        }
-    }
-
-    private void unpinAll(List<String> targets) {
-        for (String target : targets) {
-            PinnedQuests.unpin(target);
-        }
-    }
 
     /**
      * The header's own pin control: pin, or unpin, and rebuild so the star follows.
@@ -17696,7 +15541,7 @@ public final class QuestBookScreen extends ArmatureScreen
     private static final int HEADER_CONTROL_GAP = 4;
 
     /** "(3 quests, 1 dependent)", counted the same way the sidebar's delete note is. */
-    private static String questDeleteNote(List<String> targets) {
+    static String questDeleteNote(List<String> targets) {
         Set<String> ids = new HashSet<>(targets);
         int dependents = 0;
         for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
@@ -17710,64 +15555,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 }
             }
         }
-        return note(targets.size(), "quest", dependents, "dependent");
-    }
-
-    /** What the empty canvas offers: make one here, paste here, take the chapter. */
-    private List<MenuItem> emptyCanvasItems(double mouseX, double mouseY) {
-        double x = BookGeometry.snap(viewport().contentX(mouseX), BookGeometry.SNAP_GRID, snappingNow());
-        double y = BookGeometry.snap(viewport().contentY(mouseY), BookGeometry.SNAP_GRID, snappingNow());
-        List<MenuItem> items = new ArrayList<>();
-        items.add(MenuItem.of("New quest here",
-                () -> send(new EditorOp.Create(Math.round(x), Math.round(y)))));
-        // The four kinds of element, offered where the author has just pointed: an element needs a position,
-        // and a right-click on empty canvas is a position. Flat rows rather than a submenu, because a submenu
-        // in this screen is a flyout of previews -- a panel for choosing among variants of one thing -- and
-        // these four are four different things rather than four ways to draw one.
-        for (String[] kind : ELEMENT_KINDS) {
-            items.add(MenuItem.of("Add " + kind[1] + " here", () -> addElement(kind[0], x, y)));
-        }
-        if (!ClientEditorClipboard.isEmpty()) {
-            items.add(MenuItem.of("Paste here", () -> pasteAt(x, y)));
-        }
-        items.add(MenuItem.of("Select all in chapter", this::selectAllInChapter));
-        return items;
-    }
-
-    /** What the four kinds are called in a menu, and the type name each writes. */
-    private static final List<String[]> ELEMENT_KINDS = List.of(
-            new String[] {CanvasElement.TYPE_IMAGE, "image"},
-            new String[] {CanvasElement.TYPE_TEXT, "text"},
-            new String[] {CanvasElement.TYPE_RECT, "box"},
-            new String[] {CanvasElement.TYPE_LINE, "line"});
-
-    /**
-     * Inserts one new element of a type at a canvas position.
-     *
-     * <p>The tree is built here rather than sent as a position and a type, because the server's job is to
-     * place what it is given and choose an id -- see {@link EditorOp.InsertElement} for why the tree travels
-     * whole. What the tree says about the element's <i>appearance</i> is {@code ElementDefaults}' business,
-     * including the one decision that matters: a new element is visible, where the codec's own default for a
-     * colour is a no-op.
-     *
-     * <p><b>The id is chosen here too, and that is what makes the insert optimistic.</b> The server prefers
-     * the id it is given and only suffixes it when the chapter has one already, so a client that checks the
-     * same thing is right almost always -- and {@code ElementDraft} believes the element until the tree
-     * either confirms it or the backstop runs out.
-     */
-    private void addElement(String type, double x, double y) {
-        com.google.gson.JsonObject tree = dev.ellipog.tenet.client.dev.ElementDefaults.tree(type,
-                (int) Math.round(x), (int) Math.round(y));
-        if (tree == null) {
-            return;
-        }
-        int index = elementInsertIndex();
-        CanvasElement made = placeElement(tree.deepCopy());
-        if (made == null) {
-            return;
-        }
-        elementDraft.insert(effectiveChapter(), made, index, Util.getMillis());
-        send(new EditorOp.InsertElement(index, tree));
+        return BookMenu.note(targets.size(), "quest", dependents, "dependent");
     }
 
     /**
@@ -17776,7 +15564,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * <p>Null when the tree does not decode, which is the honest refusal: an element this build cannot read
      * is not one it can draw optimistically, so it goes to the server and appears when the tree does.
      */
-    private CanvasElement placeElement(com.google.gson.JsonObject tree) {
+    CanvasElement placeElement(com.google.gson.JsonObject tree) {
         java.util.Set<String> taken = new java.util.HashSet<>();
         for (CanvasElement element : elementsNow()) {
             taken.add(element.id());
@@ -17797,53 +15585,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * <p>Counted through {@link #elementsNow}, so two elements added in a row get successive positions rather
      * than both landing on the tree's length — which is the same reason the whole feature reads that view.
      */
-    private int elementInsertIndex() {
+    int elementInsertIndex() {
         return elementsNow().size();
-    }
-
-    /** What a canvas element offers: a copy of it, and its removal. */
-    private List<MenuItem> elementMenuItems(String id) {
-        ElementSlot slot = elementSlot(id);
-        List<MenuItem> items = new ArrayList<>();
-        if (slot != null) {
-            items.add(MenuItem.of("Duplicate \"" + elementLabel(slot.element()) + "\"",
-                    () -> duplicateElement(slot.element())));
-        }
-        boolean armed = menuDeleteArmed;
-        items.add(MenuItem.destructive(
-                armed ? "Really delete?" : "Delete element",
-                armed
-                        ? () -> deleteElement(id)
-                        : () -> {
-                            // The two-press arm every destructive control in this editor has, and here it
-                            // carries the weight it does everywhere else: an element owns no file, so the
-                            // undo history is the whole of the recovery -- see `RemoveElement`.
-                            menuDeleteArmed = true;
-                            canvasMenuElement = id;
-                            openMenu(elementMenuItems(id));
-                        }));
-        return items;
-    }
-
-    /** A short name for an element in a menu row: its own label, or its type when it has no words. */
-    private static String elementLabel(CanvasElement element) {
-        return switch (element) {
-            case CanvasElement.Text text -> text.text().value();
-            case CanvasElement.Image image -> image.title().map(title -> title.value()).orElse(element.id());
-            default -> element.id();
-        };
-    }
-
-    /** A copy of one element, under a fresh id this client chooses so the copy appears at once. */
-    private void duplicateElement(CanvasElement element) {
-        com.google.gson.JsonObject tree = CanvasElement.asJson(element);
-        int index = elementInsertIndex();
-        CanvasElement made = placeElement(tree);
-        if (made == null) {
-            return;
-        }
-        elementDraft.insert(effectiveChapter(), made, index, Util.getMillis());
-        send(new EditorOp.InsertElement(index, tree));
     }
 
     /**
@@ -18096,7 +15839,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * press rather than a round trip later, and its pending field values are forgotten with it: a value for an
      * element that no longer exists would be applied to whatever the next element with that id turns out to be.
      */
-    private void deleteElement(String id) {
+    void deleteElement(String id) {
         elementDraft.remove(effectiveChapter(), id, Util.getMillis());
         fieldDraft.forgetOwner(effectiveChapter(), ELEMENT_OWNER_PREFIX + id);
         send(new EditorOp.RemoveElement(id));
@@ -19203,169 +16946,6 @@ public final class QuestBookScreen extends ArmatureScreen
         refreshOverlayMute();
     }
 
-    /**
-     * What a dependency line offers: its form, its arrows, its pattern, its weight, and its removal.
-     *
-     * <p>Each flyout is one panel of previews: a route is recognised by seeing it, and the three arrow
-     * axes share one flyout — one level of flyout, never two — so tuning a combination is a single visit
-     * rather than a hover-chain that closes when the hand strays a pixel. A cell press keeps the panel
-     * open and rebuilds it in place; the way out is the pointer leaving, Escape, or a choice like
-     * "Join handles" that closes with the click.
-     */
-    private List<MenuItem> lineMenuItems(String from, String to) {
-        ClientQuestCache.Entry dependent = entryFor(to);
-        DependencyStyle now = dependent == null ? DependencyStyle.UNSET : lineStyle(dependent, from);
-        String suffix = " \u2192 " + to;
-        List<MenuItem> items = new ArrayList<>();
-        // The four style flyouts are Advanced's, and they are the plainest case of the cut in the whole
-        // editor: a route, its arrow heads, its pattern and its weight are four answers to "how exactly
-        // should this line be drawn", where the line's existence is the basic fact. What Normal keeps is
-        // the row below this -- removing the dependency -- so a line the author cannot restyle is still a
-        // line they can take away.
-        if (dev.ellipog.tenet.client.dev.Advanced.on()) {
-            items.add(MenuItem.parent("Form \u203a", formRows(from, to, now)));
-            items.add(MenuItem.parent("Arrows \u203a", arrowRows(from, to, now)));
-            items.add(MenuItem.parent("Line \u203a", patternRows(from, to, now)));
-            items.add(MenuItem.parent("Weight \u203a", weightRows(from, to, now)));
-        }
-        boolean armed = menuDeleteArmed;
-        items.add(MenuItem.destructive(
-                armed ? "Really delete?" + suffix : "Delete dependency" + suffix,
-                armed
-                        ? () -> bookRewards.removeDependency(to, from)
-                        : () -> {
-                            menuDeleteArmed = true;
-                            canvasMenuFrom = from;
-                            canvasMenuTo = to;
-                            openMenu(lineMenuItems(from, to));
-                        }));
-        return items;
-    }
-
-    /** The Form flyout: a preview per route, the handle toggle, and the axis reset. */
-    private List<MenuFlyout.Row> formRows(String from, String to, DependencyStyle now) {
-        List<MenuFlyout.Cell> cells = new ArrayList<>();
-        for (DependencyStyle.Form form : DependencyStyle.Form.values()) {
-            cells.add(new MenuFlyout.Cell(BookRewards.formLabel(form),
-                    () -> bookRewards.setLineAxis(from, to, "form", form.wire()),
-                    now.formOr(DependencyStyle.Form.CHAMFERED) == form,
-                    new MenuFlyout.Preview.Form(form)));
-        }
-        List<MenuFlyout.Row> rows = new ArrayList<>();
-        rows.add(new MenuFlyout.Row.Cells(Labels.of("tenet.dev.line.form"), cells,
-                    reset(from, to, "form"), true));
-        if (isSplit(now)) {
-            rows.add(MenuFlyout.text(Labels.of("tenet.dev.line.join_handles"),
-                    () -> bookRewards.joinHandles(from, to)));
-        }
-        else if (now.formOr(DependencyStyle.Form.CHAMFERED) == DependencyStyle.Form.CURVED) {
-            // Only a curve: its two control points reproduce the bow exactly, so the offer is made only
-            // where it keeps the shape.
-            rows.add(MenuFlyout.text(Labels.of("tenet.dev.line.split_handles"),
-                    () -> bookRewards.splitHandles(from, to, now)));
-        }
-        return rows;
-    }
-
-    /**
-     * The Arrows flyout: one row per arrow axis, in one panel.
-     *
-     * <p>The old menu kept the glyph and its placement in one axis and offered a text list; the split
-     * axes live together here rather than in nested flyouts. A row whose meaning another axis has
-     * switched off — placement and density under a blunt end, density when the heads are not a stream —
-     * is drawn faint rather than hidden, so the panel does not change shape under the pointer.
-     */
-    private List<MenuFlyout.Row> arrowRows(String from, String to, DependencyStyle now) {
-        DependencyStyle.ArrowHead head = now.headOr(DependencyStyle.ArrowHead.CHEVRON);
-        DependencyStyle.ArrowPlace place = now.placeOr(DependencyStyle.ArrowPlace.TARGET);
-        List<MenuFlyout.Cell> heads = new ArrayList<>();
-        for (DependencyStyle.ArrowHead value : DependencyStyle.ArrowHead.values()) {
-            heads.add(new MenuFlyout.Cell(BookRewards.headLabel(value),
-                    () -> bookRewards.setLineAxis(from, to, "arrowHead", value.wire()), head == value,
-                    new MenuFlyout.Preview.Head(value)));
-        }
-        List<MenuFlyout.Cell> places = new ArrayList<>();
-        for (DependencyStyle.ArrowPlace value : DependencyStyle.ArrowPlace.values()) {
-            places.add(new MenuFlyout.Cell(BookRewards.placeLabel(value),
-                    () -> bookRewards.setLineAxis(from, to, "arrowPlace", value.wire()), place == value,
-                    new MenuFlyout.Preview.Place(value)));
-        }
-        List<MenuFlyout.Cell> densities = new ArrayList<>();
-        for (DependencyStyle.ArrowDensity value : DependencyStyle.ArrowDensity.values()) {
-            densities.add(new MenuFlyout.Cell(BookRewards.densityLabel(value),
-                    () -> bookRewards.setLineAxis(from, to, "arrowDensity", value.wire()),
-                    now.densityOr(DependencyStyle.ArrowDensity.MEDIUM) == value,
-                    new MenuFlyout.Preview.Density(value)));
-        }
-        List<MenuFlyout.Row> rows = new ArrayList<>();
-        rows.add(new MenuFlyout.Row.Cells(Labels.of("tenet.dev.line.head"), heads,
-                    reset(from, to, "arrowHead"), true));
-        rows.add(new MenuFlyout.Row.Cells(Labels.of("tenet.dev.line.place"), places,
-                    reset(from, to, "arrowPlace"),
-                head != DependencyStyle.ArrowHead.NONE));
-        rows.add(new MenuFlyout.Row.Cells(Labels.of("tenet.dev.line.density"), densities,
-                    reset(from, to, "arrowDensity"),
-                head != DependencyStyle.ArrowHead.NONE && place == DependencyStyle.ArrowPlace.STREAM));
-        return rows;
-    }
-
-    /** The Line flyout: a preview per pattern. */
-    private List<MenuFlyout.Row> patternRows(String from, String to, DependencyStyle now) {
-        DependencyStyle.Dash current = now.dashOr(DependencyStyle.Dash.SOLID);
-        List<MenuFlyout.Cell> cells = new ArrayList<>();
-        for (DependencyStyle.Dash pattern : DependencyStyle.Dash.values()) {
-            cells.add(new MenuFlyout.Cell(BookRewards.patternLabel(pattern),
-                    () -> bookRewards.setLineAxis(from, to, "dash", pattern.wire()), current == pattern,
-                    new MenuFlyout.Preview.Pattern(pattern)));
-        }
-        return List.of(new MenuFlyout.Row.Cells(Labels.of("tenet.dev.line.pattern"), cells,
-                    reset(from, to, "dash"), true));
-    }
-
-    /** The Weight flyout: a preview per thickness, faint while the pattern ignores the weight axis. */
-    private List<MenuFlyout.Row> weightRows(String from, String to, DependencyStyle now) {
-        DependencyStyle.Weight current = now.weightOr(DependencyStyle.Weight.THIN);
-        List<MenuFlyout.Cell> cells = new ArrayList<>();
-        for (DependencyStyle.Weight weight : DependencyStyle.Weight.values()) {
-            cells.add(new MenuFlyout.Cell(BookRewards.weightLabel(weight),
-                    () -> bookRewards.setLineAxis(from, to, "weight", weight.wire()), current == weight,
-                    new MenuFlyout.Preview.Weight(weight)));
-        }
-        return List.of(new MenuFlyout.Row.Cells(Labels.of("tenet.dev.line.weight"), cells,
-                    reset(from, to, "weight"),
-                now.dashOr(DependencyStyle.Dash.SOLID) != DependencyStyle.Dash.DOUBLE));
-    }
-
-    /** The reset chip's action, or null when the line already stands on the chapter's default. */
-    private Runnable reset(String from, String to, String axis) {
-        return overrides(from, to, axis) ? () -> bookRewards.clearLineAxis(from, to, axis) : null;
-    }
-
-    /**
-     * Whether this line's own override names the axis.
-     *
-     * <p>The legacy arrows axis stands in for all three current arrow axes: a line written before the
-     * split genuinely overrides its arrows, and a reset offered on it must clear the old spelling too,
-     * or clearing one new axis would leave the old value in force.
-     */
-    private boolean overrides(String from, String to, String axis) {
-        JsonObject entry = lineEntry(from, to);
-        return entry.has(axis)
-                || (DependencyStyle.isArrowAxis(axis)
-                && entry.has(DependencyStyle.LEGACY_ARROWS_FIELD));
-    }
-
-    /** One line's override object, or an empty one when it has none. */
-    private JsonObject lineEntry(String from, String to) {
-        ClientQuestCache.Entry dependent = entryFor(to);
-        if (dependent == null) {
-            return new JsonObject();
-        }
-        JsonObject lines = BookRewards.dependencyLinesOf(dependent);
-        return lines.has(from) && lines.get(from).isJsonObject()
-                ? lines.getAsJsonObject(from) : new JsonObject();
-    }
-
     // ------------------------------------------------------------------
     // The Assets panel: the pack, listed
     // ------------------------------------------------------------------
@@ -19466,7 +17046,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Opens the pack's panel, on the section the author was last reading. */
     private void openAssets() {
-        closeMenu();
+        bookMenu.closeMenu();
         // The remembered section, coerced to one this depth shows: a page it does not show would draw its
         // list under no selected section and offer that section's own footer action. The coercion is for
         // the view only -- `ClientWorking` keeps what the author chose, so Advanced finds "tables" again.
@@ -21005,7 +18585,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     Set.copyOf(entryFolded)));
         }
         if (!target.chapterId().equals(effectiveChapter())) {
-            selectChapter(target.chapterId());
+            bookSidebar.selectChapter(target.chapterId());
         }
         selectedQuest = questId;
         multiSelection.clear();
@@ -21026,7 +18606,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         if (!target.chapterId().equals(effectiveChapter())) {
-            selectChapter(target.chapterId());
+            bookSidebar.selectChapter(target.chapterId());
         }
         selectedQuest = visit.questId();
         multiSelection.clear();
@@ -21072,7 +18652,7 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         if (!target.chapterId().equals(effectiveChapter())) {
-            selectChapter(target.chapterId());
+            bookSidebar.selectChapter(target.chapterId());
         }
         selectedQuest = questId;
         multiSelection.clear();
@@ -21204,67 +18784,6 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         ArmatureNetwork.sendToServer(new ClaimRewardPayload(questId));
         Constants.LOG.debug("asked the server to hand over the rewards for {}", questId);
-    }
-
-    /**
-     * Asks the server to clear one or more quests' progress, for playtesting.
-     *
-     * <p>One packet per quest rather than one carrying a list: the server resolves each id against
-     * its own index, so a client naming a list would be a client deciding what it clears, while a
-     * client naming one quest at a time can only ask for quests it could have pressed a button
-     * for. No pending mark — a reset needs no idempotency visual, because pressing it twice
-     * clears the same thing rather than granting it twice.
-     */
-    private void resetQuests(List<String> questIds) {
-        for (String questId : questIds) {
-            ArmatureNetwork.sendToServer(new ResetQuestPayload(questId));
-            Constants.LOG.debug("asked the server to clear the progress of {}", questId);
-        }
-    }
-
-    /**
-     * Asks the server to mark quests complete, for playtesting.
-     *
-     * <p>One packet per quest rather than one carrying a list, on Reset's terms: the server
-     * resolves each id against its own index, so a client naming one quest at a time can only
-     * ask for quests it could have pressed a row for. The press names the quest and nothing
-     * else — no progress crosses — so there is no new client-assertable path past
-     * {@code SubmitTaskPayload}'s rule.
-     */
-    private void completeQuests(List<String> questIds) {
-        for (String questId : questIds) {
-            ArmatureNetwork.sendToServer(new CompleteQuestPayload(questId, false));
-            Constants.LOG.debug("asked the server to complete {}", questId);
-        }
-    }
-
-    /**
-     * Asks the server to mark one quest complete with everything it waits on, for playtesting.
-     *
-     * <p>The chain is the server's to walk: the flag asks for the command's
-     * {@code with-dependencies} sweep, and the guards still refuse locked and gated quests with
-     * the command's own messages rather than stopping the sweep.
-     */
-    private void completeQuestWithDependencies(String questId) {
-        ArmatureNetwork.sendToServer(new CompleteQuestPayload(questId, true));
-        Constants.LOG.debug("asked the server to complete {} with its dependencies", questId);
-    }
-
-    /**
-     * Asks the server to clear one chapter's progress, for playtesting.
-     *
-     * <p>The chapter travels as a scope, like the claim menu's banner: which of its quests are
-     * held stays the server's to decide.
-     */
-    private void resetChapter(String chapterId) {
-        ArmatureNetwork.sendToServer(new ResetChapterPayload(chapterId));
-        Constants.LOG.debug("asked the server to clear the progress of chapter {}", chapterId);
-    }
-
-    /** Asks the server to clear the whole book's progress, for playtesting. */
-    private void resetAll() {
-        ArmatureNetwork.sendToServer(new ResetAllPayload());
-        Constants.LOG.debug("asked the server to clear the whole book's progress");
     }
 
     // ------------------------------------------------------------------
@@ -21573,7 +19092,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     // marks read unshifted rectangles, and the rail's icons carry no bars — the selected
                     // fill is the rail's answer to "where am I".
                     if (!sidebarWipeTravelling && geometry().sidebarState().expanded()) {
-                        drawSidebarChapterProgress(renderer, hoverX, hoverY);
+                        bookSidebar.drawSidebarChapterProgress(renderer, hoverX, hoverY);
                     }
                     // The drag's own marks, above the rows it is about and inside the clip for the same
                     // reason the rows are: a seam line that escaped the list would draw into the header.
@@ -21581,17 +19100,17 @@ public final class QuestBookScreen extends ArmatureScreen
                     // rail is a supported gesture, and a drag with no seam is a drag with no target.
                     if (!sidebarWipeTravelling
                             && (geometry().sidebarState().expanded() || sidebarDragLive)) {
-                        drawSidebarDrag(renderer);
+                        bookSidebar.drawSidebarDrag(renderer);
                     }
                     // The inline session's faint line under its field: the path preview as the
                     // author types, or the rename's id line. Inside the clip for the same reason
                     // the bars are, and only while the rows are settled.
                     if (!sidebarWipeTravelling && geometry().sidebarState().expanded()) {
-                        drawInlineStatus(renderer);
+                        bookSidebar.drawInlineStatus(renderer);
                     }
                     // And the menu, which is outside the rows' clip only in the sense that it overhangs
                     // them -- it belongs to the list, and it is drawn after it so nothing paints over it.
-                    drawMenu(renderer, renderMouseX, renderMouseY);
+                    bookMenu.drawMenu(renderer, renderMouseX, renderMouseY);
                     return null;
                 });
                 // The rows' travel is undone; the cluster's seats are always valid — freshly built
@@ -21898,7 +19417,7 @@ public final class QuestBookScreen extends ArmatureScreen
      */
 
     /** The whole book, as a rectangle. Used by the render clip and by nothing else. */
-    private BookGeometry.Rect panelRect() {
+    BookGeometry.Rect panelRect() {
         return geometry().panel();
     }
 
@@ -21966,7 +19485,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // reload exactly as it does with nothing open. It used to skip while a card was up, on the reasoning
         // that `init` built only the card's controls -- and a rail beside the sidebar is not that case, so
         // the guard's only remaining effect would be a sidebar that went stale whenever a panel was open.
-        if (sidebarStale()) {
+        if (BookSidebar.sidebarStale()) {
             rebuildWidgets();
             snapshotFrame();
         }
@@ -23379,7 +20898,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // The reward badges last of the node furniture: a title's backdrop is opaque and reaches the
         // corner on a long name, so a badge drawn with the nodes would vanish exactly when the chapter
         // is busiest.
-        drawRewardBadges(r, nodes, dx, dy, detail);
+        bookSidebar.drawRewardBadges(r, nodes, dx, dy, detail);
         // The padlocks after everything node-shaped, straddling their node's top-right corner:
         // a large icon reaches the corner the lock would sit inside, and vanilla's item pipeline
         // draws over fills whatever order they are issued in — a lock drawn with its node ends up
@@ -23388,7 +20907,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // with the quest's own `hide_lock_icon`, either silence winning; a locked node without one
         // still reads locked — the blocked edge and the dim wash stay — because the mark is the
         // announcement, not the state.
-        drawLockMarks(r, nodes, dx, dy, detail);
+        bookSidebar.drawLockMarks(r, nodes, dx, dy, detail);
 
         // The handle layer **after the nodes**, deliberately: a dot that overlaps a node -- an anchor
         // dragged round to its far side -- has to be on top of it, or the thing in your hand disappears.
@@ -23600,55 +21119,6 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * A padlock straddling a node's top-right corner, marking a locked quest.
-     *
-     * <p>Drawn from fills rather than from a texture, because there is no lock sprite: an arched
-     * shackle over a hollow body with a keyhole, in the title ink and transparent everywhere else,
-     * so whatever is behind the mark shows through it. That is also why there is no backing chip:
-     * a locked node already wears the dim wash, which is the dark the ink reads against. The
-     * caller positions the box centred on the node's corner — half outside the panel, where no
-     * icon can reach, and half in, which reads as pinned rather than floating. Sized with a
-     * floor — below nine pixels the shackle's bars would be one pixel or none, which reads as
-     * dirt on the node rather than as a mark. Skipped at the far zoom for the same reason the
-     * rings are: the caller asks {@code detail} before calling.
-     *
-     * @param bx the box's left edge, already resolved against the node's corner
-     * @param by the box's top edge, already resolved against the node's corner
-     * @param box the box's edge, nine pixels or more
-     */
-    private static void drawLockMark(GuiRenderer r, int bx, int by, int box) {
-        int ink = ArmatureTheme.title();
-        int bar = Math.max(1, box / 7);
-        // The shackle: an inverted U straddling the body's top edge — two legs joined by one bar,
-        // hollow in the middle so the node reads through it.
-        int bodyTop = by + (box * 2) / 5;
-        int legLeft = bx + box / 4;
-        int legRight = bx + (box * 3) / 4 - bar;
-        int shackleBottom = bodyTop + bar;
-        r.fill(legLeft, by, legLeft + bar, shackleBottom, ink);
-        r.fill(legRight, by, legRight + bar, shackleBottom, ink);
-        r.fill(legLeft, by, legRight + bar, by + bar, ink);
-        // The body: a hollow box with its corners cut, so it reads round rather than square. The
-        // shackle's feet land on its top edge, merging the two into one outline.
-        int edge = bar;
-        int bottom = by + box;
-        int right = bx + box;
-        r.fill(bx + 1, bodyTop, right - 1, bodyTop + edge, ink);
-        r.fill(bx + 1, bottom - edge, right - 1, bottom, ink);
-        r.fill(bx, bodyTop + 1, bx + edge, bottom - 1, ink);
-        r.fill(right - edge, bodyTop + 1, right, bottom - 1, ink);
-        // The keyhole: a dot over a short stem, centred in the body.
-        int bodyH = bottom - bodyTop;
-        int cx = bx + box / 2;
-        int d = box >= 14 ? 2 : 1;
-        int dx = cx - d / 2;
-        int dy = bodyTop + bodyH / 3;
-        r.fill(dx, dy, dx + d, dy + d, ink);
-        int stemH = Math.max(1, bodyH / 4);
-        r.fill(cx, dy + d, cx + 1, dy + d + stemH, ink);
-    }
-
-    /**
      * Node titles, drawn once after every node.
      *
      * <p>A separate pass rather than part of {@link #drawNode}, because a label needs to know about the
@@ -23726,7 +21196,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * stale bend. The synced tree stays the base otherwise: the canvas draws the tree, and the replica
      * can be older than it.
      */
-    private static DependencyStyle lineStyle(ClientQuestCache.Entry entry, String dependencyId) {
+    static DependencyStyle lineStyle(ClientQuestCache.Entry entry, String dependencyId) {
         JsonElement drafted = fieldDraft.value(entry.chapterId(), entry.id(), "dependencyLines");
         DependencyStyle own = drafted != null && drafted.isJsonObject()
                 ? DependencyStyle.from(drafted.getAsJsonObject().get(dependencyId))
@@ -23978,7 +21448,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * visibility question (a cached map lookup and a mode flag, both cheaper than the
      * record they would have to ride in on).
      */
-    private record FrameNode(ClientQuestCache.Entry entry, String id, String chapterId, int x, int y,
+    record FrameNode(ClientQuestCache.Entry entry, String id, String chapterId, int x, int y,
                              int size, QuestState state, QuestShape shape,
                              dev.ellipog.armature.client.ui.shape.Shape geometry,
                              ItemStack icon, String texture, String sprite, double iconScale,
@@ -24047,7 +21517,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * anyway, which is a fact about the element and the mode rather than about the pointer — so it is part of
      * what a stamp produces, like the box.
      */
-    private record ElementSlot(CanvasElement element, CanvasElementArt.Box box, boolean marked) {
+    record ElementSlot(CanvasElement element, CanvasElementArt.Box box, boolean marked) {
 
         ElementSlot shifted(int dx, int dy) {
             if (dx == 0 && dy == 0) {
@@ -24120,7 +21590,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * exists for dragging a group of <i>quests</i> together. See the chapter tab's element list for the way to
      * reach an element the canvas cannot draw.
      */
-    private static String selectedElement;
+    static String selectedElement;
 
     /**
      * The link the author has selected, or empty.
@@ -24675,7 +22145,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * press two pixels outside it is not a press on it. A line is the one arm whose shape is not its box, so it
      * is the one that needs a tolerance — the same one the dependency lines' hover uses.
      */
-    private String elementAt(double mouseX, double mouseY) {
+    String elementAt(double mouseX, double mouseY) {
         int dx = panDx();
         int dy = panDy();
         for (int i = canvasElements.size() - 1; i >= 0; i--) {
@@ -24689,7 +22159,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** The slot with this id, or null. */
-    private ElementSlot elementSlot(String id) {
+    ElementSlot elementSlot(String id) {
         if (id == null) {
             return null;
         }
@@ -25209,7 +22679,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** The node under the pointer, or null. */
-    private ClientQuestCache.Entry nodeAt(double mouseX, double mouseY, List<ClientQuestCache.Entry> quests) {
+    ClientQuestCache.Entry nodeAt(double mouseX, double mouseY, List<ClientQuestCache.Entry> quests) {
         if (canvasState != null) {
             int dx = panDx();
             int dy = panDy();
@@ -25645,7 +23115,7 @@ public final class QuestBookScreen extends ArmatureScreen
             bookRewards.drawRewardsOverlay(r, mouseX, mouseY);
         }
         else if (kind == PanelKind.NAMING) {
-            drawNamingOverlay(r);
+            bookSidebar.drawNamingOverlay(r);
         }
         else if (kind == PanelKind.ELEMENT) {
             // An element is the chapter's own content -- it lives in that chapter's file and is drawn on its
@@ -28932,7 +26402,7 @@ public final class QuestBookScreen extends ArmatureScreen
         //
         // And the right-click that opens it. On a row or on the empty list, in edit mode only: the menu
         // is all structural edits, and a reader has none of them.
-        if (button == InputConstants.MOUSE_BUTTON_RIGHT && mayEditNow() && openSidebarMenuAt(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT && mayEditNow() && bookMenu.openSidebarMenuAt(mouseX, mouseY)) {
             return true;
         }
 
@@ -28941,19 +26411,19 @@ public final class QuestBookScreen extends ArmatureScreen
         // must be remembered here, or the press is a click and there is nothing left to drag. It is not
         // consumed -- a press that never travels is still the row's click, and `super` below is what
         // makes it one.
-        rememberSidebarPress(mouseX, mouseY, button);
+        bookSidebar.rememberSidebarPress(mouseX, mouseY, button);
 
         // The sidebar's inline edit: a press on its fields is the edit's, and a press anywhere
         // else abandons it with nothing written. Cancelled before the widget pass, so the pass
         // offers the press to the list the cancel rebuilt rather than the one it replaced. The
         // rename's status line is the exception: it toggles the id disclosure instead.
-        if (inlineEdit != null && !pressOnInlineField(mouseX, mouseY)) {
+        if (inlineEdit != null && !bookSidebar.pressOnInlineField(mouseX, mouseY)) {
             if (inlineEdit.mode() == NamingMode.RENAME && !inlineEdit.showId()
-                    && inlineStatusHit(mouseX, mouseY)) {
-                toggleInlineId();
+                    && bookSidebar.inlineStatusHit(mouseX, mouseY)) {
+                bookSidebar.toggleInlineId();
                 return true;
             }
-            cancelInline();
+            bookSidebar.cancelInline();
         }
 
         // Widgets first. A control that was clicked must keep the event.
@@ -29440,7 +26910,7 @@ public final class QuestBookScreen extends ArmatureScreen
             submenuRow = -1;
             return;
         }
-        int row = menuRowAt(mouseX, mouseY);
+        int row = bookMenu.menuRowAt(mouseX, mouseY);
         if (row >= 0) {
             submenuRow = menu.get(row).submenu() ? row : -1;
             return;
@@ -29456,7 +26926,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (submenuRow < 0) {
             return false;
         }
-        MenuFlyout.Placed placed = submenuPlacement(submenuRow);
+        MenuFlyout.Placed placed = bookMenu.submenuPlacement(submenuRow);
         if (placed.rows().isEmpty()) {
             return false;
         }
@@ -29477,7 +26947,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (placed.rows().isEmpty() || submenuRow < 0) {
             return null;
         }
-        List<BookGeometry.Rect> main = menuRects();
+        List<BookGeometry.Rect> main = bookMenu.menuRects();
         if (submenuRow >= main.size()) {
             return null;
         }
@@ -29637,7 +27107,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 pressMoved = true;
             }
             sidebarDragPointerY = mouseY;
-            sidebarDrop = SidebarDrag.target(sidebarRows(), mouseY, sidebarDragKey, sidebarDragGroup);
+            sidebarDrop = SidebarDrag.target(bookSidebar.sidebarRows(), mouseY, sidebarDragKey, sidebarDragGroup);
             return true;
         }
 
@@ -29914,7 +27384,7 @@ public final class QuestBookScreen extends ArmatureScreen
             sidebarDragLive = false;
             sidebarDrop = null;
             if (live) {
-                commitSidebarDrop(key, group, drop);
+                bookSidebar.commitSidebarDrop(key, group, drop);
                 return true;
             }
         }
@@ -30015,7 +27485,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // A right-press that never travelled is a click, and the canvas's menus are what a
             // right-click is for: on the node it was over, or on the line, or on the empty canvas.
             if (!live && !pressMoved) {
-                openCanvasMenuAt(mouseX, mouseY);
+                bookMenu.openCanvasMenuAt(mouseX, mouseY);
             }
             return true;
         }
@@ -30026,7 +27496,7 @@ public final class QuestBookScreen extends ArmatureScreen
         if (button == InputConstants.MOUSE_BUTTON_RIGHT && canvasRightPressed) {
             canvasRightPressed = false;
             if (!pressMoved) {
-                openCanvasMenuAt(mouseX, mouseY);
+                bookMenu.openCanvasMenuAt(mouseX, mouseY);
             }
             return true;
         }
@@ -30312,7 +27782,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // The wheel closes an open menu, wherever it is. The canvas zooms and the lists scroll under the
         // pointer, so a menu left open would hang over a node or a row that has moved out from under it.
         if (!menu.isEmpty()) {
-            closeMenu();
+            bookMenu.closeMenu();
         }
         // **Which rail the wheel belongs to**, or null when the pointer is over the graph — in which case
         // the zoom at the foot of this method is what answers. One resolver, the same one the press and the
@@ -30551,7 +28021,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // small deltas add up to that notch instead of being truncated away.
             int notches = sidebarView.bar().notches(scrollY);
             if (notches != 0) {
-                scrollSidebar(-notches * SidebarLayout.pitch());
+                bookSidebar.scrollSidebar(-notches * SidebarLayout.pitch());
             }
             return true;
         }
@@ -30617,7 +28087,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // menu standing over a card that no longer existed. See `pressDropdown` for the press's half of the
         // same rule, and `.utils/check_dropdowns.py` for the guard that holds the two halves together.
         if (!menu.isEmpty() && keyCode == InputConstants.KEY_ESCAPE) {
-            closeMenu();
+            bookMenu.closeMenu();
             return true;
         }
         // The table panels' own keys, read before anything else. Escape unwinds in the order the author
@@ -30747,11 +28217,11 @@ public final class QuestBookScreen extends ArmatureScreen
         // which is not what a form's Enter means.
         if (overlay == PanelKind.NAMING) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
-                closeNaming();
+                bookSidebar.closeNaming();
                 return true;
             }
             if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
-                submitNaming();
+                bookSidebar.submitNaming();
                 return true;
             }
         }
@@ -30761,11 +28231,11 @@ public final class QuestBookScreen extends ArmatureScreen
         // control says it means.
         if (inlineEdit != null && (getFocused() == inlineTitle || getFocused() == inlineId)) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
-                cancelInline();
+                bookSidebar.cancelInline();
                 return true;
             }
             if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
-                commitInline();
+                bookSidebar.commitInline();
                 return true;
             }
         }
@@ -30773,7 +28243,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // are never the selection, so there is nothing for the key to name.
         if (keyCode == InputConstants.KEY_F2 && inlineEdit == null && mayEditNow()
                 && effectiveChapter() != null) {
-            startInlineRename("chapter", effectiveChapter());
+            bookSidebar.startInlineRename("chapter", effectiveChapter());
             return true;
         }
         // The item picker's keys, and they are read here rather than left to the search box: a field's
@@ -31101,11 +28571,11 @@ public final class QuestBookScreen extends ArmatureScreen
         // The shifted pair, read before the plain keys below: `Ctrl+N` is a new *quest*, and on the same
         // key the shift is the difference between "a node in this chapter" and "a chapter in this book".
         if (ctrl && event.hasShiftDown() && keyCode == InputConstants.KEY_N) {
-            newChapterFromToolbar();
+            bookSidebar.newChapterFromToolbar();
             return true;
         }
         if (ctrl && event.hasShiftDown() && keyCode == InputConstants.KEY_G) {
-            newGroupFromToolbar();
+            bookSidebar.newGroupFromToolbar();
             return true;
         }
         if (ctrl && keyCode == InputConstants.KEY_N) {
@@ -31248,7 +28718,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * Live keyboard state is the keyboard's own answer (there is no event in half the call sites);
      * {@link BookGeometry#snap} stays a pure function by taking this one as its {@code on}.
      */
-    private static boolean snappingNow() {
+    static boolean snappingNow() {
         return DevMode.snap() && !altDown();
     }
 
@@ -31314,12 +28784,12 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** Duplicates the whole selection: one history step per chapter it spans. */
-    private void duplicateSelection(List<String> ids) {
+    void duplicateSelection(List<String> ids) {
         sendBulk(ids, EditorOp.Duplicate::new);
     }
 
     /** Deletes the whole selection: one history step per chapter it spans. */
-    private void deleteSelection(List<String> ids) {
+    void deleteSelection(List<String> ids) {
         sendBulk(ids, EditorOp.Delete::new);
     }
 
@@ -31612,7 +29082,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** Copies the selection's own trees to the session clipboard. */
-    private void copySelection() {
+    void copySelection() {
         List<String> ids = selection();
         if (ids.isEmpty()) {
             return;
@@ -31655,7 +29125,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * menu's "Paste here" drops where you right-clicked. A second copy would be a second thing to keep
      * in step about the 48-pixel stagger and the snap.
      */
-    private void pasteAt(double x, double y) {
+    void pasteAt(double x, double y) {
         List<JsonObject> trees = ClientEditorClipboard.quests();
         if (trees.isEmpty()) {
             return;
@@ -31670,7 +29140,7 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /** Selects every quest in the chapter: the primary first, the rest in the chapter's own order. */
-    private void selectAllInChapter() {
+    void selectAllInChapter() {
         List<ClientQuestCache.Entry> quests = questsIn(effectiveChapter());
         if (quests == null || quests.isEmpty()) {
             return;
@@ -31880,7 +29350,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // The sidebar's waiting counts ride the row buttons as suffixes, and a claim lands as a
         // changed map — see syncSidebarSuffixes. Here rather than in the drawing, because setting
         // a widget is state and state does not belong inside a render.
-        syncSidebarSuffixes();
+        bookSidebar.syncSidebarSuffixes();
         if (overlay == PanelKind.REWARDS) {
             long progress = ClientQuestCache.progressRevision();
             boolean marksMoved = rewardMarksRevision != pendingClaims.revision();
@@ -31896,7 +29366,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 int taskIndex = firstManualTask(entry);
                 java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
                 boolean claimable = self != null && claimableWithMarks(self, entry);
-                if (claimable != readerFooterClaimable || taskIndex != readerFooterTaskIndex) {
+                if (claimable != bookSidebar.readerFooterClaimable || taskIndex != bookSidebar.readerFooterTaskIndex) {
                     rebuildWidgets();
                 }
             }
@@ -31953,7 +29423,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // without letting go. In tick rather than in the drag's follow, because a pointer held still at
         // the edge stops producing mouse events and the list has to keep moving.
         if (sidebarDragLive) {
-            autoScrollSidebar();
+            bookSidebar.autoScrollSidebar();
         }
 
         // The server's undo history can be thrown away without this client having asked for anything --
@@ -32395,7 +29865,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * drawn for every chapter with something waiting — each row's count is that chapter's own mark,
      * and it has to resolve the palette of the chapter it counts, not of the one on screen.
      */
-    private static Theme themeFor(String chapter) {
+    static Theme themeFor(String chapter) {
         if (chapter == null) {
             return ClientAppearance.LOOK.main();
         }
