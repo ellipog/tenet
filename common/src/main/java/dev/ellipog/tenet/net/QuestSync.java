@@ -2006,12 +2006,11 @@ public final class QuestSync {
     /**
      * Forgets every snapshot, so the next sync to anybody is a full one.
      *
-     * <p><b>Nothing calls this, and the reload path does not need it.</b> A reload is
-     * {@code REASON_RELOAD}, and {@link #sendProgress} sends a full sync for that reason on its own —
-     * so a caller that forgot every snapshot first would change nothing, and it would also forget the
-     * snapshots of players the reload is not about. It is kept because forcing a full sync for a
-     * player who never disconnected is exactly what it does and the next reason to want that will not
-     * be a reload; the reader who finds it dead should feel free to delete it.
+     * <p><b>The server's stop calls this, and the reload path does not need it.</b> The map is static,
+     * and in single player the next world runs in the same JVM, so a stop that left it alone would keep
+     * every snapshot the last world made. A reload is {@code REASON_RELOAD}, and {@link #sendProgress}
+     * sends a full sync for that reason on its own — so a caller that forgot every snapshot first would
+     * change nothing, and it would also forget the snapshots of players the reload is not about.
      */
     public static void forgetAll() {
         SENT.clear();
