@@ -20,34 +20,34 @@ class RowTagTest {
     @Test
     @DisplayName("locked wins the slot, whatever else is true")
     void lockedWinsTheSlot() {
-        assertEquals("locked", QuestBookScreen.tagText(true, false, false, 0));
-        assertEquals("locked", QuestBookScreen.tagText(true, true, true, 1650),
+        assertEquals("locked", BookQuestRows.tagText(true, false, false, 0));
+        assertEquals("locked", BookQuestRows.tagText(true, true, true, 1650),
                 "a cooling hand-in behind a lock still says locked");
     }
 
     @Test
     @DisplayName("the hand-in beats the optional flag")
     void handInBeatsOptional() {
-        assertEquals("hand in", QuestBookScreen.tagText(false, true, true, 0));
-        assertEquals("optional", QuestBookScreen.tagText(false, false, true, 0));
+        assertEquals("hand in", BookQuestRows.tagText(false, true, true, 0));
+        assertEquals("optional", BookQuestRows.tagText(false, false, true, 0));
     }
 
     @Test
     @DisplayName("a cooling row with an empty slot counts down in whole seconds")
     void coolingCountsDownInWholeSeconds() {
-        assertEquals("ready in 83s", QuestBookScreen.tagText(false, false, false, 1650));
-        assertEquals("ready in 1s", QuestBookScreen.tagText(false, false, false, 1),
+        assertEquals("ready in 83s", BookQuestRows.tagText(false, false, false, 1650));
+        assertEquals("ready in 1s", BookQuestRows.tagText(false, false, false, 1),
                 "a single tick left is still a second to wait");
-        assertEquals("ready in 1s", QuestBookScreen.tagText(false, false, false, 20));
-        assertEquals("ready in 2s", QuestBookScreen.tagText(false, false, false, 21),
+        assertEquals("ready in 1s", BookQuestRows.tagText(false, false, false, 20));
+        assertEquals("ready in 2s", BookQuestRows.tagText(false, false, false, 21),
                 "ceiling, so the text reaches zero exactly when the hand-in comes back");
     }
 
     @Test
     @DisplayName("anything else leaves the slot empty")
     void anythingElseLeavesTheSlotEmpty() {
-        assertNull(QuestBookScreen.tagText(false, false, false, 0));
-        assertNull(QuestBookScreen.tagText(false, false, false, -5),
+        assertNull(BookQuestRows.tagText(false, false, false, 0));
+        assertNull(BookQuestRows.tagText(false, false, false, -5),
                 "a lapsed countdown is nothing to say, not a zero-second one");
     }
 }

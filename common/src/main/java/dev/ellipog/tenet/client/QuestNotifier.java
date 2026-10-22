@@ -405,7 +405,7 @@ public final class QuestNotifier {
     public static void choiceResult(String questId, int rewardIndex,
                                     dev.ellipog.tenet.net.ClaimChoiceResultPayload.Result result) {
         if (Minecraft.getInstance().gui.screen() instanceof QuestBookScreen book) {
-            book.notifyChoiceResult(questId, rewardIndex, result);
+            book.bookOverlay.notifyChoiceResult(questId, rewardIndex, result);
         }
     }
 

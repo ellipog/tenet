@@ -96,13 +96,13 @@ Primary sources only: the legacy mod's `1.21.1/main` GitHub source, local legacy
 - `Span(start, end, argb, link, bold, italic, underline)` (`:112`); `link` is a
   URL-or-empty; `spanAt` (`:235`). `OpenUrl` `{open_url:}` segments do populate
   `link` (`:204-205`), but JSON never reaches that path.
-- Draw (`QuestBookScreen.java:26949-26976`): `link = piece.link() ?? look.link()`,
-  underline when linked, `linkRects.add(new LinkRect(box, link))` (`:26976`).
-  `LinkRect(box, url)` (`:589`); `linkRects` (`:603`); `pressedLink` (`:606`).
-- Press `mouseClicked` (`:28048-28055`, button 0 + QUEST panel + not editing);
-  release (`:29208-29216`) → `openLink(url)`; hover URL tooltip
-  `drawLinkTarget` (`:22616-22623`).
-- `openLink` (`:7827-7842`): **http/https only**, else status message, then
+- Draw (`BookSettings.drawProse`): `link = piece.link() ?? look.link()`,
+  underline when linked, `linkRects.add(new LinkRect(box, link))`.
+  `LinkRect(box, url)`, `linkRects` and `pressedLink` are fields of `QuestBookScreen`.
+- Press `QuestBookScreen.mouseClicked` (button 0 + QUEST panel + not editing);
+  release (`mouseReleased`) → `openLink(url)`; hover URL tooltip
+  `QuestBookScreen.drawLinkTarget`.
+- `QuestBookScreen.openLink`: **http/https only**, else status message, then
   `Util.getPlatform().openUri`, which matches vanilla's scheme rule, minus prompt.
 - Markdown `[label](url)` also lands here via `RichText.Piece.link`
   (`armature/.../ui/kit/RichText.java:84`, read at `:26952`).
