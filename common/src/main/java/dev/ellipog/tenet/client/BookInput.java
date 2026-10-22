@@ -348,7 +348,8 @@ final class BookInput {
         // `say` is gone; the immediate system narration is its successor. Spoken at once rather
         // than queued, because a focus that moves twice in a second should narrate where it is, not
         // where it was.
-        book.minecraft().getNarrator().saySystemNow(Component.translatable("tenet.narrate.quest", QuestBookScreen.titleOf(entry),
+        book.minecraft().getNarrator().saySystemNow(Component.translatable("tenet.narrate.quest",
+                QuestBookScreen.titleOf(entry),
                 QuestBookScreen.stateLabel(ClientQuestCache.stateOf(questId))));
     }
 
@@ -514,7 +515,8 @@ final class BookInput {
             book.status("Edit mode is off, so the book's settings were not written", true);
             return;
         }
-        QuestBookScreen.fieldDraft.set(QuestBookScreen.effectiveChapter(), dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER,
+        QuestBookScreen.fieldDraft.set(QuestBookScreen.effectiveChapter(),
+                dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER,
                 key, value, ClientQuestCache.treeRevision(), Util.getMillis());
         book.send(new EditorOp.SetIndex(key, value));
     }
@@ -642,7 +644,8 @@ final class BookInput {
             return;
         }
         if (id.equals(QuestBookScreen.selectedQuest)) {
-            QuestBookScreen.selectedQuest = QuestBookScreen.multiSelection.isEmpty() ? null : QuestBookScreen.multiSelection.iterator().next();
+            QuestBookScreen.selectedQuest = QuestBookScreen.multiSelection.isEmpty() ? null
+                    : QuestBookScreen.multiSelection.iterator().next();
             QuestBookScreen.multiSelection.remove(QuestBookScreen.selectedQuest);
             return;
         }
@@ -698,7 +701,8 @@ final class BookInput {
      * instead of one quest written over another.
      */
     private void pasteClipboard() {
-        book.pasteAt(book.viewport().contentX(book.canvasLeft() + (book.visibleCanvasRight() - book.canvasLeft()) / 2.0),
+        book.pasteAt(book.viewport().contentX(book.canvasLeft()
+                + (book.visibleCanvasRight() - book.canvasLeft()) / 2.0),
                 book.viewport().contentY(book.canvasTop() + (book.canvasBottom() - book.canvasTop()) / 2.0));
     }
 

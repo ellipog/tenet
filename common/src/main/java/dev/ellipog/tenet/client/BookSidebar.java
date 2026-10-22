@@ -1132,7 +1132,8 @@ final class BookSidebar {
 
     /** Whether the status line is a refusal rather than a path. */
     private boolean inlineStatusBlocked() {
-        if (book.inlineEdit == null || book.inlineEdit.mode() != QuestBookScreen.NamingMode.RENAME || !book.inlineEdit.showId()) {
+        if (book.inlineEdit == null || book.inlineEdit.mode() != QuestBookScreen.NamingMode.RENAME
+                || !book.inlineEdit.showId()) {
             return false;
         }
         String id = book.inlineId == null ? "" : book.inlineId.value().trim();

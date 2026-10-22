@@ -340,9 +340,11 @@ final class BookAssets {
                         copyHot ? ArmatureTheme.title() : ArmatureTheme.faint());
                 r.text("\u00d7", removeBox.x() + (removeBox.width() - r.textWidth("\u00d7")) / 2, baseline,
                         removeHot ? ArmatureTheme.title() : ArmatureTheme.faint());
-                book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_COPY, line.id(), copyBox, copyBox.x(),
+                book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_COPY,
+                        line.id(), copyBox, copyBox.x(),
                         copyBox.y(), line.label(), null, book.assetsTargets.size()));
-                book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_REMOVE, line.id(), removeBox,
+                book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_REMOVE,
+                        line.id(), removeBox,
                         removeBox.x(), removeBox.y(), line.label(), null, book.assetsTargets.size()));
             }
             if (hot) {
@@ -369,9 +371,11 @@ final class BookAssets {
                     removeHot ? ArmatureTheme.title() : ArmatureTheme.faint());
             // The rename target carries the name's origin for the editor's box, while its own box
             // stays the chip: a press on the pencil renames, and a press on the name still applies.
-            book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_RENAME, QuestBookScreen.TEMPLATE_ROW_PREFIX + line.id(),
+            book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_RENAME,
+                    QuestBookScreen.TEMPLATE_ROW_PREFIX + line.id(),
                     renameBox, box.x() + inset, baseline, line.label(), null, book.assetsTargets.size()));
-            book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_TEMPLATE_DELETE, line.id(), removeBox,
+            book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_TEMPLATE_DELETE,
+                    line.id(), removeBox,
                     removeBox.x(), removeBox.y(), line.label(), null, book.assetsTargets.size()));
             if (renameHot) {
                 assetsHint = "Rename \"" + line.label() + "\"";
@@ -416,7 +420,8 @@ final class BookAssets {
     /** The panel's own pressable list, and its registration: one shape, so the two cannot drift. */
     private void registerAssetTarget(QuestBookScreen.EditAction action, BookGeometry.Rect box, AssetLine line) {
         BookGeometry.Rect hit = book.shiftHit(box);
-        book.assetsTargets.add(new QuestBookScreen.EditTarget(action, line.id(), hit, hit.x() + 2, hit.y() + 3, line.label(),
+        book.assetsTargets.add(new QuestBookScreen.EditTarget(action, line.id(), hit, hit.x() + 2,
+                hit.y() + 3, line.label(),
                 null, book.assetsTargets.size()));
     }
 
@@ -428,7 +433,8 @@ final class BookAssets {
         // rows and hit tests are derived from this one rectangle.
         BookGeometry.Rect card = book.surfaceCard(PanelKind.ASSETS);
         book.assetsFrame = dev.ellipog.tenet.client.dev.AssetsLayout.Frame.of(card);
-        book.bookRewards.drawModalCardChrome(r, "Assets", mouseX, mouseY, QuestBookScreen.EditAction.ASSETS_CLOSE, book.assetsTargets);
+        book.bookRewards.drawModalCardChrome(r, "Assets", mouseX, mouseY,
+                QuestBookScreen.EditAction.ASSETS_CLOSE, book.assetsTargets);
 
         List<AssetLine> lines = assetsLines();
         // The layout measures lines; a page carries them. One list seen two ways, so what is measured and
@@ -501,7 +507,8 @@ final class BookAssets {
         dev.ellipog.tenet.client.dev.AssetsLayout.Footer footer =
                 dev.ellipog.tenet.client.dev.AssetsLayout.Footer.of(book.assetsFrame);
         if (book.assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TABLES) {
-            book.bookRewards.drawTableButton(r, footer.newTable(), "New table", mouseX, mouseY, QuestBookScreen.EditAction.ASSETS_NEW,
+            book.bookRewards.drawTableButton(r, footer.newTable(), "New table", mouseX, mouseY,
+                    QuestBookScreen.EditAction.ASSETS_NEW,
                     book.assetsTargets);
         }
         else if (book.assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES) {
@@ -826,7 +833,8 @@ final class BookAssets {
         // path like `entries.1.reward.amount` written into a quest file is a stray member in the wrong
         // file. `tableEdit` is what says which file this box belongs to.
         book.tableEdit = new QuestBookScreen.TableEdit(path, kind);
-        book.editorControls.openInlineEditor(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.FIELD, path, box, textX, textY, shown, null, index),
+        book.editorControls.openInlineEditor(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.FIELD,
+                path, box, textX, textY, shown, null, index),
                 mouseX, mouseY);
     }
 
@@ -837,7 +845,8 @@ final class BookAssets {
         }
         JsonObject entry = book.draftedEntry(index);
         boolean on = entry != null && QuestBookScreen.flagOn(entry, "reward." + field);
-        book.bookRewards.sendTableValue(QuestBookScreen.tableEntryPath(index, field), new com.google.gson.JsonPrimitive(!on));
+        book.bookRewards.sendTableValue(QuestBookScreen.tableEntryPath(index, field),
+                new com.google.gson.JsonPrimitive(!on));
     }
 
     /**
@@ -859,7 +868,8 @@ final class BookAssets {
         if (next.equals(current)) {
             return;
         }
-        book.bookRewards.sendTableValue(QuestBookScreen.tableEntryPath(index, field), new com.google.gson.JsonPrimitive(next));
+        book.bookRewards.sendTableValue(QuestBookScreen.tableEntryPath(index, field),
+                new com.google.gson.JsonPrimitive(next));
     }
 
     /** A stepper inside a fold: one entry's numeric field, nudged. Shift moves ten. */
@@ -883,7 +893,8 @@ final class BookAssets {
         // permission level of zero is how the format spells "no permission". What it is not is a second
         // clamp of its own per field -- that would be a rule about the format living in a press handler.
         int next = Math.max(0, value + direction * step);
-        book.bookRewards.sendTableValue(QuestBookScreen.tableEntryPath(index, field), new com.google.gson.JsonPrimitive(next));
+        book.bookRewards.sendTableValue(QuestBookScreen.tableEntryPath(index, field),
+                new com.google.gson.JsonPrimitive(next));
     }
 
     /** How many lines one entry's fold draws: its type's own fields, packed. Zero when it is not open. */
@@ -1018,8 +1029,10 @@ final class BookAssets {
         // Content coordinates for the node's middle, through the drawing's own helpers — so the target
         // is the node as it is drawn, draft size included, rather than a second opinion about where it
         // is. The zoom does not change: "show me where it is" is not "zoom in on it".
-        book.glideToX = CanvasReveal.offsetX(view.viewWidth(), view.contentX(book.bookRewards.nodeCentreX(entry)), view.scale());
-        book.glideToY = CanvasReveal.offsetY(view.viewHeight(), view.contentY(book.bookRewards.nodeCentreY(entry)), view.scale());
+        book.glideToX = CanvasReveal.offsetX(view.viewWidth(),
+                view.contentX(book.bookRewards.nodeCentreX(entry)), view.scale());
+        book.glideToY = CanvasReveal.offsetY(view.viewHeight(),
+                view.contentY(book.bookRewards.nodeCentreY(entry)), view.scale());
     }
 
     /**

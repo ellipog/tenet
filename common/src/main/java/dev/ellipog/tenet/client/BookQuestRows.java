@@ -460,7 +460,8 @@ final class BookQuestRows {
             // reads "Any Logs". A player cannot hand in an id -- the label already names the tag, and
             // "Click for recipes" below is how they find out which items are in it. The id is in the
             // picker and in the row's own `tagId` for the recipe viewers, which is where it is data.
-            QuestBookScreen.appendConditionLines(lines, task.conditions(), ClientQuestCache.taskLockOf(entry.id(), index));
+            QuestBookScreen.appendConditionLines(lines, task.conditions(),
+                    ClientQuestCache.taskLockOf(entry.id(), index));
             if (!task.filter().isEmpty()) {
                 // What a filter names, in the player's own words: the count is exact, the list
                 // itself is one click away. An empty match list says so outright — it is also

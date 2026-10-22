@@ -542,7 +542,8 @@ public final class QuestBookScreen extends ArmatureScreen
     private boolean fieldDrag;
 
     /** One block of the reader's description: what it is, the lines it was wrapped to, and the token look over it. */
-    record ProseBlock(dev.ellipog.armature.client.ui.kit.RichText.Paragraph paragraph, List<dev.ellipog.armature.client.ui.kit.RichText.Line> lines,
+    record ProseBlock(dev.ellipog.armature.client.ui.kit.RichText.Paragraph paragraph,
+            List<dev.ellipog.armature.client.ui.kit.RichText.Line> lines,
                               List<RichText.Span> spans, RichText.PlacedImage image) {
     }
 
@@ -9438,7 +9439,8 @@ public final class QuestBookScreen extends ArmatureScreen
     Measure textMeasure(GuiRenderer r) {
         bookSettings.measuring = r;
         if (bookSettings.measure == null) {
-            bookSettings.measure = Measure.cached(Measure.of(text -> bookSettings.measuring.textWidth(text), OverlayLayout.LINE_HEIGHT),
+            bookSettings.measure = Measure.cached(Measure.of(text -> bookSettings.measuring.textWidth(text),
+                    OverlayLayout.LINE_HEIGHT),
                     TextEpoch::now);
         }
         return bookSettings.measure;
@@ -9538,7 +9540,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // it unselects instead of just instantly moving my cursor"* -- the second click was being read as
         // a click off the field, so it committed and closed instead of putting the cursor in the word
         // that was clicked.
-        if (button == InputConstants.MOUSE_BUTTON_LEFT && editorControls.onOpenEditor(mouseX, mouseY) && editorControls.moveOpenCaret(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && editorControls.onOpenEditor(mouseX,
+                mouseY) && editorControls.moveOpenCaret(mouseX, mouseY)) {
             // And the drag that may follow this press belongs to the field: the same press, continued.
             fieldDrag = true;
             return true;
@@ -10307,7 +10310,8 @@ public final class QuestBookScreen extends ArmatureScreen
                             bendDragGrab = LineArt.bendAt(fromCentre, toCentre, mouseX, mouseY)
                                     - style.bendOr(DEFAULT_BEND);
                         }
-                        else if (BookRewards.HANDLE_FROM_HANDLE.equals(bend[2]) || BookRewards.HANDLE_TO_HANDLE.equals(bend[2])) {
+                        else if (BookRewards.HANDLE_FROM_HANDLE.equals(bend[2])
+                                || BookRewards.HANDLE_TO_HANDLE.equals(bend[2])) {
                             // Free 2D: the delta between the pointer and the control point, in the chord's
                             // own frame, so the drag lands where the hand is.
                             double[] chord = bookRewards.chordOf(grabFrom, grabTo);
@@ -10579,13 +10583,16 @@ public final class QuestBookScreen extends ArmatureScreen
             ClientQuestCache.Entry bendFrom = entryFor(bendDragFrom);
             ClientQuestCache.Entry bendTo = entryFor(bendDragTo);
             if (bendFrom != null && bendTo != null) {
-                LineArt.Point fromCentre = new LineArt.Point(bookRewards.nodeCentreX(bendFrom), bookRewards.nodeCentreY(bendFrom));
-                LineArt.Point toCentre = new LineArt.Point(bookRewards.nodeCentreX(bendTo), bookRewards.nodeCentreY(bendTo));
+                LineArt.Point fromCentre = new LineArt.Point(bookRewards.nodeCentreX(bendFrom),
+                        bookRewards.nodeCentreY(bendFrom));
+                LineArt.Point toCentre = new LineArt.Point(bookRewards.nodeCentreX(bendTo),
+                        bookRewards.nodeCentreY(bendTo));
                 if (BookRewards.HANDLE_BEND.equals(bendDragKind)) {
                     bendPreview = LineArt.limitBend(LineArt.bendAt(fromCentre, toCentre, mouseX, mouseY)
                             - bendDragGrab);
                 }
-                else if (BookRewards.HANDLE_FROM_HANDLE.equals(bendDragKind) || BookRewards.HANDLE_TO_HANDLE.equals(bendDragKind)) {
+                else if (BookRewards.HANDLE_FROM_HANDLE.equals(bendDragKind)
+                        || BookRewards.HANDLE_TO_HANDLE.equals(bendDragKind)) {
                     // Free 2D, grab-relative, clamped so a control point cannot be flung off the graph.
                     double[] chord = bookRewards.chordOf(bendFrom, bendTo);
                     LineArt.Point origin = new LineArt.Point((int) chord[0], (int) chord[1]);
@@ -12049,7 +12056,8 @@ public final class QuestBookScreen extends ArmatureScreen
         // them by returning false: a focused field's Backspace is a character and its Ctrl+A is a
         // selection, so the destructive chords stay behind the no-focus guard above. A text field
         // consumes Z and Y itself and keeps that meaning -- see `ArmatureTextField`.
-        if (!handled && getFocused() != null && mayEditNow() && BookInput.unclaimedEditorChord(keyCode, event.hasControlDown())
+        if (!handled && getFocused() != null && mayEditNow() && BookInput.unclaimedEditorChord(keyCode,
+                event.hasControlDown())
                 && bookInput.keysForEditor(event)) {
             return true;
         }

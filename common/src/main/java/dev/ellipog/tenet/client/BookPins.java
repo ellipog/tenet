@@ -52,7 +52,8 @@ final class BookPins {
      * field a later build adds, with no second list of field names to keep in step.
      */
     static CanvasElement overlaidElement(String chapter, CanvasElement element) {
-        JsonObject tree = QuestBookScreen.fieldDraft.overlaid(chapter, QuestBookScreen.ELEMENT_OWNER_PREFIX + element.id(),
+        JsonObject tree = QuestBookScreen.fieldDraft.overlaid(chapter,
+                QuestBookScreen.ELEMENT_OWNER_PREFIX + element.id(),
                 CanvasElement.asJson(element));
         // A draft cannot make this unreadable -- the paths it writes are the fields this build reads -- but
         // the fallback is the element itself rather than a hole in the canvas.
@@ -110,9 +111,11 @@ final class BookPins {
         int contentY = (int) Math.round(book.viewport().contentY(mouseY));
         return switch (book.bookCanvas.elementHandle) {
             case RESIZE_NW, RESIZE_NE, RESIZE_SW, RESIZE_SE ->
-                    CanvasElementArt.resized(book.bookCanvas.elementDragBase, book.bookCanvas.elementHandle, contentX, contentY);
+                    CanvasElementArt.resized(book.bookCanvas.elementDragBase, book.bookCanvas.elementHandle,
+                            contentX, contentY);
             case END_FROM, END_TO ->
-                    CanvasElementArt.endMoved(book.bookCanvas.elementDragBase, book.bookCanvas.elementHandle, contentX, contentY);
+                    CanvasElementArt.endMoved(book.bookCanvas.elementDragBase, book.bookCanvas.elementHandle,
+                            contentX, contentY);
             case ROTATE -> {
                 int degrees = CanvasElementArt.rotationTo(book.bookCanvas.elementDragBase, contentX, contentY);
                 yield book.bookCanvas.elementDragBase.withRotation(degrees);
@@ -464,7 +467,8 @@ final class BookPins {
         // And it belongs to the chip it was opened from: a row scrolled out of this list would leave the
         // picker anchored to a chip that is no longer drawn. The dock runs the same check over its own
         // list; an anchor that belongs there is none of this panel's business.
-        if (book.colourPopover.isOpen() && book.popoverChip != null && book.popoverChip.view() == book.bookCanvas.elementView
+        if (book.colourPopover.isOpen() && book.popoverChip != null
+                && book.popoverChip.view() == book.bookCanvas.elementView
                 && !book.chipOnScreen(book.bookCanvas.elementView)) {
             book.closeColourPopover();
         }
@@ -472,11 +476,14 @@ final class BookPins {
         // The panel's own surface, title and close chip -- the same chrome the pack's panel and the table
         // browser wear. The first version of this drew its rows on bare canvas: no background, no name and no
         // way out but Escape, which read as a list floating over the graph rather than as a panel.
-        book.bookRewards.drawModalCardChrome(r, elementTitle(element), mouseX, mouseY, QuestBookScreen.EditAction.ELEMENT_CLOSE,
+        book.bookRewards.drawModalCardChrome(r, elementTitle(element), mouseX, mouseY,
+                QuestBookScreen.EditAction.ELEMENT_CLOSE,
                 book.bookCanvas.elementTargets);
         drawElementPreview(r, element, book.overlayBodyRect());
-        ToolsPanel.drawRows(r, book.overlayBodyRect(), book.bookCanvas.elementView.viewport(), book.bookCanvas.elementLayout, book.bookCanvas.elementRows,
-                new ToolsPanel.State(book.questEditor.editedTheme(), book.editedBackground(), book.questEditor.currentPalette()), mouseX, mouseY,
+        ToolsPanel.drawRows(r, book.overlayBodyRect(), book.bookCanvas.elementView.viewport(),
+                book.bookCanvas.elementLayout, book.bookCanvas.elementRows,
+                new ToolsPanel.State(book.questEditor.editedTheme(), book.editedBackground(),
+                        book.questEditor.currentPalette()), mouseX, mouseY,
                 InspectLayout.Mode.STACKED);
         // The row under the pointer, like the dock's: the sentences live with the rows that name them
         // (`ElementPanelLayout.help`), and the box is collected for the tooltip layer so the body's own
@@ -669,7 +676,8 @@ final class BookPins {
         book.popoverChip = new QuestBookScreen.PopoverChip(row, view, mode);
         book.colourPopover.open(anchor, book.geometry().canvas(), field, argb,
                 List.of(dev.ellipog.tenet.quest.Argb.WHITE, dev.ellipog.tenet.quest.Argb.NONE,
-                        book.questEditor.editedTheme().colour("panel"), book.questEditor.editedTheme().colour("accent")),
+                        book.questEditor.editedTheme().colour("panel"),
+                                book.questEditor.editedTheme().colour("accent")),
                 value -> book.questEditor.draftElementField(element, field,
                         new JsonPrimitive(dev.ellipog.tenet.quest.Argb.toHex(value))),
                 value -> {

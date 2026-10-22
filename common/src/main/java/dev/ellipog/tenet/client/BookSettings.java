@@ -224,7 +224,8 @@ final class BookSettings {
             // No tabs over the type list: the strip belongs to picture picks, and a stale
             // rectangle would answer presses for a list that is not on screen.
             pickerTabRects.clear();
-            book.editorControls.drawTypePicker(r, BookGeometry.Rect.at(book.overlayBody().originX(), book.overlayBody().originY(),
+            book.editorControls.drawTypePicker(r, BookGeometry.Rect.at(book.overlayBody().originX(),
+                    book.overlayBody().originY(),
                     book.overlayBody().viewWidth(), book.overlayBody().viewHeight()), mouseX, mouseY);
         }
         else {
@@ -278,7 +279,8 @@ final class BookSettings {
                     rect.y() + (rect.height() - 8) / 2,
                     selected ? ArmatureTheme.title() : ArmatureTheme.faint());
         }
-        r.fill(left + 1, y + QuestBookScreen.PICKER_TAB_STRIP, left + width - 1, y + QuestBookScreen.PICKER_TAB_STRIP + 1,
+        r.fill(left + 1, y + QuestBookScreen.PICKER_TAB_STRIP, left + width - 1,
+                y + QuestBookScreen.PICKER_TAB_STRIP + 1,
                 ArmatureTheme.panelEdge());
     }
 
@@ -401,7 +403,8 @@ final class BookSettings {
             // fact must not be silent. The editor's icon row and the picker both say it in full.
             QuestBookScreen.drawItemPlaceholder(r, iconX, iconY, iconBox);
             r.text("!", iconX + iconBox - 2, iconY - 2, ArmatureTheme.blocked());
-            book.pendingLabels.add(new QuestBookScreen.PendingLabel(BookGeometry.Rect.at(iconX, iconY, iconBox, iconBox),
+            book.pendingLabels.add(new QuestBookScreen.PendingLabel(BookGeometry.Rect.at(iconX, iconY,
+                    iconBox, iconBox),
                     "missing item - the id is kept, so the mod can come back"));
         }
         else if (!entry.textureIcon().isEmpty()
@@ -553,7 +556,8 @@ final class BookSettings {
 
         Layout built = OverlayLayout.stack(
                         readerProse(r, text ? entry.descriptionText() : List.of(), body.viewWidth()),
-                        entry.tasks().size(), entry.rewards().size(), QuestBookScreen.dependenciesOf(entry).size(), false,
+                        entry.tasks().size(), entry.rewards().size(),
+                                QuestBookScreen.dependenciesOf(entry).size(), false,
                         new OverlayLayout.Reveal(text, details))
                 .build(body.viewWidth(), book.textMeasure(r));
         book.readerCard = built;
@@ -788,14 +792,16 @@ final class BookSettings {
         book.drawHeading(r, QuestBookScreen.placed(layout, body, OverlayLayout.TASKS_HEADING), "TASKS");
 
         if (entry.tasks().isEmpty()) {
-            BookEditorControls.drawEmptyState(r, QuestBookScreen.placed(layout, body, OverlayLayout.NO_TASKS), "Nothing required");
+            BookEditorControls.drawEmptyState(r, QuestBookScreen.placed(layout, body, OverlayLayout.NO_TASKS),
+                    "Nothing required");
             return;
         }
         for (int i = 0; i < entry.tasks().size(); i++) {
             String key = OverlayLayout.taskKey(i);
             Slot slot = QuestBookScreen.placed(layout, body, key);
             if (slot != null) {
-                book.bookQuestRows.drawTaskRow(r, entry, i, slot, book.rowHover.amount(key, now), mouseX, mouseY, book.bookQuestRows.rowStamp());
+                book.bookQuestRows.drawTaskRow(r, entry, i, slot, book.rowHover.amount(key, now), mouseX,
+                        mouseY, book.bookQuestRows.rowStamp());
             }
         }
     }
@@ -1095,14 +1101,16 @@ final class BookSettings {
         book.drawHeading(r, QuestBookScreen.placed(layout, body, OverlayLayout.REWARDS_HEADING), "REWARDS");
 
         if (entry.rewards().isEmpty()) {
-            BookEditorControls.drawEmptyState(r, QuestBookScreen.placed(layout, body, OverlayLayout.NO_REWARDS), "Nothing");
+            BookEditorControls.drawEmptyState(r, QuestBookScreen.placed(layout, body,
+                    OverlayLayout.NO_REWARDS), "Nothing");
             return;
         }
         for (int i = 0; i < entry.rewards().size(); i++) {
             String key = OverlayLayout.rewardKey(i);
             Slot slot = QuestBookScreen.placed(layout, body, key);
             if (slot != null) {
-                book.bookQuestRows.drawRewardRow(r, entry, i, slot, book.rowHover.amount(key, now), mouseX, mouseY, book.bookQuestRows.rowStamp());
+                book.bookQuestRows.drawRewardRow(r, entry, i, slot, book.rowHover.amount(key, now), mouseX,
+                        mouseY, book.bookQuestRows.rowStamp());
             }
         }
     }

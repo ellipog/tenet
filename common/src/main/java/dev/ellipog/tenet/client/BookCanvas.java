@@ -486,7 +486,8 @@ final class BookCanvas {
         // floating over the canvas in the same family as a tooltip, and a caption that changed
         // colour with the chapter would read as part of the node it names rather than as a label
         // about it.
-        try (GuiRenderer.Scoped clip = r.clip(book.canvasLeft(), book.canvasTop(), book.canvasRight(), book.canvasBottom());
+        try (GuiRenderer.Scoped clip = r.clip(book.canvasLeft(), book.canvasTop(), book.canvasRight(),
+                book.canvasBottom());
              ArmatureTheme.Scope theme = ArmatureTheme.scope(QuestBookScreen.viewportTheme())) {
             // Everything on the canvas in **one batch**, and the placement is the whole correctness
             // argument: the clip is open, the batch flushes before the clip closes, so every queued fill
@@ -571,7 +572,8 @@ final class BookCanvas {
         // read backwards: a node keeps the press over a grip, so a grip must not draw over a node -- an
         // invisible control that acted would be worse than one that cannot be reached. Only the selected
         // element wears them, and only while editing: a reader has no gestures for them at all.
-        QuestBookScreen.ElementSlot gripped = book.mayEditNow() ? book.elementSlot(QuestBookScreen.selectedElement) : null;
+        QuestBookScreen.ElementSlot gripped = book.mayEditNow()
+                ? book.elementSlot(QuestBookScreen.selectedElement) : null;
         if (gripped != null) {
             drawElementGrips(r, gripped);
         }
@@ -745,7 +747,8 @@ final class BookCanvas {
     /** The hovered link's target title, under the pointer: what the press will open. */
     void drawLinkCaption(GuiRenderer r, LinkSlot slot) {
         QuestNodeArt.caption(r, slot.slot().box().left(), slot.slot().box().top(),
-                slot.slot().box().width(), QuestBookScreen.titleOf(slot.target()), book.canvasLeft(), book.visibleCanvasRight(),
+                slot.slot().box().width(), QuestBookScreen.titleOf(slot.target()), book.canvasLeft(),
+                        book.visibleCanvasRight(),
                 book.canvasBottom());
     }
 
@@ -753,7 +756,8 @@ final class BookCanvas {
     private String lineCaption(String fromId, String toId) {
         ClientQuestCache.Entry from = book.entryFor(fromId);
         ClientQuestCache.Entry to = book.entryFor(toId);
-        return (from == null ? fromId : QuestBookScreen.titleOf(from)) + " \u2192 " + (to == null ? toId : QuestBookScreen.titleOf(to));
+        return (from == null ? fromId : QuestBookScreen.titleOf(from)) + " \u2192 " + (to == null ? toId
+                : QuestBookScreen.titleOf(to));
     }
 
     /**
@@ -1175,7 +1179,8 @@ final class BookCanvas {
     /** Rebuilds the frame's canvas if anything it is drawn from has moved. See {@link CanvasState}. */
     private void stampCanvas(GuiRenderer r, List<ClientQuestCache.Entry> quests) {
         CanvasState key = new CanvasState(ClientQuestCache.treeRevision(),
-                ClientQuestCache.progressRevision(), QuestBookScreen.fieldDraft.version(), book.editors.epoch(), book.draggedNode,
+                ClientQuestCache.progressRevision(), QuestBookScreen.fieldDraft.version(),
+                        book.editors.epoch(), book.draggedNode,
                 book.dragNodeX, book.dragNodeY, book.viewport().scale(),
                 book.canvasLeft(), book.canvasTop(), book.canvasRight(), book.canvasBottom(), book.visibleCanvasRight(),
                 QuestBookScreen.effectiveChapter(),
@@ -1702,12 +1707,14 @@ final class BookCanvas {
      * <p>Conservative reach bounds are stored on the edge so draw-time and hover-time passes can skip
      * off-canvas lines after applying the pan delta, without rebuilding the edge list on a pan.
      */
-    private QuestBookScreen.FrameEdge frameEdge(ClientQuestCache.Entry from, ClientQuestCache.Entry to, String dependencyId,
+    private QuestBookScreen.FrameEdge frameEdge(ClientQuestCache.Entry from, ClientQuestCache.Entry to,
+            String dependencyId,
                                 int baseColour) {
         return frameEdge(from, to, dependencyId, baseColour, true);
     }
 
-    private QuestBookScreen.FrameEdge frameEdge(ClientQuestCache.Entry from, ClientQuestCache.Entry to, String dependencyId,
+    private QuestBookScreen.FrameEdge frameEdge(ClientQuestCache.Entry from, ClientQuestCache.Entry to,
+            String dependencyId,
                                 int baseColour, boolean stamped) {
         DependencyStyle style = book.styleFor(to, dependencyId);
         LineArt.Point[] ends = book.lineEnds(from, to, style);
@@ -1722,7 +1729,8 @@ final class BookCanvas {
     }
 
     /** The frame's edges as hover candidates — the paths already computed, so a walk costs only distance. */
-    private List<LineArt.Candidate<String[]>> frameCandidates(List<QuestBookScreen.FrameEdge> edges, int panDx, int panDy) {
+    private List<LineArt.Candidate<String[]>> frameCandidates(List<QuestBookScreen.FrameEdge> edges,
+            int panDx, int panDy) {
         int cLeft = book.canvasLeft();
         int cTop = book.canvasTop();
         int cRight = book.canvasRight();
@@ -1923,7 +1931,8 @@ final class BookCanvas {
      * <p>The cached value is the edge key only. The hover's brightening is applied where the ink is
      * chosen, so the fade still animates while the answer stands.
      */
-    private String[] lineHover(List<QuestBookScreen.FrameEdge> edges, double mouseX, double mouseY, int panDx, int panDy) {
+    private String[] lineHover(List<QuestBookScreen.FrameEdge> edges, double mouseX, double mouseY, int panDx,
+            int panDy) {
         boolean moving = book.draggedNode != null || book.bendDragFrom != null || book.edgeDragLive;
         float scale = book.viewport().scale();
         int panX = book.viewport().offsetX();

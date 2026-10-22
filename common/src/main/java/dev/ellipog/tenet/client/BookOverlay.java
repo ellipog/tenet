@@ -117,10 +117,12 @@ final class BookOverlay {
         ArmatureTheme.panel(r, card.x(), card.y(), card.width(), card.height(),
                 ArmatureTheme.panel(), ArmatureTheme.panelEdge());
 
-        drawPartyFace(r, book.partyLeftFace, book.partyLeftLayout, book.partyLeftView, book.partyColumn(true), mouseX, mouseY,
+        drawPartyFace(r, book.partyLeftFace, book.partyLeftLayout, book.partyLeftView, book.partyColumn(true),
+                mouseX, mouseY,
                 now);
         if (book.partyRightFace != null) {
-            drawPartyFace(r, book.partyRightFace, book.partyRightLayout, book.partyRightView, book.partyColumn(false), mouseX,
+            drawPartyFace(r, book.partyRightFace, book.partyRightLayout, book.partyRightView,
+                    book.partyColumn(false), mouseX,
                     mouseY, now);
         }
 
@@ -412,7 +414,8 @@ final class BookOverlay {
                 return;
             }
             // The panel's own surface, drawn by the same method the book tab uses.
-            ToolsPanel.State state = new ToolsPanel.State(book.questEditor.editedTheme(), book.editedBackground(), book.questEditor.currentPalette());
+            ToolsPanel.State state = new ToolsPanel.State(book.questEditor.editedTheme(),
+                    book.editedBackground(), book.questEditor.currentPalette());
             ToolsPanel.drawChrome(r, book.toolsFrame, state);
             // The chapter's own rows, identity first: the band that used to stand here was a second,
             // unclickable copy of the identity rows below it, and it is gone -- the icon, title and
@@ -422,7 +425,8 @@ final class BookOverlay {
             // cycling rows' arrows drawn by a third class beside it and hit-tested by a fourth path; all of
             // that is `ToolsPanel`'s one dispatch, which is what "one panel" means. STACKED, because a
             // chapter's labels are wider than any strip this drawer reserves -- see `ToolsLayout.stack`.
-            ToolsPanel.drawRows(r, book.toolsFrame.list(), book.toolsView.viewport(), book.chapterLayout, book.chapterRows,
+            ToolsPanel.drawRows(r, book.toolsFrame.list(), book.toolsView.viewport(), book.chapterLayout,
+                    book.chapterRows,
                     state, mouseX, mouseY, InspectLayout.Mode.STACKED);
             if (book.toolsAppearanceVisible()) {
                 ToolsPanel.drawRows(r, book.toolsFrame.list(), book.toolsView.viewport(), book.chapterLayout,
@@ -444,7 +448,8 @@ final class BookOverlay {
                 return;
             }
             ToolsPanel.draw(r, book.toolsFrame, book.toolsView.viewport(), book.toolsLayout, book.toolsRows,
-                    new ToolsPanel.State(book.questEditor.editedTheme(), book.editedBackground(), book.questEditor.currentPalette()), mouseX, mouseY);
+                    new ToolsPanel.State(book.questEditor.editedTheme(), book.editedBackground(),
+                            book.questEditor.currentPalette()), mouseX, mouseY);
         }
         // The row under the pointer, collected here and painted in the tooltip band after the panel:
         // the list's own clip would cut a box that reaches past the row's edge, which is the contract

@@ -623,7 +623,8 @@ final class BookEditorControls {
                         book.typeFrame.list().x() + 4, book.typeFrame.list().y() + 4, ArmatureTheme.faint());
             }
             else {
-                book.itemPicker.drawPickerRows(r, book.typeFrame, book.typeRows, typeScroll, book.typeSelected, mouseX, mouseY,
+                book.itemPicker.drawPickerRows(r, book.typeFrame, book.typeRows, typeScroll,
+                        book.typeSelected, mouseX, mouseY,
                         this::pickerIcon, row -> false);
             }
         }
@@ -784,7 +785,8 @@ final class BookEditorControls {
             case USE_POSITION -> useMyPosition(target);
             case SEARCH -> openSearchPick(target, mouseX, mouseY);
             case TOGGLE_ENTRY -> book.questEditor.toggleFold(target.member(), target.index());
-            case ADD_DEP -> openInlineEditor(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.FIELD, InlineEdit.DEPENDENCY_ADD,
+            case ADD_DEP -> openInlineEditor(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.FIELD,
+                    InlineEdit.DEPENDENCY_ADD,
                     target.box(), target.textX(), target.textY(), "", null, -1), mouseX, mouseY);
             case PICK_DEP -> book.armDependencyPick();
             case REMOVE_DEP -> {
@@ -1081,7 +1083,8 @@ final class BookEditorControls {
      */
     private BookGeometry.Rect inlineRegion(String path) {
         if (InlineEdit.inHeader(path)) {
-            return BookGeometry.Rect.at(book.overlayLeft(), book.overlayTop(), book.overlayWidth(), QuestBookScreen.BODY_TOP);
+            return BookGeometry.Rect.at(book.overlayLeft(), book.overlayTop(), book.overlayWidth(),
+                    QuestBookScreen.BODY_TOP);
         }
         // A saved template's name belongs to the Assets page's own list: the field is drawn over
         // the row and clipped to the band the rows are drawn in, scrolled rows and all.

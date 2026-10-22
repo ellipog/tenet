@@ -244,7 +244,8 @@ final class BookTexturePicker {
             book.textureBody.setScrollY(0);
             rebuildTextureRows(query);
         }
-        QuestBookScreen.bindList(book.textureBody, book.textureBar, book.textureFrame.list(), book.textureFrame.scrollbar(),
+        QuestBookScreen.bindList(book.textureBody, book.textureBar, book.textureFrame.list(),
+                book.textureFrame.scrollbar(),
                 ItemPickerLayout.contentHeight(book.textureRows), ItemPickerLayout.ROW_HEIGHT);
         int textureScroll = book.textureBody.scrollY();
         if (book.textureSelected >= 0) {

@@ -646,7 +646,8 @@ final class BookItemPicker {
             bodyRect = BookGeometry.Rect.at(bodyRect.x(), tabBottom, bodyRect.width(),
                     Math.max(0, bodyRect.y() + bodyRect.height() - tabBottom));
         }
-        if (tabs && (book.pickerKind == QuestBookScreen.PickerKind.FILE || book.pickerKind == QuestBookScreen.PickerKind.SPRITE)) {
+        if (tabs && (book.pickerKind == QuestBookScreen.PickerKind.FILE
+                || book.pickerKind == QuestBookScreen.PickerKind.SPRITE)) {
             drawPictureTab(r, bodyRect, mouseX, mouseY);
             return;
         }
@@ -823,7 +824,8 @@ final class BookItemPicker {
         }
         book.textureRows = List.copyOf(rows);
         book.textureFrame = ItemPickerLayout.Frame.of(bodyRect);
-        QuestBookScreen.bindList(book.textureBody, book.textureBar, book.textureFrame.list(), book.textureFrame.scrollbar(),
+        QuestBookScreen.bindList(book.textureBody, book.textureBar, book.textureFrame.list(),
+                book.textureFrame.scrollbar(),
                 ItemPickerLayout.contentHeight(book.textureRows), ItemPickerLayout.ROW_HEIGHT);
         if (book.textureSelected >= 0) {
             book.textureSelected = ItemPickerLayout.clamp(book.textureRows, book.textureSelected);
@@ -1104,7 +1106,8 @@ final class BookItemPicker {
             // 128 iron wrote one iron, while dragging the same stack wrote 128.
             var model = book.bookRewards.tableModel();
             int at = model.map(dev.ellipog.tenet.quest.loot.RewardTable::entryCount).orElse(0);
-            BookRewards.tableDraft.forgetList(QuestBookScreen.effectiveChapter(), book.bookRewards.tableOwnerKey(), "entries");
+            BookRewards.tableDraft.forgetList(QuestBookScreen.effectiveChapter(),
+                    book.bookRewards.tableOwnerKey(), "entries");
             book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Insert(book.tableAddress, at,
                     QuestPanelLayout.itemEntry(id, count, components)));
             book.status("Added " + (count > 1 ? count + "x " : "") + id, false);

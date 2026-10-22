@@ -102,7 +102,8 @@ final class BookMenu {
             return 0;
         }
         float arrived =
-                PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.menuOpenedAt, QuestBookScreen.MENU_RISE_MILLIS);
+                PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.menuOpenedAt,
+                        QuestBookScreen.MENU_RISE_MILLIS);
         return Math.round(QuestBookScreen.MENU_RISE_PX * (1F - arrived));
     }
 
@@ -398,7 +399,8 @@ final class BookMenu {
         int x = menuLeft();
         int y = menuTop() + menuRise();
         for (int i = 0; i < book.menu.size(); i++) {
-            rects.add(BookGeometry.Rect.at(x, y + i * QuestBookScreen.MENU_ROW_HEIGHT, MENU_WIDTH, QuestBookScreen.MENU_ROW_HEIGHT));
+            rects.add(BookGeometry.Rect.at(x, y + i * QuestBookScreen.MENU_ROW_HEIGHT, MENU_WIDTH,
+                    QuestBookScreen.MENU_ROW_HEIGHT));
         }
         return rects;
     }
@@ -435,7 +437,8 @@ final class BookMenu {
     private MenuPlacement.Placed menuPlacement() {
         BookGeometry.Rect window = book.panelRect();
         int flyoutWidth = book.submenuRow >= 0 ? MenuFlyout.width(childrenOf(book.submenuRow)) : MENU_WIDTH;
-        return MenuPlacement.place(book.menuX, book.menuY, MENU_WIDTH, book.menu.size() * QuestBookScreen.MENU_ROW_HEIGHT + 6,
+        return MenuPlacement.place(book.menuX, book.menuY, MENU_WIDTH,
+                book.menu.size() * QuestBookScreen.MENU_ROW_HEIGHT + 6,
                 flyoutWidth, window.x() + 4, window.y() + 4, window.right() - 4, window.bottom() - 4, 8);
     }
 
@@ -516,7 +519,8 @@ final class BookMenu {
         if (book.menu.isEmpty() || book.menuOpenedAt < 0) {
             return 1F;
         }
-        return PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.menuOpenedAt, QuestBookScreen.MENU_RISE_MILLIS);
+        return PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.menuOpenedAt,
+                QuestBookScreen.MENU_RISE_MILLIS);
     }
 
     void drawMenu(GuiRenderer r, int mouseX, int mouseY) {
@@ -560,7 +564,8 @@ final class BookMenu {
         int colour = item.submenu() ? ArmatureTheme.body()
                 : item.action() == null ? ArmatureTheme.faint()
                 : item.danger() ? ArmatureTheme.blocked() : ArmatureTheme.body();
-        r.text(QuestBookScreen.fitLabel(r, item.label()), rect.x() + 4, rect.y() + (QuestBookScreen.MENU_ROW_HEIGHT - 8) / 2,
+        r.text(QuestBookScreen.fitLabel(r, item.label()), rect.x() + 4,
+                rect.y() + (QuestBookScreen.MENU_ROW_HEIGHT - 8) / 2,
                 Colour.alphaOf(colour, fade));
     }
 
@@ -764,8 +769,10 @@ final class BookMenu {
 
     /** What the empty canvas offers: make one here, paste here, take the chapter. */
     private List<MenuItem> emptyCanvasItems(double mouseX, double mouseY) {
-        double x = BookGeometry.snap(book.viewport().contentX(mouseX), BookGeometry.SNAP_GRID, QuestBookScreen.snappingNow());
-        double y = BookGeometry.snap(book.viewport().contentY(mouseY), BookGeometry.SNAP_GRID, QuestBookScreen.snappingNow());
+        double x = BookGeometry.snap(book.viewport().contentX(mouseX), BookGeometry.SNAP_GRID,
+                QuestBookScreen.snappingNow());
+        double y = BookGeometry.snap(book.viewport().contentY(mouseY), BookGeometry.SNAP_GRID,
+                QuestBookScreen.snappingNow());
         List<MenuItem> items = new ArrayList<>();
         items.add(MenuItem.of("New quest here",
                 () -> book.send(new EditorOp.Create(Math.round(x), Math.round(y)))));
