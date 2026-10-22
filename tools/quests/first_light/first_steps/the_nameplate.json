@@ -4,18 +4,9 @@
   "title": "The Nameplate",
   "subtitle": "components, and match: fuzzy",
   "description": [
-    "A sword with a name on it. `components` names a",
-    "`minecraft:custom_name` component -- the value is a string holding",
-    "the JSON the codec writes -- and `match: fuzzy` asks a carried stack",
-    "to have the data the task names rather than to be identical to it in",
-    "every other respect. A plain iron sword does not count; one named",
-    "The Keystone does, whatever its durability says.",
+    "A sword with a name on it. `components` names a `minecraft:custom_name` component — the value is a string holding the JSON the codec writes — and `match: fuzzy` asks a carried stack to have the data the task names rather than to be identical to it in every other respect. A plain iron sword does not count; one named The Keystone does, whatever its durability says.",
     "",
-    "`match: none` would ignore the data entirely, and `match: strict`",
-    "(the default, shown on the warrant beside this) would need the whole",
-    "stack to agree. This task also declines the chapter's consume",
-    "default, because a nameplate is not something the house gets to",
-    "keep."
+    "`match: none` would ignore the data entirely, and `match: strict` (the default, shown on the warrant beside this) would need the whole stack to agree. This task also declines the chapter's consume default, because a nameplate is not something the house gets to keep."
   ],
   "icon": {
     "item": "minecraft:iron_sword"

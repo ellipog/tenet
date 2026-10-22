@@ -4,15 +4,9 @@
   "title": "The Earth",
   "subtitle": "hideDependencyLines, and a custom reward",
   "description": [
-    "`hideDependencyLines` draws no line arriving at this quest. The node",
-    "itself is unaffected, and quests that depend on it still draw their",
-    "lines to it -- one edge's worth of line art, withheld.",
+    "`hideDependencyLines` draws no line arriving at this quest. The node itself is unaffected, and quests that depend on it still draw their lines to it — one edge's worth of line art, withheld.",
     "",
-    "The reward is `tenet:custom`, the write half of the custom pair: it",
-    "does whatever a handler registered under `first_light:announce`",
-    "does, and warns rather than failing when no handler is registered.",
-    "The KubeJS page has the pattern, with a placeholder id of its own",
-    "rather than this one."
+    "The reward is `tenet:custom`, the write half of the custom pair: it does whatever a handler registered under `first_light:announce` does, and warns rather than failing when no handler is registered. The KubeJS page has the pattern, with a placeholder id of its own rather than this one."
   ],
   "icon": {
     "item": "minecraft:grass_block"

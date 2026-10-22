@@ -4,19 +4,9 @@
   "title": "The Beacon Lit",
   "subtitle": "A custom task, and the warning it carries",
   "description": [
-    "A `tenet:custom` task measures whatever a registered handler",
-    "answers. Nothing outside a handler can advance it, so this quest",
-    "will not complete in a build without one -- and that is not an",
-    "error: the validator warns that nothing provides the id, which is",
-    "exactly what a pack shipping an optional handler mod wants to see.",
-    "The KubeJS page in the manual shows the pattern with a placeholder",
-    "id of its own (`my_pack:inducted_check`), so copying the page",
-    "verbatim leaves this node dead: registering `first_light:beacon_lit`",
-    "is one line in a script beside it.",
+    "A `tenet:custom` task measures whatever a registered handler answers. Nothing outside a handler can advance it, so this quest will not complete in a build without one — and that is not an error: the validator warns that nothing provides the id, which is exactly what a pack shipping an optional handler mod wants to see. The KubeJS page in the manual shows the pattern with a placeholder id of its own (`my_pack:inducted_check`), so copying the page verbatim leaves this node dead: registering `first_light:beacon_lit` is one line in a script beside it.",
     "",
-    "This is the one warning the shipped examples are expected to",
-    "produce, and the playthrough test asserts the load is clean of",
-    "*errors* rather than of warnings for exactly this reason."
+    "This is the one warning the shipped examples are expected to produce, and the playthrough test asserts the load is clean of *errors* rather than of warnings for exactly this reason."
   ],
   "icon": {
     "item": "minecraft:beacon"

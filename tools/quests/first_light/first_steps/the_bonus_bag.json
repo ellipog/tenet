@@ -4,17 +4,11 @@
   "title": "The Bonus Bag",
   "subtitle": "Three item-reward fields, one reward each",
   "description": [
-    "Three `tenet:item` rewards, one per field. The first rolls",
-    "`randomBonus` on top of its count -- up to eight more gold ingots,",
-    "decided when the reward is collected.",
+    "Three `tenet:item` rewards, one per field. The first rolls `randomBonus` on top of its count — up to eight more gold ingots, decided when the reward is collected.",
     "",
-    "The second sets `onlyOne: true`, so it is skipped if the player",
-    "already carries a shield: the field for a reward that should not",
-    "arrive twice.",
+    "The second sets `onlyOne: true`, so it is skipped if the player already carries a shield: the field for a reward that should not arrive twice.",
     "",
-    "The third carries `components`, the same renamed-item spelling the",
-    "nameplate task uses, so the keepsake arrives with its name already",
-    "on it."
+    "The third carries `components`, the same renamed-item spelling the nameplate task uses, so the keepsake arrives with its name already on it."
   ],
   "icon": {
     "item": "minecraft:bundle"

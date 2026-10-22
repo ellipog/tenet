@@ -4,14 +4,9 @@
   "title": "The Far Star",
   "subtitle": "hideUntilDependenciesVisible",
   "description": [
-    "`hideUntilDependenciesVisible` hides this node until at least one of",
-    "its prerequisites is itself visible. The rule is recursive, and the",
-    "farther star below hangs off this one -- so the chain reveals itself",
-    "one link at a time from its first visible end, which is the one",
-    "reveal that cannot be read off a single file.",
+    "`hideUntilDependenciesVisible` hides this node until at least one of its prerequisites is itself visible. The rule is recursive, and the farther star below hangs off this one — so the chain reveals itself one link at a time from its first visible end, which is the one reveal that cannot be read off a single file.",
     "",
-    "Its name is drawn, which is one of the few `showTitle` nodes on the",
-    "canvas."
+    "Its name is drawn, which is one of the few `showTitle` nodes on the canvas."
   ],
   "icon": {
     "item": "minecraft:ender_eye"

@@ -4,14 +4,9 @@
   "title": "Make a Table",
   "subtitle": "Three boards up, three boards across",
   "description": [
-    "Eight logs make a table, and a table makes everything else possible,",
-    "which is the closest thing a crafting recipe has to a thesis",
-    "statement.",
+    "Eight logs make a table, and a table makes everything else possible, which is the closest thing a crafting recipe has to a thesis statement.",
     "",
-    "The task counts one crafting table carried and declines the",
-    "chapter's consume default, so the table stays on you -- put it down",
-    "somewhere you will find again, because every arm of the orrery",
-    "assumes you did."
+    "The task counts one crafting table carried and declines the chapter's consume default, so the table stays on you — put it down somewhere you will find again, because every arm of the orrery assumes you did."
   ],
   "icon": {
     "item": "minecraft:crafting_table"

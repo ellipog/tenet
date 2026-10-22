@@ -4,13 +4,9 @@
   "title": "The Granary",
   "subtitle": "A count in the hundreds, where the bar is the point",
   "description": [
-    "Two hundred and fifty-six wheat, which is four stacks, which is the",
-    "size at which the client stops drawing a number and draws a progress",
-    "bar. `count` goes to 6400; this is the example that shows the field",
-    "being used at a size where its rendering changes.",
+    "Two hundred and fifty-six wheat, which is four stacks, which is the size at which the client stops drawing a number and draws a progress bar. `count` goes to 6400; this is the example that shows the field being used at a size where its rendering changes.",
     "",
-    "The task says nothing about consuming, so the granary takes the",
-    "wheat -- the chapter default doing exactly what a granary is for."
+    "The task says nothing about consuming, so the granary takes the wheat — the chapter default doing exactly what a granary is for."
   ],
   "icon": {
     "item": "minecraft:hay_block"

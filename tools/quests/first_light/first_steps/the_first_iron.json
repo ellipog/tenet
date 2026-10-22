@@ -4,12 +4,9 @@
   "title": "The First Iron",
   "subtitle": "An advancement task, whole",
   "description": [
-    "An advancement task completes when the advancement is earned. Naming",
-    "no `criterion` means the whole advancement counts, which for",
-    "`minecraft:story/smelt_iron` is one step: smelt the ore.",
+    "An advancement task completes when the advancement is earned. Naming no `criterion` means the whole advancement counts, which for `minecraft:story/smelt_iron` is one step: smelt the ore.",
     "",
-    "The breeder beside this one asks for a single criterion of its",
-    "advancement instead, which is the other spelling of the same field."
+    "The breeder beside this one asks for a single criterion of its advancement instead, which is the other spelling of the same field."
   ],
   "icon": {
     "item": "minecraft:iron_ingot"

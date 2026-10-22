@@ -4,16 +4,9 @@
   "title": "The Shepherd's Tally",
   "subtitle": "A statistic, and a reward behind an advancement",
   "description": [
-    "The task is a statistic -- eight animals bred -- and the reward is",
-    "gated on the advancement for breeding one, which is the",
-    "belt-and-braces version of the same question. A reward's conditions",
-    "are checked on every path that pays it, and a reward whose",
-    "conditions are unmet is not lost: it waits, unclaimed, for the day",
-    "they hold.",
+    "The task is a statistic — eight animals bred — and the reward is gated on the advancement for breeding one, which is the belt-and-braces version of the same question. A reward's conditions are checked on every path that pays it, and a reward whose conditions are unmet is not lost: it waits, unclaimed, for the day they hold.",
     "",
-    "The reward's condition is an advancement condition; the task beside",
-    "it could have carried one too, and the manual's page on conditions",
-    "says when each belongs."
+    "The reward's condition is an advancement condition; the task beside it could have carried one too, and the manual's page on conditions says when each belongs."
   ],
   "icon": {
     "item": "minecraft:lead"

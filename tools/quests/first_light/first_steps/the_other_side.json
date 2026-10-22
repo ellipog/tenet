@@ -4,13 +4,9 @@
   "title": "The Other Side",
   "subtitle": "A dimension task",
   "description": [
-    "A dimension task completes when the player is in the dimension it",
-    "names. This one names `minecraft:the_nether`, so it completes the",
-    "moment you step through -- no item, no press, just a fact about",
-    "where you are.",
+    "A dimension task completes when the player is in the dimension it names. This one names `minecraft:the_nether`, so it completes the moment you step through — no item, no press, just a fact about where you are.",
     "",
-    "The quest is the head of the compass arm: every biome, structure and",
-    "location task in the sky hangs off it."
+    "The quest is the head of the compass arm: every biome, structure and location task in the sky hangs off it."
   ],
   "icon": {
     "item": "minecraft:obsidian"

@@ -4,14 +4,9 @@
   "title": "The Villages",
   "subtitle": "A structure by tag",
   "description": [
-    "A structure task completes while the player is inside the named",
-    "structure, and the field takes a tag the same way a biome does:",
-    "`#minecraft:village` counts any village, in any biome.",
+    "A structure task completes while the player is inside the named structure, and the field takes a tag the same way a biome does: `#minecraft:village` counts any village, in any biome.",
     "",
-    "The line into the villages is `dash: double`, two hairlines either",
-    "side of the route. Double ignores `weight`, which is why it is the",
-    "one pattern that looks the same however the rest of the line is",
-    "styled."
+    "The line into the villages is `dash: double`, two hairlines either side of the route. Double ignores `weight`, which is why it is the one pattern that looks the same however the rest of the line is styled."
   ],
   "icon": {
     "item": "minecraft:bell"

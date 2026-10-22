@@ -4,14 +4,9 @@
   "title": "The Turned Gear",
   "subtitle": "rotation, in degrees",
   "description": [
-    "A gear turned forty-five degrees clockwise. `rotation` turns the",
-    "outline rather than naming a second shape: the node is drawn,",
-    "clicked and icon-fitted in its turned form, and the icon turns with",
-    "it. A full turn is written as 0, because it is the same shape.",
+    "A gear turned forty-five degrees clockwise. `rotation` turns the outline rather than naming a second shape: the node is drawn, clicked and icon-fitted in its turned form, and the icon turns with it. A full turn is written as 0, because it is the same shape.",
     "",
-    "The turned outline is fitted with one uniform scale, so nothing is",
-    "cut off at the node's edge and nothing is stretched -- which is",
-    "easiest to see on a shape with teeth."
+    "The turned outline is fitted with one uniform scale, so nothing is cut off at the node's edge and nothing is stretched — which is easiest to see on a shape with teeth."
   ],
   "icon": {
     "item": "minecraft:iron_block"

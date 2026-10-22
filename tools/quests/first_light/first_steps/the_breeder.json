@@ -4,14 +4,9 @@
   "title": "The Breeder",
   "subtitle": "An advancement by one criterion",
   "description": [
-    "`criterion` narrows an advancement task to one of the advancement's",
-    "own criteria rather than the whole thing.",
-    "`minecraft:husbandry/breed_an_animal` is earned by breeding a pair;",
-    "the criterion named here is the one that fires when you do.",
+    "`criterion` narrows an advancement task to one of the advancement's own criteria rather than the whole thing. `minecraft:husbandry/breed_an_animal` is earned by breeding a pair; the criterion named here is the one that fires when you do.",
     "",
-    "The advancement condition on the shepherd's tally in the clockwork",
-    "arm asks the same question the other way round -- as a gate on a",
-    "reward rather than a task."
+    "The advancement condition on the shepherd's tally in the clockwork arm asks the same question the other way round — as a gate on a reward rather than a task."
   ],
   "icon": {
     "item": "minecraft:wheat"

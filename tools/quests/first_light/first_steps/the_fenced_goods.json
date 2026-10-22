@@ -4,14 +4,9 @@
   "title": "The Fenced Goods",
   "subtitle": "hideUntilDependenciesComplete",
   "description": [
-    "`hideUntilDependenciesComplete` hides the node until its",
-    "prerequisite *rule* is satisfied -- the same rule the card's '2 of 3",
-    "met' counts, so `minRequired` and the started-based modes are",
-    "honoured. A completed quest is always visible.",
+    "`hideUntilDependenciesComplete` hides the node until its prerequisite *rule* is satisfied — the same rule the card's '2 of 3 met' counts, so `minRequired` and the started-based modes are honoured. A completed quest is always visible.",
     "",
-    "The difference from `invisible` is the trigger: this one appears the",
-    "moment its dependencies open it, rather than waiting to be completed",
-    "or stumbled upon."
+    "The difference from `invisible` is the trigger: this one appears the moment its dependencies open it, rather than waiting to be completed or stumbled upon."
   ],
   "icon": {
     "item": "minecraft:gold_ingot"

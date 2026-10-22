@@ -4,14 +4,9 @@
   "title": "The Tithe of Experience",
   "subtitle": "An xp task in points, and one in whole levels",
   "description": [
-    "Experience is never taken automatically -- the Submit press is the",
-    "consent, and the press takes it -- so both tasks here are manual.",
-    "The first counts thirty points; the second counts five whole levels,",
-    "because `points: false` reads the field as levels rather than",
-    "points.",
+    "Experience is never taken automatically — the Submit press is the consent, and the press takes it — so both tasks here are manual. The first counts thirty points; the second counts five whole levels, because `points: false` reads the field as levels rather than points.",
     "",
-    "A quest with two xp tasks needs both presses. The line from the hub",
-    "is `dash: dashed`, one of the six patterns the axis can take."
+    "A quest with two xp tasks needs both presses. The line from the hub is `dash: dashed`, one of the six patterns the axis can take."
   ],
   "icon": {
     "item": "minecraft:experience_bottle"

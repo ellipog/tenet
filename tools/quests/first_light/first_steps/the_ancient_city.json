@@ -4,13 +4,9 @@
   "title": "The Ancient City",
   "subtitle": "A structure by id",
   "description": [
-    "The same field, naming one structure exactly:",
-    "`minecraft:ancient_city`. Where the villages use a tag because a",
-    "village is a family, the city is one place and the id is the honest",
-    "way to say so.",
+    "The same field, naming one structure exactly: `minecraft:ancient_city`. Where the villages use a tag because a village is a family, the city is one place and the id is the honest way to say so.",
     "",
-    "The sun at the end of this arm depends on this quest, and its line",
-    "is a stream of arrows at the sparsest density the axis has."
+    "The sun at the end of this arm depends on this quest, and its line is a stream of arrows at the sparsest density the axis has."
   ],
   "icon": {
     "item": "minecraft:sculk_shrieker"

@@ -7,15 +7,9 @@
   },
   "subtitle": "A stage granted, and a title in the other spelling",
   "description": [
-    "A stage reward is the write half of the stage feature: completing",
-    "this quest grants `first_light:sworn`, and the oath below is gated",
-    "on it.",
+    "A stage reward is the write half of the stage feature: completing this quest grants `first_light:sworn`, and the oath below is gated on it.",
     "",
-    "The title is written in the other spelling a text field takes -- a",
-    "translation key with an English fallback -- which is what a pack",
-    "that wants its questline translated writes instead of a plain",
-    "string. Without the fallback a player whose language has no",
-    "translation sees the raw key."
+    "The title is written in the other spelling a text field takes — a translation key with an English fallback — which is what a pack that wants its questline translated writes instead of a plain string. Without the fallback a player whose language has no translation sees the raw key."
   ],
   "icon": {
     "item": "minecraft:name_tag"

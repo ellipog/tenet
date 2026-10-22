@@ -4,15 +4,9 @@
   "title": "The Daily Round",
   "subtitle": "repeatable, on a cooldown",
   "description": [
-    "`repeatable: true` makes a quest completable more than once, and",
-    "`repeatCooldownTicks: 2400` makes the player wait two minutes",
-    "between rounds. `timesCompleted` survives each completion, and",
-    "anything depending on a repeatable quest stays satisfied once it has",
-    "been completed at least once.",
+    "`repeatable: true` makes a quest completable more than once, and `repeatCooldownTicks: 2400` makes the player wait two minutes between rounds. `timesCompleted` survives each completion, and anything depending on a repeatable quest stays satisfied once it has been completed at least once.",
     "",
-    "The shepherd's tally hangs off this round, so the arm also shows the",
-    "other half: a dependency on a repeatable quest is a dependency on",
-    "its first completion."
+    "The shepherd's tally hangs off this round, so the arm also shows the other half: a dependency on a repeatable quest is a dependency on its first completion."
   ],
   "icon": {
     "item": "minecraft:clock"

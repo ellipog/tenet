@@ -4,15 +4,9 @@
   "title": "The Bells Rung",
   "subtitle": "A command reward, with placeholders",
   "description": [
-    "A command reward runs through the server's own dispatcher with the",
-    "player as the source, at `permissionLevel` 2 by default -- a command",
-    "block's level. The command is written without its leading slash.",
+    "A command reward runs through the server's own dispatcher with the player as the source, at `permissionLevel` 2 by default — a command block's level. The command is written without its leading slash.",
     "",
-    "The brace-words are the legacy format's own placeholders, kept",
-    "whole: `{p}` is the player's scoreboard name, `{quest}` the quest's",
-    "id, `{chapter}` the chapter's, and `{x}` `{y}` `{z}` the block they",
-    "stand on. An unknown brace-word is left as written rather than",
-    "blanked, so a typo is visible in the log."
+    "The brace-words are the legacy format's own placeholders, kept whole: `{p}` is the player's scoreboard name, `{quest}` the quest's id, `{chapter}` the chapter's, and `{x}` `{y}` `{z}` the block they stand on. An unknown brace-word is left as written rather than blanked, so a typo is visible in the log."
   ],
   "icon": {
     "item": "minecraft:bell"

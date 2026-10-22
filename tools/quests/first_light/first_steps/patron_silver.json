@@ -4,12 +4,9 @@
   "title": "The Silver Patron",
   "subtitle": "The other half of the pair",
   "description": [
-    "The same group name, the same consequence, the other door. Nothing",
-    "links these two quests in the dependency graph -- the exclusivity is",
-    "its own mechanism, and the name they share is the whole of it.",
+    "The same group name, the same consequence, the other door. Nothing links these two quests in the dependency graph — the exclusivity is its own mechanism, and the name they share is the whole of it.",
     "",
-    "An exclusive pair is how a questline asks a player to choose rather",
-    "than to collect."
+    "An exclusive pair is how a questline asks a player to choose rather than to collect."
   ],
   "icon": {
     "item": "minecraft:iron_ingot"

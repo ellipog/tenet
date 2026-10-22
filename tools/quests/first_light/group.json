@@ -3,21 +3,11 @@
   "id": "first_light",
   "title": "First Light",
   "description": [
-    "One group, one chapter, every feature. The worked examples used to",
-    "be twelve questlines, one per family of mechanisms; they are one",
-    "orrery now, because a reader learns more from a single canvas that",
-    "uses everything than from twelve that each use a part.",
+    "One group, one chapter, every feature. The worked examples used to be twelve questlines, one per family of mechanisms; they are one orrery now, because a reader learns more from a single canvas that uses everything than from twelve that each use a part.",
     "",
-    "The five quests at its western edge are the engine's own playthrough",
-    "fixture. `punch_a_tree`, `read_the_sign`, `make_a_table`,",
-    "`stone_tools` and `the_underground` keep their ids and their",
-    "mechanics, because `QuestPlaythroughTest` walks them by name -- and",
-    "they end at the hub, so the five first steps are also the key to the",
-    "whole sky.",
+    "The five quests at its western edge are the engine's own playthrough fixture. `punch_a_tree`, `read_the_sign`, `make_a_table`, `stone_tools` and `the_underground` keep their ids and their mechanics, because `QuestPlaythroughTest` walks them by name — and they end at the hub, so the five first steps are also the key to the whole sky.",
     "",
-    "The group starts collapsed in the sidebar. `collapsedByDefault` is",
-    "one field the format has, and with one group it is either",
-    "demonstrated here or not at all."
+    "The group starts collapsed in the sidebar. `collapsedByDefault` is one field the format has, and with one group it is either demonstrated here or not at all."
   ],
   "aliases": [
     "the_first_light"

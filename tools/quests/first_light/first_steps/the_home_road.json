@@ -4,12 +4,9 @@
   "title": "The Home Road",
   "subtitle": "Experience paid in whole levels",
   "description": [
-    "An xp reward pays points by default; `levels: true` pays whole",
-    "levels instead. Five levels is a very different gift from five",
-    "points, and the field is the only difference between them.",
+    "An xp reward pays points by default; `levels: true` pays whole levels instead. Five levels is a very different gift from five points, and the field is the only difference between them.",
     "",
-    "The road home is also where the command rewards begin: the bell and",
-    "the quiet word both hang off this quest."
+    "The road home is also where the command rewards begin: the bell and the quiet word both hang off this quest."
   ],
   "icon": {
     "item": "minecraft:compass"

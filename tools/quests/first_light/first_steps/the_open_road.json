@@ -4,14 +4,9 @@
   "title": "The Open Road",
   "subtitle": "An OR-gate: any two of three",
   "description": [
-    "`minRequired: 2` replaces the count the prerequisite mode would use:",
-    "any two of this quest's three dependencies will open it, rather than",
-    "all three. It is how'any three of these five' is written, and it",
-    "replaces the count rather than the bar -- the mode still decides",
-    "what each dependency must reach.",
+    "`minRequired: 2` replaces the count the prerequisite mode would use: any two of this quest's three dependencies will open it, rather than all three. It is how'any three of these five' is written, and it replaces the count rather than the bar — the mode still decides what each dependency must reach.",
     "",
-    "The three roads come from three different arms, which makes this",
-    "node the one place where the canvas draws long cross-arm lines."
+    "The three roads come from three different arms, which makes this node the one place where the canvas draws long cross-arm lines."
   ],
   "icon": {
     "item": "minecraft:oak_boat"

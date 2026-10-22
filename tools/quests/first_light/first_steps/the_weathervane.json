@@ -4,17 +4,9 @@
   "title": "The Weathervane",
   "subtitle": "Observation: a block state, and a block entity",
   "description": [
-    "`block_state` names a state, spelled the way the block-state parser",
-    "spells it: `minecraft:oak_log[axis=y]` is a log standing on end, and",
-    "a log lying down does not answer it.",
+    "`block_state` names a state, spelled the way the block-state parser spells it: `minecraft:oak_log[axis=y]` is a log standing on end, and a log lying down does not answer it.",
     "",
-    "`block_entity` is the one whose target is not a name at all: it is",
-    "an SNBT subset of the block entity's saved data, so `{}` counts any",
-    "block entity and a filter like `{CustomName:'\"The Ledger\"'}` would",
-    "count one particular chest. The timer here is sixty ticks and",
-    "`autoSubmitTicks: 200` re-checks the look ten times less often than",
-    "the default -- the field that keeps an expensive check from running",
-    "twenty times a second."
+    "`block_entity` is the one whose target is not a name at all: it is an SNBT subset of the block entity's saved data, so `{}` counts any block entity and a filter like `{CustomName:'\"The Ledger\"'}` would count one particular chest. The timer here is sixty ticks and `autoSubmitTicks: 200` re-checks the look ten times less often than the default — the field that keeps an expensive check from running twenty times a second."
   ],
   "icon": {
     "item": "minecraft:lightning_rod"

@@ -4,13 +4,9 @@
   "title": "The Inscription",
   "subtitle": "hideTextUntilComplete",
   "description": [
-    "`hideTextUntilComplete` withholds the description until the quest is",
-    "completed -- for a quest whose text would give away what it asks",
-    "for. The node, its name and its tasks are all still there; only the",
-    "prose is held back.",
+    "`hideTextUntilComplete` withholds the description until the quest is completed — for a quest whose text would give away what it asks for. The node, its name and its tasks are all still there; only the prose is held back.",
     "",
-    "The editor always shows text a reader would not yet see, which is",
-    "the point: the author writes the reveal, and the reader meets it."
+    "The editor always shows text a reader would not yet see, which is the point: the author writes the reveal, and the reader meets it."
   ],
   "icon": {
     "item": "minecraft:book"

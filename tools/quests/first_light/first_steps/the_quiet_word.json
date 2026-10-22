@@ -4,14 +4,9 @@
   "title": "The Quiet Word",
   "subtitle": "A silent command, held back from Claim all",
   "description": [
-    "`silent: true` keeps the command's run out of chat, which is the",
-    "difference between a reward that announces itself and one that works",
-    "in the background.",
+    "`silent: true` keeps the command's run out of chat, which is the difference between a reward that announces itself and one that works in the background.",
     "",
-    "`excludeFromClaimAll: true` is the other half: Claim all sweeps up",
-    "everything outstanding, and this reward stays behind for its own",
-    "press. The pair exists for rewards whose moment matters -- a word",
-    "said quietly, at the player's choosing."
+    "`excludeFromClaimAll: true` is the other half: Claim all sweeps up everything outstanding, and this reward stays behind for its own press. The pair exists for rewards whose moment matters — a word said quietly, at the player's choosing."
   ],
   "icon": {
     "item": "minecraft:paper"

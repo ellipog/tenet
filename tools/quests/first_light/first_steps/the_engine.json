@@ -4,18 +4,11 @@
   "title": "The Engine",
   "subtitle": "The hub every arm is bolted to",
   "description": [
-    "The chapter is one orrery and this is its hub: the largest node on",
-    "the canvas, the only quest every arm begins at, and the line",
-    "arriving from the west is the chapter's own default style overridden",
-    "into a curved conduit.",
+    "The chapter is one orrery and this is its hub: the largest node on the canvas, the only quest every arm begins at, and the line arriving from the west is the chapter's own default style overridden into a curved conduit.",
     "",
-    "Seven arms leave this node. Each is a family of mechanisms --",
-    "instruments, measures, the compass, the hunt, the treasury, the",
-    "clockwork, the veils -- and each head quest hangs off this one, so",
-    "finishing the five first steps opens the whole sky at once.",
+    "Seven arms leave this node. Each is a family of mechanisms — instruments, measures, the compass, the hunt, the treasury, the clockwork, the veils — and each head quest hangs off this one, so finishing the five first steps opens the whole sky at once.",
     "",
-    "The description you are reading is one of the few written with",
-    "`showTitle: true`, because a hub with no name is hard to point at."
+    "The description you are reading is one of the few written with `showTitle: true`, because a hub with no name is hard to point at."
   ],
   "icon": {
     "item": "minecraft:nether_star"

@@ -4,14 +4,9 @@
   "title": "The Ledger Closes",
   "subtitle": "one_completed, and a split line",
   "description": [
-    "`prerequisiteMode: one_completed` opens this quest when any one of",
-    "its dependencies is complete -- the mode that lets a dependent",
-    "survive an exclusive pair, since only one patron can ever be taken.",
+    "`prerequisiteMode: one_completed` opens this quest when any one of its dependencies is complete — the mode that lets a dependent survive an exclusive pair, since only one patron can ever be taken.",
     "",
-    "Its line to the gold patron is a split: `fromHandle` and `toHandle`",
-    "are written together, each a `[along, across]` control point as a",
-    "fraction of the line's own chord. One alone would be a split with",
-    "half a shape."
+    "Its line to the gold patron is a split: `fromHandle` and `toHandle` are written together, each a `[along, across]` control point as a fraction of the line's own chord. One alone would be a split with half a shape."
   ],
   "icon": {
     "item": "minecraft:book"
