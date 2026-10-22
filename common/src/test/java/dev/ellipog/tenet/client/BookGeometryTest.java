@@ -1266,9 +1266,10 @@ class BookGeometryTest {
 
                 assertTrue(rail.width() < PanelStack.WIDE_MIN_WIDTH,
                         () -> "a wide kind cannot keep its floor on a window this small" + at);
-                assertEquals(Math.max(0, window.canvas().width() - BookGeometry.PANEL_GAP * 2),
-                        rail.width(), () -> "the column is the canvas it was given and nothing else" + at);
-                assertTrue(rail.x() >= window.canvas().x(),
+                // The room right of an open floating list, which is the canvas when the list is docked.
+                assertEquals(Math.max(0, window.railRoom() - BookGeometry.PANEL_GAP * 2),
+                        rail.width(), () -> "the column is the room it was given and nothing else" + at);
+                assertTrue(rail.x() >= window.railFloor(),
                         () -> "and it still has not touched the chapter list" + at);
             }
         }

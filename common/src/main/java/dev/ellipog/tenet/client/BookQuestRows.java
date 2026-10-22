@@ -546,12 +546,12 @@ final class BookQuestRows {
             r.text(count, after, textY, satisfied ? ArmatureTheme.complete() : ArmatureTheme.faint());
             after += r.textWidth(count) + 8;
 
-            int barY = textY + 1;
+            // A flat track and its fill, no outline: the step in tone is the edge.
+            int barY = textY + 2;
             int filled = Math.round(barWidth * Math.min(1F, progress / (float) task.count()));
-            r.fill(after, barY, after + barWidth, barY + 6, ArmatureTheme.recessed());
-            ArmatureTheme.outline(r, after, barY, barWidth, 6, ArmatureTheme.panelEdge());
+            r.fill(after, barY, after + barWidth, barY + 4, ArmatureTheme.recessed());
             if (filled > 0) {
-                r.fill(after + 1, barY + 1, after + Math.max(2, filled), barY + 5,
+                r.fill(after, barY, after + filled, barY + 4,
                         satisfied ? ArmatureTheme.complete() : ArmatureTheme.available());
             }
         }

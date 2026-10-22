@@ -1319,6 +1319,17 @@ public final class QuestBookScreen extends ArmatureScreen
         return geometry().canvas().contains(mouseX, mouseY);
     }
 
+    /** Whether an open panel sits over the view cluster's corner, which hides the cluster. */
+    boolean viewClusterCovered() {
+        BookGeometry.Rect cluster = viewControls();
+        for (BookGeometry.Rect rail : panelRails()) {
+            if (rail.intersects(cluster)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The backing panel behind the three view buttons, drawn so they read as one cluster. */
     private BookGeometry.Rect viewControls() {
         return geometry().viewControls();
@@ -2089,7 +2100,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // the pair claim the dock's rail as spare room and fold itself on a window that had space for both.
         // With no dock latched this is the canvas's own width, which is every reader's arrangement and the
         // expression this method has always had.
-        int room = geometry().canvas().width();
+        int room = geometry().railRoom();
         if (cols.dock() == PanelKind.TOOLS) {
             room -= dockRail().width() + BookGeometry.PANEL_GAP * 2;
         }
@@ -3822,7 +3833,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // and the mat is what makes the three buttons read as one group. The guard used to include
             // `overlay == PanelKind.NONE`, which was right while only the book's branch built the buttons
             // and wrong the moment the modal branches did too: three controls with no panel behind them.
-            if (ClientQuestCache.hasData()) {
+            if (ClientQuestCache.hasData() && !viewClusterCovered()) {
                 BookGeometry.Rect cluster = viewControls();
                 // Riding the sidebar's wipe like its buttons below: a backing drawn at its landing
                 // while the three buttons travel would frame empty air for 160 milliseconds. Same

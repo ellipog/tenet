@@ -4154,7 +4154,9 @@ final class BookQuestEditor {
      * calls were written this way to begin with.
      */
     void buildViewCluster() {
-        Map<String, BookGeometry.Rect> controls = book.geometry().controls();
+        // A panel over the cluster's corner hides it: the three buttons would otherwise float on the
+        // panel's own content, controlling a map nobody can see.
+        Map<String, BookGeometry.Rect> controls = book.viewClusterCovered() ? Map.of() : book.geometry().controls();
         // Retire what the last build registered: this builder runs on the partial path as well
         // as in `init`, and a cluster left registered draws a second set of map buttons at its
         // old seat beside the new one. The preview pill rides along: it is nulled below, so it
@@ -5233,7 +5235,7 @@ final class BookQuestEditor {
                     prose.x() + OverlayLayout.PROSE_PAD, prose.y() + OverlayLayout.PROSE_PAD,
                     BookEditorControls.join(description), null, -1);
 
-            book.bookSettings.drawHeading(r, BookSettings.placed(layout, body, OverlayLayout.TASKS_HEADING), "TASKS");
+            book.bookSettings.drawHeading(r, BookSettings.placed(layout, body, OverlayLayout.TASKS_HEADING), "Tasks");
             if (taskLines.isEmpty()) {
                 // The row the layout reserves either way ("a row either way, so an empty list and a
                 // one-item list take the same space") -- which the editor left *blank*, so an empty
@@ -5251,7 +5253,7 @@ final class BookQuestEditor {
                     QuestBookScreen.EditAction.ADD_TASK, mouseX, mouseY);
 
             book.bookSettings.drawHeading(r, BookSettings.placed(layout, body, OverlayLayout.REWARDS_HEADING),
-                    "REWARDS");
+                    "Rewards");
             if (rewardLines.isEmpty()) {
                 BookEditorControls.drawEmptyState(r, BookSettings.placed(layout, body,
                         OverlayLayout.NO_REWARDS), "Nothing");
@@ -5272,7 +5274,7 @@ final class BookQuestEditor {
             }
 
             book.bookSettings.drawHeading(r, BookSettings.placed(layout, body,
-                    OverlayLayout.REQUIRES_HEADING), "REQUIRES");
+                    OverlayLayout.REQUIRES_HEADING), "Requires");
             for (int i = 0; i < dependencies.size(); i++) {
                 book.editorControls.drawDependencyRow(r, BookSettings.placed(layout, body,
                         OverlayLayout.dependencyKey(i)),
@@ -6032,7 +6034,7 @@ final class BookQuestEditor {
      * method, so a second derivation would be a copy of the number rather than a rule. The two do not
      * overlap, and {@code BookGeometryTest} does not need to know that a header control is 20 pixels.
      */
-    private static BookGeometry.Rect headerPinSlot(BookGeometry.Rect card) {
+    static BookGeometry.Rect headerPinSlot(BookGeometry.Rect card) {
         int size = HEADER_CONTROL;
         return BookGeometry.Rect.at(
                 card.right() - BookGeometry.MODAL_INSET - size - HEADER_CONTROL_GAP - size,

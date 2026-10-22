@@ -358,12 +358,12 @@ class QuestPanelLayoutTest {
     @DisplayName("a carried item that is not handed in says nothing is taken; a hand-in says what is")
     void itemTooltips() {
         assertEquals(List.of("Have this many in your inventory.",
-                        "Nothing is taken - the quest only checks that you have them."),
+                        "Nothing is taken \u2014 the quest only checks that you have them."),
                 QuestPanelLayout.playerTooltip("tasks", "tenet:item", false, false),
                 "a presence-only item task completes by itself, so nothing may be taken");
 
         assertEquals(List.of("Have this many in your inventory.",
-                        "Hand it in with the Submit button - what you hand over is taken."),
+                        "Hand it in with the Submit button \u2014 what you hand over is taken."),
                 QuestPanelLayout.playerTooltip("tasks", "tenet:item", true, true),
                 "a consuming item task is handed over, and the player is told so");
 

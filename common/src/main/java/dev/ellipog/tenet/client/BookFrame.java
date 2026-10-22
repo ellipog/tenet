@@ -4,7 +4,6 @@ import dev.ellipog.armature.client.ArmatureButton;
 import dev.ellipog.armature.client.ArmatureTheme;
 import dev.ellipog.armature.client.Tooltips;
 import dev.ellipog.armature.client.render.GuiRenderer;
-import dev.ellipog.armature.client.ui.kit.Colour;
 import dev.ellipog.armature.client.ui.kit.Layout;
 import dev.ellipog.armature.client.ui.kit.Measure;
 import dev.ellipog.armature.client.ui.kit.Motion;
@@ -114,66 +113,53 @@ final class BookFrame {
     }
 
     /**
-     * The header's right-hand summary: the book's total quests, the open chapter's own count, and how
-     * much of that chapter is done.
+     * The header's right-hand summary: how much of the open chapter is done, as a count and a track.
      *
-     * <h2>Three draws rather than one string</h2>
+     * <p>It used to be three bare numbers — the book's total, the chapter's count and a percentage —
+     * which read as a code rather than as progress. "12 / 40" says which number is which, and the track
+     * beside it says how far along that is without being read at all.
      *
-     * <p>The total is deliberately the faintest of the three. The numbers a player can act on are the
-     * open chapter's own, and the pack-wide count is context for them rather than a figure in its own
-     * right — so it recedes, and the chapter's pair stays the ink the summary always was. One
-     * {@code text} call cannot carry two colours, so the string is drawn in segments, right-aligned to
-     * the same edge the old summary used.
-     *
-     * <h2>Dropped from the left</h2>
-     *
-     * <p>Too narrow for all three drops the total first, then — still too narrow — the whole summary:
-     * a missing count is a smaller fault than a title with a number drawn through it, and the
-     * chapter's own pair is the part worth keeping. The zoom percentage this replaced is simply gone;
-     * the view cluster already answers what the zoom is by what it does, and the slot says something
-     * about the chapter instead.
+     * <p>Too narrow for both drops the track, then the count: a missing count is a smaller fault than a
+     * title with a number drawn through it.
      */
     private void drawHeaderSummary(GuiRenderer r, int left, int top) {
         String chapter = QuestBookScreen.effectiveChapter();
         ChapterProgress progress = chapter == null ? null : book.chapterCounts().byChapter().get(chapter);
-        int done = progress == null ? 0 : progress.done();
-        int quests = progress == null ? 0 : progress.total();
-        int percent = progress == null ? -1 : progress.percent();
-
-        String sep = " \u00b7 ";
-        String totalText = Integer.toString(ClientQuestCache.questCount());
-        String countText = Integer.toString(quests);
-        String percentText = percent < 0 ? null : percent + "%";
+        if (progress == null || progress.total() <= 0) {
+            return;
+        }
+        int done = progress.done();
+        int quests = progress.total();
+        String countText = done + " / " + quests;
 
         int titleLimit = headerTitleX(left) + r.textWidth(book.bookTitle().getString()) + 12;
-        int width = r.textWidth(totalText) + r.textWidth(sep) + r.textWidth(countText)
-                + (percentText == null ? 0 : r.textWidth(sep) + r.textWidth(percentText));
-        int x = headerRightLimit() - width;
-        boolean withTotal = true;
+        int countWidth = r.textWidth(countText);
+        boolean withTrack = true;
+        int x = headerRightLimit() - countWidth - SUMMARY_GAP - SUMMARY_TRACK;
         if (x <= titleLimit) {
-            withTotal = false;
-            width = r.textWidth(countText)
-                    + (percentText == null ? 0 : r.textWidth(sep) + r.textWidth(percentText));
-            x = headerRightLimit() - width;
+            withTrack = false;
+            x = headerRightLimit() - countWidth;
             if (x <= titleLimit) {
                 return;
             }
         }
 
-        if (withTotal) {
-            r.text(totalText, x, top + 9, Colour.shade(ArmatureTheme.faint(), -0.4F));
-            x += r.textWidth(totalText);
-            r.text(sep, x, top + 9, ArmatureTheme.faint());
-            x += r.textWidth(sep);
-        }
-        r.text(countText, x, top + 9, ArmatureTheme.faint());
-        x += r.textWidth(countText);
-        if (percentText != null) {
-            r.text(sep, x, top + 9, ArmatureTheme.faint());
-            x += r.textWidth(sep);
-            r.text(percentText, x, top + 9, ArmatureTheme.faint());
+        r.text(countText, x, top + 9, done >= quests ? ArmatureTheme.complete() : ArmatureTheme.faint());
+        if (withTrack) {
+            int trackX = x + countWidth + SUMMARY_GAP;
+            int trackY = top + 11;
+            int filled = Math.round(SUMMARY_TRACK * Math.min(1F, done / (float) quests));
+            r.fill(trackX, trackY, trackX + SUMMARY_TRACK, trackY + 4, ArmatureTheme.recessed());
+            if (filled > 0) {
+                r.fill(trackX, trackY, trackX + filled, trackY + 4,
+                        done >= quests ? ArmatureTheme.complete() : ArmatureTheme.available());
+            }
         }
     }
+
+    /** The summary's track, and the air between it and the count. */
+    private static final int SUMMARY_TRACK = 40;
+    private static final int SUMMARY_GAP = 6;
 
     /**
      * The book's identity in the header: the pack's icon when it declares one, then its name.

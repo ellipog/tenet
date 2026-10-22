@@ -392,6 +392,10 @@ final class BookSettings {
         int iconBox = QuestBookScreen.HEADER_ICON;
         int iconX = left + 14;
         int iconY = top + (46 - iconBox) / 2;
+        // The icon sits in a slot: a recessed square two pixels proud of the icon on every side, the
+        // same well the task and reward rows give their items, so the header's picture reads as the
+        // quest's item rather than as a glyph floating beside the title.
+        r.fill(iconX - 3, iconY - 3, iconX + iconBox + 3, iconY + iconBox + 3, ArmatureTheme.recessed());
         ItemStack headerIcon = entry.icon();
         if (headerIcon.isEmpty() && entry.iconId().isEmpty() && entry.textureIcon().isEmpty()
                 && entry.spriteIcon().isEmpty()) {
@@ -436,37 +440,47 @@ final class BookSettings {
         // The three titles draw from remembered cuts rather than re-parsing per frame: same runs, same
         // advances, decided per stamp. See headerCutEpoch for what moves a stamp.
         long cutEpoch = headerCutEpoch(r);
-        int titleAdvance = r.textWidth(QuestBookScreen.titleOf(entry));
+        // The header's text stops short of the pin and the back arrow on its right: at the larger GUI
+        // scales the card is narrow enough for a long subtitle to run underneath them.
+        int textLimit = BookQuestEditor.headerPinSlot(BookGeometry.Rect.at(left, top, w, h)).x() - 8;
+        String badge = cardStateLabel(state);
+        int titleRoom = Math.max(0, textLimit - textX - r.textWidth(badge) - 16);
+        int titleAdvance = Math.min(titleRoom, r.textWidth(QuestBookScreen.titleOf(entry)));
         if (!InlineEdit.replaces("title", book.bookState.editingPath)) {
             titleAdvance = RichText.draw(r,
-                    RichText.cut(BookQuestEditor.titleOfRaw(entry), Integer.MAX_VALUE, book.textMeasure(r), cutEpoch),
+                    RichText.cut(BookQuestEditor.titleOfRaw(entry), titleRoom, book.textMeasure(r), cutEpoch),
                     textX, top + 12, InlineEdit.ink("title"));
         }
-        r.text(cardStateLabel(state), textX + titleAdvance + 10, top + 12,
-                stateColour(state));
+        drawStateBadge(r, badge, textX + titleAdvance + 8, top + 12, stateColour(state));
 
         String whereSub = BookQuestEditor.subtitleOf(entry);
         // The read line carries the chapter name as well; the field edits the subtitle alone, so
         // drawing both would print the chapter title through the field's text. Each part wears its
         // own colours, drawn left to right off the running advance.
+        //
+        // `RichText.draw` answers an advance, not an x: the running x is the start plus every advance so
+        // far. It used to be assigned straight from the draw, which put the subtitle at the window's
+        // left edge -- hidden behind the chapter list at most scales, and printed through the header at
+        // GUI scale 4, where the card sits far enough left for the two to meet.
         if (!InlineEdit.replaces("subtitle", book.bookState.editingPath)) {
-            int atX = RichText.draw(r,
-                    RichText.cut(entry.chapterTitleTextRaw(), Integer.MAX_VALUE, book.textMeasure(r),
-                            cutEpoch),
+            int atX = textX + RichText.draw(r,
+                    RichText.cut(entry.chapterTitleTextRaw(), Math.max(0, textLimit - textX),
+                            book.textMeasure(r), cutEpoch),
                     textX, top + 26, InlineEdit.ink("subtitle"));
-            if (!whereSub.isEmpty()) {
+            int subRoom = textLimit - atX - r.textWidth("  ·  ");
+            if (!whereSub.isEmpty() && subRoom > r.textWidth("...") * 2) {
                 r.text("  \u00b7  ", atX, top + 26, InlineEdit.ink("subtitle"));
                 atX += r.textWidth("  \u00b7  ");
-                atX = RichText.draw(r,
-                        RichText.cut(BookQuestEditor.subtitleOfRaw(entry), Integer.MAX_VALUE, book.textMeasure(r),
+                atX += RichText.draw(r,
+                        RichText.cut(BookQuestEditor.subtitleOfRaw(entry), subRoom, book.textMeasure(r),
                                 cutEpoch),
                         atX, top + 26, InlineEdit.ink("subtitle"));
             }
             // The guide book page this quest belongs to, when it names one. A reference in
             // faint ink, and nothing more: Tenet has no guide integration, so there is no
             // press and no page to open -- the line says where the quest is documented.
-            if (!entry.guidePage().isEmpty()) {
-                String guide = "  \u00b7  Guide: " + entry.guidePage();
+            String guide = "  \u00b7  Guide: " + entry.guidePage();
+            if (!entry.guidePage().isEmpty() && atX + r.textWidth(guide) <= textLimit) {
                 r.text(guide, atX, top + 26, ArmatureTheme.faint());
             }
         }
@@ -792,7 +806,7 @@ final class BookSettings {
 
     private void drawTasks(GuiRenderer r, ClientQuestCache.Entry entry, Layout layout, Viewport body,
                            int mouseX, int mouseY, long now) {
-        drawHeading(r, placed(layout, body, OverlayLayout.TASKS_HEADING), "TASKS");
+        drawHeading(r, placed(layout, body, OverlayLayout.TASKS_HEADING), "Tasks");
 
         if (entry.tasks().isEmpty()) {
             BookEditorControls.drawEmptyState(r, placed(layout, body, OverlayLayout.NO_TASKS),
@@ -1101,7 +1115,7 @@ final class BookSettings {
 
     private void drawRewards(GuiRenderer r, ClientQuestCache.Entry entry, Layout layout, Viewport body,
                              int mouseX, int mouseY, long now) {
-        drawHeading(r, placed(layout, body, OverlayLayout.REWARDS_HEADING), "REWARDS");
+        drawHeading(r, placed(layout, body, OverlayLayout.REWARDS_HEADING), "Rewards");
 
         if (entry.rewards().isEmpty()) {
             BookEditorControls.drawEmptyState(r, placed(layout, body,
@@ -1131,8 +1145,8 @@ final class BookSettings {
         dev.ellipog.tenet.client.dev.DependencyProgress progress = dependencyProgressOf(entry);
         int satisfied = progress.satisfied(ClientQuestCache::stateOf);
         String heading = satisfied >= progress.required()
-                ? "REQUIRES"
-                : "REQUIRES · " + satisfied + " of " + progress.required() + " met";
+                ? "Requires"
+                : "Requires · " + satisfied + " of " + progress.required() + " met";
         drawHeading(r, placed(layout, body, OverlayLayout.REQUIRES_HEADING), heading);
 
         for (int i = 0; i < QuestBookScreen.dependenciesOf(entry).size(); i++) {
@@ -1341,6 +1355,21 @@ final class BookSettings {
         return QuestBookScreen.stateLabel(state);
     }
 
+    /**
+     * The state word as a badge: the word in its state's ink on a wash of the same ink.
+     *
+     * <p>A badge rather than loose coloured text, because loose text beside a title reads as part of the
+     * title -- "Punch a Tree Available" -- where a tinted chip reads as a fact about it. The wash is the
+     * state's own colour at low strength, so a theme that recolours a state recolours its badge too, and
+     * the badge needs no token of its own.
+     */
+    static void drawStateBadge(GuiRenderer r, String word, int x, int textY, int ink) {
+        int padX = 4;
+        int width = r.textWidth(word);
+        r.fill(x, textY - 3, x + width + padX * 2, textY + 10, Colour.alphaOf(ink, 0.16F));
+        r.text(word, x + padX, textY, ink);
+    }
+
     // ------------------------------------------------------------------
     // The settings card
     // ------------------------------------------------------------------
@@ -1393,14 +1422,19 @@ final class BookSettings {
                 dependencyProgressOf(entry).met(ClientQuestCache::stateOf));
     }
 
-    /** A section label and its rule, at the slot the layout reserved for it. */
+    /**
+     * A section label at the slot the layout reserved for it.
+     *
+     * <p>Sentence case in the heading ink and nothing else. It used to be capitals with a rule under
+     * them, which made every section shout and drew a line that divided nothing; the space the layout
+     * reserves below the word ({@link OverlayLayout#SECTION_LEAD}) separates the label from its rows
+     * on its own.
+     */
     void drawHeading(GuiRenderer r, Slot slot, String label) {
         if (slot == null) {
             return;
         }
         r.text(label, slot.x(), slot.y(), ArmatureTheme.heading());
-        r.fill(slot.x(), slot.y() + OverlayLayout.SECTION_LEAD, slot.x() + r.textWidth(label),
-                slot.y() + OverlayLayout.SECTION_LEAD + 1, ArmatureTheme.panelEdge());
     }
 
     /**

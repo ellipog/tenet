@@ -1223,6 +1223,23 @@ public final class BookGeometry {
     // the same reason -- the columns' own bands are measured with them.)
 
     /**
+     * The left edge no rail may cross: the canvas's own, except beside an open floating list.
+     *
+     * <p>The floating list is drawn over the canvas and its rows over anything beneath it, so a rail
+     * reaching under the list had chapter rows printed across its content.
+     */
+    public int railFloor() {
+        return sidebarState.floating() && sidebarState.expanded()
+                ? Math.max(canvas.x(), sidebar.right())
+                : canvas.x();
+    }
+
+    /** The width the rails share: the canvas right of {@link #railFloor()}. */
+    public int railRoom() {
+        return Math.max(0, canvas.right() - railFloor());
+    }
+
+    /**
      * The column a docked panel occupies: inside the canvas, against its right edge, never off the book.
      *
      * <h2>Why the width is a parameter rather than a constant here</h2>
@@ -1238,9 +1255,9 @@ public final class BookGeometry {
      * <p>A column is anchored to the canvas's right edge and may cover the whole of it — that is what "the
      * panel wins" means — but the cap is the canvas less a {@link #PANEL_GAP} on each side, so it can
      * never reach a docked chapter list. Hiding the navigation to show a quest would be a trade nobody asked
-     * for: the list is how the reader gets anywhere else. A <i>floating</i> list is the exception, and
-     * deliberately so: it floats over the canvas's left corner while rails dock right, so a maximally
-     * wide rail may reach it — and the screen draws rails above it, so the quest stays reachable.
+     * for: the list is how the reader gets anywhere else. An open <i>floating</i> list is held clear the same
+     * way, through {@link #railFloor()}: it sits over the canvas's left corner, and a rail reaching under it
+     * had the list's rows drawn across the quest.
      *
      * <p>At the cap the column is the canvas minus a hair on each side, which reads as a full-page panel
      * rather than as a slab pinned to one edge. A width of zero or less, or a canvas with no room at all,
@@ -1248,7 +1265,7 @@ public final class BookGeometry {
      * bug is visible, and a caller drawing a rectangle of negative width is a crash.
      */
     public Rect panelRail(int width) {
-        int limit = Math.max(0, canvas.width() - PANEL_GAP * 2);
+        int limit = Math.max(0, railRoom() - PANEL_GAP * 2);
         int w = Math.max(0, Math.min(width, limit));
         int h = Math.max(0, canvas.height() - PANEL_GAP * 2);
         return Rect.at(canvas.right() - PANEL_GAP - w, canvas.y() + PANEL_GAP, w, h);
@@ -1276,7 +1293,7 @@ public final class BookGeometry {
      * @param inner the rail it sits to the left of
      */
     public Rect panelRailBefore(int width, Rect inner) {
-        int limit = Math.max(0, inner.x() - canvas.x() - PANEL_GAP * 2);
+        int limit = Math.max(0, inner.x() - railFloor() - PANEL_GAP * 2);
         int w = Math.max(0, Math.min(width, limit));
         return Rect.at(inner.x() - PANEL_GAP - w, inner.y(), w, inner.height());
     }

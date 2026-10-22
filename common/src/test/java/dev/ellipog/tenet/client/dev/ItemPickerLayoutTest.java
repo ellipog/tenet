@@ -96,7 +96,7 @@ class ItemPickerLayoutTest {
 
         assertEquals(ItemPickerLayout.Kind.MISSING, rows.get(0).kind());
         assertEquals("someothermod:widget", rows.get(0).id(), "the id travels, so it can be kept");
-        assertEquals("missing - the id is kept", rows.get(0).secondary());
+        assertEquals("missing \u2014 the id is kept", rows.get(0).secondary());
         assertEquals(1, rows.size(), "and there is nothing else to show");
     }
 
@@ -111,7 +111,7 @@ class ItemPickerLayoutTest {
         assertEquals("All items", rows.get(0).label());
         assertEquals(ItemPickerLayout.Kind.MISSING, rows.get(1).kind());
         assertEquals("someothermod:widget", rows.get(1).id());
-        assertEquals("not installed - use it anyway", rows.get(1).secondary());
+        assertEquals("not installed \u2014 use it anyway", rows.get(1).secondary());
     }
 
     @Test
