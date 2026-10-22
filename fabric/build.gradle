@@ -41,6 +41,50 @@ dependencies {
     runtimeOnly "dev.ellipog:armature-fabric-${minecraft_version}:${armature_version}"
 }
 
+// ---------------------------------------------------------------------------
+// The UI tour: a Fabric client gametest that drives a real client and photographs the book,
+// the HUD and the editor, the way The Desert Dimension photographs its terrain. It needs no
+// window focus -- input is simulated inside the game -- so it runs while you work. See
+// src/gametest/java/.../TenetUiTour.java for the script it reads.
+//
+//     gradlew :fabric:runClientGameTest
+//
+// Screenshots land in fabric/build/run/clientGameTest/screenshots.
+// ---------------------------------------------------------------------------
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = 'tenet-gametest'
+        enableGameTests = false
+        enableClientGameTests = true
+        eula = true
+    }
+}
+
+// Every run starts from a fresh world, a fresh screenshot folder and the worked questline, so a
+// screenshot always shows this build drawing tools/quests and nothing left over from last time.
+tasks.configureEach {
+    if (name == 'runClientGameTest') {
+        doFirst {
+            def runDir = file('build/run/clientGameTest')
+            ['saves', 'screenshots', 'config/tenet'].each {
+                def dir = new File(runDir, it)
+                if (dir.exists() && !dir.deleteDir()) {
+                    throw new GradleException("could not delete ${dir}; stop the previous client game test first")
+                }
+            }
+            copy {
+                from rootProject.file('tools/quests')
+                into new File(runDir, 'config/tenet/quests')
+                exclude '_schema/**'
+            }
+            def client = new File(runDir, 'config/tenet/client.json')
+            client.text = '{"guideSeen":true}\n'
+            new File(runDir, 'config/tenet/pinned.json').text = '{"pins":["punch_a_tree","make_a_table"]}\n'
+        }
+    }
+}
+
 loom {
     def aw = project(':common').file("src/main/resources/${mod_id}.accesswidener")
     if (aw.exists()) {

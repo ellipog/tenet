@@ -1,0 +1,20 @@
+{
+    "schemaVersion": 1,
+    "id": "tenet-gametest",
+    "version": "1.0.0",
+    "name": "Tenet UI Tour",
+    "description": "Photographs Tenet's screens in a real client. Lives only in the gametest source set; never shipped.",
+    "license": "MIT",
+    "environment": "client",
+    "entrypoints": {
+        "fabric-client-gametest": [
+            "dev.ellipog.tenet.gametest.TenetUiTour"
+        ]
+    },
+    "depends": {
+        "fabricloader": ">=0.19.5",
+        "minecraft": "26.3",
+        "java": ">=25",
+        "tenet": "*"
+    }
+}
