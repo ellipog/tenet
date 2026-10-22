@@ -83,13 +83,13 @@ final class BookSidebar {
      */
     static SidebarLayout sidebar() {
         if (sidebarStale()) {
-            QuestBookScreen.sidebar = buildSidebar();
-            QuestBookScreen.sidebarRevision = ClientQuestCache.treeRevision();
-            QuestBookScreen.sidebarProgress = ClientQuestCache.progressRevision();
+            BookScreenState.sidebar = buildSidebar();
+            BookScreenState.sidebarRevision = ClientQuestCache.treeRevision();
+            BookScreenState.sidebarProgress = ClientQuestCache.progressRevision();
             sidebarEditing = BookCanvas.editingView;
-            QuestBookScreen.sidebarText = ClientQuestCache.textRevision();
+            BookScreenState.sidebarText = ClientQuestCache.textRevision();
         }
-        return QuestBookScreen.sidebar;
+        return BookScreenState.sidebar;
     }
 
     /**
@@ -117,22 +117,22 @@ final class BookSidebar {
      * </ul>
      */
     static boolean sidebarStale() {
-        if (QuestBookScreen.sidebar == null
-                || QuestBookScreen.sidebarRevision != ClientQuestCache.treeRevision()
+        if (BookScreenState.sidebar == null
+                || BookScreenState.sidebarRevision != ClientQuestCache.treeRevision()
                 || sidebarEditing != BookCanvas.editingView
-                || QuestBookScreen.sidebarText != ClientQuestCache.textRevision()) {
+                || BookScreenState.sidebarText != ClientQuestCache.textRevision()) {
             return true;
         }
         long progress = ClientQuestCache.progressRevision();
-        if (QuestBookScreen.sidebarProgress == progress) {
+        if (BookScreenState.sidebarProgress == progress) {
             return false;
         }
-        for (SidebarLayout.ChapterRow row : QuestBookScreen.sidebarChapters) {
+        for (SidebarLayout.ChapterRow row : BookScreenState.sidebarChapters) {
             if (row.locked() != chapterLocked(row.id()) || row.hidden() != BookContent.chapterHidden(row.id())) {
                 return true;
             }
         }
-        QuestBookScreen.sidebarProgress = progress;
+        BookScreenState.sidebarProgress = progress;
         return false;
     }
 
@@ -177,13 +177,13 @@ final class BookSidebar {
                     chapterLocked(entry.chapterId()), BookContent.chapterHidden(entry.chapterId())));
         }
 
-        QuestBookScreen.sidebarChapters = List.copyOf(chapters.values());
-        SidebarLayout layout = SidebarLayout.of(groups, QuestBookScreen.sidebarChapters);
+        BookScreenState.sidebarChapters = List.copyOf(chapters.values());
+        SidebarLayout layout = SidebarLayout.of(groups, BookScreenState.sidebarChapters);
         // The player's own expansions, over the authored defaults: this rebuild is what used to throw
         // them away. And the memory is pruned to the groups that still exist here, so a renamed or
         // deleted group's key does not accumulate for the life of the session.
-        layout.applyExpansion(QuestBookScreen.sidebarExpansion);
-        QuestBookScreen.sidebarExpansion.keySet().retainAll(layout.groupKeys());
+        layout.applyExpansion(BookScreenState.sidebarExpansion);
+        BookScreenState.sidebarExpansion.keySet().retainAll(layout.groupKeys());
         return layout;
     }
 
@@ -281,7 +281,7 @@ final class BookSidebar {
             if (sidebar().toggle(key)) {
                 // Remembered, because the next tree -- which any structural edit produces -- rebuilds
                 // this outline, and a group that shut itself after every drop is the report this answers.
-                QuestBookScreen.sidebarExpansion.put(key, sidebar().isExpanded(key));
+                BookScreenState.sidebarExpansion.put(key, sidebar().isExpanded(key));
                 book.rebuildWidgets();
             }
             return;
@@ -313,22 +313,22 @@ final class BookSidebar {
             // belongs here rather than in five callers.
             return;
         }
-        boolean moved = !java.util.Objects.equals(id, QuestBookScreen.selectedChapter);
-        QuestBookScreen.selectedChapter = id;
-        QuestBookScreen.frameChapterActive = false;
-        QuestBookScreen.selectedQuest = null;
-        QuestBookScreen.multiSelection.clear();
+        boolean moved = !java.util.Objects.equals(id, BookScreenState.selectedChapter);
+        BookScreenState.selectedChapter = id;
+        BookScreenState.frameChapterActive = false;
+        BookScreenState.selectedQuest = null;
+        BookScreenState.multiSelection.clear();
         if (moved) {
             // The third place an id from the chapter being left survives. Only on a real move: a press on
             // the chapter already open is a re-select rather than a switch, and dropping the card's target
             // there would blank a panel still showing the right quest. The jump paths already ask this
             // question before calling -- see `revealNode`.
-            book.overlayQuest = null;
+            book.bookState.overlayQuest = null;
         }
-        QuestBookScreen.centred = false;
+        BookScreenState.centred = false;
         // A drag's preview belongs to the chapter being left: it is not keyed, and a stale patch would be
         // composed over the next chapter's theme until that chapter's own first edit replaced it.
-        QuestBookScreen.pendingChapterTheme = null;
+        BookScreenState.pendingChapterTheme = null;
     }
 
     /**
@@ -352,18 +352,18 @@ final class BookSidebar {
      * the wheel being broken; one row per notch is what every other list does.
      */
     void scrollSidebar(int dy) {
-        if (QuestBookScreen.sidebar == null || dy == 0) {
+        if (BookScreenState.sidebar == null || dy == 0) {
             return;
         }
 
         int pitch = SidebarLayout.pitch();
-        int current = book.sidebarView.viewport().scrollY();
+        int current = book.bookState.sidebarView.viewport().scrollY();
         int wanted = current + dy;
         int snapped = Math.round(wanted / (float) pitch) * pitch;
         if (snapped == current) {
             snapped = current + (dy > 0 ? pitch : -pitch);
         }
-        book.sidebarView.scrollTo(snapped);
+        book.bookState.sidebarView.scrollTo(snapped);
     }
 
     /** Whether a chapter's gate is unmet, so the row is drawn shut rather than removed. */
@@ -435,13 +435,13 @@ final class BookSidebar {
             }
             BookGeometry.Rect rect = placedRect(row.key());
             if (rect != null && rect.contains(mouseX, mouseY)) {
-                book.sidebarDragKey = row.key();
-                book.sidebarDragGroup = row.group();
-                book.sidebarDragLive = false;
-                book.sidebarDragPointerY = mouseY;
-                book.sidebarDragPressX = mouseX;
-                book.sidebarDragPressY = mouseY;
-                book.sidebarDrop = null;
+                book.bookState.sidebarDragKey = row.key();
+                book.bookState.sidebarDragGroup = row.group();
+                book.bookState.sidebarDragLive = false;
+                book.bookState.sidebarDragPointerY = mouseY;
+                book.bookState.sidebarDragPressX = mouseX;
+                book.bookState.sidebarDragPressY = mouseY;
+                book.bookState.sidebarDrop = null;
                 return;
             }
         }
@@ -483,7 +483,7 @@ final class BookSidebar {
      * rows actually are.
      */
     BookGeometry.Rect placedRect(String key) {
-        var slot = book.sidebarView.placedSlot(key);
+        var slot = book.bookState.sidebarView.placedSlot(key);
         return slot == null ? null
                 : BookGeometry.Rect.at(slot.x(), slot.y(), slot.width(), slot.height());
     }
@@ -535,11 +535,11 @@ final class BookSidebar {
      * the reader to guess which of the two places the row is going.
      */
     void drawSidebarDrag(GuiRenderer r) {
-        if (!book.sidebarDragLive || book.sidebarDrop == null) {
+        if (!book.bookState.sidebarDragLive || book.bookState.sidebarDrop == null) {
             return;
         }
         List<SidebarDrag.Row> rows = sidebarRows();
-        switch (book.sidebarDrop) {
+        switch (book.bookState.sidebarDrop) {
             case SidebarDrag.Drop.Insert insert -> {
                 int y = SidebarDrag.indicatorY(rows, insert);
                 if (y < 0 || rows.isEmpty()) {
@@ -589,19 +589,19 @@ final class BookSidebar {
         QuestBookScreen.RewardCounts counts = book.rewardCounts();
         Map<String, Integer> waiting = counts.byChapter();
         String selectedChapter = QuestBookScreen.effectiveChapter();
-        if (waiting.equals(book.sidebarWaiting)
-                && java.util.Objects.equals(selectedChapter, book.sidebarSuffixChapter)) {
+        if (waiting.equals(book.bookState.sidebarWaiting)
+                && java.util.Objects.equals(selectedChapter, book.bookState.sidebarSuffixChapter)) {
             return;
         }
-        book.sidebarWaiting = waiting;
-        book.sidebarSuffixChapter = selectedChapter;
-        if (book.rewardsButton != null) {
+        book.bookState.sidebarWaiting = waiting;
+        book.bookState.sidebarSuffixChapter = selectedChapter;
+        if (book.bookState.rewardsButton != null) {
             int total = counts.byQuest().size();
-            book.rewardsButton.tooltip(Component.translatable(total == 0
+            book.bookState.rewardsButton.tooltip(Component.translatable(total == 0
                     ? "tenet.screen.rewards.none" : "tenet.screen.rewards.waiting", total));
         }
         for (SidebarLayout.Row row : layout.rows()) {
-            if (row.group() || !(book.sidebarView.get(row.key()) instanceof ArmatureButton button)) {
+            if (row.group() || !(book.bookState.sidebarView.get(row.key()) instanceof ArmatureButton button)) {
                 continue;
             }
             Integer count = waiting.get(row.id());
@@ -712,7 +712,7 @@ final class BookSidebar {
     private void refreshSidebarChapterTooltips(SidebarLayout layout, QuestBookScreen.ChapterCounts counts) {
         Map<String, SidebarIcon> icons = sidebarIcons();
         for (SidebarLayout.Row row : layout.rows()) {
-            if (row.group() || !(book.sidebarView.get(row.key()) instanceof ArmatureButton button)) {
+            if (row.group() || !(book.bookState.sidebarView.get(row.key()) instanceof ArmatureButton button)) {
                 continue;
             }
             List<Component> lines = new ArrayList<>(3);
@@ -838,11 +838,11 @@ final class BookSidebar {
         Viewport view = book.sidebarViewport();
         int margin = 12;
         int step = SidebarLayout.pitch();
-        if (book.sidebarDragPointerY < view.originY() + margin) {
-            book.sidebarView.scrollBy(-step);
+        if (book.bookState.sidebarDragPointerY < view.originY() + margin) {
+            book.bookState.sidebarView.scrollBy(-step);
         }
-        else if (book.sidebarDragPointerY > view.viewBottom() - margin) {
-            book.sidebarView.scrollBy(step);
+        else if (book.bookState.sidebarDragPointerY > view.viewBottom() - margin) {
+            book.bookState.sidebarView.scrollBy(step);
         }
     }
 
@@ -863,15 +863,15 @@ final class BookSidebar {
             return;
         }
         book.bookMenu.closeMenu();
-        if (book.naming != null) {
+        if (book.bookState.naming != null) {
             // One editor at a time: the card and the inline row would otherwise name two things
             // at once, with one keyboard between them.
             closeNaming();
         }
-        book.inlineEdit = new QuestBookScreen.InlineNaming(kind, QuestBookScreen.NamingMode.CREATE, "",
+        book.bookState.inlineEdit = new QuestBookScreen.InlineNaming(kind, QuestBookScreen.NamingMode.CREATE, "",
                 groupId == null ? "" : groupId, false);
-        book.inlineTitle = null;
-        book.inlineId = null;
+        book.bookState.inlineTitle = null;
+        book.bookState.inlineId = null;
         inlineFocusPending = true;
         book.rebuildWidgets();
         scrollInlineIntoView();
@@ -889,13 +889,14 @@ final class BookSidebar {
             return;
         }
         book.bookMenu.closeMenu();
-        if (book.naming != null) {
+        if (book.bookState.naming != null) {
             // One editor at a time: see startInlineCreate.
             closeNaming();
         }
-        book.inlineEdit = new QuestBookScreen.InlineNaming(kind, QuestBookScreen.NamingMode.RENAME, id, "", false);
-        book.inlineTitle = null;
-        book.inlineId = null;
+        book.bookState.inlineEdit = new QuestBookScreen.InlineNaming(kind, QuestBookScreen.NamingMode.RENAME,
+                id, "", false);
+        book.bookState.inlineTitle = null;
+        book.bookState.inlineId = null;
         inlineFocusPending = true;
         book.rebuildWidgets();
         scrollInlineIntoView();
@@ -903,15 +904,15 @@ final class BookSidebar {
 
     /** Drops the inline session. The rebuild that follows is the caller's. */
     private void clearInline() {
-        book.inlineEdit = null;
-        book.inlineTitle = null;
-        book.inlineId = null;
+        book.bookState.inlineEdit = null;
+        book.bookState.inlineTitle = null;
+        book.bookState.inlineId = null;
         inlineFocusPending = false;
     }
 
     /** Abandons the inline session with nothing written. */
     void cancelInline() {
-        if (book.inlineEdit == null) {
+        if (book.bookState.inlineEdit == null) {
             return;
         }
         clearInline();
@@ -920,10 +921,11 @@ final class BookSidebar {
 
     /** The ids the inline id is checked against: the live ones, less its own when renaming. */
     private List<String> inlineTakenIds() {
-        if (book.inlineEdit == null) {
+        if (book.bookState.inlineEdit == null) {
             return new ArrayList<>();
         }
-        return takenIds(book.inlineEdit.kind(), book.inlineEdit.mode(), book.inlineEdit.targetId());
+        return takenIds(book.bookState.inlineEdit.kind(), book.bookState.inlineEdit.mode(),
+                book.bookState.inlineEdit.targetId());
     }
 
     /**
@@ -931,51 +933,52 @@ final class BookSidebar {
      * the numbered fallback when the title slugs to nothing.
      */
     private String inlineAutoId() {
-        String title = book.inlineTitle == null ? "" : book.inlineTitle.value().trim();
+        String title = book.bookState.inlineTitle == null ? "" : book.bookState.inlineTitle.value().trim();
         String base = ChapterNaming.slug(title);
         if (base.isEmpty()) {
-            base = book.inlineEdit.kind().equals("group") ? "new_group" : "new_chapter";
+            base = book.bookState.inlineEdit.kind().equals("group") ? "new_group" : "new_chapter";
         }
         return ChapterNaming.suggested(base, "", inlineTakenIds());
     }
 
     /** Sends the op the inline session is for, or says why it cannot. */
     void commitInline() {
-        if (book.inlineEdit == null) {
+        if (book.bookState.inlineEdit == null) {
             return;
         }
-        String title = book.inlineTitle == null ? "" : book.inlineTitle.value().trim();
+        String title = book.bookState.inlineTitle == null ? "" : book.bookState.inlineTitle.value().trim();
         String label = title.isEmpty() ? null : title;
-        if (book.inlineEdit.mode() == QuestBookScreen.NamingMode.CREATE) {
+        if (book.bookState.inlineEdit.mode() == QuestBookScreen.NamingMode.CREATE) {
             String id = inlineAutoId();
             String problem = ChapterNaming.problemWith(id, inlineTakenIds());
             if (problem != null) {
                 book.status(problem, true);
                 return;
             }
-            if (book.inlineEdit.kind().equals("group")) {
+            if (book.bookState.inlineEdit.kind().equals("group")) {
                 book.send(new EditorOp.CreateGroup(id, label));
             }
             else {
-                book.send(new EditorOp.CreateChapter(book.inlineEdit.groupId(), Integer.MAX_VALUE, id, label));
+                book.send(new EditorOp.CreateChapter(book.bookState.inlineEdit.groupId(), Integer.MAX_VALUE,
+                        id, label));
                 selectChapter(id);
             }
         }
         else {
-            String id = book.inlineEdit.targetId();
-            if (book.inlineEdit.showId()) {
-                id = book.inlineId == null ? "" : book.inlineId.value().trim();
+            String id = book.bookState.inlineEdit.targetId();
+            if (book.bookState.inlineEdit.showId()) {
+                id = book.bookState.inlineId == null ? "" : book.bookState.inlineId.value().trim();
                 String problem = ChapterNaming.problemWith(id, inlineTakenIds());
                 if (problem != null) {
                     book.status(problem, true);
                     return;
                 }
             }
-            if (book.inlineEdit.kind().equals("group")) {
-                book.send(new EditorOp.RenameGroup(book.inlineEdit.targetId(), id, label));
+            if (book.bookState.inlineEdit.kind().equals("group")) {
+                book.send(new EditorOp.RenameGroup(book.bookState.inlineEdit.targetId(), id, label));
             }
             else {
-                book.send(new EditorOp.RenameChapter(book.inlineEdit.targetId(), id, label));
+                book.send(new EditorOp.RenameChapter(book.bookState.inlineEdit.targetId(), id, label));
                 selectChapter(id);
             }
         }
@@ -990,10 +993,10 @@ final class BookSidebar {
      */
     List<SidebarLayout.Row> withInlineRows(SidebarLayout layout, List<SidebarLayout.Row> rows) {
         List<SidebarLayout.Row> out = new ArrayList<>(rows);
-        if (book.inlineEdit.mode() == QuestBookScreen.NamingMode.RENAME) {
-            String targetKey = book.inlineEdit.kind().equals("group")
-                    ? SidebarLayout.groupKey(book.inlineEdit.targetId())
-                    : SidebarLayout.chapterKey(book.inlineEdit.targetId());
+        if (book.bookState.inlineEdit.mode() == QuestBookScreen.NamingMode.RENAME) {
+            String targetKey = book.bookState.inlineEdit.kind().equals("group")
+                    ? SidebarLayout.groupKey(book.bookState.inlineEdit.targetId())
+                    : SidebarLayout.chapterKey(book.bookState.inlineEdit.targetId());
             int at = layout.indexOfKey(targetKey);
             if (at < 0) {
                 // The tree moved under the edit: draw the list as it is, and let the commit be
@@ -1004,7 +1007,7 @@ final class BookSidebar {
             out.remove(at);
             out.add(at, inlineRow(INLINE_EDIT_KEY, depth));
             int next = at + 1;
-            if (book.inlineEdit.showId()) {
+            if (book.bookState.inlineEdit.showId()) {
                 out.add(next++, inlineRow(INLINE_ID_KEY, depth));
             }
             out.add(next, inlineRow(QuestBookScreen.INLINE_STATUS_KEY, depth));
@@ -1012,14 +1015,14 @@ final class BookSidebar {
         }
         int depth;
         int at;
-        if (book.inlineEdit.kind().equals("group")) {
+        if (book.bookState.inlineEdit.kind().equals("group")) {
             // Groups live at the root, after everything: the end of the list.
             depth = 0;
             at = out.size();
         }
         else {
-            depth = book.inlineEdit.groupId().isEmpty() ? 0 : 1;
-            at = Math.max(0, Math.min(layout.endOfSection(book.inlineEdit.groupId()), out.size()));
+            depth = book.bookState.inlineEdit.groupId().isEmpty() ? 0 : 1;
+            at = Math.max(0, Math.min(layout.endOfSection(book.bookState.inlineEdit.groupId()), out.size()));
         }
         out.add(at, inlineRow(INLINE_EDIT_KEY, depth));
         out.add(at + 1, inlineRow(QuestBookScreen.INLINE_STATUS_KEY, depth));
@@ -1042,13 +1045,14 @@ final class BookSidebar {
         boolean idRow = INLINE_ID_KEY.equals(row.key());
         String initial;
         if (idRow) {
-            initial = book.inlineId == null ? book.inlineEdit.targetId() : book.inlineId.value();
+            initial = book.bookState.inlineId == null ? book.bookState.inlineEdit.targetId()
+                    : book.bookState.inlineId.value();
         }
-        else if (book.inlineTitle != null) {
-            initial = book.inlineTitle.value();
+        else if (book.bookState.inlineTitle != null) {
+            initial = book.bookState.inlineTitle.value();
         }
-        else if (book.inlineEdit.mode() == QuestBookScreen.NamingMode.RENAME) {
-            initial = existingTitle(book.inlineEdit.kind(), book.inlineEdit.targetId());
+        else if (book.bookState.inlineEdit.mode() == QuestBookScreen.NamingMode.RENAME) {
+            initial = existingTitle(book.bookState.inlineEdit.kind(), book.bookState.inlineEdit.targetId());
         }
         else {
             initial = "";
@@ -1057,13 +1061,13 @@ final class BookSidebar {
         field.onSubmit(text -> {
         });
         book.addRenderableWidget(field);
-        book.sidebarView.put(row.key(), field);
-        book.sidebarRowWidgets.add(field);
+        book.bookState.sidebarView.put(row.key(), field);
+        book.bookState.sidebarRowWidgets.add(field);
         if (idRow) {
-            book.inlineId = field;
+            book.bookState.inlineId = field;
         }
         else {
-            book.inlineTitle = field;
+            book.bookState.inlineTitle = field;
             if (inlineFocusPending) {
                 inlineFocusPending = false;
                 book.setFocused(field);
@@ -1076,12 +1080,14 @@ final class BookSidebar {
         // Registered and visible, not just placed: a field scrolled out of the list keeps its last
         // rectangle, and a field from a previous build is detached altogether. Either way a press
         // on the row now standing there is that row's, not the edit's.
-        if (book.inlineTitle != null && book.children().contains(book.inlineTitle) && book.inlineTitle.visible
-                && book.inlineTitle.isMouseOver(mouseX, mouseY)) {
+        if (book.bookState.inlineTitle != null && book.children().contains(book.bookState.inlineTitle)
+                && book.bookState.inlineTitle.visible
+                && book.bookState.inlineTitle.isMouseOver(mouseX, mouseY)) {
             return true;
         }
-        return book.inlineId != null && book.children().contains(book.inlineId) && book.inlineId.visible
-                && book.inlineId.isMouseOver(mouseX, mouseY);
+        return book.bookState.inlineId != null && book.children().contains(book.bookState.inlineId)
+                && book.bookState.inlineId.visible
+                && book.bookState.inlineId.isMouseOver(mouseX, mouseY);
     }
 
     /** Whether a press lands on the inline session's drawn status line. */
@@ -1098,11 +1104,12 @@ final class BookSidebar {
 
     /** Opens or shuts the rename's id disclosure. */
     void toggleInlineId() {
-        if (book.inlineEdit == null || book.inlineEdit.mode() != QuestBookScreen.NamingMode.RENAME) {
+        if (book.bookState.inlineEdit == null
+                || book.bookState.inlineEdit.mode() != QuestBookScreen.NamingMode.RENAME) {
             return;
         }
-        book.inlineEdit = book.inlineEdit.withShowId(!book.inlineEdit.showId());
-        book.inlineId = null;
+        book.bookState.inlineEdit = book.bookState.inlineEdit.withShowId(!book.bookState.inlineEdit.showId());
+        book.bookState.inlineId = null;
         book.rebuildWidgets();
     }
 
@@ -1111,32 +1118,32 @@ final class BookSidebar {
      * row's id for a rename, or the problem with either. Null when there is nothing to say.
      */
     private String inlineStatusText() {
-        if (book.inlineEdit == null) {
+        if (book.bookState.inlineEdit == null) {
             return null;
         }
-        if (book.inlineEdit.mode() == QuestBookScreen.NamingMode.CREATE) {
-            return folderPath(book.inlineEdit.kind(), book.inlineEdit.groupId(), inlineAutoId());
+        if (book.bookState.inlineEdit.mode() == QuestBookScreen.NamingMode.CREATE) {
+            return folderPath(book.bookState.inlineEdit.kind(), book.bookState.inlineEdit.groupId(), inlineAutoId());
         }
-        if (!book.inlineEdit.showId()) {
-            return "id: " + book.inlineEdit.targetId() + " - click to edit";
+        if (!book.bookState.inlineEdit.showId()) {
+            return "id: " + book.bookState.inlineEdit.targetId() + " - click to edit";
         }
-        String id = book.inlineId == null ? "" : book.inlineId.value().trim();
+        String id = book.bookState.inlineId == null ? "" : book.bookState.inlineId.value().trim();
         String problem = ChapterNaming.problemWith(id, inlineTakenIds());
         if (problem != null) {
             return problem;
         }
-        String group = book.inlineEdit.kind().equals("group") ? ""
-                : groupOfChapter(book.inlineEdit.targetId());
-        return folderPath(book.inlineEdit.kind(), group, id);
+        String group = book.bookState.inlineEdit.kind().equals("group") ? ""
+                : groupOfChapter(book.bookState.inlineEdit.targetId());
+        return folderPath(book.bookState.inlineEdit.kind(), group, id);
     }
 
     /** Whether the status line is a refusal rather than a path. */
     private boolean inlineStatusBlocked() {
-        if (book.inlineEdit == null || book.inlineEdit.mode() != QuestBookScreen.NamingMode.RENAME
-                || !book.inlineEdit.showId()) {
+        if (book.bookState.inlineEdit == null || book.bookState.inlineEdit.mode() != QuestBookScreen.NamingMode.RENAME
+                || !book.bookState.inlineEdit.showId()) {
             return false;
         }
-        String id = book.inlineId == null ? "" : book.inlineId.value().trim();
+        String id = book.bookState.inlineId == null ? "" : book.bookState.inlineId.value().trim();
         return ChapterNaming.problemWith(id, inlineTakenIds()) != null;
     }
 
@@ -1145,7 +1152,7 @@ final class BookSidebar {
      * preview as the author types, or the id line a rename can expand.
      */
     void drawInlineStatus(GuiRenderer r) {
-        if (book.inlineEdit == null) {
+        if (book.bookState.inlineEdit == null) {
             return;
         }
         BookGeometry.Rect field = placedRect(INLINE_EDIT_KEY);
@@ -1167,23 +1174,23 @@ final class BookSidebar {
 
     /** Scrolls the sidebar just far enough to show the inline edit. */
     private void scrollInlineIntoView() {
-        if (book.sidebarView.layout() == null) {
+        if (book.bookState.sidebarView.layout() == null) {
             return;
         }
-        var slot = book.sidebarView.layout().slot(INLINE_EDIT_KEY);
+        var slot = book.bookState.sidebarView.layout().slot(INLINE_EDIT_KEY);
         if (slot == null) {
             return;
         }
-        var viewport = book.sidebarView.viewport();
+        var viewport = book.bookState.sidebarView.viewport();
         int y = viewport.screenY(slot.y());
         int bottom = y + viewport.scaled(slot.height());
         int top = viewport.originY();
         int viewBottom = viewport.viewBottom();
         if (y < top) {
-            book.sidebarView.scrollTo(viewport.scrollY() - (top - y));
+            book.bookState.sidebarView.scrollTo(viewport.scrollY() - (top - y));
         }
         else if (bottom > viewBottom) {
-            book.sidebarView.scrollTo(viewport.scrollY() + (bottom - viewBottom));
+            book.bookState.sidebarView.scrollTo(viewport.scrollY() + (bottom - viewBottom));
         }
     }
 
@@ -1191,7 +1198,7 @@ final class BookSidebar {
         book.bookMenu.closeMenu();
         // The card keeps duplicates only; an inline session would name a second thing at once.
         clearInline();
-        book.naming = new QuestBookScreen.Naming(kind, mode, targetId, groupId, index);
+        book.bookState.naming = new QuestBookScreen.Naming(kind, mode, targetId, groupId, index);
         book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.NAMING));
         book.rebuildWidgets();
     }
@@ -1201,7 +1208,7 @@ final class BookSidebar {
         // Deferred, not dropped: the exiting rail draws from this session for the length of its
         // slide — the same rule closeOverlay's own nullings follow. Nulling eagerly is a departed
         // card drawing with no session, which crashes the book in drawNamingOverlay the next frame.
-        book.deferForLastDeparted(() -> book.naming = null, PanelKind.NAMING);
+        book.deferForLastDeparted(() -> book.bookState.naming = null, PanelKind.NAMING);
     }
 
     /** The two fields' rectangles: one derivation for the widgets and for the drawing. */
@@ -1216,15 +1223,15 @@ final class BookSidebar {
     }
 
     private String namingKindWord() {
-        return book.naming != null && book.naming.kind().equals("group") ? "group" : "chapter";
+        return book.bookState.naming != null && book.bookState.naming.kind().equals("group") ? "group" : "chapter";
     }
 
     /** The title the thing being named already has, for the card to open on. */
     private String namingExistingTitle() {
-        if (book.naming == null || book.naming.targetId() == null) {
+        if (book.bookState.naming == null || book.bookState.naming.targetId() == null) {
             return "";
         }
-        return existingTitle(book.naming.kind(), book.naming.targetId());
+        return existingTitle(book.bookState.naming.kind(), book.bookState.naming.targetId());
     }
 
     /** The title a chapter or group already has: what an inline rename opens its field on. */
@@ -1257,10 +1264,10 @@ final class BookSidebar {
      * to have is legal too, and the server's check is where that is known.
      */
     private List<String> namingTakenIds() {
-        if (book.naming == null) {
+        if (book.bookState.naming == null) {
             return new ArrayList<>();
         }
-        return takenIds(book.naming.kind(), book.naming.mode(), book.naming.targetId());
+        return takenIds(book.bookState.naming.kind(), book.bookState.naming.mode(), book.bookState.naming.targetId());
     }
 
     /**
@@ -1286,12 +1293,12 @@ final class BookSidebar {
 
     /** Where the thing being named will live, as a path an author can find. */
     private String namingFolderPath(String id) {
-        if (book.naming == null || id.isBlank()) {
+        if (book.bookState.naming == null || id.isBlank()) {
             return "";
         }
-        String group = book.naming.mode() == QuestBookScreen.NamingMode.CREATE
-                ? book.naming.groupId() : groupOfChapter(book.naming.targetId());
-        return folderPath(book.naming.kind(), group, id);
+        String group = book.bookState.naming.mode() == QuestBookScreen.NamingMode.CREATE
+                ? book.bookState.naming.groupId() : groupOfChapter(book.bookState.naming.targetId());
+        return folderPath(book.bookState.naming.kind(), group, id);
     }
 
     /**
@@ -1328,18 +1335,18 @@ final class BookSidebar {
     }
 
     void buildNamingWidgets() {
-        if (book.naming == null) {
+        if (book.bookState.naming == null) {
             namingTitle = null;
             namingId = null;
             return;
         }
         BookGeometry.Rect[] fields = namingFieldRects();
-        String title = book.naming.mode() == QuestBookScreen.NamingMode.CREATE ? "" : namingExistingTitle();
-        String id = switch (book.naming.mode()) {
+        String title = book.bookState.naming.mode() == QuestBookScreen.NamingMode.CREATE ? "" : namingExistingTitle();
+        String id = switch (book.bookState.naming.mode()) {
             case CREATE -> ChapterNaming.suggested(
-                    book.naming.kind().equals("group") ? "new_group" : "new_chapter", "", namingTakenIds());
-            case RENAME -> book.naming.targetId();
-            case DUPLICATE -> ChapterNaming.suggested(book.naming.targetId(), "_copy", namingTakenIds());
+                    book.bookState.naming.kind().equals("group") ? "new_group" : "new_chapter", "", namingTakenIds());
+            case RENAME -> book.bookState.naming.targetId();
+            case DUPLICATE -> ChapterNaming.suggested(book.bookState.naming.targetId(), "_copy", namingTakenIds());
         };
         namingTitle = new ArmatureTextField(fields[0].x(), fields[0].y(), fields[0].width(),
                 fields[0].height(), title);
@@ -1363,7 +1370,7 @@ final class BookSidebar {
         }
         BookGeometry.Rect primary = controls.get("submit");
         if (primary != null) {
-            book.control(primary, Component.literal(switch (book.naming.mode()) {
+            book.control(primary, Component.literal(switch (book.bookState.naming.mode()) {
                 case CREATE -> "Create";
                 case RENAME -> "Rename";
                 case DUPLICATE -> "Duplicate";
@@ -1374,7 +1381,7 @@ final class BookSidebar {
 
     /** Sends the op the card is for, or says why it cannot. */
     void submitNaming() {
-        if (book.naming == null || namingId == null) {
+        if (book.bookState.naming == null || namingId == null) {
             return;
         }
         String id = namingId.value().trim();
@@ -1385,31 +1392,32 @@ final class BookSidebar {
             return;
         }
         String label = title.isEmpty() ? null : title;
-        switch (book.naming.mode()) {
+        switch (book.bookState.naming.mode()) {
             case CREATE -> {
-                if (book.naming.kind().equals("group")) {
+                if (book.bookState.naming.kind().equals("group")) {
                     book.send(new EditorOp.CreateGroup(id, label));
                 }
                 else {
-                    book.send(new EditorOp.CreateChapter(book.naming.groupId(), book.naming.index(), id, label));
+                    book.send(new EditorOp.CreateChapter(book.bookState.naming.groupId(),
+                            book.bookState.naming.index(), id, label));
                     selectChapter(id);
                 }
             }
             case RENAME -> {
-                if (book.naming.kind().equals("group")) {
-                    book.send(new EditorOp.RenameGroup(book.naming.targetId(), id, label));
+                if (book.bookState.naming.kind().equals("group")) {
+                    book.send(new EditorOp.RenameGroup(book.bookState.naming.targetId(), id, label));
                 }
                 else {
-                    book.send(new EditorOp.RenameChapter(book.naming.targetId(), id, label));
+                    book.send(new EditorOp.RenameChapter(book.bookState.naming.targetId(), id, label));
                     selectChapter(id);
                 }
             }
             case DUPLICATE -> {
-                if (book.naming.kind().equals("group")) {
-                    book.send(new EditorOp.DuplicateGroup(book.naming.targetId(), id, label));
+                if (book.bookState.naming.kind().equals("group")) {
+                    book.send(new EditorOp.DuplicateGroup(book.bookState.naming.targetId(), id, label));
                 }
                 else {
-                    book.send(new EditorOp.DuplicateChapter(book.naming.targetId(), id, label));
+                    book.send(new EditorOp.DuplicateChapter(book.bookState.naming.targetId(), id, label));
                     selectChapter(id);
                 }
             }
@@ -1419,7 +1427,7 @@ final class BookSidebar {
 
     /** The card itself: heading, field labels, and the live verdict on the id. */
     void drawNamingOverlay(GuiRenderer r) {
-        if (book.naming == null) {
+        if (book.bookState.naming == null) {
             // No session, no card — the same guard buildNamingWidgets keeps. The close defers the
             // nulling so a departed rail still draws, but a draw without one must never dereference.
             return;
@@ -1427,7 +1435,7 @@ final class BookSidebar {
         BookGeometry.Rect card = book.surfaceCard(PanelKind.NAMING);
         ArmatureTheme.panel(r, card.x(), card.y(), card.width(), card.height(),
                 ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-        String heading = switch (book.naming.mode()) {
+        String heading = switch (book.bookState.naming.mode()) {
             case CREATE -> "New " + namingKindWord();
             case RENAME -> "Rename " + namingKindWord();
             case DUPLICATE -> "Duplicate " + namingKindWord();
@@ -1458,7 +1466,7 @@ final class BookSidebar {
             button.ink(ArmatureButton.Ink.BODY).flat(true).tooltip(
                     Component.translatable("tenet.screen.add_a_chapter_to_the_selected_group"));
             button.visible = book.mayEditNow();
-            book.sidebarRowWidgets.add(button);
+            book.bookState.sidebarRowWidgets.add(button);
         }
         BookGeometry.Rect addGroup = toolbar.get("addGroup");
         if (addGroup != null) {
@@ -1467,7 +1475,7 @@ final class BookSidebar {
             button.ink(ArmatureButton.Ink.BODY).flat(true).tooltip(
                     Component.translatable("tenet.screen.add_a_group_at_the_end_of_the_list"));
             button.visible = book.mayEditNow();
-            book.sidebarRowWidgets.add(button);
+            book.bookState.sidebarRowWidgets.add(button);
         }
     }
 

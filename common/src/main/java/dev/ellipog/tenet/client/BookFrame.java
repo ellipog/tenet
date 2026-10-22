@@ -251,15 +251,15 @@ final class BookFrame {
      * same one Minecraft asks ({@code Minecraft.isWindowActive}) before it dispatches a drag at all.
      */
     private void maintainHeldBar(long now) {
-        if (book.heldBar == null) {
+        if (book.bookState.heldBar == null) {
             return;
         }
         if (!Minecraft.getInstance().isWindowActive()) {
-            book.heldBar.release();
-            book.heldBar = null;
+            book.bookState.heldBar.release();
+            book.bookState.heldBar = null;
             return;
         }
-        book.heldBar.advance(now);
+        book.bookState.heldBar.advance(now);
     }
 
     /** Whether any rail that is on screen is still arriving, which is when a rebuild has to wait. */
@@ -531,7 +531,7 @@ final class BookFrame {
         // The canvas caption comes back up rather than drawing here: tests driving this method ignore
         // the return, `render` draws it at TOOLTIP_Z, and drawing order over widgets is not something
         // RecordingRenderer observes (see the tooltips note in renderBook).
-        boolean ownFrame = !book.frameActive;
+        boolean ownFrame = !book.bookState.frameActive;
         if (ownFrame) {
             book.snapshotFrame();
         }
@@ -665,10 +665,10 @@ final class BookFrame {
         // remembered position is no longer needed. Noticed here rather than in a handler because this is a
         // comparison of two numbers on the frame path that already reads them.
         long revision = ClientQuestCache.treeRevision();
-        book.editors.onRevision(revision);
+        book.bookState.editors.onRevision(revision);
         // The settings page's pending values expire on the same signal: the tree arriving is what makes
         // the file's own answer the current one, and the draft is only there to cover the round trip.
-        book.settingsDraft.onRevision(revision);
+        book.bookState.settingsDraft.onRevision(revision);
         // A drag outlives revisions: what the pointer is showing is the author's current ask, so the
         // expiry must not snap it back mid-gesture — the release commits the dragged value.
         book.bookRewards.stampDragging(revision);
@@ -676,7 +676,7 @@ final class BookFrame {
         // replica and the replica lags: a draft is dropped when the copy holds what was asked for, and
         // a copy that disagrees past the backstop wins. See FieldDraft for why the two rules differ.
         ClientChapterReplica.Copy copy = ClientChapterReplica.of(QuestBookScreen.effectiveChapter());
-        QuestBookScreen.fieldDraft.reconcile(QuestBookScreen.effectiveChapter(),
+        BookScreenState.fieldDraft.reconcile(QuestBookScreen.effectiveChapter(),
                 copy == null ? null : copy.revision(),
                 (owner, path) -> {
                     if (dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER.equals(owner)) {
@@ -709,18 +709,20 @@ final class BookFrame {
         // And the shape draft, against the same revision: an element the tree now holds is one whose insert
         // arrived, and one it no longer holds is a removal that did. See `ElementDraft` for why that exact
         // agreement needs no revision number, and why the backstop is what ends a belief the server renamed.
-        QuestBookScreen.elementDraft.reconcile(QuestBookScreen.effectiveChapter(), ClientQuestCache.elements(QuestBookScreen.effectiveChapter()),
+        BookScreenState.elementDraft.reconcile(QuestBookScreen.effectiveChapter(),
+                ClientQuestCache.elements(QuestBookScreen.effectiveChapter()),
                 Util.getMillis());
         // And the links' shape draft, against the same revision and for the same reason: a marker the
         // tree now holds is one whose insert arrived, and one it no longer holds is a removal that did.
-        QuestBookScreen.linkDraft.reconcile(QuestBookScreen.effectiveChapter(), ClientQuestCache.links(QuestBookScreen.effectiveChapter()),
+        BookScreenState.linkDraft.reconcile(QuestBookScreen.effectiveChapter(),
+                ClientQuestCache.links(QuestBookScreen.effectiveChapter()),
                 Util.getMillis());
         // A pending look is spent once the draft behind it is: the preview and the write carry the same
         // patch, so a pending patch that outlived its draft would mask whatever changed the chapter next.
-        if (QuestBookScreen.pendingChapterTheme != null
-                && QuestBookScreen.fieldDraft.value(QuestBookScreen.effectiveChapter(),
+        if (BookScreenState.pendingChapterTheme != null
+                && BookScreenState.fieldDraft.value(QuestBookScreen.effectiveChapter(),
                         dev.ellipog.tenet.client.dev.FieldDraft.CHAPTER_OWNER, "themePatch") == null) {
-            QuestBookScreen.pendingChapterTheme = null;
+            BookScreenState.pendingChapterTheme = null;
         }
         // And the selection, because an id this tree does not hold is a phantom the next gesture would
         // act on -- see `pruneSelection` for why the revision is the right moment and the only one.
@@ -729,7 +731,8 @@ final class BookFrame {
         // keeps this from being one request per frame: it says yes only while no usable copy exists, and
         // no faster than its retry window -- so a refusal or an empty answer is retried rather than
         // leaving the panel stuck, without turning a broken chapter into a request flood.
-        if (book.mayEditNow() && ClientChapterReplica.claim(QuestBookScreen.effectiveChapter(), revision, Util.getMillis())
+        if (book.mayEditNow() && ClientChapterReplica.claim(QuestBookScreen.effectiveChapter(), revision,
+                Util.getMillis())
                 && ClientEditReplies.noteSent(QuestBookScreen.REPLICA_SENTINEL) != null) {
             TenetNetworking.requestReplica(QuestBookScreen.effectiveChapter());
         }
@@ -809,8 +812,8 @@ final class BookFrame {
         // The party button's tooltip, refreshed here, because that is where the roster's state goes now:
         // the label says "Party" and the tooltip says who is in it. A tooltip the drawing rebuilds cannot
         // go stale, which is the one thing a label set at construction can do.
-        if (book.partyButton != null) {
-            book.partyButton.tooltip(partyTooltip());
+        if (book.bookState.partyButton != null) {
+            book.bookState.partyButton.tooltip(partyTooltip());
         }
 
         // The header's own inset, shared with Close's rectangle -- see `BookGeometry.HEADER_INSET`,
@@ -896,7 +899,7 @@ final class BookFrame {
      * of a link wants before pressing it.
      */
     void drawLinkTarget(GuiRenderer r, int mouseX, int mouseY) {
-        for (QuestBookScreen.LinkRect link : book.linkRects) {
+        for (QuestBookScreen.LinkRect link : book.bookState.linkRects) {
             if (link.box().contains(mouseX, mouseY)) {
                 if (link.quest().isEmpty()) {
                     drawTooltip(r, List.of(link.url()), mouseX, mouseY);
@@ -929,7 +932,7 @@ final class BookFrame {
      * which the panel's are not always -- are answered in one place rather than eleven.
      */
     void drawPendingLabels(GuiRenderer r) {
-        for (QuestBookScreen.PendingLabel label : book.pendingLabels) {
+        for (QuestBookScreen.PendingLabel label : book.bookState.pendingLabels) {
             BookGeometry.Rect anchor = label.anchor();
             // The toolkit's box, the same one a pointer tooltip gets: the theme's three tooltip tokens,
             // the fold, the move to a side that fits and the clamp -- so a caption at an icon by the
@@ -954,7 +957,7 @@ final class BookFrame {
      * {@code rowTooltips} for why the card cannot draw it where the row is.
      */
     void drawRowTooltips(GuiRenderer r, int mouseX, int mouseY) {
-        for (QuestBookScreen.RowTooltip tooltip : book.rowTooltips) {
+        for (QuestBookScreen.RowTooltip tooltip : book.bookState.rowTooltips) {
             if (tooltip.box().contains(mouseX, mouseY)) {
                 drawTooltip(r, tooltip.lines(), mouseX, mouseY);
                 return;
@@ -988,7 +991,7 @@ final class BookFrame {
                     mouseX, mouseY);
             return;
         }
-        for (ArmatureButton button : book.buttons) {
+        for (ArmatureButton button : book.bookState.buttons) {
             if (button.tooltip() != null && button.isMouseOver(mouseX, mouseY)) {
                 drawTooltip(r, button.tooltip(), mouseX, mouseY);
                 return;
@@ -1052,8 +1055,8 @@ final class BookFrame {
         // reopening; and "is anything still arriving" has to be asked of every rail that is on screen, or a
         // rail that settles last would never go live.
         long now = Util.getMillis();
-        if (book.panelBuildPending && !anyPanelRevealing(now)) {
-            book.panelBuildPending = false;
+        if (book.bookState.panelBuildPending && !anyPanelRevealing(now)) {
+            book.bookState.panelBuildPending = false;
             book.rebuildWidgets();
         }
         // The list's wipe has landed, so it forgets when it started: a toggle closed and reopened
@@ -1064,17 +1067,17 @@ final class BookFrame {
         // and the sliver stands behind them, so settling only discards them — and rebuilding
         // every column here would recreate the rails and the header under a stationary pointer,
         // and every hovered control would blink the frame it lands.
-        if (book.sidebarSlideStart >= 0 && !book.sidebarSliding(now)) {
-            book.sidebarSlideStart = -1;
+        if (book.bookState.sidebarSlideStart >= 0 && !book.sidebarSliding(now)) {
+            book.bookState.sidebarSlideStart = -1;
         }
-        if (book.sidebarDeparting && book.sidebarSlideStart < 0) {
-            book.sidebarDeparting = false;
-            book.sidebarDeparted.clear();
-            book.sidebarDepartAnchor = null;
+        if (book.bookState.sidebarDeparting && book.bookState.sidebarSlideStart < 0) {
+            book.bookState.sidebarDeparting = false;
+            book.bookState.sidebarDeparted.clear();
+            book.bookState.sidebarDepartAnchor = null;
         }
         // Everything settled forgets when it started, so a kind closed and reopened later begins its second
         // arrival at the beginning rather than part-way through the first.
-        book.panelRevealStarts.entrySet().removeIf(entry -> !book.panelRevealing(entry.getKey(), now));
+        book.bookState.panelRevealStarts.entrySet().removeIf(entry -> !book.panelRevealing(entry.getKey(), now));
         // And everything sunk is owed its cleanup — selectively. A cleanup stamped under the
         // arrangement still standing runs: the close is the latest thing that happened, so nothing
         // fresh stands where its nullings land. One stamped under an older arrangement stays parked
@@ -1082,16 +1085,16 @@ final class BookFrame {
         // the new arrival would null state that arrival just set. The rail is forgotten either way, so
         // a later close schedules fresh rather than re-running the old.
         java.util.Iterator<java.util.Map.Entry<PanelKind, Long>> sunk =
-                book.panelDepartStarts.entrySet().iterator();
+                book.bookState.panelDepartStarts.entrySet().iterator();
         boolean settledExit = false;
         while (sunk.hasNext()) {
             PanelKind kind = sunk.next().getKey();
             if (!book.panelDeparting(kind, now)) {
-                java.util.List<QuestBookScreen.StampedTeardown> owed = book.pendingTeardowns.get(kind);
+                java.util.List<QuestBookScreen.StampedTeardown> owed = book.bookState.pendingTeardowns.get(kind);
                 if (owed != null) {
                     int before = owed.size();
                     owed.removeIf(stamped -> {
-                        if (stamped.epoch() == book.arrangementEpoch) {
+                        if (stamped.epoch() == book.bookState.arrangementEpoch) {
                             stamped.teardown().run();
                             return true;
                         }
@@ -1099,11 +1102,11 @@ final class BookFrame {
                     });
                     settledExit |= owed.size() != before;
                     if (owed.isEmpty()) {
-                        book.pendingTeardowns.remove(kind);
+                        book.bookState.pendingTeardowns.remove(kind);
                     }
                 }
                 sunk.remove();
-                book.departRails.remove(kind);
+                book.bookState.departRails.remove(kind);
             }
         }
         if (settledExit) {
@@ -1116,7 +1119,7 @@ final class BookFrame {
         // A choice the server is holding comes to the front. It is a question the player asked by
         // claiming, so it is not left waiting behind a panel they opened since -- and it is read here
         // rather than in the drawing, because opening a panel re-places every widget.
-        if (ClientChoiceOffers.current() != null && book.overlay != PanelKind.CHOICE) {
+        if (ClientChoiceOffers.current() != null && book.bookState.overlay != PanelKind.CHOICE) {
             book.bookOverlay.openChoiceOffer();
         }
 
@@ -1124,12 +1127,12 @@ final class BookFrame {
         // any more -- QuestNotifier owns that diff and calls `notifyQuestCompleted` -- and expiring is
         // bookkeeping, which is why it lives in tick rather than in the drawing.
         long millis = Util.getMillis();
-        book.toasts.expire(millis);
+        book.bookState.toasts.expire(millis);
         // The locate flash's own expiry, for the same reason: the drawing asks `CanvasReveal.flash`
         // every frame and draws nothing once it is over, and the state that named the node goes when
         // the flash does rather than outliving it.
-        if (book.flashQuest != null && millis - book.flashStart >= CanvasReveal.FLASH_MILLIS) {
-            book.flashQuest = null;
+        if (book.bookState.flashQuest != null && millis - book.bookState.flashStart >= CanvasReveal.FLASH_MILLIS) {
+            book.bookState.flashQuest = null;
         }
 
         // The rewards panel is a list of what the server owes, so a progress sync changes it: a claim from
@@ -1147,22 +1150,23 @@ final class BookFrame {
         // changed map — see syncSidebarSuffixes. Here rather than in the drawing, because setting
         // a widget is state and state does not belong inside a render.
         book.bookSidebar.syncSidebarSuffixes();
-        if (book.overlay == PanelKind.REWARDS) {
+        if (book.bookState.overlay == PanelKind.REWARDS) {
             long progress = ClientQuestCache.progressRevision();
-            boolean marksMoved = book.rewardMarksRevision != book.pendingClaims.revision();
-            if (progress != book.rewardsRevision || marksMoved) {
-                book.rewardsRevision = progress;
-                book.rewardMarksRevision = book.pendingClaims.revision();
+            boolean marksMoved = book.bookState.rewardMarksRevision != book.bookState.pendingClaims.revision();
+            if (progress != book.bookState.rewardsRevision || marksMoved) {
+                book.bookState.rewardsRevision = progress;
+                book.bookState.rewardMarksRevision = book.bookState.pendingClaims.revision();
                 book.rebuildWidgets();
             }
         }
-        else if (book.overlay == PanelKind.QUEST && !book.mayEditNow()) {
-            ClientQuestCache.Entry entry = book.entryFor(book.overlayQuest);
+        else if (book.bookState.overlay == PanelKind.QUEST && !book.mayEditNow()) {
+            ClientQuestCache.Entry entry = book.entryFor(book.bookState.overlayQuest);
             if (entry != null) {
                 int taskIndex = book.bookAssets.firstManualTask(entry);
                 java.util.UUID self = book.minecraft().player == null ? null : book.minecraft().player.getUUID();
                 boolean claimable = self != null && book.claimableWithMarks(self, entry);
-                if (claimable != book.bookSidebar.readerFooterClaimable || taskIndex != book.bookSidebar.readerFooterTaskIndex) {
+                if (claimable != book.bookSidebar.readerFooterClaimable
+                        || taskIndex != book.bookSidebar.readerFooterTaskIndex) {
                     book.rebuildWidgets();
                 }
             }
@@ -1177,19 +1181,20 @@ final class BookFrame {
             // `dockOpen` rather than a second spelling of it: the question here is exactly "is the author's
             // dock up on the Chapter tab", which is the one rebuild a replica arriving has to trigger for a
             // tab nobody is looking at otherwise.
-            boolean dockPanel = book.dockOpen && book.toolsTab == ToolsLayout.Tab.CHAPTER;
+            boolean dockPanel = book.bookState.dockOpen && book.bookState.toolsTab == ToolsLayout.Tab.CHAPTER;
             // **And the element panel, which is the third reader of a chapter's own file.** Its rows are built
             // from the drafted element, so a flag, a colour or a word the server has just confirmed is a row
             // whose *value* has changed while its widget still holds the old one -- and a button cannot repaint
             // itself from a tree. Without this the panel a click opens was the one place in the editor that did
             // not follow an edit: the flag it had just written read the old state until something else happened
             // to rebuild the list.
-            boolean elementPanel = book.overlay == PanelKind.ELEMENT;
+            boolean elementPanel = book.bookState.overlay == PanelKind.ELEMENT;
             // The dock's picker counts as an editor for this purpose: a replica arriving while it is
             // open changes the chapter under the list, and the card's title and the "current" row are
             // read from that chapter. Rebuilding keeps the typed query -- `buildPickerWidgets` carries
             // the box's value across a rebuild -- so this cannot eat what is being searched for.
-            boolean modalEditor = (book.overlay == PanelKind.QUEST || book.overlay == PanelKind.PICKER) && book.mayEditNow();
+            boolean modalEditor = (book.bookState.overlay == PanelKind.QUEST
+                    || book.bookState.overlay == PanelKind.PICKER) && book.mayEditNow();
             if (dockPanel || elementPanel || modalEditor) {
                 book.rebuildWidgets();
             }
@@ -1208,7 +1213,7 @@ final class BookFrame {
         // And not while the rail is still sliding in: the caret cannot have moved inside an editor the
         // player has had for a tenth of a second, while a scroll now would re-place widgets the slide is
         // about to move again — the two passes fighting over one list for the whole of the arrival.
-        if (book.overlay == PanelKind.QUEST && book.mayEditNow()
+        if (book.bookState.overlay == PanelKind.QUEST && book.mayEditNow()
                 && !book.panelRevealing(PanelKind.QUEST, now)) {
             book.editorControls.followCaret();
         }
@@ -1218,7 +1223,7 @@ final class BookFrame {
         // that routinely does not fit, and "drag it to the group at the bottom" has to be possible
         // without letting go. In tick rather than in the drag's follow, because a pointer held still at
         // the edge stops producing mouse events and the list has to keep moving.
-        if (book.sidebarDragLive) {
+        if (book.bookState.sidebarDragLive) {
             book.bookSidebar.autoScrollSidebar();
         }
 
@@ -1227,14 +1232,14 @@ final class BookFrame {
         // so they have to be reset here or the book keeps offering an undo over a history that is gone: a
         // Ctrl+Z that sends an op, gets nothing back, and says nothing. See `ClientEditHistory`.
         if (ClientEditHistory.takeDiscarded()) {
-            book.tableApplied = 0;
-            book.tableUndone = 0;
+            book.bookState.tableApplied = 0;
+            book.bookState.tableUndone = 0;
             // The drafts go with it, for the same reason the server's own `forget` drops the model: a pending
             // value is an edit recorded against the files as they were, and the reload has replaced them.
-            QuestBookScreen.fieldDraft.forgetChapter(QuestBookScreen.effectiveChapter());
-        QuestBookScreen.elementDraft.clear(QuestBookScreen.effectiveChapter());
-        QuestBookScreen.linkDraft.clear(QuestBookScreen.effectiveChapter());
-            book.settingsDraft.clear();
+            BookScreenState.fieldDraft.forgetChapter(QuestBookScreen.effectiveChapter());
+        BookScreenState.elementDraft.clear(QuestBookScreen.effectiveChapter());
+        BookScreenState.linkDraft.clear(QuestBookScreen.effectiveChapter());
+            book.bookState.settingsDraft.clear();
             book.bookInput.authorReport("The server reloaded, so the undo history was discarded");
         }
 
@@ -1253,7 +1258,8 @@ final class BookFrame {
             for (String line : report.lines()) {
                 Constants.LOG.info("the pack has a problem: {}", line);
             }
-            book.bookInput.authorToast(Component.translatable("tenet.dev.problems.toast", report.count()).getString(), true);
+            book.bookInput.authorToast(Component.translatable("tenet.dev.problems.toast",
+                    report.count()).getString(), true);
         }
 
         // Every answer nobody has read yet, oldest first. A burst of quick edits -- spamming a stepper
@@ -1280,20 +1286,21 @@ final class BookFrame {
                 if (!reply.ok()) {
                     // The edit did not stick, so nothing should pretend it did: the drafted value goes
                     // and the panel draws what the file actually holds.
-                    BookRewards.tableDraft.forgetOwner(QuestBookScreen.effectiveChapter(), book.bookRewards.tableOwnerKey());
+                    BookRewards.tableDraft.forgetOwner(QuestBookScreen.effectiveChapter(),
+                            book.bookRewards.tableOwnerKey());
                 }
             }
             if (!reply.ok()) {
-                QuestBookScreen.fieldDraft.forgetChapter(reply.chapter());
-            QuestBookScreen.elementDraft.clear(reply.chapter());
-            QuestBookScreen.linkDraft.clear(reply.chapter());
+                BookScreenState.fieldDraft.forgetChapter(reply.chapter());
+            BookScreenState.elementDraft.clear(reply.chapter());
+            BookScreenState.linkDraft.clear(reply.chapter());
                 // The settings page's pending values are the same kind of ask and end the same way. A
                 // refusal does not move the tree, so `onRevision` would never drop them and the preview
                 // would keep drawing — and the next arrow press would accumulate from — the value the
                 // server just said no to. The page belongs to the effective chapter, so only that
                 // chapter's refusal clears it; a drag re-stamps itself on the next frame either way.
                 if (reply.chapter().equals(QuestBookScreen.effectiveChapter())) {
-                    book.settingsDraft.clear();
+                    book.bookState.settingsDraft.clear();
                 }
             }
             // A table op's chapter is empty by design -- a table is a file, not a chapter's -- so the
@@ -1311,11 +1318,11 @@ final class BookFrame {
                     // A table replica first, because it is the one that arrives with no chapter to its name:
                     // recorded against the table it was asked for, which is the only way the panel that is
                     // waiting for that table can say what the server said instead of saying nothing.
-                    if (replicaAnswer && book.replicaAskedFor != null) {
-                        dev.ellipog.tenet.client.ClientTableReplica.refuse(book.replicaAskedFor, said);
+                    if (replicaAnswer && book.bookState.replicaAskedFor != null) {
+                        dev.ellipog.tenet.client.ClientTableReplica.refuse(book.bookState.replicaAskedFor, said);
                         Constants.LOG.info("table replica for \"{}\" was refused: {}",
-                                book.replicaAskedFor, said);
-                        book.replicaAskedFor = null;
+                                book.bookState.replicaAskedFor, said);
+                        book.bookState.replicaAskedFor = null;
                     }
                     ClientChapterReplica.refuse(reply.chapter(), said);
                     Constants.LOG.info("replica for \"{}\" was refused while another chapter was open: {}",
@@ -1343,7 +1350,7 @@ final class BookFrame {
                 // sent, because the id is the server's to choose and this is the first moment the author has it.
                 // Only for a chapter's op: a table op's id is a table's, and selecting a quest named after a
                 // table would move the canvas to a quest that does not exist.
-                QuestBookScreen.selectedQuest = reply.questId();
+                BookScreenState.selectedQuest = reply.questId();
                 book.bookInput.authorReport("Now editing " + reply.questId());
             }
             if (!tableReply) {
@@ -1358,7 +1365,8 @@ final class BookFrame {
         // an empty book starts the guided making of one chapter, quest, task and reward, and the rungs
         // the tree satisfies advance. Here rather than in the drawing, because starting is state and
         // state does not belong inside a render.
-        IntroGuide.tick(book.questEditor.mayEdit(), DevMode.on(), book.bookCanvas.previewing(), ClientQuestCache.hasTree(),
+        IntroGuide.tick(book.questEditor.mayEdit(), DevMode.on(), book.bookCanvas.previewing(),
+                ClientQuestCache.hasTree(),
                 ClientQuestCache.chapters().size(), ClientQuestCache.entries().size());
     }
 }

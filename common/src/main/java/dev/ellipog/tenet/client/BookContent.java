@@ -99,8 +99,8 @@ final class BookContent {
         if (chapters.isEmpty()) {
             return null;
         }
-        if (QuestBookScreen.selectedChapter != null && chapters.containsKey(QuestBookScreen.selectedChapter)) {
-            return QuestBookScreen.selectedChapter;
+        if (BookScreenState.selectedChapter != null && chapters.containsKey(BookScreenState.selectedChapter)) {
+            return BookScreenState.selectedChapter;
         }
         return chapters.keySet().iterator().next();
     }

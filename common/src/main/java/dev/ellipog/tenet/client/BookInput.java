@@ -39,12 +39,13 @@ import java.util.LinkedHashMap;
 import java.util.Set;
 
 /**
- * The quest book's input: what a press, a drag, a release, the wheel and a key do once the screen
- * has routed them, and the multi-selection's whole-hand gestures.
+ * The quest book's input: what a press, a drag, a release, the wheel, a key and a typed character do,
+ * in the order each is offered to the book, and the multi-selection's whole-hand gestures.
  *
- * <p>Moved out of {@link QuestBookScreen} as it stood, with the state only it reads. The screen keeps
- * the overrides Minecraft calls ({@code mouseClicked}, {@code keyPressed} and the rest) and the order
- * they offer an event in, and reaches this through its {@code bookInput} field.
+ * <p>Moved out of {@link QuestBookScreen} as it stood, with the state only it reads. Minecraft still
+ * calls the screen's overrides ({@code mouseClicked}, {@code keyPressed} and the rest); each is one line
+ * that calls the method of the same name here, and a body that needs the base class reaches it through
+ * the screen's {@code superMouseClicked}-style bridges.
  */
 final class BookInput {
 
@@ -81,17 +82,17 @@ final class BookInput {
         if (button != InputConstants.MOUSE_BUTTON_LEFT && button != InputConstants.MOUSE_BUTTON_RIGHT) {
             return false;
         }
-        book.dragging = true;
-        book.panelPress = true;
-        book.pressMoved = false;
-        book.pressedNode = null;
+        book.bookState.dragging = true;
+        book.bookState.panelPress = true;
+        book.bookState.pressMoved = false;
+        book.bookState.pressedNode = null;
         book.bookCanvas.pressedQuestLink = null;
-        book.pressX = mouseX;
-        book.pressY = mouseY;
-        book.panContentX = book.viewport().contentX(mouseX);
-        book.panContentY = book.viewport().contentY(mouseY);
+        book.bookState.pressX = mouseX;
+        book.bookState.pressY = mouseY;
+        book.bookState.panContentX = book.viewport().contentX(mouseX);
+        book.bookState.panContentY = book.viewport().contentY(mouseY);
         // A pan is the hand taking the camera: a glide still in flight must not fight it.
-        book.glideQuest = null;
+        book.bookState.glideQuest = null;
         return true;
     }
 
@@ -105,7 +106,7 @@ final class BookInput {
      * panel it happened to be over.
      */
     boolean onEditTarget(double mouseX, double mouseY) {
-        for (QuestBookScreen.EditTarget target : book.editTargets) {
+        for (QuestBookScreen.EditTarget target : book.bookState.editTargets) {
             if (target.box().contains(mouseX, mouseY)) {
                 return true;
             }
@@ -138,27 +139,27 @@ final class BookInput {
      * moment the pointer left it, which made the destinations unreachable.
      */
     void updateSubmenuHover(double mouseX, double mouseY) {
-        if (book.menu.isEmpty()) {
-            book.submenuRow = -1;
+        if (book.bookState.menu.isEmpty()) {
+            book.bookState.submenuRow = -1;
             return;
         }
         int row = book.bookMenu.menuRowAt(mouseX, mouseY);
         if (row >= 0) {
-            book.submenuRow = book.menu.get(row).submenu() ? row : -1;
+            book.bookState.submenuRow = book.bookState.menu.get(row).submenu() ? row : -1;
             return;
         }
-        if (book.submenuRow >= 0 && insideOpenSubmenu(mouseX, mouseY)) {
+        if (book.bookState.submenuRow >= 0 && insideOpenSubmenu(mouseX, mouseY)) {
             return;
         }
-        book.submenuRow = -1;
+        book.bookState.submenuRow = -1;
     }
 
     /** Whether the pointer is on the open flyout, or on the way to it. */
     private boolean insideOpenSubmenu(double mouseX, double mouseY) {
-        if (book.submenuRow < 0) {
+        if (book.bookState.submenuRow < 0) {
             return false;
         }
-        MenuFlyout.Placed placed = book.bookMenu.submenuPlacement(book.submenuRow);
+        MenuFlyout.Placed placed = book.bookMenu.submenuPlacement(book.bookState.submenuRow);
         if (placed.rows().isEmpty()) {
             return false;
         }
@@ -176,15 +177,15 @@ final class BookInput {
      * panel, and the submenu shuts under the hand — which is the same fault in a smaller place.
      */
     private BookGeometry.Rect submenuBridge(MenuFlyout.Placed placed) {
-        if (placed.rows().isEmpty() || book.submenuRow < 0) {
+        if (placed.rows().isEmpty() || book.bookState.submenuRow < 0) {
             return null;
         }
         List<BookGeometry.Rect> main = book.bookMenu.menuRects();
-        if (book.submenuRow >= main.size()) {
+        if (book.bookState.submenuRow >= main.size()) {
             return null;
         }
         List<BookGeometry.Rect> rects = placed.rows();
-        BookGeometry.Rect parent = main.get(book.submenuRow);
+        BookGeometry.Rect parent = main.get(book.bookState.submenuRow);
         BookGeometry.Rect last = rects.get(rects.size() - 1);
         int left = Math.min(parent.x(), rects.get(0).x() - 2);
         int right = Math.max(parent.right(), last.right() + 2);
@@ -224,7 +225,7 @@ final class BookInput {
             // The table editor's undo is its own frame's: the file it is showing, and no further back
             // than the table the author opened. See `tableApplied` for why that floor exists. Shift is
             // the redo half here as well, which is the pair every editor has.
-            if (book.overlay == PanelKind.TABLE_EDITOR) {
+            if (book.bookState.overlay == PanelKind.TABLE_EDITOR) {
                 if (event.hasShiftDown()) {
                     book.bookAssets.tableRedo();
                 }
@@ -242,7 +243,7 @@ final class BookInput {
             return true;
         }
         if (ctrl && keyCode == InputConstants.KEY_Y) {
-            if (book.overlay == PanelKind.TABLE_EDITOR) {
+            if (book.bookState.overlay == PanelKind.TABLE_EDITOR) {
                 book.bookAssets.tableRedo();
                 return true;
             }
@@ -275,21 +276,21 @@ final class BookInput {
             pasteClipboard();
             return true;
         }
-        if (ctrl && keyCode == InputConstants.KEY_D && QuestBookScreen.selectedQuest != null) {
+        if (ctrl && keyCode == InputConstants.KEY_D && BookScreenState.selectedQuest != null) {
             // The whole selection duplicates, as one edit per chapter it spans: seventy quests are one
             // gesture, one history step and one save, and one Ctrl+Z takes them all back. See `sendBulk`.
             duplicateSelection(QuestBookScreen.selection());
             return true;
         }
         if ((keyCode == InputConstants.KEY_DELETE || keyCode == InputConstants.KEY_BACKSPACE)
-                && QuestBookScreen.selectedQuest != null) {
+                && BookScreenState.selectedQuest != null) {
             // **The first press asks, the second deletes.** This key used to be the one destructive
             // control in the book that acted on a single press — and the one that reaches furthest, since
             // Ctrl+A then Delete takes a whole chapter. `ArmedDelete` holds the rule, the ids that were
             // named and the chapter they were named in, so a second press deletes exactly what the
             // sentence described and nothing else.
             List<String> targets = QuestBookScreen.selection();
-            switch (book.armedDelete.press(QuestBookScreen.effectiveChapter(), targets, Util.getMillis())) {
+            switch (book.bookState.armedDelete.press(QuestBookScreen.effectiveChapter(), targets, Util.getMillis())) {
                 case ArmedDelete.Armed ignored -> authorReport("Press Delete again to remove"
                         + BookPins.questDeleteNote(targets) + " - Ctrl+Z takes it back");
                 case ArmedDelete.Confirmed confirmed -> deleteSelection(confirmed.ids());
@@ -303,7 +304,7 @@ final class BookInput {
         // nodes, Enter opens the focused one, Escape drops the focus. Gated on nothing else wanting
         // the keys -- no overlay, no focused widget -- because an arrow key inside a text field is a
         // caret move, and inside a card it belongs to the card. See CanvasFocus.
-        if (book.overlay == PanelKind.NONE && book.getFocused() == null) {
+        if (book.bookState.overlay == PanelKind.NONE && book.getFocused() == null) {
             CanvasFocus.Direction direction = null;
             // An if-chain rather than a switch: the SDL constants are not compile-time constants.
             if (keyCode == InputConstants.KEY_LEFT) {
@@ -319,15 +320,15 @@ final class BookInput {
                 direction = CanvasFocus.Direction.DOWN;
             }
             if (direction != null) {
-                book.canvasFocus.step(canvasNodes(), direction).ifPresent(this::narrateFocus);
+                book.bookState.canvasFocus.step(canvasNodes(), direction).ifPresent(this::narrateFocus);
                 return true;
             }
             if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
-                book.canvasFocus.focused().ifPresent(book.bookRewards::openOverlay);
+                book.bookState.canvasFocus.focused().ifPresent(book.bookRewards::openOverlay);
                 return true;
             }
-            if (keyCode == InputConstants.KEY_ESCAPE && book.canvasFocus.focused().isPresent()) {
-                book.canvasFocus.clear();
+            if (keyCode == InputConstants.KEY_ESCAPE && book.bookState.canvasFocus.focused().isPresent()) {
+                book.bookState.canvasFocus.clear();
                 return true;
             }
         }
@@ -456,19 +457,19 @@ final class BookInput {
      * keep drawing it — a Ctrl+Z that looks like it did nothing.
      */
     private void undoEdit() {
-        QuestBookScreen.fieldDraft.forgetChapter(QuestBookScreen.effectiveChapter());
-        QuestBookScreen.elementDraft.clear(QuestBookScreen.effectiveChapter());
-        QuestBookScreen.linkDraft.clear(QuestBookScreen.effectiveChapter());
-        book.settingsDraft.clear();
+        BookScreenState.fieldDraft.forgetChapter(QuestBookScreen.effectiveChapter());
+        BookScreenState.elementDraft.clear(QuestBookScreen.effectiveChapter());
+        BookScreenState.linkDraft.clear(QuestBookScreen.effectiveChapter());
+        book.bookState.settingsDraft.clear();
         book.send(new EditorOp.Undo());
     }
 
     /** The same, forward. */
     private void redoEdit() {
-        QuestBookScreen.fieldDraft.forgetChapter(QuestBookScreen.effectiveChapter());
-        QuestBookScreen.elementDraft.clear(QuestBookScreen.effectiveChapter());
-        QuestBookScreen.linkDraft.clear(QuestBookScreen.effectiveChapter());
-        book.settingsDraft.clear();
+        BookScreenState.fieldDraft.forgetChapter(QuestBookScreen.effectiveChapter());
+        BookScreenState.elementDraft.clear(QuestBookScreen.effectiveChapter());
+        BookScreenState.linkDraft.clear(QuestBookScreen.effectiveChapter());
+        book.bookState.settingsDraft.clear();
         book.send(new EditorOp.Redo());
     }
 
@@ -481,7 +482,7 @@ final class BookInput {
         if (quest == null) {
             return;
         }
-        QuestBookScreen.fieldDraft.set(chapter, quest, path, value,
+        BookScreenState.fieldDraft.set(chapter, quest, path, value,
                 ClientQuestCache.treeRevision(), Util.getMillis());
         // The draft is stamped whether or not the op goes: it is the *preview*, and a value the author
         // asked for should show even if the request could not be sent. What must not happen is an op
@@ -498,21 +499,21 @@ final class BookInput {
     String bookTitleValue() {
         // Raw rather than resolved: the field edits the file, and a translation written back would
         // replace the author's own words with somebody else's translation of them.
-        return QuestBookScreen.fieldDraft.text(QuestBookScreen.effectiveChapter(),
+        return BookScreenState.fieldDraft.text(QuestBookScreen.effectiveChapter(),
                 dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER, "bookTitle",
                 ClientQuestCache.bookTitleRaw());
     }
 
     /** The book's LOD answer as its switch should show it: the pending edit first, then the tree's own. */
     boolean bookLodValue() {
-        return QuestBookScreen.fieldDraft.flag(QuestBookScreen.effectiveChapter(),
+        return BookScreenState.fieldDraft.flag(QuestBookScreen.effectiveChapter(),
                 dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER, "disableCanvasLod",
                 ClientQuestCache.bookLodDisabled());
     }
 
     /** The first-join book answer as its switch should show it: the pending edit first, then the tree's own. */
     boolean bookStarterValue() {
-        return QuestBookScreen.fieldDraft.flag(QuestBookScreen.effectiveChapter(),
+        return BookScreenState.fieldDraft.flag(QuestBookScreen.effectiveChapter(),
                 dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER, "giveBookOnFirstJoin",
                 ClientQuestCache.bookOnFirstJoin());
     }
@@ -537,7 +538,7 @@ final class BookInput {
             book.status("Edit mode is off, so the book's settings were not written", true);
             return;
         }
-        QuestBookScreen.fieldDraft.set(QuestBookScreen.effectiveChapter(),
+        BookScreenState.fieldDraft.set(QuestBookScreen.effectiveChapter(),
                 dev.ellipog.tenet.client.dev.FieldDraft.BOOK_OWNER,
                 key, value, ClientQuestCache.treeRevision(), Util.getMillis());
         book.send(new EditorOp.SetIndex(key, value));
@@ -571,7 +572,7 @@ final class BookInput {
      * node that is moved but not recorded snaps back on the next frame while its neighbour does not.
      */
     private void recordMove(String id, float x, float y, long revision) {
-        book.editors.moved(id, Math.round(x), Math.round(y), revision);
+        book.bookState.editors.moved(id, Math.round(x), Math.round(y), revision);
     }
 
     /**
@@ -613,9 +614,9 @@ final class BookInput {
         // from.
         List<dev.ellipog.tenet.client.dev.MoveCommit.Move> selection = new ArrayList<>();
         for (String id : moved) {
-            if (book.editors.hasMoved(id)) {
+            if (book.bookState.editors.hasMoved(id)) {
                 selection.add(new dev.ellipog.tenet.client.dev.MoveCommit.Move(
-                        id, (float) book.editors.movedX(id), (float) book.editors.movedY(id)));
+                        id, (float) book.bookState.editors.movedX(id), (float) book.bookState.editors.movedY(id)));
             }
         }
 
@@ -646,11 +647,11 @@ final class BookInput {
      * first quest ever added becomes the primary, which is the one the property panel edits.
      */
     static void addToSelection(String id) {
-        if (QuestBookScreen.selectedQuest == null) {
-            QuestBookScreen.selectedQuest = id;
+        if (BookScreenState.selectedQuest == null) {
+            BookScreenState.selectedQuest = id;
         }
         else if (!BookCanvas.isSelected(id)) {
-            QuestBookScreen.multiSelection.add(id);
+            BookScreenState.multiSelection.add(id);
         }
     }
 
@@ -662,20 +663,20 @@ final class BookInput {
      * with no target, so the selection and the panel cannot disagree about what is being edited.
      */
     static void toggleSelection(String id) {
-        if (QuestBookScreen.multiSelection.remove(id)) {
+        if (BookScreenState.multiSelection.remove(id)) {
             return;
         }
-        if (id.equals(QuestBookScreen.selectedQuest)) {
-            QuestBookScreen.selectedQuest = QuestBookScreen.multiSelection.isEmpty() ? null
-                    : QuestBookScreen.multiSelection.iterator().next();
-            QuestBookScreen.multiSelection.remove(QuestBookScreen.selectedQuest);
+        if (id.equals(BookScreenState.selectedQuest)) {
+            BookScreenState.selectedQuest = BookScreenState.multiSelection.isEmpty() ? null
+                    : BookScreenState.multiSelection.iterator().next();
+            BookScreenState.multiSelection.remove(BookScreenState.selectedQuest);
             return;
         }
-        if (QuestBookScreen.selectedQuest == null) {
-            QuestBookScreen.selectedQuest = id;
+        if (BookScreenState.selectedQuest == null) {
+            BookScreenState.selectedQuest = id;
         }
         else {
-            QuestBookScreen.multiSelection.add(id);
+            BookScreenState.multiSelection.add(id);
         }
     }
 
@@ -695,10 +696,10 @@ final class BookInput {
      * so a marquee onto an empty selection behaves like a marquee onto nothing at all.
      */
     void selectInsideMarquee() {
-        int left = Math.min(book.marqueeX0, book.marqueeX1);
-        int right = Math.max(book.marqueeX0, book.marqueeX1);
-        int top = Math.min(book.marqueeY0, book.marqueeY1);
-        int bottom = Math.max(book.marqueeY0, book.marqueeY1);
+        int left = Math.min(book.bookState.marqueeX0, book.bookState.marqueeX1);
+        int right = Math.max(book.bookState.marqueeX0, book.bookState.marqueeX1);
+        int top = Math.min(book.bookState.marqueeY0, book.bookState.marqueeY1);
+        int bottom = Math.max(book.bookState.marqueeY0, book.bookState.marqueeY1);
         // A click's worth of rectangle selects nothing: that press was a mis-aimed click, not a
         // marquee, and wiping the selection for it would be a gesture that punishes.
         if (right - left < QuestBookScreen.DRAG_THRESHOLD && bottom - top < QuestBookScreen.DRAG_THRESHOLD) {
@@ -770,7 +771,7 @@ final class BookInput {
      * being read move up rather than being pushed away.
      */
     void drawToasts(GuiRenderer r, long now) {
-        List<ToastStack.Toast> visible = book.toasts.visible(now);
+        List<ToastStack.Toast> visible = book.bookState.toasts.visible(now);
         if (visible.isEmpty()) {
             return;
         }
@@ -807,19 +808,19 @@ final class BookInput {
         }
         switch (kind) {
             case "Undo" -> {
-                book.tableApplied = Math.max(0, book.tableApplied - 1);
-                book.tableUndone++;
+                book.bookState.tableApplied = Math.max(0, book.bookState.tableApplied - 1);
+                book.bookState.tableUndone++;
             }
             case "Redo" -> {
-                book.tableApplied++;
-                book.tableUndone = Math.max(0, book.tableUndone - 1);
+                book.bookState.tableApplied++;
+                book.bookState.tableUndone = Math.max(0, book.bookState.tableUndone - 1);
             }
             default -> {
-                book.tableApplied++;
-                book.tableUndone = 0;
+                book.bookState.tableApplied++;
+                book.bookState.tableUndone = 0;
             }
         }
-        if (reply.questId().isEmpty() || book.tableAddress == null) {
+        if (reply.questId().isEmpty() || book.bookState.tableAddress == null) {
             return;
         }
         // No conversion moves the frame any more: a table is a file, and the ops that made one from a
@@ -955,7 +956,7 @@ final class BookInput {
             return;
         }
         QuestBookScreen.SidebarPinAfter after = QuestBookScreen.pinAfterToggle(DevMode.isSidebarPinned(),
-                DevMode.isSidebarCollapsed(), book.sidebarPeeking);
+                DevMode.isSidebarCollapsed(), book.bookState.sidebarPeeking);
         setSidebarPinned(after.pinned());
         if (after.pinned() && DevMode.isSidebarCollapsed()) {
             // Promoting a sliver or its hover preview into a real open box. The preview's
@@ -963,21 +964,21 @@ final class BookInput {
             // own rebuild rather than the whole screen's: a full one hitches visibly on a
             // press whose picture barely changes, which reads as the pin lagging.
             book.beginSidebarSlide(); // from the drawn preview or sliver, before the triple lands
-            book.sidebarPeeking = after.peeking();
+            book.bookState.sidebarPeeking = after.peeking();
             DevMode.setSidebarCollapsed(after.collapsed());
-            book.sidebarBoxHovered = false;
-            book.sidebarPeekLeaveStart = -1;
-            book.sidebarDeparting = false;
+            book.bookState.sidebarBoxHovered = false;
+            book.bookState.sidebarPeekLeaveStart = -1;
+            book.bookState.sidebarDeparting = false;
             // An arrival, like every other: a pin mid-collapse cuts the departure short, and the
             // box rebuilds its rows live below — orphans filed for the interrupted wipe would draw
             // over them.
-            book.sidebarDeparted.clear();
-            book.sidebarDepartAnchor = null;
+            book.bookState.sidebarDeparted.clear();
+            book.bookState.sidebarDepartAnchor = null;
             rebuildSidebarAndCluster();
             book.cancelSidebarSlideIfStatic();
         }
         else {
-            book.sidebarPeeking = after.peeking();
+            book.bookState.sidebarPeeking = after.peeking();
             if (DevMode.isSidebarCollapsed() != after.collapsed()) {
                 book.setSidebarCollapsed(after.collapsed());
             }
@@ -1001,7 +1002,7 @@ final class BookInput {
         if (!bar.press(mouseX, mouseY, net.minecraft.util.Util.getMillis())) {
             return false;
         }
-        book.heldBar = bar;
+        book.bookState.heldBar = bar;
         return true;
     }
 
@@ -1014,13 +1015,13 @@ final class BookInput {
      */
     private ScrollView partyScrollAt(double mouseX) {
         BookGeometry.Rect body = book.partyBody();
-        if (body == null || book.partyRightFace == null) {
+        if (body == null || book.bookState.partyRightFace == null) {
             // One column of content: there is no split to aim at, and a bar drawn on the right half of a
             // panel with nothing in it would be a scrollbar for a view nobody can see.
-            return book.partyLeftView;
+            return book.bookState.partyLeftView;
         }
         int split = body.x() + PartyPanelLayout.leftWidth(body.width()) + PartyPanelLayout.COLUMN_GAP / 2;
-        return mouseX < split ? book.partyLeftView : book.partyRightView;
+        return mouseX < split ? book.bookState.partyLeftView : book.bookState.partyRightView;
     }
 
     /** A colour a picker is dragging: the same patch shape {@code writeThemeToken} writes. */
@@ -1055,7 +1056,7 @@ final class BookInput {
             // is the fault the shared-row design exists to prevent: one form, two places, both live.
             String[] element = ChapterPanelLayout.elementFieldOf(row.key());
             if (element != null) {
-                book.bookPins.openElementColourPopover(row, book.toolsView, chipMode(row.key()), chip);
+                book.bookPins.openElementColourPopover(row, book.bookState.toolsView, chipMode(row.key()), chip);
             }
             else {
                 openColourPopover(row, chip);
@@ -1083,7 +1084,7 @@ final class BookInput {
             return null;
         }
         dev.ellipog.armature.client.ui.kit.Slot onScreen =
-                ToolsLayout.onScreen(book.toolsView.viewport(), slot);
+                ToolsLayout.onScreen(book.bookState.toolsView.viewport(), slot);
         return ToolsLayout.chipOf(onScreen, chipMode(row.key()));
     }
 
@@ -1100,14 +1101,14 @@ final class BookInput {
      * drawing and for the press.
      */
     private dev.ellipog.armature.client.ui.inspect.InspectLayout.Mode chipMode(String key) {
-        return book.toolsTab == ToolsLayout.Tab.CHAPTER && ChapterPanelLayout.elementFieldOf(key) != null
+        return book.bookState.toolsTab == ToolsLayout.Tab.CHAPTER && ChapterPanelLayout.elementFieldOf(key) != null
                 ? dev.ellipog.armature.client.ui.inspect.InspectLayout.Mode.STACKED
                 : dev.ellipog.armature.client.ui.inspect.InspectLayout.Mode.SIDE_BY_SIDE;
     }
 
     /** A field's label, armed for a scrub: the box is the widget's, the label is the screen's. */
     private boolean armLabelScrub(double mouseX, double mouseY) {
-        for (dev.ellipog.tenet.client.dev.ScrubField field : book.rowFields) {
+        for (dev.ellipog.tenet.client.dev.ScrubField field : book.bookState.rowFields) {
             if (field.beginLabelScrub(mouseX, mouseY)) {
                 labelScrub = field;
                 return true;
@@ -1136,11 +1137,13 @@ final class BookInput {
         }
         book.closeColourPopover();
         int argb = book.questEditor.editedTheme().colour(token);
-        book.popoverChapter = QuestBookScreen.effectiveChapter();
-        book.popoverChip = new QuestBookScreen.PopoverChip(row, book.toolsView, chipMode(row.key()));
-        book.colourPopover.open(anchor, book.geometry().canvas(), BookQuestEditor.labelOfToken(token), argb,
+        book.bookState.popoverChapter = QuestBookScreen.effectiveChapter();
+        book.bookState.popoverChip = new QuestBookScreen.PopoverChip(row, book.bookState.toolsView,
+                chipMode(row.key()));
+        book.bookState.colourPopover.open(anchor, book.geometry().canvas(), BookQuestEditor.labelOfToken(token), argb,
                 List.of(book.questEditor.editedTheme().colour("panel"), book.questEditor.editedTheme().colour("raised"),
-                        book.questEditor.editedTheme().colour("title"), book.questEditor.editedTheme().colour("accent")),
+                        book.questEditor.editedTheme().colour("title"),
+                                book.questEditor.editedTheme().colour("accent")),
                 value -> previewToken(token, value), value -> book.questEditor.writeThemeToken(token, value));
         book.buildPopoverWidgets();
         book.filePopoverArrival();
@@ -1166,18 +1169,18 @@ final class BookInput {
         // A press anywhere is "no" to an armed delete, which is the rule the menu's own Delete states: any
         // other press disarms. A press that selects a node does not need to re-arm by hand -- the next
         // Delete key press asks about the selection it made.
-        book.armedDelete.disarm();
+        book.bookState.armedDelete.disarm();
         fieldDrag = false;
         pressedLink = null;
         // Every gesture starts by forgetting the last one's: a press that ended over a column must not make
         // the next release look like one.
-        book.panelPress = false;
+        book.bookState.panelPress = false;
         // A new press ends a row drag that never got its release -- one gesture at a time, and the row
         // rectangles a stale drag would aim at belong to the frame it started in.
-        book.dragRowFrom = -1;
-        book.dragRowMember = null;
-        book.dragRowQuest = null;
-        book.dragRowLive = false;
+        book.bookState.dragRowFrom = -1;
+        book.bookState.dragRowMember = null;
+        book.bookState.dragRowQuest = null;
+        book.bookState.dragRowLive = false;
 
         // Clicking off a text field finishes with it: the blur is the commit, and a field that keeps
         // the keyboard after the pointer has moved on is a field that eats the next key typed. Before
@@ -1187,7 +1190,8 @@ final class BookInput {
         // same rectangle for the description (its frame *is* its box), and asking the target is what
         // keeps a press on the border or a pixel out of the widget's own hit test from being read as a
         // press away from the field.
-        if (button == InputConstants.MOUSE_BUTTON_LEFT && book.getFocused() instanceof net.minecraft.client.gui.components.AbstractWidget focused
+        if (button == InputConstants.MOUSE_BUTTON_LEFT
+                && book.getFocused() instanceof net.minecraft.client.gui.components.AbstractWidget focused
                 && !focused.isMouseOver(mouseX, mouseY) && !book.editorControls.onOpenEditor(mouseX, mouseY)) {
             book.setFocused(null);
         }
@@ -1225,8 +1229,8 @@ final class BookInput {
         // Whether this press is the open colour picker's, wherever it floats. Rails float over the
         // canvas the picker is clamped to, so the picker can slide under one; the grip below and the
         // surface block past the widget pass are what keep that press the picker's.
-        boolean onPicker = book.colourPopover.isOpen()
-                && book.colourPopover.panel().contains(book.pickerPointerX(mouseX), mouseY);
+        boolean onPicker = book.bookState.colourPopover.isOpen()
+                && book.bookState.colourPopover.panel().contains(book.pickerPointerX(mouseX), mouseY);
         // **And the grip, before either column's own handling** -- one claim for every column, the author's
         // dock included.
         //
@@ -1239,13 +1243,14 @@ final class BookInput {
         //
         // Left button only, on the same terms as every other grip in this screen: the gesture is a drag and
         // a held page, and neither is a thing to hang off a right press.
-        PanelKind grab = button == InputConstants.MOUSE_BUTTON_LEFT && !onPicker ? book.panelColumnAt(mouseX, mouseY) : null;
+        PanelKind grab = button == InputConstants.MOUSE_BUTTON_LEFT && !onPicker ? book.panelColumnAt(mouseX,
+                mouseY) : null;
         if (grab != null && BookGeometry.panelHandle(book.panelRail(grab)).contains(mouseX, mouseY)) {
             BookGeometry.Rect rail = book.panelRail(grab);
-            book.panelDragRail = rail;
+            book.bookState.panelDragRail = rail;
             // Which rail the hand is on, so the drag below asks *its* kind what a legal width is and feeds
             // the answer back to the rail the hand is holding.
-            book.panelDragKind = grab;
+            book.bookState.panelDragKind = grab;
             panelDragStartWidth = rail.width();
             panelDragStartX = mouseX;
             return true;
@@ -1259,9 +1264,9 @@ final class BookInput {
         //
         // Left button only, on the same terms as every other grip in this screen.
         if (button == InputConstants.MOUSE_BUTTON_LEFT && !onPicker && book.geometry().sidebarState().expanded()
-                && book.sidebarSlideStart < 0
+                && book.bookState.sidebarSlideStart < 0
                 && BookGeometry.sidebarHandle(book.geometry().sidebar()).contains(mouseX, mouseY)) {
-            book.sidebarDragRail = book.geometry().sidebar();
+            book.bookState.sidebarDragRail = book.geometry().sidebar();
             sidebarDragStartWidth = book.geometry().sidebarWidth();
             sidebarDragStartX = mouseX;
             return true;
@@ -1276,7 +1281,8 @@ final class BookInput {
         // **And it is entered for the dock alone as well as for a panel**, because the dock is a rail: its
         // rows, bars and status line are handled by this branch's arms, and `overlay` is NONE while it is the
         // only thing open.
-        if (book.overlay != PanelKind.NONE || book.overlay2 != PanelKind.NONE || book.dockOpen) {
+        if (book.bookState.overlay != PanelKind.NONE || book.bookState.overlay2 != PanelKind.NONE
+                || book.bookState.dockOpen) {
             // **Which rail the pointer is in, and which kind answers.** One resolver for the press, the wheel
             // and the grip: a press outside every rail is the book's, and falling out of this branch is what
             // reaches the book's own handling below.
@@ -1309,7 +1315,7 @@ final class BookInput {
             // a kind that is not there.
             PanelKind on = book.panelColumnAt(mouseX, mouseY);
             if (on != null) {
-                book.surfaceKind = on;
+                book.bookState.surfaceKind = on;
             }
 
             // The picker's own surface, before any rail answers. Its fields already had their press at
@@ -1324,7 +1330,7 @@ final class BookInput {
             // must not be read as a press on the panel. Opened on release, so a press that turns into a drag
             // is not a click.
             if (button == InputConstants.MOUSE_BUTTON_LEFT && on == PanelKind.QUEST && !book.mayEditNow()) {
-                for (QuestBookScreen.LinkRect link : book.linkRects) {
+                for (QuestBookScreen.LinkRect link : book.bookState.linkRects) {
                     if (link.box().contains(mouseX, mouseY)) {
                         pressedLink = link;
                         return true;
@@ -1334,9 +1340,10 @@ final class BookInput {
             // Whether this press is the armed Disband's, asked before the press is handled: a press on
             // anything else is a change of mind, and the label a player is looking at has to match what
             // the next press on Disband will do.
-            boolean onDisband = book.disbandButton != null && book.disbandButton.isMouseOver(mouseX, mouseY);
-            boolean onQuestDelete = book.questDeleteButton != null
-                    && book.questDeleteButton.isMouseOver(mouseX, mouseY);
+            boolean onDisband = book.bookState.disbandButton != null && book.bookState.disbandButton.isMouseOver(mouseX,
+                    mouseY);
+            boolean onQuestDelete = book.bookState.questDeleteButton != null
+                    && book.bookState.questDeleteButton.isMouseOver(mouseX, mouseY);
             if (book.superMouseClicked(event, doubleClick)) {
                 // One of the panel's own controls took it.
                 if (!onDisband) {
@@ -1344,8 +1351,8 @@ final class BookInput {
                 }
                 // The armed Delete works like the armed Disband: any other press is a change of mind,
                 // and the label on screen has to match what the next press on Delete will do.
-                if (!onQuestDelete && book.confirmingDelete) {
-                    book.confirmingDelete = false;
+                if (!onQuestDelete && book.bookState.confirmingDelete) {
+                    book.bookState.confirmingDelete = false;
                     book.rebuildWidgets();
                 }
                 return true;
@@ -1359,7 +1366,8 @@ final class BookInput {
             // A press anywhere else still falls through to the arms, so switching chips mid-picker and
             // dismissing it with a press outside both work as before.
             if (onPicker) {
-                book.colourPopover.mouseClicked(BookEditorControls.shiftedClick(book.pickerPointerX(mouseX), mouseY, event));
+                book.bookState.colourPopover.mouseClicked(BookEditorControls.shiftedClick(book.pickerPointerX(mouseX),
+                        mouseY, event));
                 return true;
             }
 
@@ -1381,8 +1389,8 @@ final class BookInput {
             if ((on == PanelKind.TABLE_BROWSER || on == PanelKind.TABLE_EDITOR
                     || on == PanelKind.ASSETS) && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 ScrollBar panelBar = on == PanelKind.ASSETS ? book.bookAssets.assetsBar
-                        : on == PanelKind.TABLE_BROWSER ? book.tableBrowserBar
-                        : book.tableShowRoll ? book.rollBar : book.tableEditorBar;
+                        : on == PanelKind.TABLE_BROWSER ? book.bookState.tableBrowserBar
+                        : book.bookState.tableShowRoll ? book.bookState.rollBar : book.bookState.tableEditorBar;
                 if (pressBar(panelBar, mouseX, mouseY)) {
                     return true;
                 }
@@ -1407,13 +1415,13 @@ final class BookInput {
             }
             else if (on == PanelKind.CHOICE && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The rows are drawn by this screen -- see `drawChoiceRow` -- so the press is what answers.
-                if (pressBar(book.choiceView.bar(), mouseX, mouseY)) {
+                if (pressBar(book.bookState.choiceView.bar(), mouseX, mouseY)) {
                     return true;
                 }
-                for (int i = 0; i < book.choiceRowRects.size(); i++) {
-                    if (book.choiceRowRects.get(i).contains(mouseX, mouseY)) {
-                        if (i < book.choiceRows.size()) {
-                            book.bookOverlay.pressChoiceRow(book.choiceRows.get(i).key());
+                for (int i = 0; i < book.bookState.choiceRowRects.size(); i++) {
+                    if (book.bookState.choiceRowRects.get(i).contains(mouseX, mouseY)) {
+                        if (i < book.bookState.choiceRows.size()) {
+                            book.bookOverlay.pressChoiceRow(book.bookState.choiceRows.get(i).key());
                         }
                         return true;
                     }
@@ -1432,19 +1440,20 @@ final class BookInput {
                 if (book.bookRewards.pressRewardRow(mouseX, mouseY)) {
                     return true;
                 }
-                if (pressBar(book.rewardView.bar(), mouseX, mouseY)) {
+                if (pressBar(book.bookState.rewardView.bar(), mouseX, mouseY)) {
                     return true;
                 }
             }
             else if (on == PanelKind.TEXTURE && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The list's bar before the rows: it is the one control here whose target is a pixel wide
                 // three times over, and a press aimed at it must not start a pan.
-                if (pressBar(book.textureBar, mouseX, mouseY)) {
+                if (pressBar(book.bookState.textureBar, mouseX, mouseY)) {
                     return true;
                 }
                 // From the last frame's own list, so a press lands on the row it was drawn under.
-                int row = book.textureFrame == null ? -1
-                        : ItemPickerLayout.rowAt(book.textureRows, book.textureFrame, book.textureBody.scrollY(), mouseY);
+                int row = book.bookState.textureFrame == null ? -1
+                        : ItemPickerLayout.rowAt(book.bookState.textureRows, book.bookState.textureFrame,
+                                book.bookState.textureBody.scrollY(), mouseY);
                 if (row >= 0) {
                     book.texturePicker.pressTextureRow(row);
                     return true;
@@ -1454,7 +1463,7 @@ final class BookInput {
                 // The accepted-items list's bar before its rows, then the rows from the last
                 // frame's own drawing. A press that hits no row is not the panel's, so it reaches
                 // the tail and the canvas stays pannable from over the list's gaps.
-                if (pressBar(book.filterView.bar(), mouseX, mouseY)) {
+                if (pressBar(book.bookState.filterView.bar(), mouseX, mouseY)) {
                     return true;
                 }
                 if (book.bookSettings.onFilterListRow(mouseX, mouseY)) {
@@ -1462,11 +1471,12 @@ final class BookInput {
                     return true;
                 }
             }
-            else if ((on == PanelKind.QUEST || on == PanelKind.PICKER) && book.mayEditNow() && button == InputConstants.MOUSE_BUTTON_LEFT) {
+            else if ((on == PanelKind.QUEST || on == PanelKind.PICKER) && book.mayEditNow()
+                    && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The type page's bar, then its rows: it is the list on screen, and a press aimed at its
                 // grip is the list's rather than the page's.
                 if (book.typePageOpen()) {
-                    if (pressBar(book.typeBar, mouseX, mouseY)) {
+                    if (pressBar(book.bookState.typeBar, mouseX, mouseY)) {
                         return true;
                     }
                     if (book.editorControls.pressTypePicker(mouseX, mouseY)) {
@@ -1476,7 +1486,8 @@ final class BookInput {
                 // The item picker's rows, from the last frame's own drawing -- and when the pick is a rail
                 // of its own, only *that* rail takes it: a press in the panel's own rail belongs to the
                 // panel, which is the whole point of having both on screen.
-                else if (book.pickingItemPath != null && (on == PanelKind.PICKER || !book.itemPicker.pickerAsColumn())) {
+                else if (book.bookState.pickingItemPath != null && (on == PanelKind.PICKER
+                        || !book.itemPicker.pickerAsColumn())) {
                     // The kind tabs before the bar and the rows: a press on the strip switches lists,
                     // and the rows below are already the new tab's by the next frame. The arm's own
                     // rail rule applies — no stricter gate here, or the tabs would go dead exactly
@@ -1486,8 +1497,9 @@ final class BookInput {
                     }
                     // The sprite tab has no list rows: only its clear row answers, and anything
                     // else is not the picker's, for the same pannable-gaps reason as files.
-                    if (book.pickerTabsVisible() && book.pickerKind == QuestBookScreen.PickerKind.SPRITE) {
-                        if (book.itemPicker.spriteClearRect != null && book.itemPicker.spriteClearRect.contains(mouseX, mouseY)) {
+                    if (book.pickerTabsVisible() && book.bookState.pickerKind == QuestBookScreen.PickerKind.SPRITE) {
+                        if (book.itemPicker.spriteClearRect != null && book.itemPicker.spriteClearRect.contains(mouseX,
+                                mouseY)) {
                             book.itemPicker.commitPicker(null, 1);
                             return true;
                         }
@@ -1497,24 +1509,25 @@ final class BookInput {
                     // list's: a press must walk what was drawn, like every list here. A press that
                     // hits neither is not the picker's, so it reaches the tail and the canvas stays
                     // pannable from over the list's gaps.
-                    if (book.pickerTabsVisible() && book.pickerKind == QuestBookScreen.PickerKind.FILE) {
-                        if (pressBar(book.textureBar, mouseX, mouseY)) {
+                    if (book.pickerTabsVisible() && book.bookState.pickerKind == QuestBookScreen.PickerKind.FILE) {
+                        if (pressBar(book.bookState.textureBar, mouseX, mouseY)) {
                             return true;
                         }
-                        int fileRow = book.textureFrame == null ? -1
-                                : ItemPickerLayout.rowAt(book.textureRows, book.textureFrame,
-                                        book.textureBody.scrollY(), mouseY);
+                        int fileRow = book.bookState.textureFrame == null ? -1
+                                : ItemPickerLayout.rowAt(book.bookState.textureRows, book.bookState.textureFrame,
+                                        book.bookState.textureBody.scrollY(), mouseY);
                         if (fileRow >= 0) {
                             book.itemPicker.pressFileRow(fileRow);
                             return true;
                         }
                         return false;
                     }
-                    if (pressBar(book.pickerBar, mouseX, mouseY)) {
+                    if (pressBar(book.bookState.pickerBar, mouseX, mouseY)) {
                         return true;
                     }
-                    int row = book.pickerFrame == null ? -1
-                            : ItemPickerLayout.rowAt(book.pickerRows, book.pickerFrame, book.pickerBody.scrollY(), mouseY);
+                    int row = book.bookState.pickerFrame == null ? -1
+                            : ItemPickerLayout.rowAt(book.bookState.pickerRows, book.bookState.pickerFrame,
+                                    book.bookState.pickerBody.scrollY(), mouseY);
                     if (row >= 0) {
                         book.itemPicker.pressPickerRow(row);
                         return true;
@@ -1525,8 +1538,8 @@ final class BookInput {
                 // press that hits no row is not the page's** -- which is the report this arm was rewritten
                 // for: `pressSettingsPage` answered nothing and the arm returned `true` anyway, so the page
                 // swallowed every press on the panel and the canvas could not be panned from over it.
-                else if (book.settingsOpen) {
-                    if (pressBar(book.settingsView.bar(), mouseX, mouseY)) {
+                else if (book.bookState.settingsOpen) {
+                    if (pressBar(book.bookState.settingsView.bar(), mouseX, mouseY)) {
                         return true;
                     }
                     if (book.bookRewards.pressSettingsPage(mouseX, mouseY)) {
@@ -1536,12 +1549,12 @@ final class BookInput {
                 else {
                     // The panel's own body scroll: its bar was drawn here with no press branch at all, so
                     // the grip was a picture and its `draggingThumb` branch downstream was dead code.
-                    if (pressBar(book.overlayView.bar(), mouseX, mouseY)) {
+                    if (pressBar(book.bookState.overlayView.bar(), mouseX, mouseY)) {
                         return true;
                     }
                     // The panel's own marked pieces, from the last frame's drawing -- one derivation for
                     // the mark and the press.
-                    for (QuestBookScreen.EditTarget target : book.editTargets) {
+                    for (QuestBookScreen.EditTarget target : book.bookState.editTargets) {
                         if (target.box().contains(mouseX, mouseY)) {
                             // Shift on a prerequisite's name is the locate gesture, the same as the
                             // reader's rows: "do not open it, show me where it is". Scoped to this one
@@ -1557,13 +1570,14 @@ final class BookInput {
                             // the only one the field never got and the drag went to the canvas instead. A
                             // one-line value is nearly always dragged *after* being opened, which is why the
                             // same gesture already worked everywhere else.
-                            fieldDrag = book.editingPath != null;
+                            fieldDrag = book.bookState.editingPath != null;
                             return true;
                         }
                     }
                 }
             }
-            else if (on == PanelKind.QUEST && !book.mayEditNow() && (button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_MIDDLE)) {
+            else if (on == PanelKind.QUEST && !book.mayEditNow()
+                    && (button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_MIDDLE)) {
                 // The reader's panel: a press on a task's or reward's row opens the chosen viewer on that
                 // row's item (or tag) -- "how is this made", the direction the viewer pages do not cover.
                 // From the last frame's own list, so the row that lights up is the row that answers.
@@ -1572,7 +1586,8 @@ final class BookInput {
                 // that is not a detail: this arm serves the middle button too -- a middle press on a
                 // prerequisite row is the locate gesture -- so a bar that took any button would swallow the
                 // middle click that was aimed past it.
-                if (button == InputConstants.MOUSE_BUTTON_LEFT && pressBar(book.overlayView.bar(), mouseX, mouseY)) {
+                if (button == InputConstants.MOUSE_BUTTON_LEFT && pressBar(book.bookState.overlayView.bar(),
+                        mouseX, mouseY)) {
                     return true;
                 }
                 // A prerequisite row is the panel's own navigation: a plain press opens that quest, and its
@@ -1599,14 +1614,15 @@ final class BookInput {
                 // A claimable reward row collects, after the checkmark's: it carries no recipe
                 // target while claimable, and it is registered only then, so this cannot steal
                 // a press something else answers either.
-                if (button == InputConstants.MOUSE_BUTTON_LEFT && book.bookSettings.pressRewardClaimRow(mouseX, mouseY)) {
+                if (button == InputConstants.MOUSE_BUTTON_LEFT && book.bookSettings.pressRewardClaimRow(mouseX,
+                        mouseY)) {
                     return true;
                 }
             }
             else if (on == PanelKind.SETTINGS && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // The player's own panel: its one control is a widget and the pass has already offered it
                 // the press, so what is left is the bar.
-                if (pressBar(book.appearanceView.bar(), mouseX, mouseY)) {
+                if (pressBar(book.bookState.appearanceView.bar(), mouseX, mouseY)) {
                     return true;
                 }
             }
@@ -1614,7 +1630,7 @@ final class BookInput {
                 // The player's watchlist: the switch is a widget the pass has already offered, so what is
                 // left is the bar and the rows the panel draws itself -- a row opens its quest, its Unpin
                 // end lets go of it. Left only, like the element panel's: the canvas keeps the middle press.
-                if (pressBar(book.pinnedView.bar(), mouseX, mouseY)) {
+                if (pressBar(book.bookState.pinnedView.bar(), mouseX, mouseY)) {
                     return true;
                 }
                 if (book.bookPins.onPinnedTarget(mouseX, mouseY)) {
@@ -1689,7 +1705,8 @@ final class BookInput {
         //
         // And the right-click that opens it. On a row or on the empty list, in edit mode only: the menu
         // is all structural edits, and a reader has none of them.
-        if (button == InputConstants.MOUSE_BUTTON_RIGHT && book.mayEditNow() && book.bookMenu.openSidebarMenuAt(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT && book.mayEditNow() && book.bookMenu.openSidebarMenuAt(mouseX,
+                mouseY)) {
             return true;
         }
 
@@ -1704,8 +1721,9 @@ final class BookInput {
         // else abandons it with nothing written. Cancelled before the widget pass, so the pass
         // offers the press to the list the cancel rebuilt rather than the one it replaced. The
         // rename's status line is the exception: it toggles the id disclosure instead.
-        if (book.inlineEdit != null && !book.bookSidebar.pressOnInlineField(mouseX, mouseY)) {
-            if (book.inlineEdit.mode() == QuestBookScreen.NamingMode.RENAME && !book.inlineEdit.showId()
+        if (book.bookState.inlineEdit != null && !book.bookSidebar.pressOnInlineField(mouseX, mouseY)) {
+            if (book.bookState.inlineEdit.mode() == QuestBookScreen.NamingMode.RENAME
+                    && !book.bookState.inlineEdit.showId()
                     && book.bookSidebar.inlineStatusHit(mouseX, mouseY)) {
                 book.bookSidebar.toggleInlineId();
                 return true;
@@ -1718,8 +1736,8 @@ final class BookInput {
         // An armed "copy to all chapters" is undone by a press on anything else, the same rule the
         // party's Disband follows -- asked here, before the widget pass, because that pass may be the
         // confirm: a press on the armed row itself must not disarm it on the way in.
-        boolean onCanvasCopy = book.canvasCopyButton != null
-                && book.canvasCopyButton.isMouseOver(mouseX, mouseY);
+        boolean onCanvasCopy = book.bookState.canvasCopyButton != null
+                && book.bookState.canvasCopyButton.isMouseOver(mouseX, mouseY);
         if (book.superMouseClicked(event, doubleClick)) {
             if (!onCanvasCopy) {
                 book.questEditor.disarmCanvasCopy();
@@ -1733,8 +1751,9 @@ final class BookInput {
         // The colour picker next: its own fields are widgets and were just offered the press, so what is
         // left is its tracks and swatches -- and a press outside, which closes it and is consumed, so the
         // click that dismisses the picker never also acts on what was behind it.
-        if (book.colourPopover.isOpen()) {
-            if (book.colourPopover.mouseClicked(BookEditorControls.shiftedClick(book.pickerPointerX(mouseX), mouseY, event))) {
+        if (book.bookState.colourPopover.isOpen()) {
+            if (book.bookState.colourPopover.mouseClicked(BookEditorControls.shiftedClick(book.pickerPointerX(mouseX),
+                    mouseY, event))) {
                 return true;
             }
             book.closeColourPopover();
@@ -1762,7 +1781,7 @@ final class BookInput {
             // and this box is the one part of the row the widget pass does not own.
             if (book.toolsAppearanceVisible()) {
                 Layout active = book.activeLayout();
-                if (ToolsLayout.textureBrowseAt(book.toolsView.viewport(),
+                if (ToolsLayout.textureBrowseAt(book.bookState.toolsView.viewport(),
                         active == null ? null : active.slot(ToolsLayout.CANVAS_TEXTURE), mouseX, mouseY)) {
                     book.texturePicker.openTexturePicker();
                     return true;
@@ -1772,12 +1791,13 @@ final class BookInput {
             // list to reorder, and the fields under the list follow what is chosen. Read from the row's own
             // rectangle because the row holds no widget -- the same arrangement the quest rows below have,
             // with a different consequence.
-            if (book.toolsTab == ToolsLayout.Tab.CHAPTER && book.mayEditNow() && book.chapterLayout != null) {
+            if (book.bookState.toolsTab == ToolsLayout.Tab.CHAPTER && book.mayEditNow()
+                    && book.bookState.chapterLayout != null) {
                 String element = book.questEditor.chapterElementRowAt(mouseX, mouseY);
                 if (element != null) {
                     // Pressing the chosen one again lets it go, which is how every other selection in this
                     // screen behaves and the only way to put the fields away without leaving the tab.
-                    QuestBookScreen.selectedElement = element.equals(QuestBookScreen.selectedElement) ? null : element;
+                    BookScreenState.selectedElement = element.equals(BookScreenState.selectedElement) ? null : element;
                     book.rebuildWidgets();
                     return true;
                 }
@@ -1785,7 +1805,8 @@ final class BookInput {
             // A link row in the Chapter tab is a *selection* rather than a drag, for the reason an
             // element row is: a marker is not a list to reorder, and the fields under the list follow
             // what is chosen. Read from the row's own rectangle because the row holds no widget.
-            if (book.toolsTab == ToolsLayout.Tab.CHAPTER && book.mayEditNow() && book.chapterLayout != null) {
+            if (book.bookState.toolsTab == ToolsLayout.Tab.CHAPTER && book.mayEditNow()
+                    && book.bookState.chapterLayout != null) {
                 String link = book.questEditor.chapterLinkRowAt(mouseX, mouseY);
                 if (link != null) {
                     // Pressing the chosen one again lets it go, which is how every other selection in this
@@ -1801,7 +1822,8 @@ final class BookInput {
             // the chat (where there is room for it and a history of it) and the file on the
             // clipboard (which an external editor can open). Before the quest drag below: a
             // fault is not draggable, and a press on one must never start a reorder.
-            if (book.toolsTab == ToolsLayout.Tab.CHAPTER && book.mayEditNow() && book.chapterLayout != null) {
+            if (book.bookState.toolsTab == ToolsLayout.Tab.CHAPTER && book.mayEditNow()
+                    && book.bookState.chapterLayout != null) {
                 int problem = book.questEditor.chapterProblemRowAt(mouseX, mouseY);
                 if (problem >= 0) {
                     book.questEditor.pressProblemRow(problem);
@@ -1812,16 +1834,17 @@ final class BookInput {
             // that may follow reorders the chapter's own list. `pressX`/`pressY` are recorded here
             // because the threshold compares against them and this press never reaches the canvas
             // branch that usually sets them.
-            if (book.toolsTab == ToolsLayout.Tab.CHAPTER && book.mayEditNow() && book.chapterLayout != null) {
+            if (book.bookState.toolsTab == ToolsLayout.Tab.CHAPTER && book.mayEditNow()
+                    && book.bookState.chapterLayout != null) {
                 int row = book.rowDrag.chapterQuestRowAt(mouseX, mouseY);
                 if (row >= 0) {
-                    book.dragRowMember = "chapter";
-                    book.dragRowQuest = null;
-                    book.dragRowFrom = row;
-                    book.dragRowLive = false;
-                    book.dragRowPointerY = mouseY;
-                    book.pressX = mouseX;
-                    book.pressY = mouseY;
+                    book.bookState.dragRowMember = "chapter";
+                    book.bookState.dragRowQuest = null;
+                    book.bookState.dragRowFrom = row;
+                    book.bookState.dragRowLive = false;
+                    book.bookState.dragRowPointerY = mouseY;
+                    book.bookState.pressX = mouseX;
+                    book.bookState.pressY = mouseY;
                     return true;
                 }
             }
@@ -1837,7 +1860,7 @@ final class BookInput {
             // through, because the dock floats *over* the canvas -- so a press that fell through would open
             // whatever node happens to be under it.
             if (button == InputConstants.MOUSE_BUTTON_LEFT) {
-                pressBar(book.toolsView.bar(), mouseX, mouseY);
+                pressBar(book.bookState.toolsView.bar(), mouseX, mouseY);
             }
             return true;
         }
@@ -1847,9 +1870,9 @@ final class BookInput {
         // has visibly arrived. The wipe is 160 milliseconds; the press waits for it. Either end
         // of the travel absorbs — the rectangle the wipe left from as well as the one it lands on.
         long sidebarSlideNow = net.minecraft.util.Util.getMillis();
-        if (book.sidebarSlideStart >= 0 && book.sidebarSlideFromRect != null
+        if (book.bookState.sidebarSlideStart >= 0 && book.bookState.sidebarSlideFromRect != null
                 && book.sidebarSliding(sidebarSlideNow)
-                && (book.sidebarSlideFromRect.contains(mouseX, mouseY)
+                && (book.bookState.sidebarSlideFromRect.contains(mouseX, mouseY)
                         || book.geometry().sidebar().contains(mouseX, mouseY))) {
             return true;
         }
@@ -1858,7 +1881,8 @@ final class BookInput {
         // of tab. Past the widget pass on purpose, so a row still wins its own press where rows
         // exist; what reaches here touched no row. Left and right both expand — a right press that
         // opened a menu for a sliver with no rows would be a menu about nothing.
-        if ((button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_RIGHT) && book.geometry().sidebarState().collapsed() && !book.sidebarPeeking
+        if ((button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_RIGHT)
+                && book.geometry().sidebarState().collapsed() && !book.bookState.sidebarPeeking
                 && book.geometry().sidebar().contains(mouseX, mouseY)) {
             book.setSidebarCollapsed(false);
             return true;
@@ -1884,7 +1908,7 @@ final class BookInput {
         // No guard: the sidebar is drawn and answering in every arrangement, beside a rail or with nothing
         // open, so its bar takes a press in all of them. The guard that used to stand here asked whether a
         // modal was up, and with one presentation the answer is always no.
-        if (button == InputConstants.MOUSE_BUTTON_LEFT && pressBar(book.sidebarView.bar(), mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && pressBar(book.bookState.sidebarView.bar(), mouseX, mouseY)) {
             return true;
         }
 
@@ -1904,12 +1928,13 @@ final class BookInput {
         // the list's own rectangle — reaches here. A press on the list's empty padding is the list's:
         // reading it as blank space would slide the panel away from under the hand that just opened
         // it, which is the fault the panel's own `!panelPress` guard exists for.
-        if ((button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_MIDDLE || button == InputConstants.MOUSE_BUTTON_RIGHT) && book.inCanvas(mouseX, mouseY)
+        if ((button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_MIDDLE
+                || button == InputConstants.MOUSE_BUTTON_RIGHT) && book.inCanvas(mouseX, mouseY)
                 && !book.geometry().sidebar().contains(mouseX, mouseY)
-                && (book.sidebarPeeking
+                && (book.bookState.sidebarPeeking
                         || (DevMode.isSidebarFloating() && !DevMode.isSidebarCollapsed()
                                 && !DevMode.isSidebarPinned()))) {
-            if (book.sidebarPeeking) {
+            if (book.bookState.sidebarPeeking) {
                 book.setSidebarPeeking(false);
             }
             else {
@@ -1936,23 +1961,24 @@ final class BookInput {
         // Left, right or middle on the canvas. Left is the selection's and the drag's; middle pans;
         // right is the edge's. The modifiers are read here, at the press, and remembered -- one rule
         // for every gesture, so letting go of a key a moment early cannot change what a press meant.
-        if ((button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_MIDDLE || button == InputConstants.MOUSE_BUTTON_RIGHT) && book.inCanvas(mouseX, mouseY)) {
-            book.dragging = button != InputConstants.MOUSE_BUTTON_RIGHT;
-            book.pressMoved = false;
-            book.pressX = mouseX;
-            book.pressY = mouseY;
+        if ((button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_MIDDLE
+                || button == InputConstants.MOUSE_BUTTON_RIGHT) && book.inCanvas(mouseX, mouseY)) {
+            book.bookState.dragging = button != InputConstants.MOUSE_BUTTON_RIGHT;
+            book.bookState.pressMoved = false;
+            book.bookState.pressX = mouseX;
+            book.bookState.pressY = mouseY;
             pressedShift = event.hasShiftDown();
             pressedCtrl = event.hasControlDown();
             pressedAlt = event.hasAltDown();
-            book.panContentX = book.viewport().contentX(mouseX);
-            book.panContentY = book.viewport().contentY(mouseY);
+            book.bookState.panContentX = book.viewport().contentX(mouseX);
+            book.bookState.panContentY = book.viewport().contentY(mouseY);
             // A pan is the hand taking the camera: a glide still in flight must not fight it.
-            book.glideQuest = null;
+            book.bookState.glideQuest = null;
 
             String chapter = QuestBookScreen.effectiveChapter();
             ClientQuestCache.Entry under = chapter == null ? null
                     : book.bookCanvas.nodeAt(mouseX, mouseY, book.questsIn(chapter));
-            book.pressedNode = under == null ? null : under.id();
+            book.bookState.pressedNode = under == null ? null : under.id();
             // And the link under the pointer, when no node is: a node is drawn over a marker, so a press
             // that lands on both belongs to the node. A link claims the press the way a node does, and
             // what the press *means* is decided on release, the same gesture rule both have: hold to
@@ -1960,20 +1986,21 @@ final class BookInput {
             book.bookCanvas.pressedQuestLink = under == null ? book.bookCanvas.linkAtId(mouseX, mouseY) : null;
             // And the element under the pointer, when neither is: a marker is drawn over a decoration,
             // so a press that lands on both belongs to the marker, for the same reason as above.
-            pressedElement = under == null && book.bookCanvas.pressedQuestLink == null ? book.bookCanvas.elementAt(mouseX, mouseY) : null;
+            pressedElement = under == null && book.bookCanvas.pressedQuestLink == null
+                    ? book.bookCanvas.elementAt(mouseX, mouseY) : null;
 
             // A left press on a curve's handle is the handle's: claimed before the node and the pan, so
             // bending a line cannot also pick a node up or start a marquee.
             if (button == InputConstants.MOUSE_BUTTON_LEFT && book.mayEditNow()) {
                 String[] bend = book.bookRewards.handleAt(mouseX, mouseY);
                 if (bend != null) {
-                    book.bendDragFrom = bend[0];
-                    book.bendDragTo = bend[1];
-                    book.bendDragKind = bend[2];
+                    book.bookState.bendDragFrom = bend[0];
+                    book.bookState.bendDragTo = bend[1];
+                    book.bookState.bendDragKind = bend[2];
                     bendDragLive = false;
-                    book.bendPreview = null;
-                    book.anchorPreview = null;
-                    book.handlePreview = null;
+                    book.bookState.bendPreview = null;
+                    book.bookState.anchorPreview = null;
+                    book.bookState.handlePreview = null;
                     ClientQuestCache.Entry grabFrom = book.entryFor(bend[0]);
                     ClientQuestCache.Entry grabTo = book.entryFor(bend[1]);
                     if (grabFrom != null && grabTo != null) {
@@ -2020,7 +2047,7 @@ final class BookInput {
             // Middle-drag is a pan and never a click, so forget the node immediately. Otherwise a
             // middle-click that happens not to move would select whatever it landed on.
             if (button == InputConstants.MOUSE_BUTTON_MIDDLE) {
-                book.pressedNode = null;
+                book.bookState.pressedNode = null;
                 book.bookCanvas.pressedQuestLink = null;
             }
 
@@ -2030,8 +2057,8 @@ final class BookInput {
             if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
                 canvasRightPressed = true;
                 if (under != null && book.mayEditNow()) {
-                    book.edgeDragFrom = under.id();
-                    book.edgeDragLive = false;
+                    book.bookState.edgeDragFrom = under.id();
+                    book.bookState.edgeDragLive = false;
                 }
                 return true;
             }
@@ -2046,7 +2073,7 @@ final class BookInput {
             // node is claimed here but does not follow yet: that starts when the pointer has moved
             // further than a click's jitter, and until then this could still be a click.
             if (button == InputConstants.MOUSE_BUTTON_LEFT && under != null && book.mayEditNow()) {
-                if (book.pickingDependency) {
+                if (book.bookState.pickingDependency) {
                     // **While a pick is armed a press on a node is about the pair, not the node.** It
                     // claims nothing: no drag starts, the selection does not move, and the release lands
                     // the dependency -- which it could not do while the node was claimed, because the
@@ -2072,14 +2099,14 @@ final class BookInput {
                 // carrying, so claiming first would have read the *last* drag's leftover position --
                 // zero at startup, which is where every early commit landed. The override exists for
                 // the drawing during a drag; the press needs the truth.
-                book.dragNodeX = book.bookCanvas.nodeX(under);
-                book.dragNodeY = book.bookCanvas.nodeY(under);
-                book.draggedNode = under.id();
+                book.bookState.dragNodeX = book.bookCanvas.nodeX(under);
+                book.bookState.dragNodeY = book.bookCanvas.nodeY(under);
+                book.bookState.draggedNode = under.id();
                 nodeDragLive = false;
                 // Where inside the node the pointer took hold, so the node does not jump to put its
                 // corner under the pointer.
-                book.dragGrabX = book.viewport().contentX(mouseX) - book.dragNodeX;
-                book.dragGrabY = book.viewport().contentY(mouseY) - book.dragNodeY;
+                book.bookState.dragGrabX = book.viewport().contentX(mouseX) - book.bookState.dragNodeX;
+                book.bookState.dragGrabY = book.viewport().contentY(mouseY) - book.bookState.dragNodeY;
                 return true;
             }
 
@@ -2091,14 +2118,15 @@ final class BookInput {
             //
             // Only the selected element's grips are live, so an invisible grip on an unselected element cannot
             // be grabbed by accident.
-            if (button == InputConstants.MOUSE_BUTTON_LEFT && book.mayEditNow() && QuestBookScreen.selectedElement != null) {
-                BookCanvas.ElementSlot slot = book.bookCanvas.elementSlot(QuestBookScreen.selectedElement);
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && book.mayEditNow()
+                    && BookScreenState.selectedElement != null) {
+                BookCanvas.ElementSlot slot = book.bookCanvas.elementSlot(BookScreenState.selectedElement);
                 CanvasElementArt.Handle handle = slot == null ? null
                         : CanvasElementArt.handleAt(slot.element(), slot.box(), mouseX, mouseY);
                 if (handle != null && slot != null) {
-                    book.bookCanvas.elementDragging = QuestBookScreen.selectedElement;
+                    book.bookCanvas.elementDragging = BookScreenState.selectedElement;
                     book.bookCanvas.elementDragLive = false;
-                    book.bookCanvas.elementDragBase = book.elementNow(QuestBookScreen.selectedElement);
+                    book.bookCanvas.elementDragBase = book.elementNow(BookScreenState.selectedElement);
                     book.bookCanvas.elementPreview = null;
                     book.bookCanvas.elementHandle = handle;
                     // **And the press is still the element's.** A grip sits on the element's own edge, which a
@@ -2108,7 +2136,7 @@ final class BookInput {
                     //
                     // And it is not a link's: a grip is the selected element's own control, so a marker under
                     // it does not get the press -- the release opens the element's panel, as it always has.
-                    pressedElement = QuestBookScreen.selectedElement;
+                    pressedElement = BookScreenState.selectedElement;
                     book.bookCanvas.pressedQuestLink = null;
                     return true;
                 }
@@ -2129,8 +2157,8 @@ final class BookInput {
                     book.bookCanvas.elementHandle = null;
                     // The same grab offset the node drag uses, and the same two fields: a press is one gesture
                     // whichever object it landed on, and only one of the three is ever claimed.
-                    book.dragGrabX = book.viewport().contentX(mouseX) - CanvasElementArt.originX(held);
-                    book.dragGrabY = book.viewport().contentY(mouseY) - CanvasElementArt.originY(held);
+                    book.bookState.dragGrabX = book.viewport().contentX(mouseX) - CanvasElementArt.originX(held);
+                    book.bookState.dragGrabY = book.viewport().contentY(mouseY) - CanvasElementArt.originY(held);
                     return true;
                 }
             }
@@ -2140,7 +2168,8 @@ final class BookInput {
             // Edit mode only: in play mode a press on a marker is its shortcut and nothing else, and a
             // marker that could be dragged by a player would be a shortcut that moved under them. A link
             // has no grips, so the body is the whole of it and the gesture is always a move.
-            if (button == InputConstants.MOUSE_BUTTON_LEFT && book.mayEditNow() && book.bookCanvas.pressedQuestLink != null) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && book.mayEditNow()
+                    && book.bookCanvas.pressedQuestLink != null) {
                 QuestLink held = book.bookPins.linkNow(book.bookCanvas.pressedQuestLink);
                 if (held != null) {
                     book.bookCanvas.linkDragging = book.bookCanvas.pressedQuestLink;
@@ -2149,8 +2178,8 @@ final class BookInput {
                     book.bookCanvas.linkPreview = null;
                     // The same grab offset the node drag uses: a press is one gesture whichever object it
                     // landed on, and only one of the three is ever claimed.
-                    book.dragGrabX = book.viewport().contentX(mouseX) - held.x();
-                    book.dragGrabY = book.viewport().contentY(mouseY) - held.y();
+                    book.bookState.dragGrabX = book.viewport().contentX(mouseX) - held.x();
+                    book.bookState.dragGrabY = book.viewport().contentY(mouseY) - held.y();
                     return true;
                 }
             }
@@ -2159,12 +2188,13 @@ final class BookInput {
             // left-drag on the canvas is the pan -- in both modes, which is the rule this round bought:
             // navigation does not change with a mode. Ctrl+A and shift-click already collect, so the
             // marquee is the third way to say "add these", and it says it with the same modifier.
-            if (button == InputConstants.MOUSE_BUTTON_LEFT && under == null && pressedElement == null && book.mayEditNow() && pressedShift) {
-                book.marqueeActive = true;
-                book.marqueeX0 = (int) mouseX;
-                book.marqueeY0 = (int) mouseY;
-                book.marqueeX1 = book.marqueeX0;
-                book.marqueeY1 = book.marqueeY0;
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && under == null && pressedElement == null
+                    && book.mayEditNow() && pressedShift) {
+                book.bookState.marqueeActive = true;
+                book.bookState.marqueeX0 = (int) mouseX;
+                book.bookState.marqueeY0 = (int) mouseY;
+                book.bookState.marqueeX1 = book.bookState.marqueeX0;
+                book.bookState.marqueeY1 = book.bookState.marqueeY0;
             }
             return true;
         }
@@ -2189,16 +2219,16 @@ final class BookInput {
         // are resizing reads as the UI breaking. Re-placing them costs a rebuild per frame the width
         // actually changes, which is the same cost a window resize already pays -- `Screen.resize` rebuilds
         // every frame of one -- and it is what keeps the footer on screen as the edge moves.
-        if (book.panelDragRail != null) {
+        if (book.bookState.panelDragRail != null) {
             // **One override, for the kind the hand is on.** There were two fields -- column 1's and column
             // 2's -- and which one was written was decided by asking whether the grabbed kind was the first
             // column, so grabbing the dock's edge filed the width as the dock's and grabbing a picker's filed
             // it under a *column*. A width is a property of a kind: `railWidth` reads this only for
             // `panelDragKind`, and the release writes it back under that same kind.
             int wanted = Math.max(PanelStack.widthWhileDragging(panelDragStartWidth, panelDragStartX,
-                    mouseX, book.panelDragKind), book.panelContentFloor(book.panelDragKind));
-            if (wanted != book.panelLiveWidth) {
-                book.panelLiveWidth = wanted;
+                    mouseX, book.bookState.panelDragKind), book.panelContentFloor(book.bookState.panelDragKind));
+            if (wanted != book.bookState.panelLiveWidth) {
+                book.bookState.panelLiveWidth = wanted;
                 book.rebuildWidgets();
             }
             return true;
@@ -2209,11 +2239,11 @@ final class BookInput {
         // width goes through the list's own clamp, so the edge stops where a list may not go; the
         // draw-time cap in the geometry keeps the window's remainder for the graph, and a drag back
         // to the default removes the stored entry on release rather than restating it.
-        if (book.sidebarDragRail != null) {
+        if (book.bookState.sidebarDragRail != null) {
             int wanted = BookGeometry.sidebarWidthWhileDragging(sidebarDragStartWidth,
                     sidebarDragStartX, mouseX);
-            if (book.sidebarLiveWidth == null || wanted != book.sidebarLiveWidth) {
-                book.sidebarLiveWidth = wanted;
+            if (book.bookState.sidebarLiveWidth == null || wanted != book.bookState.sidebarLiveWidth) {
+                book.bookState.sidebarLiveWidth = wanted;
                 book.rebuildWidgets();
             }
             return true;
@@ -2228,47 +2258,49 @@ final class BookInput {
         }
         // The picker's tracks, before anything behind it: a drag on the hue strip is the picker's, and a
         // drag in one of its fields falls through to the widget pass below.
-        if (book.colourPopover.mouseDragged(BookEditorControls.shiftedClick(book.pickerPointerX(mouseX), mouseY, event))) {
+        if (book.bookState.colourPopover.mouseDragged(BookEditorControls.shiftedClick(book.pickerPointerX(mouseX),
+                mouseY, event))) {
             return true;
         }
         // The curve handle's follow. The bow is recomputed from the pointer rather than accumulated, so
         // letting the hand drift back over the chord straightens the line again.
-        if (book.bendDragFrom != null) {
+        if (book.bookState.bendDragFrom != null) {
             if (!bendDragLive) {
-                if (Math.abs(mouseX - book.pressX) <= QuestBookScreen.DRAG_THRESHOLD
-                        && Math.abs(mouseY - book.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
+                if (Math.abs(mouseX - book.bookState.pressX) <= QuestBookScreen.DRAG_THRESHOLD
+                        && Math.abs(mouseY - book.bookState.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
                     return true;
                 }
                 bendDragLive = true;
-                book.pressMoved = true;
+                book.bookState.pressMoved = true;
             }
-            ClientQuestCache.Entry bendFrom = book.entryFor(book.bendDragFrom);
-            ClientQuestCache.Entry bendTo = book.entryFor(book.bendDragTo);
+            ClientQuestCache.Entry bendFrom = book.entryFor(book.bookState.bendDragFrom);
+            ClientQuestCache.Entry bendTo = book.entryFor(book.bookState.bendDragTo);
             if (bendFrom != null && bendTo != null) {
                 LineArt.Point fromCentre = new LineArt.Point(book.bookRewards.nodeCentreX(bendFrom),
                         book.bookRewards.nodeCentreY(bendFrom));
                 LineArt.Point toCentre = new LineArt.Point(book.bookRewards.nodeCentreX(bendTo),
                         book.bookRewards.nodeCentreY(bendTo));
-                if (BookRewards.HANDLE_BEND.equals(book.bendDragKind)) {
-                    book.bendPreview = LineArt.limitBend(LineArt.bendAt(fromCentre, toCentre, mouseX, mouseY)
+                if (BookRewards.HANDLE_BEND.equals(book.bookState.bendDragKind)) {
+                    book.bookState.bendPreview = LineArt.limitBend(LineArt.bendAt(fromCentre, toCentre, mouseX, mouseY)
                             - bendDragGrab);
                 }
-                else if (BookRewards.HANDLE_FROM_HANDLE.equals(book.bendDragKind)
-                        || BookRewards.HANDLE_TO_HANDLE.equals(book.bendDragKind)) {
+                else if (BookRewards.HANDLE_FROM_HANDLE.equals(book.bookState.bendDragKind)
+                        || BookRewards.HANDLE_TO_HANDLE.equals(book.bookState.bendDragKind)) {
                     // Free 2D, grab-relative, clamped so a control point cannot be flung off the graph.
                     double[] chord = book.bookRewards.chordOf(bendFrom, bendTo);
                     LineArt.Point origin = new LineArt.Point((int) chord[0], (int) chord[1]);
                     LineArt.Point other = new LineArt.Point((int) (chord[0] + chord[2] * chord[4]),
                             (int) (chord[1] + chord[3] * chord[4]));
                     java.util.List<Double> at = LineArt.chordFraction(origin, other, mouseX, mouseY);
-                    book.handlePreview = java.util.List.of(
+                    book.bookState.handlePreview = java.util.List.of(
                             Math.max(-0.5, Math.min(1.5, at.get(0) - handleGrabAlong)),
                             Math.max(-0.9, Math.min(0.9, at.get(1) - handleGrabAcross)));
                 }
                 else {
                     // Free angle, around this end's own node, applied as the delta from the grab.
-                    LineArt.Point centre = BookRewards.HANDLE_FROM.equals(book.bendDragKind) ? fromCentre : toCentre;
-                    book.anchorPreview = LineArt.anchorAngle(centre, mouseX, mouseY) - anchorDragGrab;
+                    LineArt.Point centre = BookRewards.HANDLE_FROM.equals(book.bookState.bendDragKind)
+                            ? fromCentre : toCentre;
+                    book.bookState.anchorPreview = LineArt.anchorAngle(centre, mouseX, mouseY) - anchorDragGrab;
                 }
             }
             return true;
@@ -2280,14 +2312,15 @@ final class BookInput {
         // branch below only runs for the left and middle buttons, so a right-drag would otherwise reach
         // its release looking stationary.
         if (canvasRightPressed
-                && (Math.abs(mouseX - book.pressX) > QuestBookScreen.DRAG_THRESHOLD || Math.abs(mouseY - book.pressY) > QuestBookScreen.DRAG_THRESHOLD)) {
-            book.pressMoved = true;
+                && (Math.abs(mouseX - book.bookState.pressX) > QuestBookScreen.DRAG_THRESHOLD
+                        || Math.abs(mouseY - book.bookState.pressY) > QuestBookScreen.DRAG_THRESHOLD)) {
+            book.bookState.pressMoved = true;
         }
 
         // A slider's drag, before anything else: the press claimed the track, so the pan and the node
         // drag must not also answer it. The value follows the pointer and the preview with it; the
         // commit waits for the release, which is what keeps a drag to one operation rather than sixty.
-        if (book.draggingSlider != null) {
+        if (book.bookState.draggingSlider != null) {
             book.bookRewards.dragSliderTo(mouseX);
             return true;
         }
@@ -2296,11 +2329,13 @@ final class BookInput {
         // the field's (see `mouseClicked`), so the pan and the node drag must not also answer it. The
         // gesture came from play -- *"allow selecting as well, like dragging the cursor in text fields"*.
         if (fieldDrag) {
-            if (book.inlineArea != null) {
-                book.inlineArea.mouseDragged(BookEditorControls.shiftedClick(mouseX, mouseY, event), dragX, dragY);
+            if (book.bookState.inlineArea != null) {
+                book.bookState.inlineArea.mouseDragged(BookEditorControls.shiftedClick(mouseX, mouseY, event),
+                        dragX, dragY);
             }
-            else if (book.inlineField != null) {
-                book.inlineField.mouseDragged(BookEditorControls.shiftedClick(mouseX, mouseY, event), dragX, dragY);
+            else if (book.bookState.inlineField != null) {
+                book.bookState.inlineField.mouseDragged(BookEditorControls.shiftedClick(mouseX, mouseY,
+                        event), dragX, dragY);
             }
             return true;
         }
@@ -2310,17 +2345,18 @@ final class BookInput {
         // The threshold separates a click from a drag exactly as it does everywhere else; the follow is
         // the pointer plus the drop it currently means, recomputed each frame so the mark the reader
         // sees is the drop they will get.
-        if (book.sidebarDragKey != null) {
-            if (!book.sidebarDragLive) {
-                if (Math.abs(mouseX - book.sidebarDragPressX) <= QuestBookScreen.DRAG_THRESHOLD
-                        && Math.abs(mouseY - book.sidebarDragPressY) <= QuestBookScreen.DRAG_THRESHOLD) {
+        if (book.bookState.sidebarDragKey != null) {
+            if (!book.bookState.sidebarDragLive) {
+                if (Math.abs(mouseX - book.bookState.sidebarDragPressX) <= QuestBookScreen.DRAG_THRESHOLD
+                        && Math.abs(mouseY - book.bookState.sidebarDragPressY) <= QuestBookScreen.DRAG_THRESHOLD) {
                     return true;
                 }
-                book.sidebarDragLive = true;
-                book.pressMoved = true;
+                book.bookState.sidebarDragLive = true;
+                book.bookState.pressMoved = true;
             }
-            book.sidebarDragPointerY = mouseY;
-            book.sidebarDrop = SidebarDrag.target(book.bookSidebar.sidebarRows(), mouseY, book.sidebarDragKey, book.sidebarDragGroup);
+            book.bookState.sidebarDragPointerY = mouseY;
+            book.bookState.sidebarDrop = SidebarDrag.target(book.bookSidebar.sidebarRows(), mouseY,
+                    book.bookState.sidebarDragKey, book.bookState.sidebarDragGroup);
             return true;
         }
 
@@ -2328,16 +2364,16 @@ final class BookInput {
         // the threshold separates a click from a drag, and the follow is just the pointer's y -- there
         // is no ghost row to carry, only the line the drop would land on. Consumed so the pan and the
         // node drag do not also answer a gesture that started on a row.
-        if (book.dragRowFrom >= 0) {
-            if (!book.dragRowLive) {
-                if (Math.abs(mouseX - book.pressX) <= QuestBookScreen.DRAG_THRESHOLD
-                        && Math.abs(mouseY - book.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
+        if (book.bookState.dragRowFrom >= 0) {
+            if (!book.bookState.dragRowLive) {
+                if (Math.abs(mouseX - book.bookState.pressX) <= QuestBookScreen.DRAG_THRESHOLD
+                        && Math.abs(mouseY - book.bookState.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
                     return true;
                 }
-                book.dragRowLive = true;
-                book.pressMoved = true;
+                book.bookState.dragRowLive = true;
+                book.bookState.pressMoved = true;
             }
-            book.dragRowPointerY = mouseY;
+            book.bookState.dragRowPointerY = mouseY;
             return true;
         }
 
@@ -2351,24 +2387,24 @@ final class BookInput {
         // drag to the right column, and any bar whose release branch was missing stayed held. The bar
         // captured at the press is the only one that can be dragged, and the pointer may be anywhere: off
         // the strip, off the card, off the window.
-        if (book.heldBar != null) {
-            book.heldBar.dragTo(mouseY);
+        if (book.bookState.heldBar != null) {
+            book.bookState.heldBar.dragTo(mouseY);
             return true;
         }
 
-        if (book.edgeDragFrom != null) {
+        if (book.bookState.edgeDragFrom != null) {
             // The edge gesture's own threshold, the same one the other drags use: a shift-click that
             // jitters is still a selection toggle, and only a travelled press is an edge.
-            if (!book.edgeDragLive) {
-                if (Math.abs(mouseX - book.pressX) <= QuestBookScreen.DRAG_THRESHOLD
-                        && Math.abs(mouseY - book.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
+            if (!book.bookState.edgeDragLive) {
+                if (Math.abs(mouseX - book.bookState.pressX) <= QuestBookScreen.DRAG_THRESHOLD
+                        && Math.abs(mouseY - book.bookState.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
                     return true;
                 }
-                book.edgeDragLive = true;
-                book.pressMoved = true;
+                book.bookState.edgeDragLive = true;
+                book.bookState.pressMoved = true;
             }
-            book.edgeDragX = mouseX;
-            book.edgeDragY = mouseY;
+            book.bookState.edgeDragX = mouseX;
+            book.bookState.edgeDragY = mouseY;
             return true;
         }
 
@@ -2376,8 +2412,8 @@ final class BookInput {
             // Press, threshold, follow -- the node drag's three steps, because a decoration that twitched
             // under every click would read as jitter in exactly the same way a node would.
             if (!book.bookCanvas.elementDragLive) {
-                if (Math.abs(mouseX - book.pressX) <= QuestBookScreen.DRAG_THRESHOLD
-                        && Math.abs(mouseY - book.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
+                if (Math.abs(mouseX - book.bookState.pressX) <= QuestBookScreen.DRAG_THRESHOLD
+                        && Math.abs(mouseY - book.bookState.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
                     return true;
                 }
                 // A pinned picture refuses here rather than at the press, so a click still selects it
@@ -2394,7 +2430,7 @@ final class BookInput {
                     return true;
                 }
                 book.bookCanvas.elementDragLive = true;
-                book.pressMoved = true;
+                book.bookState.pressMoved = true;
             }
             // What the gesture has produced so far, built from the element the press took hold of rather than
             // from the cached one -- the cache already carries the last frame's preview, so building on it
@@ -2409,12 +2445,12 @@ final class BookInput {
             // Press, threshold, follow -- the node drag's three steps, because a marker that twitched
             // under every click would read as jitter in exactly the same way a node would.
             if (!book.bookCanvas.linkDragLive) {
-                if (Math.abs(mouseX - book.pressX) <= QuestBookScreen.DRAG_THRESHOLD
-                        && Math.abs(mouseY - book.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
+                if (Math.abs(mouseX - book.bookState.pressX) <= QuestBookScreen.DRAG_THRESHOLD
+                        && Math.abs(mouseY - book.bookState.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
                     return true;
                 }
                 book.bookCanvas.linkDragLive = true;
-                book.pressMoved = true;
+                book.bookState.pressMoved = true;
             }
             // What the gesture has produced so far, built from the link the press took hold of rather than
             // from the cached one -- the cache already carries the last frame's preview, so building on it
@@ -2423,35 +2459,38 @@ final class BookInput {
             // it can be pressed mid-drag. Committed on release rather than here: a gesture is one edit.
             QuestLink base = book.bookCanvas.linkDragBase;
             int x = base == null ? 0 : (int) Math.round(BookGeometry.snap(
-                    book.viewport().contentX(mouseX) - book.dragGrabX, BookGeometry.SNAP_GRID, snappingNow()));
+                    book.viewport().contentX(mouseX) - book.bookState.dragGrabX, BookGeometry.SNAP_GRID,
+                            snappingNow()));
             int y = base == null ? 0 : (int) Math.round(BookGeometry.snap(
-                    book.viewport().contentY(mouseY) - book.dragGrabY, BookGeometry.SNAP_GRID, snappingNow()));
+                    book.viewport().contentY(mouseY) - book.bookState.dragGrabY, BookGeometry.SNAP_GRID,
+                            snappingNow()));
             book.bookCanvas.linkPreview = base == null ? null : base.translated(x - base.x(), y - base.y());
             return true;
         }
 
-        if (book.draggedNode != null) {
+        if (book.bookState.draggedNode != null) {
             // Press, threshold, follow. Until the pointer has travelled further than a click's jitter,
             // the press is still a possible click — and a node that twitched under every click would
             // read as a jitter nobody asked for. The same threshold the pan uses, so a click means the
             // same amount of movement whichever surface it landed on.
             if (!nodeDragLive) {
-                if (Math.abs(mouseX - book.pressX) <= QuestBookScreen.DRAG_THRESHOLD
-                        && Math.abs(mouseY - book.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
+                if (Math.abs(mouseX - book.bookState.pressX) <= QuestBookScreen.DRAG_THRESHOLD
+                        && Math.abs(mouseY - book.bookState.pressY) <= QuestBookScreen.DRAG_THRESHOLD) {
                     return true;
                 }
                 nodeDragLive = true;
-                book.pressMoved = true;
+                book.bookState.pressMoved = true;
                 // A selected node carries its selection with it. Where they all started is captured
                 // now, once, because a delta can only be taken against where things were.
                 dragStarts.clear();
-                dragStartX = book.dragNodeX;
-                dragStartY = book.dragNodeY;
-                if (BookCanvas.isSelected(book.draggedNode)) {
+                dragStartX = book.bookState.dragNodeX;
+                dragStartY = book.bookState.dragNodeY;
+                if (BookCanvas.isSelected(book.bookState.draggedNode)) {
                     for (String id : QuestBookScreen.selection()) {
                         ClientQuestCache.Entry entry = book.entryFor(id);
-                        if (entry != null && !id.equals(book.draggedNode)) {
-                            dragStarts.put(id, new float[] {book.bookCanvas.nodeX(entry), book.bookCanvas.nodeY(entry)});
+                        if (entry != null && !id.equals(book.bookState.draggedNode)) {
+                            dragStarts.put(id, new float[] {book.bookCanvas.nodeX(entry),
+                                    book.bookCanvas.nodeY(entry)});
                         }
                     }
                 }
@@ -2462,35 +2501,36 @@ final class BookInput {
             // rather than here: a drag is one edit, and a file write per mouse move would be a file
             // write per mouse move. What is committed is what was last drawn — release takes these
             // fields — so the file never disagrees with the screen about where the node was dropped.
-            book.dragNodeX = (float) BookGeometry.snap(book.viewport().contentX(mouseX) - book.dragGrabX,
+            book.bookState.dragNodeX = (float) BookGeometry.snap(book.viewport().contentX(mouseX) - book.bookState.dragGrabX,
                     BookGeometry.SNAP_GRID, snappingNow());
-            book.dragNodeY = (float) BookGeometry.snap(book.viewport().contentY(mouseY) - book.dragGrabY,
+            book.bookState.dragNodeY = (float) BookGeometry.snap(book.viewport().contentY(mouseY) - book.bookState.dragGrabY,
                     BookGeometry.SNAP_GRID, snappingNow());
             // The rest of the selection moves by the same content delta, through the same pending
             // positions the canvas already reads -- so the lines and the labels move with them, and
             // release commits exactly what was drawn.
-            float dx = book.dragNodeX - dragStartX;
-            float dy = book.dragNodeY - dragStartY;
+            float dx = book.bookState.dragNodeX - dragStartX;
+            float dy = book.bookState.dragNodeY - dragStartY;
             if (!dragStarts.isEmpty()) {
                 long revision = ClientQuestCache.treeRevision();
                 for (Map.Entry<String, float[]> started : dragStarts.entrySet()) {
-                    book.editors.moved(started.getKey(), started.getValue()[0] + dx,
+                    book.bookState.editors.moved(started.getKey(), started.getValue()[0] + dx,
                             started.getValue()[1] + dy, revision);
                 }
             }
             return true;
         }
 
-        if (book.marqueeActive) {
-            book.pressMoved = true;
-            book.marqueeX1 = (int) mouseX;
-            book.marqueeY1 = (int) mouseY;
+        if (book.bookState.marqueeActive) {
+            book.bookState.pressMoved = true;
+            book.bookState.marqueeX1 = (int) mouseX;
+            book.bookState.marqueeY1 = (int) mouseY;
             return true;
         }
 
-        if (book.dragging) {
-            if (Math.abs(mouseX - book.pressX) > QuestBookScreen.DRAG_THRESHOLD || Math.abs(mouseY - book.pressY) > QuestBookScreen.DRAG_THRESHOLD) {
-                book.pressMoved = true;
+        if (book.bookState.dragging) {
+            if (Math.abs(mouseX - book.bookState.pressX) > QuestBookScreen.DRAG_THRESHOLD
+                    || Math.abs(mouseY - book.bookState.pressY) > QuestBookScreen.DRAG_THRESHOLD) {
+                book.bookState.pressMoved = true;
             }
             // The grabbed content point goes under the pointer, from the scale as it is *now*. Written
             // this way rather than as `panAtPress + (mouse - press)` for two reasons, and both of them
@@ -2498,7 +2538,7 @@ final class BookInput {
             // view -- a zoom while the drag is held slid the canvas back to where the drag started, once
             // per wheel notch -- and the delta form accumulates a pixel per event unless it is anchored.
             // `Viewport.dragTo` is the one expression, and its test sweeps it against both.
-            book.viewport().dragTo(mouseX, mouseY, book.panContentX, book.panContentY);
+            book.viewport().dragTo(mouseX, mouseY, book.bookState.panContentX, book.bookState.panContentY);
             return true;
         }
         return book.superMouseDragged(event, dragX, dragY);
@@ -2518,22 +2558,24 @@ final class BookInput {
         // *was* the first column, had its drag filed as the panel width. A width is a property of a kind now,
         // so the write is the same line whoever the hand was on -- see `DevMode.setPanelWidth`, which drops
         // an entry that came back to its default rather than storing it beside it.
-        if (book.panelDragRail != null) {
-            int width = book.panelLiveWidth > 0 ? book.panelLiveWidth : book.panelDragRail.width();
-            book.panelDragRail = null;
-            book.panelLiveWidth = 0;
-            DevMode.setPanelWidth(book.panelDragKind, width);
-            book.panelDragKind = PanelKind.NONE;
+        if (book.bookState.panelDragRail != null) {
+            int width = book.bookState.panelLiveWidth > 0 ? book.bookState.panelLiveWidth
+                    : book.bookState.panelDragRail.width();
+            book.bookState.panelDragRail = null;
+            book.bookState.panelLiveWidth = 0;
+            DevMode.setPanelWidth(book.bookState.panelDragKind, width);
+            book.bookState.panelDragKind = PanelKind.NONE;
             book.rebuildWidgets();
             return true;
         }
         // The list's edge let go: what the hand reached is what is remembered, through the same
         // clamp the drag used — and a width back at the default costs no entry, because the
         // file is a diff and the absence of the key already says "today's column".
-        if (book.sidebarDragRail != null) {
-            int width = book.sidebarLiveWidth != null ? book.sidebarLiveWidth : book.sidebarDragRail.width();
-            book.sidebarDragRail = null;
-            book.sidebarLiveWidth = null;
+        if (book.bookState.sidebarDragRail != null) {
+            int width = book.bookState.sidebarLiveWidth != null ? book.bookState.sidebarLiveWidth
+                    : book.bookState.sidebarDragRail.width();
+            book.bookState.sidebarDragRail = null;
+            book.bookState.sidebarLiveWidth = null;
             DevMode.setSidebarWidth(width);
             book.rebuildWidgets();
             return true;
@@ -2546,12 +2588,13 @@ final class BookInput {
         }
         // A picker track's release writes once, if the drag changed anything; a release in one of the
         // picker's fields falls through to the widget pass.
-        if (book.colourPopover.mouseReleased(BookEditorControls.shiftedClick(book.pickerPointerX(mouseX), mouseY, event))) {
+        if (book.bookState.colourPopover.mouseReleased(BookEditorControls.shiftedClick(book.pickerPointerX(mouseX),
+                mouseY, event))) {
             return true;
         }
         // A slider's release: the one commit for the whole drag. Read and cleared before anything else
         // looks at the gesture, because the drag is over the moment the button is up.
-        if (book.draggingSlider != null) {
+        if (book.bookState.draggingSlider != null) {
             book.bookRewards.releaseSlider();
             return true;
         }
@@ -2563,18 +2606,18 @@ final class BookInput {
         // The row drag's release, read and cleared before anything else looks at the gesture: the drop
         // is committed exactly where the line was last drawn, and a press that never travelled is a
         // click -- which, on a grip, is nothing at all.
-        if (book.dragRowFrom >= 0) {
-            int from = book.dragRowFrom;
-            String member = book.dragRowMember;
-            String quest = book.dragRowQuest;
-            boolean live = book.dragRowLive;
-            double pointerY = book.dragRowPointerY;
-            book.dragRowFrom = -1;
-            book.dragRowMember = null;
-            book.dragRowQuest = null;
-            book.dragRowLive = false;
-            book.dragging = false;
-            book.pressedNode = null;
+        if (book.bookState.dragRowFrom >= 0) {
+            int from = book.bookState.dragRowFrom;
+            String member = book.bookState.dragRowMember;
+            String quest = book.bookState.dragRowQuest;
+            boolean live = book.bookState.dragRowLive;
+            double pointerY = book.bookState.dragRowPointerY;
+            book.bookState.dragRowFrom = -1;
+            book.bookState.dragRowMember = null;
+            book.bookState.dragRowQuest = null;
+            book.bookState.dragRowLive = false;
+            book.bookState.dragging = false;
+            book.bookState.pressedNode = null;
             book.bookCanvas.pressedQuestLink = null;
             if (live) {
                 book.rowDrag.commitRowDrop(member, quest, from, pointerY);
@@ -2586,15 +2629,15 @@ final class BookInput {
         // fall through to the widget pass: the row is a button, and a button's click is its release.
         // Only a live drag is swallowed here -- and swallowing it is what stops the same release firing
         // the row's press after it has just been dropped somewhere else.
-        if (book.sidebarDragKey != null) {
-            String key = book.sidebarDragKey;
-            boolean group = book.sidebarDragGroup;
-            boolean live = book.sidebarDragLive;
-            SidebarDrag.Drop drop = book.sidebarDrop;
-            book.sidebarDragKey = null;
-            book.sidebarDragGroup = false;
-            book.sidebarDragLive = false;
-            book.sidebarDrop = null;
+        if (book.bookState.sidebarDragKey != null) {
+            String key = book.bookState.sidebarDragKey;
+            boolean group = book.bookState.sidebarDragGroup;
+            boolean live = book.bookState.sidebarDragLive;
+            SidebarDrag.Drop drop = book.bookState.sidebarDrop;
+            book.bookState.sidebarDragKey = null;
+            book.bookState.sidebarDragGroup = false;
+            book.bookState.sidebarDragLive = false;
+            book.bookState.sidebarDrop = null;
             if (live) {
                 book.bookSidebar.commitSidebarDrop(key, group, drop);
                 return true;
@@ -2623,29 +2666,29 @@ final class BookInput {
         //
         // One field, so the seven-way disjunction that used to be here -- and the three bars somebody had
         // forgotten to add to it -- is not a list that can go stale.
-        if (book.heldBar != null) {
-            book.heldBar.release();
-            book.heldBar = null;
+        if (book.bookState.heldBar != null) {
+            book.bookState.heldBar.release();
+            book.bookState.heldBar = null;
             return true;
         }
 
         // The curve handle's release: one op, or nothing at all if the press never travelled.
-        if (book.bendDragFrom != null) {
-            String bendFrom = book.bendDragFrom;
-            String bendTo = book.bendDragTo;
+        if (book.bookState.bendDragFrom != null) {
+            String bendFrom = book.bookState.bendDragFrom;
+            String bendTo = book.bookState.bendDragTo;
             boolean bendLive = bendDragLive;
-            Double bend = book.bendPreview;
-            Double anchor = book.anchorPreview;
-            java.util.List<Double> handle = book.handlePreview;
-            String kind = book.bendDragKind;
-            book.bendDragFrom = null;
-            book.bendDragTo = null;
-            book.bendDragKind = null;
+            Double bend = book.bookState.bendPreview;
+            Double anchor = book.bookState.anchorPreview;
+            java.util.List<Double> handle = book.bookState.handlePreview;
+            String kind = book.bookState.bendDragKind;
+            book.bookState.bendDragFrom = null;
+            book.bookState.bendDragTo = null;
+            book.bookState.bendDragKind = null;
             bendDragLive = false;
-            book.bendPreview = null;
-            book.anchorPreview = null;
-            book.handlePreview = null;
-            book.dragging = false;
+            book.bookState.bendPreview = null;
+            book.bookState.anchorPreview = null;
+            book.bookState.handlePreview = null;
+            book.bookState.dragging = false;
             if (bendLive && kind != null) {
                 if (BookRewards.HANDLE_BEND.equals(kind) && bend != null) {
                     book.bookRewards.setLineBend(bendFrom, bendTo, bend);
@@ -2660,13 +2703,13 @@ final class BookInput {
             return true;
         }
 
-        if (book.edgeDragFrom != null) {
-            String from = book.edgeDragFrom;
-            boolean live = book.edgeDragLive;
-            book.edgeDragFrom = null;
-            book.edgeDragLive = false;
-            book.dragging = false;
-            book.pressedNode = null;
+        if (book.bookState.edgeDragFrom != null) {
+            String from = book.bookState.edgeDragFrom;
+            boolean live = book.bookState.edgeDragLive;
+            book.bookState.edgeDragFrom = null;
+            book.bookState.edgeDragLive = false;
+            book.bookState.dragging = false;
+            book.bookState.pressedNode = null;
             book.bookCanvas.pressedQuestLink = null;
 
             if (live) {
@@ -2681,7 +2724,7 @@ final class BookInput {
                     if (quest != null) {
                         // Built on the draft, not the replica: an edge drag that lands while another
                         // prerequisite is still pending must keep it rather than overwrite it.
-                        List<String> dependencies = new ArrayList<>(QuestBookScreen.fieldDraft.strings(chapter,
+                        List<String> dependencies = new ArrayList<>(BookScreenState.fieldDraft.strings(chapter,
                                 landing.id(), "dependsOn", QuestPanelLayout.strings(quest, "dependsOn")));
                         if (!dependencies.contains(from)) {
                             dependencies.add(from);
@@ -2696,7 +2739,7 @@ final class BookInput {
             }
             // A right-press that never travelled is a click, and the canvas's menus are what a
             // right-click is for: on the node it was over, or on the line, or on the empty canvas.
-            if (!live && !book.pressMoved) {
+            if (!live && !book.bookState.pressMoved) {
                 book.bookMenu.openCanvasMenuAt(mouseX, mouseY);
             }
             return true;
@@ -2707,7 +2750,7 @@ final class BookInput {
         // canvas is not a pan, and it is not a menu either.
         if (button == InputConstants.MOUSE_BUTTON_RIGHT && canvasRightPressed) {
             canvasRightPressed = false;
-            if (!book.pressMoved) {
+            if (!book.bookState.pressMoved) {
                 book.bookMenu.openCanvasMenuAt(mouseX, mouseY);
             }
             return true;
@@ -2764,16 +2807,16 @@ final class BookInput {
             // which is where the click was always meant to be handled.
         }
 
-        if (book.draggedNode != null) {
-            String id = book.draggedNode;
-            float x = book.dragNodeX;
-            float y = book.dragNodeY;
+        if (book.bookState.draggedNode != null) {
+            String id = book.bookState.draggedNode;
+            float x = book.bookState.dragNodeX;
+            float y = book.bookState.dragNodeY;
             boolean live = nodeDragLive;
             boolean shift = pressedShift;
-            book.draggedNode = null;
+            book.bookState.draggedNode = null;
             nodeDragLive = false;
-            book.dragging = false;
-            book.pressedNode = null;
+            book.bookState.dragging = false;
+            book.bookState.pressedNode = null;
             book.bookCanvas.pressedQuestLink = null;
 
             if (live) {
@@ -2815,11 +2858,11 @@ final class BookInput {
             return true;
         }
 
-        if (book.marqueeActive) {
-            book.marqueeActive = false;
-            boolean moved = book.pressMoved;
-            book.dragging = false;
-            book.pressedNode = null;
+        if (book.bookState.marqueeActive) {
+            book.bookState.marqueeActive = false;
+            boolean moved = book.bookState.pressMoved;
+            book.bookState.dragging = false;
+            book.bookState.pressedNode = null;
             book.bookCanvas.pressedQuestLink = null;
             if (moved) {
                 book.bookInput.selectInsideMarquee();
@@ -2830,8 +2873,8 @@ final class BookInput {
             return true;
         }
 
-        if (book.dragging) {
-            book.dragging = false;
+        if (book.bookState.dragging) {
+            book.bookState.dragging = false;
 
             // An element's own click, and it is two gestures in one place. In edit mode it selects, so a
             // decoration can be moved or deleted like anything else on the canvas; in play mode it does what
@@ -2840,7 +2883,7 @@ final class BookInput {
             // Before the node's branch rather than after it, because the two cannot both be under the pointer:
             // `pressedElement` is only set when no node was. And on release rather than on press, for the same
             // reason a node's is: a press that travelled is a pan, and a pan must not select or open anything.
-            if (!book.pressMoved && pressedElement != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
+            if (!book.bookState.pressMoved && pressedElement != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 if (book.mayEditNow()) {
                     // **One click does both jobs**: it selects the element -- which is what puts the ring and
                     // the grips on it -- and it opens the panel that edits it, exactly as a node click selects
@@ -2850,9 +2893,9 @@ final class BookInput {
                     //
                     // A press that travelled never reaches this branch, so a drag still opens nothing.
                     book.bookPins.openElementPanel(pressedElement);
-                    QuestBookScreen.selectedQuest = null;
+                    BookScreenState.selectedQuest = null;
                     BookCanvas.selectedLink = null;
-                    QuestBookScreen.multiSelection.clear();
+                    BookScreenState.multiSelection.clear();
                 }
                 else {
                     BookCanvas.ElementSlot slot = book.bookCanvas.elementSlot(pressedElement);
@@ -2873,14 +2916,15 @@ final class BookInput {
             // Before the node's branch for the same reason the element's is: at most one of the three
             // is ever claimed, so the order is documentation rather than arbitration -- and the pick
             // order is the draw order read backwards, which is what makes a click open what was on top.
-            if (!book.pressMoved && book.bookCanvas.pressedQuestLink != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
+            if (!book.bookState.pressMoved && book.bookCanvas.pressedQuestLink != null
+                    && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 BookCanvas.LinkSlot slot = book.bookCanvas.linkSlot(book.bookCanvas.pressedQuestLink);
                 book.bookCanvas.pressedQuestLink = null;
                 if (slot == null) {
                     return true;
                 }
-                if (book.pickingDependency) {
-                    book.pickingDependency = false;
+                if (book.bookState.pickingDependency) {
+                    book.bookState.pickingDependency = false;
                     book.questEditor.addPickedDependency(slot.target().id());
                     return true;
                 }
@@ -2892,8 +2936,8 @@ final class BookInput {
                     // exactly as a node click selects and opens a quest, minus the card, because a link
                     // has no card to open. Selecting first and navigating second would fly the author to
                     // another chapter for trying to move a marker, which is the opposite of the gesture.
-                    QuestBookScreen.selectedQuest = null;
-                    QuestBookScreen.multiSelection.clear();
+                    BookScreenState.selectedQuest = null;
+                    BookScreenState.multiSelection.clear();
                     BookCanvas.selectedLink = BookCanvas.selectedLink != null
                             && BookCanvas.selectedLink.equals(slot.slot().link().id()) ? null : slot.slot().link()
                                     .id();
@@ -2907,13 +2951,14 @@ final class BookInput {
 
             // A press that never moved is a click. Selecting on release rather than on press is what
             // makes "hold to pan" and "click to select" one gesture.
-            if (!book.pressMoved && book.pressedNode != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
+            if (!book.bookState.pressMoved && book.bookState.pressedNode != null
+                    && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 // A link-target pick in flight names this quest: only a node click lands one, because
                 // only quests resolve -- a click on another marker would name a shortcut, and the file
                 // wants the quest it stands in for.
                 if (book.bookCanvas.pendingLinkPick != null) {
-                    ClientQuestCache.Entry picked = book.entryFor(book.pressedNode);
-                    book.pressedNode = null;
+                    ClientQuestCache.Entry picked = book.entryFor(book.bookState.pressedNode);
+                    book.bookState.pressedNode = null;
                     if (picked != null) {
                         book.bookPins.landLinkPick(picked);
                     }
@@ -2926,17 +2971,18 @@ final class BookInput {
                 // The dependency pick: armed by the panel's Add-from-canvas action, the next click
                 // names the quest to depend on instead of opening one. Disarmed by Escape, and by
                 // landing -- a pick that stayed armed would turn every later click into a dependency.
-                if (book.pickingDependency) {
-                    book.pickingDependency = false;
-                    book.questEditor.addPickedDependency(book.pressedNode);
-                    book.pressedNode = null;
+                if (book.bookState.pickingDependency) {
+                    book.bookState.pickingDependency = false;
+                    book.questEditor.addPickedDependency(book.bookState.pressedNode);
+                    book.bookState.pressedNode = null;
                     return true;
                 }
 
-                QuestBookScreen.selectedQuest = book.pressedNode.equals(QuestBookScreen.selectedQuest) ? null : book.pressedNode;
+                BookScreenState.selectedQuest = book.bookState.pressedNode.equals(BookScreenState.selectedQuest) ? null
+                        : book.bookState.pressedNode;
                 BookCanvas.selectedLink = null;
                 book.bookCanvas.linkConfirmingDelete = null;
-                QuestBookScreen.multiSelection.clear();
+                BookScreenState.multiSelection.clear();
 
                 // A click on a node opens it, rather than only selecting it.
                 //
@@ -2948,20 +2994,21 @@ final class BookInput {
                 //
                 // The pan is unaffected: a press that moved is a pan and never reaches here, so
                 // holding to look around still works and cannot open anything by accident.
-                book.bookRewards.openOverlay(book.pressedNode);
+                book.bookRewards.openOverlay(book.bookState.pressedNode);
                 return true;
             }
-            if (!book.pressMoved && button == InputConstants.MOUSE_BUTTON_LEFT && !book.panelPress) {
+            if (!book.bookState.pressMoved && button == InputConstants.MOUSE_BUTTON_LEFT
+                    && !book.bookState.panelPress) {
                 // A click on the empty canvas unselects everything -- the primary too, not only the
                 // multi-selection: "press blank space to let go" is one gesture and not two. And the element
                 // selection with it, because "everything" is what the sentence says: a decoration left
                 // selected by a click on blank canvas would be a ring nobody could explain. And the link's,
                 // for the same reason: a marker is a third kind of selection, and letting go means all three.
-                QuestBookScreen.selectedQuest = null;
-                QuestBookScreen.selectedElement = null;
+                BookScreenState.selectedQuest = null;
+                BookScreenState.selectedElement = null;
                 BookCanvas.selectedLink = null;
                 book.bookCanvas.linkConfirmingDelete = null;
-                QuestBookScreen.multiSelection.clear();
+                BookScreenState.multiSelection.clear();
 
                 // And it closes the panel as well, which is the same gesture read the same way: a click on a
                 // node opens one, so a click on nothing closes one. **It is here, on release, and not in the
@@ -2977,12 +3024,12 @@ final class BookInput {
                 // the one the author asked for: the dock is a working surface, and losing your tools because
                 // you clicked a patch of empty graph would make it unusable. It goes away by the X, by Escape,
                 // or by the Author pill -- the three controls that name it.
-                if (book.overlay != PanelKind.NONE || book.overlay2 != PanelKind.NONE) {
+                if (book.bookState.overlay != PanelKind.NONE || book.bookState.overlay2 != PanelKind.NONE) {
                     book.closeOverlay();
                 }
             }
-            book.panelPress = false;
-            book.pressedNode = null;
+            book.bookState.panelPress = false;
+            book.bookState.pressedNode = null;
             book.bookCanvas.pressedQuestLink = null;
             return true;
         }
@@ -2992,7 +3039,7 @@ final class BookInput {
     boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         // The wheel closes an open menu, wherever it is. The canvas zooms and the lists scroll under the
         // pointer, so a menu left open would hang over a node or a row that has moved out from under it.
-        if (!book.menu.isEmpty()) {
+        if (!book.bookState.menu.isEmpty()) {
             book.bookMenu.closeMenu();
         }
         // **Which rail the wheel belongs to**, or null when the pointer is over the graph — in which case
@@ -3002,7 +3049,7 @@ final class BookInput {
         if (wheel != null) {
             // The handlers below measure their rows against the four accessors, so this is the surface
             // they must answer for -- the same one assignment the drawing and the build make.
-            book.surfaceKind = wheel;
+            book.bookState.surfaceKind = wheel;
         }
         // Every branch below reads `wheel`, so a rail answers only where it is and a wheel over the graph
         // beside it reaches the zoom at the foot of this method.
@@ -3014,21 +3061,21 @@ final class BookInput {
             // Two lists arrive in this card, so the type page is asked first: its own band and its own
             // rows are what the pointer is over when a table's `+ Reward` is open.
             if (book.typePageOpen()) {
-                if (book.typeFrame != null) {
-                    book.typeBar.wheel(scrollY);
+                if (book.bookState.typeFrame != null) {
+                    book.bookState.typeBar.wheel(scrollY);
                 }
                 return true;
             }
             // The file tab scrolls the texture list's own bar: the wheel belongs to the list on
             // screen, and the item list behind this tab does not move.
-            if (book.pickerTabsVisible() && book.pickerKind == QuestBookScreen.PickerKind.FILE) {
-                if (book.textureFrame != null) {
-                    book.textureBar.wheel(scrollY);
+            if (book.pickerTabsVisible() && book.bookState.pickerKind == QuestBookScreen.PickerKind.FILE) {
+                if (book.bookState.textureFrame != null) {
+                    book.bookState.textureBar.wheel(scrollY);
                 }
                 return true;
             }
-            if (book.pickerFrame != null) {
-                book.pickerBar.wheel(scrollY);
+            if (book.bookState.pickerFrame != null) {
+                book.bookState.pickerBar.wheel(scrollY);
             }
             return true;
         }
@@ -3036,8 +3083,8 @@ final class BookInput {
         if (wheel == PanelKind.TEXTURE) {
             // The same for the texture picker's list: the wheel is its own, clamped where it lands, and
             // the dock behind the card does not move.
-            if (book.textureFrame != null) {
-                book.textureBar.wheel(scrollY);
+            if (book.bookState.textureFrame != null) {
+                book.bookState.textureBar.wheel(scrollY);
             }
             return true;
         }
@@ -3045,19 +3092,19 @@ final class BookInput {
         if (wheel == PanelKind.CHOICE) {
             // The card is a list, so the wheel is the list's -- and absorbed whether or not there is
             // anywhere to go, the same as every other card's.
-            book.choiceView.bar().wheel(scrollY);
+            book.bookState.choiceView.bar().wheel(scrollY);
             return true;
         }
 
         if (wheel == PanelKind.FILTER) {
             // The list's wheel is the list's, like every other card's: absorbed, so the quest
             // behind it does not scroll.
-            book.filterView.bar().wheel(scrollY);
+            book.bookState.filterView.bar().wheel(scrollY);
             return true;
         }
 
         if (wheel == PanelKind.REWARDS) {
-            book.rewardView.bar().wheel(scrollY);
+            book.bookState.rewardView.bar().wheel(scrollY);
             return true;
         }
 
@@ -3067,7 +3114,7 @@ final class BookInput {
         // Asked of `wheel` rather than of `inTools`, which is the same answer by a longer road: `inTools` is
         // `panelColumnAt(...) == TOOLS`, so this was the one arm that resolved the rail twice.
         if (wheel == PanelKind.TOOLS) {
-            book.toolsView.bar().wheel(scrollY);
+            book.bookState.toolsView.bar().wheel(scrollY);
             return true;
         }
 
@@ -3094,22 +3141,22 @@ final class BookInput {
             // what the pointer is over. Without this branch the wheel fell through to the body -- which
             // scrolled the invisible editor behind the page and left the column still, and the report
             // was simply "i cant scroll".
-            if (book.settingsOpen) {
-                book.settingsView.bar().wheel(scrollY);
+            if (book.bookState.settingsOpen) {
+                book.bookState.settingsView.bar().wheel(scrollY);
                 return true;
             }
             // While a picker is open the wheel is the list's, not the card's: the card is not what is
             // on screen. Clamped where it lands, because a flick past the bottom should stop at the
             // bottom -- the same rule as the body's below, for the same reason.
             if (book.typePageOpen()) {
-                if (book.typeFrame != null) {
-                    book.typeBar.wheel(scrollY);
+                if (book.bookState.typeFrame != null) {
+                    book.bookState.typeBar.wheel(scrollY);
                 }
                 return true;
             }
-            if (book.pickingItemPath != null && !book.itemPicker.pickerAsColumn()) {
-                if (book.pickerFrame != null) {
-                    book.pickerBar.wheel(scrollY);
+            if (book.bookState.pickingItemPath != null && !book.itemPicker.pickerAsColumn()) {
+                if (book.bookState.pickerFrame != null) {
+                    book.bookState.pickerBar.wheel(scrollY);
                 }
                 return true;
             }
@@ -3120,7 +3167,7 @@ final class BookInput {
             // against a height computed somewhere else, so a flick past the bottom sat out of range
             // until the next frame happened to correct it. Through the bar, like every other list here,
             // so the card's own wheel keeps the fraction a smooth wheel sends rather than truncating it.
-            book.overlayView.bar().wheel(scrollY);
+            book.bookState.overlayView.bar().wheel(scrollY);
             return true;
         }
 
@@ -3128,14 +3175,14 @@ final class BookInput {
         // canvas and zoomed the graph behind the card. A modal that answers the pointer but not the
         // wheel is a modal with a hole in it, and this one has two -- see the naming card below.
         if (wheel == PanelKind.SETTINGS) {
-            book.appearanceView.bar().wheel(scrollY);
+            book.bookState.appearanceView.bar().wheel(scrollY);
             return true;
         }
 
         // The pinned list's own rows: a watchlist longer than its rail scrolls like every other list,
         // and the clamp is the viewport's, set from the same rows the drawing walks.
         if (wheel == PanelKind.PINNED) {
-            book.pinnedView.bar().wheel(scrollY);
+            book.bookState.pinnedView.bar().wheel(scrollY);
             return true;
         }
 
@@ -3185,17 +3232,17 @@ final class BookInput {
         if ((wheel == PanelKind.TABLE_BROWSER || wheel == PanelKind.TABLE_EDITOR)
                 && book.bookRewards.overTableList(mouseX, mouseY)) {
             if (wheel == PanelKind.TABLE_BROWSER) {
-                if (book.tableBrowserFrame != null) {
-                    book.tableBrowserBar.wheel(scrollY);
+                if (book.bookState.tableBrowserFrame != null) {
+                    book.bookState.tableBrowserBar.wheel(scrollY);
                 }
             }
-            else if (book.tableEditorFrame != null) {
-                if (book.tableShowRoll) {
+            else if (book.bookState.tableEditorFrame != null) {
+                if (book.bookState.tableShowRoll) {
                     // The report's pitch is its own: twelve-pixel lines, not twenty-pixel rows.
-                    book.rollBar.wheel(scrollY, QuestBookScreen.ROLL_PITCH);
+                    book.bookState.rollBar.wheel(scrollY, QuestBookScreen.ROLL_PITCH);
                 }
                 else {
-                    book.tableEditorBar.wheel(scrollY);
+                    book.bookState.tableEditorBar.wheel(scrollY);
                 }
             }
             return true;
@@ -3205,7 +3252,7 @@ final class BookInput {
         // already answers for its target, so a notch now would scroll a list that is not where it
         // is drawn. The wipe is 160 milliseconds; the wheel waits for it.
         long sidebarWheelNow = net.minecraft.util.Util.getMillis();
-        if (book.sidebarDeparting && book.sidebarSliding(sidebarWheelNow)
+        if (book.bookState.sidebarDeparting && book.sidebarSliding(sidebarWheelNow)
                 && book.sidebarWipeRect(sidebarWheelNow).contains(mouseX, mouseY)) {
             return true;
         }
@@ -3230,7 +3277,7 @@ final class BookInput {
             // landing between two rows is answered by `scrollSidebar`, which moves the offset onto the
             // row the notch was aimed at. The fraction the counter keeps is what makes a trackpad's
             // small deltas add up to that notch instead of being truncated away.
-            int notches = book.sidebarView.bar().notches(scrollY);
+            int notches = book.bookState.sidebarView.bar().notches(scrollY);
             if (notches != 0) {
                 book.bookSidebar.scrollSidebar(-notches * SidebarLayout.pitch());
             }
@@ -3263,17 +3310,17 @@ final class BookInput {
         if (!handled) {
             return false;
         }
-        if (book.getFocused() == book.partySearchField && book.partySearchField != null) {
-            book.partySearch = book.partySearchField.value();
-            book.partySearchFocused = true;
+        if (book.getFocused() == book.bookState.partySearchField && book.bookState.partySearchField != null) {
+            book.bookState.partySearch = book.bookState.partySearchField.value();
+            book.bookState.partySearchFocused = true;
             book.rebuildWidgets();
             return true;
         }
-        if (book.getFocused() == book.partyCreateField && book.partyCreateField != null) {
+        if (book.getFocused() == book.bookState.partyCreateField && book.bookState.partyCreateField != null) {
             // No rebuild: the create field is the only thing its text affects, so there is nothing to
             // redraw until it is submitted.
-            book.partyCreateName = book.partyCreateField.value();
-            book.partyCreateFocused = true;
+            book.bookState.partyCreateName = book.bookState.partyCreateField.value();
+            book.bookState.partyCreateFocused = true;
             return true;
         }
         return true;
@@ -3287,7 +3334,7 @@ final class BookInput {
         // two is the author having moved on: the same "any other press disarms" rule the menus follow.
         // Delete and Backspace are the pair `ArmedDelete` owns, so they are left to answer for themselves.
         if (keyCode != InputConstants.KEY_DELETE && keyCode != InputConstants.KEY_BACKSPACE) {
-            book.armedDelete.disarm();
+            book.bookState.armedDelete.disarm();
         }
         // **The dropdown first, on the press's own rule.** A menu is the innermost thing on screen while it
         // is open, so Escape closes it and not what it was opened over -- which is what this line's own
@@ -3295,7 +3342,7 @@ final class BookInput {
         // branches, so with a menu opened over the table editor, Escape took the panel away and left the
         // menu standing over a card that no longer existed. See `pressDropdown` for the press's half of the
         // same rule, and `.utils/check_dropdowns.py` for the guard that holds the two halves together.
-        if (!book.menu.isEmpty() && keyCode == InputConstants.KEY_ESCAPE) {
+        if (!book.bookState.menu.isEmpty() && keyCode == InputConstants.KEY_ESCAPE) {
             book.bookMenu.closeMenu();
             return true;
         }
@@ -3303,25 +3350,25 @@ final class BookInput {
         // went in: the roll report first, then one table back, then the panel. A field left focused is
         // blurred by the rebuild that follows, and a blur is a commit -- so a half-typed title is kept
         // rather than dropped, which is the same rule the card's inline editor follows.
-        if (book.overlay == PanelKind.TABLE_EDITOR && keyCode == InputConstants.KEY_ESCAPE) {
+        if (book.bookState.overlay == PanelKind.TABLE_EDITOR && keyCode == InputConstants.KEY_ESCAPE) {
             // The innermost thing on screen answers first, in the order the author went in: the picker
             // page, then the roll report, then one table back, then the panel. The picker page had no
             // case here at all, so Escape closed the panel and left the picker armed -- which is how a
             // press on the type list ended up showing that list over a quest card.
-            if (book.pickingEntryType != null) {
-                book.pickingEntryType = null;
+            if (book.bookState.pickingEntryType != null) {
+                book.bookState.pickingEntryType = null;
                 book.rebuildWidgets();
                 return true;
             }
-            if (book.tableShowRoll) {
-                book.tableShowRoll = false;
-                book.tableImportOpen = false;
+            if (book.bookState.tableShowRoll) {
+                book.bookState.tableShowRoll = false;
+                book.bookState.tableImportOpen = false;
                 return true;
             }
             book.bookRewards.popTableEditor();
             return true;
         }
-        if (book.overlay == PanelKind.TABLE_BROWSER && keyCode == InputConstants.KEY_ESCAPE) {
+        if (book.bookState.overlay == PanelKind.TABLE_BROWSER && keyCode == InputConstants.KEY_ESCAPE) {
             // Rebuild, for the same reason the outside press does: closing nulls the panel's fields
             // while its redraws and its footer buttons live until the next rebuild -- which left the
             // browser's own buttons drawn over the card and still taking presses, aimed at a reward that
@@ -3329,7 +3376,7 @@ final class BookInput {
             book.bookRewards.closeTablePanelAndRebuild();
             return true;
         }
-        if (book.overlay == PanelKind.ASSETS) {
+        if (book.bookState.overlay == PanelKind.ASSETS) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
                 // Escape and the footer's Done are one act, which is the rule every other card follows.
                 book.closeOverlay();
@@ -3366,7 +3413,7 @@ final class BookInput {
         // there is nothing left to save. Only with nothing focused, so it cannot fire while a field is
         // being typed into — and never while previewing, where the Assets panel has no button and the
         // chord would open a surface the preview says is not there.
-        if (book.overlay == PanelKind.NONE && keyCode == InputConstants.KEY_T && event.hasControlDown()
+        if (book.bookState.overlay == PanelKind.NONE && keyCode == InputConstants.KEY_T && event.hasControlDown()
                 && book.getFocused() == null && book.questEditor.mayEdit() && !book.bookCanvas.previewing()) {
             book.bookAssets.openAssets();
             return true;
@@ -3381,8 +3428,9 @@ final class BookInput {
         // waiting for. Both no-op where they cannot apply — docked, or pinned for B — so the keys are
         // acceleration that never surprises rather than the only road.
         if (book.getFocused() == null && !event.hasControlDown() && !event.hasAltDown()
-                && keyCode == InputConstants.KEY_B && book.overlay != PanelKind.NAMING && !book.typePageOpen()
-                && book.pickingItemPath == null && book.menu.isEmpty() && !book.colourPopover.isOpen()) {
+                && keyCode == InputConstants.KEY_B && book.bookState.overlay != PanelKind.NAMING && !book.typePageOpen()
+                && book.bookState.pickingItemPath == null && book.bookState.menu.isEmpty()
+                        && !book.bookState.colourPopover.isOpen()) {
             toggleSidebarCollapsed();
             return true;
         }
@@ -3391,17 +3439,17 @@ final class BookInput {
             toggleSidebarPinned();
             return true;
         }
-        if (book.overlay == PanelKind.TABLE_BROWSER && (keyCode == InputConstants.KEY_RETURN
+        if (book.bookState.overlay == PanelKind.TABLE_BROWSER && (keyCode == InputConstants.KEY_RETURN
                 || keyCode == InputConstants.KEY_NUMPADENTER)) {
             // Enter on the browser takes the row the keyboard is on: the same rule the item picker's
             // Enter has, so the two lists are driven the same way.
-            book.bookRewards.pressTableBrowserRow(book.tableSelected);
+            book.bookRewards.pressTableBrowserRow(book.bookState.tableSelected);
             return true;
         }
         // And the keys that *move* the keyboard's row. Without these the sentence above was a promise
         // nothing could keep: the selection starts at -1 and only a press changed it, so Enter was a key
         // that did nothing until the pointer had already done the work.
-        if (book.overlay == PanelKind.TABLE_BROWSER
+        if (book.bookState.overlay == PanelKind.TABLE_BROWSER
                 && (keyCode == InputConstants.KEY_UP || keyCode == InputConstants.KEY_DOWN)) {
             book.bookRewards.stepTableBrowser(keyCode == InputConstants.KEY_DOWN ? 1 : -1);
             return true;
@@ -3412,7 +3460,7 @@ final class BookInput {
         // an author has just made. So Ctrl+Z did nothing on exactly the table where a mistake is most
         // likely, and the field it went to has no undo of its own. These are the panel's keys, like its
         // Escape branches above, not the focused field's.
-        if (book.overlay == PanelKind.TABLE_EDITOR && event.hasControlDown()) {
+        if (book.bookState.overlay == PanelKind.TABLE_EDITOR && event.hasControlDown()) {
             if (keyCode == InputConstants.KEY_Z) {
                 book.bookAssets.tableUndo();
                 return true;
@@ -3424,7 +3472,7 @@ final class BookInput {
         }
         // The naming card's own keys, read before anything else: Enter is the button the card is for,        // and Escape abandons it without touching a file. Handing Enter to the field would blur it,
         // which is not what a form's Enter means.
-        if (book.overlay == PanelKind.NAMING) {
+        if (book.bookState.overlay == PanelKind.NAMING) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
                 book.bookSidebar.closeNaming();
                 return true;
@@ -3438,7 +3486,8 @@ final class BookInput {
         // its Enter always means submit; the inline row is not, so its keys only answer while one
         // of its fields holds the keyboard. Anywhere else Enter still means what the focused
         // control says it means.
-        if (book.inlineEdit != null && (book.getFocused() == book.inlineTitle || book.getFocused() == book.inlineId)) {
+        if (book.bookState.inlineEdit != null && (book.getFocused() == book.bookState.inlineTitle
+                || book.getFocused() == book.bookState.inlineId)) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
                 book.bookSidebar.cancelInline();
                 return true;
@@ -3450,7 +3499,7 @@ final class BookInput {
         }
         // F2 renames the selected chapter where it stands. Groups rename from their menu: they
         // are never the selection, so there is nothing for the key to name.
-        if (keyCode == InputConstants.KEY_F2 && book.inlineEdit == null && book.mayEditNow()
+        if (keyCode == InputConstants.KEY_F2 && book.bookState.inlineEdit == null && book.mayEditNow()
                 && QuestBookScreen.effectiveChapter() != null) {
             book.bookSidebar.startInlineRename("chapter", QuestBookScreen.effectiveChapter());
             return true;
@@ -3475,18 +3524,20 @@ final class BookInput {
                 return true;
             }
             if (keyCode == InputConstants.KEY_UP) {
-                book.typeSelected = ItemPickerLayout.step(book.typeRows, book.typeSelected, -1);
+                book.bookState.typeSelected = ItemPickerLayout.step(book.bookState.typeRows,
+                        book.bookState.typeSelected, -1);
                 return true;
             }
             if (keyCode == InputConstants.KEY_DOWN) {
-                book.typeSelected = ItemPickerLayout.step(book.typeRows, book.typeSelected, 1);
+                book.bookState.typeSelected = ItemPickerLayout.step(book.bookState.typeRows,
+                        book.bookState.typeSelected, 1);
                 return true;
             }
         }
 
-        if (book.pickingItemPath != null) {
+        if (book.bookState.pickingItemPath != null) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
-                if (book.tablePickReturn) {
+                if (book.bookState.tablePickReturn) {
                     book.bookAssets.closeTablePick();
                     return true;
                 }
@@ -3501,20 +3552,24 @@ final class BookInput {
             if (keyCode == InputConstants.KEY_UP) {
                 // The file tab walks its own rows: the keyboard's row is always the list on
                 // screen, and the item list behind this tab is not.
-                if (book.pickerTabsVisible() && book.pickerKind == QuestBookScreen.PickerKind.FILE) {
-                    book.textureSelected = ItemPickerLayout.step(book.textureRows, book.textureSelected, -1);
+                if (book.pickerTabsVisible() && book.bookState.pickerKind == QuestBookScreen.PickerKind.FILE) {
+                    book.bookState.textureSelected = ItemPickerLayout.step(book.bookState.textureRows,
+                            book.bookState.textureSelected, -1);
                 }
                 else {
-                    book.pickerSelected = ItemPickerLayout.step(book.pickerRows, book.pickerSelected, -1);
+                    book.bookState.pickerSelected = ItemPickerLayout.step(book.bookState.pickerRows,
+                            book.bookState.pickerSelected, -1);
                 }
                 return true;
             }
             if (keyCode == InputConstants.KEY_DOWN) {
-                if (book.pickerTabsVisible() && book.pickerKind == QuestBookScreen.PickerKind.FILE) {
-                    book.textureSelected = ItemPickerLayout.step(book.textureRows, book.textureSelected, 1);
+                if (book.pickerTabsVisible() && book.bookState.pickerKind == QuestBookScreen.PickerKind.FILE) {
+                    book.bookState.textureSelected = ItemPickerLayout.step(book.bookState.textureRows,
+                            book.bookState.textureSelected, 1);
                 }
                 else {
-                    book.pickerSelected = ItemPickerLayout.step(book.pickerRows, book.pickerSelected, 1);
+                    book.bookState.pickerSelected = ItemPickerLayout.step(book.bookState.pickerRows,
+                            book.bookState.pickerSelected, 1);
                 }
                 return true;
             }
@@ -3524,7 +3579,7 @@ final class BookInput {
         // Escape below: Enter commits the typed id or the selected row, Escape leaves the field as it
         // was, and the arrows walk the list. Handing Enter or Escape to the search box would blur or
         // submit it, and neither is what a form's key means while a list is open.
-        if (book.overlay == PanelKind.TEXTURE) {
+        if (book.bookState.overlay == PanelKind.TEXTURE) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
                 book.texturePicker.closeTexturePicker();
                 return true;
@@ -3534,11 +3589,13 @@ final class BookInput {
                 return true;
             }
             if (keyCode == InputConstants.KEY_UP) {
-                book.textureSelected = ItemPickerLayout.step(book.textureRows, book.textureSelected, -1);
+                book.bookState.textureSelected = ItemPickerLayout.step(book.bookState.textureRows,
+                        book.bookState.textureSelected, -1);
                 return true;
             }
             if (keyCode == InputConstants.KEY_DOWN) {
-                book.textureSelected = ItemPickerLayout.step(book.textureRows, book.textureSelected, 1);
+                book.bookState.textureSelected = ItemPickerLayout.step(book.bookState.textureRows,
+                        book.bookState.textureSelected, 1);
                 return true;
             }
         }
@@ -3581,7 +3638,7 @@ final class BookInput {
         // The colour picker's Escape, after the focused field's: a field with the keyboard answers first
         // (a scrub field puts its value back), and the next Escape closes the picker and writes whatever
         // its last gesture left unwritten.
-        if (book.colourPopover.isOpen() && keyCode == InputConstants.KEY_ESCAPE) {
+        if (book.bookState.colourPopover.isOpen() && keyCode == InputConstants.KEY_ESCAPE) {
             book.closeColourPopover();
             book.rebuildWidgets();
             return true;
@@ -3591,8 +3648,8 @@ final class BookInput {
         // the part the pointer is over -- read from the frame the picker was last drawn with, so the key
         // and the crosshair cannot disagree. Shift is the ten-step. Read before the canvas focus below,
         // which would otherwise walk the nodes while a picker is open over them.
-        if (book.colourPopover.isOpen()
-                && book.colourPopover.keyPressed(keyCode, event.hasShiftDown())) {
+        if (book.bookState.colourPopover.isOpen()
+                && book.bookState.colourPopover.keyPressed(keyCode, event.hasShiftDown())) {
             return true;
         }
 
@@ -3600,10 +3657,10 @@ final class BookInput {
         // inside the overlay branch below: the author who armed it has no overlay to close, and before
         // this was outside the guard Escape fell through to the screen's own handler and closed the whole
         // book. The field comment said "Escape cancels" and the code could not reach the branch that did.
-        if (book.pickingDependency && keyCode == InputConstants.KEY_ESCAPE) {
-            book.pickingDependency = false;
-            dev.ellipog.tenet.client.dev.DependencyPick pick = book.pendingPick;
-            book.pendingPick = null;
+        if (book.bookState.pickingDependency && keyCode == InputConstants.KEY_ESCAPE) {
+            book.bookState.pickingDependency = false;
+            dev.ellipog.tenet.client.dev.DependencyPick pick = book.bookState.pendingPick;
+            book.bookState.pendingPick = null;
             book.status("tenet.status.add_cancelled", false);
             if (pick != null) {
                 book.questEditor.returnToEditedQuest(pick);
@@ -3634,7 +3691,7 @@ final class BookInput {
         // like any other, it is put away by the thing that names it, and a second Escape then closes the
         // book, which is the pair every other arrangement already had.
         if (keyCode == InputConstants.KEY_ESCAPE && book.getFocused() == null) {
-            if (book.sidebarPeeking) {
+            if (book.bookState.sidebarPeeking) {
                 book.setSidebarPeeking(false);
                 return true;
             }
@@ -3645,37 +3702,38 @@ final class BookInput {
             }
         }
         if (keyCode == InputConstants.KEY_ESCAPE
-                && (book.overlay != PanelKind.NONE || book.overlay2 != PanelKind.NONE || book.dockOpen)) {
+                && (book.bookState.overlay != PanelKind.NONE || book.bookState.overlay2 != PanelKind.NONE
+                        || book.bookState.dockOpen)) {
             // **Outermost first.** With a child rail open, the first press peels it -- the thing the player
             // was in -- and only the next one closes the panel they opened. That is what "one press, one
             // step back" means with a rail beside a rail, and it goes through the same unwind the X and the
             // breadcrumb use, so a table editor's field is committed on the way out.
-            if (book.overlay2 != PanelKind.NONE) {
+            if (book.bookState.overlay2 != PanelKind.NONE) {
                 book.closePanelColumn(true);
                 return true;
             }
-            if (book.settingsOpen) {
+            if (book.bookState.settingsOpen) {
                 // Back to the panel, and the page's pending values go with it: a draft is the page's own
                 // state, and one left behind would make the canvas draw a number the file does not have.
-                book.settingsOpen = false;
-                book.draggingSlider = null;
-                book.settingsDraft.clear();
+                book.bookState.settingsOpen = false;
+                book.bookState.draggingSlider = null;
+                book.bookState.settingsDraft.clear();
                 book.rebuildWidgets();
                 return true;
             }
-            if (book.pickingEntryType != null) {
-                book.pickingEntryType = null;
+            if (book.bookState.pickingEntryType != null) {
+                book.bookState.pickingEntryType = null;
                 book.rebuildWidgets();
                 return true;
             }
-            if (book.overlay == PanelKind.CHOICE) {
+            if (book.bookState.overlay == PanelKind.CHOICE) {
                 // Escape leaves the question unanswered, which loses nothing -- see `closeChoice`. This
                 // branch rather than `closeOverlay`, which does not clear the offer: the next tick would
                 // open the same question straight back up.
                 book.bookOverlay.closeChoice();
                 return true;
             }
-            if (book.overlay != PanelKind.NONE) {
+            if (book.bookState.overlay != PanelKind.NONE) {
                 book.closeOverlay();
                 return true;
             }
@@ -3765,7 +3823,7 @@ final class BookInput {
             if (tree != null) {
                 // What the author sees is what is copied: a pending edit is part of the selection's
                 // value, and the clipboard deep-copies, so a later overlay cannot reach into it.
-                trees.add(QuestBookScreen.fieldDraft.overlaid(chapter, id, tree));
+                trees.add(BookScreenState.fieldDraft.overlaid(chapter, id, tree));
             }
         }
         if (trees.isEmpty()) {
@@ -3803,10 +3861,10 @@ final class BookInput {
         if (quests == null || quests.isEmpty()) {
             return;
         }
-        QuestBookScreen.multiSelection.clear();
-        QuestBookScreen.selectedQuest = quests.get(0).id();
+        BookScreenState.multiSelection.clear();
+        BookScreenState.selectedQuest = quests.get(0).id();
         for (int i = 1; i < quests.size(); i++) {
-            QuestBookScreen.multiSelection.add(quests.get(i).id());
+            BookScreenState.multiSelection.add(quests.get(i).id());
         }
         book.status("Selected " + quests.size() + (quests.size() == 1 ? " quest" : " quests"), false);
     }

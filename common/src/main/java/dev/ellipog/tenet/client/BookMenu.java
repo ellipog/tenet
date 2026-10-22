@@ -98,11 +98,11 @@ final class BookMenu {
      * own duration is zero and this is zero with it: a menu that is simply there.
      */
     private int menuRise() {
-        if (book.menu.isEmpty() || book.menuOpenedAt < 0) {
+        if (book.bookState.menu.isEmpty() || book.bookState.menuOpenedAt < 0) {
             return 0;
         }
         float arrived =
-                PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.menuOpenedAt,
+                PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.bookState.menuOpenedAt,
                         BookItemPicker.MENU_RISE_MILLIS);
         return Math.round(BookItemPicker.MENU_RISE_PX * (1F - arrived));
     }
@@ -140,7 +140,7 @@ final class BookMenu {
 
     /** The rows of a menu row's flyout, for a caller holding only the row's index. */
     private List<MenuFlyout.Row> childrenOf(int row) {
-        return row >= 0 && row < book.menu.size() ? book.menu.get(row).children() : List.of();
+        return row >= 0 && row < book.bookState.menu.size() ? book.bookState.menu.get(row).children() : List.of();
     }
     static final int MENU_WIDTH = 150;
 
@@ -162,14 +162,14 @@ final class BookMenu {
             book.openMenu(row.group() ? groupMenu(row.id()) : chapterMenu(row.id()));
             // Only a chapter menu has a "Move to" submenu, so only then is there a chapter to move.
             menuChapter = row.group() ? null : row.id();
-            book.menuX = (int) mouseX;
-            book.menuY = (int) mouseY;
+            book.bookState.menuX = (int) mouseX;
+            book.bookState.menuY = (int) mouseY;
             return true;
         }
         book.openMenu(sidebarEmptyMenu());
         menuChapter = null;
-        book.menuX = (int) mouseX;
-        book.menuY = (int) mouseY;
+        book.bookState.menuX = (int) mouseX;
+        book.bookState.menuY = (int) mouseY;
         return true;
     }
 
@@ -377,15 +377,15 @@ final class BookMenu {
     }
 
     void closeMenu() {
-        book.menu = List.of();
+        book.bookState.menu = List.of();
         menuChapter = null;
-        book.submenuRow = -1;
+        book.bookState.submenuRow = -1;
         menuDeleteArmed = false;
         menuResetArmed = false;
         canvasMenuQuest = null;
         canvasMenuFrom = null;
         canvasMenuTo = null;
-        book.menuOpenedAt = -1L;
+        book.bookState.menuOpenedAt = -1L;
     }
 
     /**
@@ -398,7 +398,7 @@ final class BookMenu {
         List<BookGeometry.Rect> rects = new ArrayList<>();
         int x = menuLeft();
         int y = menuTop() + menuRise();
-        for (int i = 0; i < book.menu.size(); i++) {
+        for (int i = 0; i < book.bookState.menu.size(); i++) {
             rects.add(BookGeometry.Rect.at(x, y + i * BookItemPicker.MENU_ROW_HEIGHT, MENU_WIDTH,
                     BookItemPicker.MENU_ROW_HEIGHT));
         }
@@ -415,7 +415,7 @@ final class BookMenu {
      */
     MenuFlyout.Placed submenuPlacement(int parentIndex) {
         List<MenuFlyout.Row> rows = childrenOf(parentIndex);
-        if (parentIndex < 0 || parentIndex >= book.menu.size() || rows.isEmpty()) {
+        if (parentIndex < 0 || parentIndex >= book.bookState.menu.size() || rows.isEmpty()) {
             return MenuFlyout.place(0, 0, List.of());
         }
         BookGeometry.Rect main = menuRects().get(parentIndex);
@@ -436,9 +436,10 @@ final class BookMenu {
      */
     private MenuPlacement.Placed menuPlacement() {
         BookGeometry.Rect window = book.bookFrame.panelRect();
-        int flyoutWidth = book.submenuRow >= 0 ? MenuFlyout.width(childrenOf(book.submenuRow)) : MENU_WIDTH;
-        return MenuPlacement.place(book.menuX, book.menuY, MENU_WIDTH,
-                book.menu.size() * BookItemPicker.MENU_ROW_HEIGHT + 6,
+        int flyoutWidth = book.bookState.submenuRow >= 0
+                ? MenuFlyout.width(childrenOf(book.bookState.submenuRow)) : MENU_WIDTH;
+        return MenuPlacement.place(book.bookState.menuX, book.bookState.menuY, MENU_WIDTH,
+                book.bookState.menu.size() * BookItemPicker.MENU_ROW_HEIGHT + 6,
                 flyoutWidth, window.x() + 4, window.y() + 4, window.right() - 4, window.bottom() - 4, 8);
     }
 
@@ -463,10 +464,10 @@ final class BookMenu {
 
     /** Whether a press is the menu's: a row runs, a flyout tunes or chooses, anything else just closes. */
     boolean pressMenu(double mouseX, double mouseY) {
-        if (book.menu.isEmpty()) {
+        if (book.bookState.menu.isEmpty()) {
             return false;
         }
-        int parent = book.submenuRow;
+        int parent = book.bookState.submenuRow;
         if (parent >= 0) {
             MenuFlyout.Placed placed = submenuPlacement(parent);
             MenuFlyout.Hit hit = MenuFlyout.hit(placed, mouseX, mouseY);
@@ -492,7 +493,7 @@ final class BookMenu {
         }
         int row = menuRowAt(mouseX, mouseY);
         if (row >= 0) {
-            MenuItem item = book.menu.get(row);
+            MenuItem item = book.bookState.menu.get(row);
             if (item.submenu()) {
                 // The flyout is hover-driven and already open under this pointer; a press on its parent
                 // chooses nothing, and closing here would make the row impossible to use at all.
@@ -516,15 +517,15 @@ final class BookMenu {
      * full ink at once, like every other arrival.
      */
     private float menuFade() {
-        if (book.menu.isEmpty() || book.menuOpenedAt < 0) {
+        if (book.bookState.menu.isEmpty() || book.bookState.menuOpenedAt < 0) {
             return 1F;
         }
-        return PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.menuOpenedAt,
+        return PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.bookState.menuOpenedAt,
                 BookItemPicker.MENU_RISE_MILLIS);
     }
 
     void drawMenu(GuiRenderer r, int mouseX, int mouseY) {
-        if (book.menu.isEmpty()) {
+        if (book.bookState.menu.isEmpty()) {
             return;
         }
         float fade = menuFade();
@@ -535,10 +536,10 @@ final class BookMenu {
                 bottom - first.y() + 6, Colour.alphaOf(ArmatureTheme.raised(), fade),
                 Colour.alphaOf(ArmatureTheme.panelEdge(), fade));
         for (int i = 0; i < rects.size(); i++) {
-            drawMenuItem(r, rects.get(i), book.menu.get(i), mouseX, mouseY, fade);
+            drawMenuItem(r, rects.get(i), book.bookState.menu.get(i), mouseX, mouseY, fade);
         }
 
-        int parent = book.submenuRow;
+        int parent = book.bookState.submenuRow;
         if (parent < 0) {
             return;
         }
@@ -599,9 +600,9 @@ final class BookMenu {
             // on a set the reader never made would be the menu pinning something they were not pointing
             // at -- the same reason the edit path re-selects first.
             book.openMenu(readerNodeMenuItems(node.id()));
-            book.menuX = (int) mouseX;
-            book.menuY = (int) mouseY;
-            book.submenuRow = -1;
+            book.bookState.menuX = (int) mouseX;
+            book.bookState.menuY = (int) mouseY;
+            book.bookState.submenuRow = -1;
             menuDeleteArmed = false;
             menuResetArmed = false;
             return true;
@@ -614,8 +615,8 @@ final class BookMenu {
             // A right-click on a node outside the selection makes it the subject: acting on a set the
             // pointer is not on would be the menu editing something the author was not pointing at.
             if (!BookCanvas.isSelected(node.id())) {
-                QuestBookScreen.selectedQuest = node.id();
-                QuestBookScreen.multiSelection.clear();
+                BookScreenState.selectedQuest = node.id();
+                BookScreenState.multiSelection.clear();
             }
             canvasMenuQuest = node.id();
             book.openMenu(nodeMenuItems(node.id()));
@@ -633,9 +634,9 @@ final class BookMenu {
                 // hover use, and the reason a decoration can be duplicated or removed from where it sits.
                 String element = book.bookCanvas.elementAt(mouseX, mouseY);
                 if (element != null) {
-                    QuestBookScreen.selectedElement = element;
-                    QuestBookScreen.selectedQuest = null;
-                    QuestBookScreen.multiSelection.clear();
+                    BookScreenState.selectedElement = element;
+                    BookScreenState.selectedQuest = null;
+                    BookScreenState.multiSelection.clear();
                     canvasMenuElement = element;
                     book.openMenu(elementMenuItems(element));
                 }
@@ -644,9 +645,9 @@ final class BookMenu {
                 }
             }
         }
-        book.menuX = (int) mouseX;
-        book.menuY = (int) mouseY;
-        book.submenuRow = -1;
+        book.bookState.menuX = (int) mouseX;
+        book.bookState.menuY = (int) mouseY;
+        book.bookState.submenuRow = -1;
         menuDeleteArmed = false;
         menuResetArmed = false;
         return true;
@@ -677,8 +678,8 @@ final class BookMenu {
         }
         if (targets.size() == 1) {
             items.add(MenuItem.of("Add dependency\u2026", () -> {
-                QuestBookScreen.selectedQuest = id;
-                QuestBookScreen.multiSelection.clear();
+                BookScreenState.selectedQuest = id;
+                BookScreenState.multiSelection.clear();
                 book.armDependencyPick();
             }));
         }
@@ -688,8 +689,8 @@ final class BookMenu {
                 armed
                         ? () -> {
                             book.bookInput.deleteSelection(targets);
-                            QuestBookScreen.selectedQuest = null;
-                            QuestBookScreen.multiSelection.clear();
+                            BookScreenState.selectedQuest = null;
+                            BookScreenState.multiSelection.clear();
                         }
                         : () -> {
                             menuDeleteArmed = true;
@@ -822,7 +823,7 @@ final class BookMenu {
         if (made == null) {
             return;
         }
-        QuestBookScreen.elementDraft.insert(QuestBookScreen.effectiveChapter(), made, index, Util.getMillis());
+        BookScreenState.elementDraft.insert(QuestBookScreen.effectiveChapter(), made, index, Util.getMillis());
         book.send(new EditorOp.InsertElement(index, tree));
     }
 
@@ -867,7 +868,7 @@ final class BookMenu {
         if (made == null) {
             return;
         }
-        QuestBookScreen.elementDraft.insert(QuestBookScreen.effectiveChapter(), made, index, Util.getMillis());
+        BookScreenState.elementDraft.insert(QuestBookScreen.effectiveChapter(), made, index, Util.getMillis());
         book.send(new EditorOp.InsertElement(index, tree));
     }
 

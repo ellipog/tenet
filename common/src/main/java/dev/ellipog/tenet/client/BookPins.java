@@ -54,7 +54,7 @@ final class BookPins {
      * field a later build adds, with no second list of field names to keep in step.
      */
     static CanvasElement overlaidElement(String chapter, CanvasElement element) {
-        JsonObject tree = QuestBookScreen.fieldDraft.overlaid(chapter,
+        JsonObject tree = BookScreenState.fieldDraft.overlaid(chapter,
                 QuestBookScreen.ELEMENT_OWNER_PREFIX + element.id(),
                 CanvasElement.asJson(element));
         // A draft cannot make this unreadable -- the paths it writes are the fields this build reads -- but
@@ -71,7 +71,7 @@ final class BookPins {
      * of field names to keep in step.
      */
     static QuestLink overlaidLink(String chapter, QuestLink link) {
-        JsonObject tree = QuestBookScreen.fieldDraft.overlaid(chapter, QuestBookScreen.LINK_OWNER_PREFIX + link.id(),
+        JsonObject tree = BookScreenState.fieldDraft.overlaid(chapter, QuestBookScreen.LINK_OWNER_PREFIX + link.id(),
                 QuestLink.asJson(link));
         // A draft cannot make this unreadable -- the paths it writes are the fields this build reads -- but
         // the fallback is the link itself rather than a hole in the canvas.
@@ -99,9 +99,9 @@ final class BookPins {
             return null;
         }
         if (book.bookCanvas.elementHandle == null) {
-            int x = (int) Math.round(BookGeometry.snap(book.viewport().contentX(mouseX) - book.dragGrabX,
+            int x = (int) Math.round(BookGeometry.snap(book.viewport().contentX(mouseX) - book.bookState.dragGrabX,
                     BookGeometry.SNAP_GRID, BookInput.snappingNow()));
-            int y = (int) Math.round(BookGeometry.snap(book.viewport().contentY(mouseY) - book.dragGrabY,
+            int y = (int) Math.round(BookGeometry.snap(book.viewport().contentY(mouseY) - book.bookState.dragGrabY,
                     BookGeometry.SNAP_GRID, BookInput.snappingNow()));
             return book.bookCanvas.elementDragBase.translated(x - CanvasElementArt.originX(book.bookCanvas.elementDragBase),
                     y - CanvasElementArt.originY(book.bookCanvas.elementDragBase));
@@ -204,7 +204,7 @@ final class BookPins {
 
     /** One pending link-target value, aimed at the chapter that holds the link. */
     private void draftLinkFieldFor(String chapter, String link, String field, JsonElement value) {
-        QuestBookScreen.fieldDraft.set(chapter, QuestBookScreen.LINK_OWNER_PREFIX + link, field, value,
+        BookScreenState.fieldDraft.set(chapter, QuestBookScreen.LINK_OWNER_PREFIX + link, field, value,
                 ClientQuestCache.treeRevision(), Util.getMillis());
     }
 
@@ -261,23 +261,23 @@ final class BookPins {
      * cannot be both. The heading is the panel's; the rows carry no widget at all.
      */
     void drawPinnedPanel(GuiRenderer r, int mouseX, int mouseY) {
-        if (book.pinnedLayout == null) {
+        if (book.bookState.pinnedLayout == null) {
             return;
         }
-        book.pinnedTargets.clear();
+        book.bookState.pinnedTargets.clear();
         book.bookRewards.drawModalCardChrome(r, Labels.of("tenet.screen.pinned.title"), mouseX, mouseY,
-                QuestBookScreen.EditAction.PINNED_CLOSE, book.pinnedTargets);
+                QuestBookScreen.EditAction.PINNED_CLOSE, book.bookState.pinnedTargets);
         Measure measure = book.textMeasure(r);
         int starWidth = r.textWidth(PINNED_STAR);
         try (GuiRenderer.Scoped clip = r.clip(book.overlayBodyRect().x(), book.overlayBodyRect().y(),
                 book.overlayBodyRect().right(), book.overlayBodyRect().bottom())) {
-            for (ToolsLayout.Action row : book.pinnedRows) {
-                dev.ellipog.armature.client.ui.kit.Slot slot = book.pinnedLayout.slot(row.key());
+            for (ToolsLayout.Action row : book.bookState.pinnedRows) {
+                dev.ellipog.armature.client.ui.kit.Slot slot = book.bookState.pinnedLayout.slot(row.key());
                 if (slot == null) {
                     continue;
                 }
                 dev.ellipog.armature.client.ui.kit.Slot onScreen =
-                        ToolsLayout.onScreen(book.pinnedView.viewport(), slot);
+                        ToolsLayout.onScreen(book.bookState.pinnedView.viewport(), slot);
                 BookGeometry.Rect box = BookGeometry.Rect.at(onScreen.x(), onScreen.y(),
                         onScreen.width(), onScreen.height());
                 switch (row.kind()) {
@@ -299,7 +299,7 @@ final class BookPins {
                         // not the stack resolved, so a row never shifts under the pointer reading it.
                         int textX = box.x() + 2 + QuestBookScreen.ROW_ICON + 5;
                         ItemStack pinIcon = id == null ? ItemStack.EMPTY
-                                : book.pinnedIcons.getOrDefault(id, ItemStack.EMPTY);
+                                : book.bookState.pinnedIcons.getOrDefault(id, ItemStack.EMPTY);
                         if (!pinIcon.isEmpty()) {
                             r.icon(pinIcon, box.x() + 2,
                                     box.y() + (box.height() - QuestBookScreen.ROW_ICON) / 2, QuestBookScreen.ROW_ICON);
@@ -331,7 +331,7 @@ final class BookPins {
                         if (hot) {
                             r.fill(unpinBox.x(), unpinBox.y(), unpinBox.right(), unpinBox.bottom(),
                                     ArmatureTheme.rowHover());
-                            book.rowTooltips.add(new QuestBookScreen.RowTooltip(
+                            book.bookState.rowTooltips.add(new QuestBookScreen.RowTooltip(
                                     new dev.ellipog.armature.client.ui.kit.Slot(row.key(),
                                             unpinBox.x(), unpinBox.y(), unpinBox.width(),
                                             unpinBox.height()),
@@ -348,7 +348,7 @@ final class BookPins {
                 }
             }
         }
-        QuestBookScreen.drawBar(r, book.pinnedView.bar(), mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.pinnedView.bar(), mouseX, mouseY);
     }
 
     /**
@@ -372,10 +372,10 @@ final class BookPins {
 
     /** One pin row under the pointer, or null. From the layout the drawing walked. */
     private PinnedHit pinnedRowAt(double mouseX, double mouseY) {
-        if (book.pinnedLayout == null) {
+        if (book.bookState.pinnedLayout == null) {
             return null;
         }
-        for (ToolsLayout.Action row : book.pinnedRows) {
+        for (ToolsLayout.Action row : book.bookState.pinnedRows) {
             if (row.kind() != ToolsLayout.Action.Kind.VALUE) {
                 continue;
             }
@@ -383,12 +383,12 @@ final class BookPins {
             if (id == null) {
                 continue;
             }
-            dev.ellipog.armature.client.ui.kit.Slot slot = book.pinnedLayout.slot(row.key());
+            dev.ellipog.armature.client.ui.kit.Slot slot = book.bookState.pinnedLayout.slot(row.key());
             if (slot == null) {
                 continue;
             }
             dev.ellipog.armature.client.ui.kit.Slot onScreen =
-                    ToolsLayout.onScreen(book.pinnedView.viewport(), slot);
+                    ToolsLayout.onScreen(book.bookState.pinnedView.viewport(), slot);
             // The same mapping the drawing uses, so the row a press lands on is the row drawn there
             // and not the one at the same offset in a list that has scrolled.
             BookGeometry.Rect box = BookGeometry.Rect.at(onScreen.x(), onScreen.y(),
@@ -404,7 +404,7 @@ final class BookPins {
 
     /** Whether one of the pinned panel's own drawn targets is under it. */
     boolean onPinnedTarget(double mouseX, double mouseY) {
-        for (QuestBookScreen.EditTarget target : book.pinnedTargets) {
+        for (QuestBookScreen.EditTarget target : book.bookState.pinnedTargets) {
             if (target.box().contains(mouseX, mouseY)) {
                 return true;
             }
@@ -414,7 +414,7 @@ final class BookPins {
 
     /** What a press on one of them does: out, off the list, or over to the quest. */
     void pressPinnedPanel(double mouseX, double mouseY) {
-        for (QuestBookScreen.EditTarget target : book.pinnedTargets) {
+        for (QuestBookScreen.EditTarget target : book.bookState.pinnedTargets) {
             if (target.box().contains(mouseX, mouseY)) {
                 switch (target.action()) {
                     case PINNED_CLOSE -> book.closeOverlay();
@@ -469,8 +469,8 @@ final class BookPins {
         // And it belongs to the chip it was opened from: a row scrolled out of this list would leave the
         // picker anchored to a chip that is no longer drawn. The dock runs the same check over its own
         // list; an anchor that belongs there is none of this panel's business.
-        if (book.colourPopover.isOpen() && book.popoverChip != null
-                && book.popoverChip.view() == book.bookCanvas.elementView
+        if (book.bookState.colourPopover.isOpen() && book.bookState.popoverChip != null
+                && book.bookState.popoverChip.view() == book.bookCanvas.elementView
                 && !book.chipOnScreen(book.bookCanvas.elementView)) {
             book.closeColourPopover();
         }
@@ -493,7 +493,7 @@ final class BookPins {
         ToolsLayout.Hovered hovered = ToolsLayout.helpAt(book.bookCanvas.elementRows, book.bookCanvas.elementLayout,
                 book.bookCanvas.elementView.viewport(), mouseX, mouseY, this::elementHelp);
         if (hovered != null && book.bookCanvas.elementLayout.slot(hovered.key()) != null) {
-            book.rowTooltips.add(new QuestBookScreen.RowTooltip(
+            book.bookState.rowTooltips.add(new QuestBookScreen.RowTooltip(
                     ToolsLayout.onScreen(book.bookCanvas.elementView.viewport(),
                             book.bookCanvas.elementLayout.slot(hovered.key())),
                     List.of(Labels.of(hovered.help()))));
@@ -674,9 +674,9 @@ final class BookPins {
                 : dev.ellipog.tenet.client.dev.ElementPanelLayout.effectiveValueOf(
                         CanvasElement.asJson(now), field);
         int argb = dev.ellipog.tenet.quest.Argb.parseHex(held).orElse(dev.ellipog.tenet.quest.Argb.NONE);
-        book.popoverChapter = QuestBookScreen.effectiveChapter();
-        book.popoverChip = new QuestBookScreen.PopoverChip(row, view, mode);
-        book.colourPopover.open(anchor, book.geometry().canvas(), field, argb,
+        book.bookState.popoverChapter = QuestBookScreen.effectiveChapter();
+        book.bookState.popoverChip = new QuestBookScreen.PopoverChip(row, view, mode);
+        book.bookState.colourPopover.open(anchor, book.geometry().canvas(), field, argb,
                 List.of(dev.ellipog.tenet.quest.Argb.WHITE, dev.ellipog.tenet.quest.Argb.NONE,
                         book.questEditor.editedTheme().colour("panel"),
                                 book.questEditor.editedTheme().colour("accent")),
@@ -775,7 +775,7 @@ final class BookPins {
         if (chapter == null) {
             return List.of();
         }
-        List<CanvasElement> shaped = QuestBookScreen.elementDraft.apply(chapter, ClientQuestCache.elements(chapter),
+        List<CanvasElement> shaped = BookScreenState.elementDraft.apply(chapter, ClientQuestCache.elements(chapter),
                 Util.getMillis());
         List<CanvasElement> out = new ArrayList<>(shaped.size());
         for (CanvasElement element : shaped) {
@@ -799,7 +799,7 @@ final class BookPins {
         if (chapter == null) {
             return List.of();
         }
-        List<QuestLink> shaped = QuestBookScreen.linkDraft.apply(chapter, ClientQuestCache.links(chapter),
+        List<QuestLink> shaped = BookScreenState.linkDraft.apply(chapter, ClientQuestCache.links(chapter),
                 Util.getMillis());
         List<QuestLink> out = new ArrayList<>(shaped.size());
         for (QuestLink link : shaped) {
@@ -838,11 +838,12 @@ final class BookPins {
      * element that no longer exists would be applied to whatever the next element with that id turns out to be.
      */
     void deleteElement(String id) {
-        QuestBookScreen.elementDraft.remove(QuestBookScreen.effectiveChapter(), id, Util.getMillis());
-        QuestBookScreen.fieldDraft.forgetOwner(QuestBookScreen.effectiveChapter(), QuestBookScreen.ELEMENT_OWNER_PREFIX + id);
+        BookScreenState.elementDraft.remove(QuestBookScreen.effectiveChapter(), id, Util.getMillis());
+        BookScreenState.fieldDraft.forgetOwner(QuestBookScreen.effectiveChapter(),
+                QuestBookScreen.ELEMENT_OWNER_PREFIX + id);
         book.send(new EditorOp.RemoveElement(id));
-        if (id.equals(QuestBookScreen.selectedElement)) {
-            QuestBookScreen.selectedElement = null;
+        if (id.equals(BookScreenState.selectedElement)) {
+            BookScreenState.selectedElement = null;
         }
     }
 
@@ -855,7 +856,8 @@ final class BookPins {
      * the same argument on a decoration.
      */
     void draftLinkField(String link, String field, JsonElement value) {
-        QuestBookScreen.fieldDraft.set(QuestBookScreen.effectiveChapter(), QuestBookScreen.LINK_OWNER_PREFIX + link, field, value,
+        BookScreenState.fieldDraft.set(QuestBookScreen.effectiveChapter(),
+                QuestBookScreen.LINK_OWNER_PREFIX + link, field, value,
                 ClientQuestCache.treeRevision(), Util.getMillis());
     }
 
@@ -871,7 +873,7 @@ final class BookPins {
             return;
         }
         book.bookCanvas.elementPanelId = id;
-        QuestBookScreen.selectedElement = id;
+        BookScreenState.selectedElement = id;
         book.applyColumns(PanelStack.afterOpen(book.columns(), PanelKind.ELEMENT));
         book.rebuildWidgets();
     }

@@ -219,7 +219,7 @@ final class BookEditorControls {
         QuestBookScreen.drawEditAffordance(r, box, box.contains(mouseX, mouseY));
         r.text(label, box.x() + 6, box.y() + (box.height() - 8) / 2,
                 ArmatureTheme.faint());
-        book.questEditor.registerInto(book.editTargets, action, null, box, box.x() + 6,
+        book.questEditor.registerInto(book.bookState.editTargets, action, null, box, box.x() + 6,
                 box.y() + (box.height() - 8) / 2, "", null, -1);
     }
 
@@ -242,19 +242,22 @@ final class BookEditorControls {
         }
         r.text(Measure.truncate(name, nameBox.width() - 8, book.textMeasure(r)), nameBox.x() + 2,
                 y + (height - 8) / 2, ArmatureTheme.body());
-        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.NAVIGATE_DEP, name, nameBox, nameBox.x() + 2,
+        book.questEditor.registerInto(book.bookState.editTargets, QuestBookScreen.EditAction.NAVIGATE_DEP,
+                name, nameBox, nameBox.x() + 2,
                 y + (height - 8) / 2, "", null, -1);
 
         BookSettings.drawLocateIcon(r, locate.x() + locate.width() / 2, y + height / 2,
                 locate.contains(mouseX, mouseY) ? ArmatureTheme.body() : ArmatureTheme.faint());
-        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.LOCATE_DEP, name, locate, locate.x(), locate.y(),
+        book.questEditor.registerInto(book.bookState.editTargets, QuestBookScreen.EditAction.LOCATE_DEP, name,
+                locate, locate.x(), locate.y(),
                 "", null, -1);
 
         BookGeometry.Rect remove = BookGeometry.Rect.at(slot.right() - 30, y, 26, height);
         QuestBookScreen.drawEditAffordance(r, remove, remove.contains(mouseX, mouseY));
         r.text("\u00d7", remove.x() + (remove.width() - r.textWidth("\u00d7")) / 2,
                 y + (height - 8) / 2, ArmatureTheme.body());
-        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.REMOVE_DEP, name, remove, remove.x(),
+        book.questEditor.registerInto(book.bookState.editTargets, QuestBookScreen.EditAction.REMOVE_DEP, name,
+                remove, remove.x(),
                 y + (height - 8) / 2, "", null, -1);
     }
 
@@ -271,18 +274,20 @@ final class BookEditorControls {
         QuestBookScreen.drawEditAffordance(r, type, type.contains(mouseX, mouseY));
         // The prompt is a placeholder for an empty field, and the field's text would print over it --
         // so while that field is open the prompt stands down like any other value being edited.
-        if (!InlineEdit.replaces(InlineEdit.DEPENDENCY_ADD, book.editingPath)) {
+        if (!InlineEdit.replaces(InlineEdit.DEPENDENCY_ADD, book.bookState.editingPath)) {
             r.text("+ Add by id", type.x() + 6, type.y() + (type.height() - 8) / 2,
                     ArmatureTheme.faint());
         }
-        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.ADD_DEP, null, type, type.x() + 6,
+        book.questEditor.registerInto(book.bookState.editTargets, QuestBookScreen.EditAction.ADD_DEP, null,
+                type, type.x() + 6,
                 type.y() + (type.height() - 8) / 2, "", null, -1);
 
         BookGeometry.Rect pick = BookGeometry.Rect.at(type.right() + 4, y, 60, height);
         QuestBookScreen.drawEditAffordance(r, pick, pick.contains(mouseX, mouseY));
         r.text("Pick", pick.x() + 6, pick.y() + (pick.height() - 8) / 2,
                 ArmatureTheme.faint());
-        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.PICK_DEP, null, pick, pick.x() + 6,
+        book.questEditor.registerInto(book.bookState.editTargets, QuestBookScreen.EditAction.PICK_DEP, null,
+                pick, pick.x() + 6,
                 pick.y() + (pick.height() - 8) / 2, "", null, -1);
     }
 
@@ -299,28 +304,30 @@ final class BookEditorControls {
      * outside it entirely. One bounds, one apply, every frame, the same rule the body uses.
      */
     void drawSettings(GuiRenderer r, ClientQuestCache.Entry entry, int mouseX, int mouseY) {
-        if (book.settingsLayout == null || entry == null) {
+        if (book.bookState.settingsLayout == null || entry == null) {
             return;
         }
         JsonObject quest = book.replicaQuest();
         dev.ellipog.tenet.client.dev.QuestSettingsLayout.Frame frame =
                 dev.ellipog.tenet.client.dev.QuestSettingsLayout.Frame.of(book.overlayBodyRect());
-        book.settingsView.viewport().bounds(frame.controls().x(), frame.controls().y(),
+        book.bookState.settingsView.viewport().bounds(frame.controls().x(), frame.controls().y(),
                 frame.controls().width(), frame.controls().height());
-        book.settingsView.apply(book.settingsLayout, frame.controls().width());
-        dev.ellipog.tenet.client.dev.QuestSettingsPanel.draw(r, frame, book.settingsLayout, book.settingsRows,
-                quest, book.questEditor.settingsViewOf(entry, quest, mouseX, mouseY), book.settingsView.viewport(),
+        book.bookState.settingsView.apply(book.bookState.settingsLayout, frame.controls().width());
+        dev.ellipog.tenet.client.dev.QuestSettingsPanel.draw(r, frame, book.bookState.settingsLayout,
+                book.bookState.settingsRows,
+                quest, book.questEditor.settingsViewOf(entry, quest, mouseX, mouseY),
+                        book.bookState.settingsView.viewport(),
                 mouseX, mouseY);
-        QuestBookScreen.drawBar(r, book.settingsView.bar(), mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.settingsView.bar(), mouseX, mouseY);
     }
 
     /** The description the card lays out: the tree's lines, or the open editor's own text. */
     List<String> shownDescription(ClientQuestCache.Entry entry, JsonObject quest) {
-        if (book.inlineArea != null && "description".equals(book.editingPath)) {
+        if (book.bookState.inlineArea != null && "description".equals(book.bookState.editingPath)) {
             // The editor's own text, exactly as typed -- including the blank line the caret is on at the
             // end. It is the commit that trims (see `commitInlineText`), so a press of Enter at the end
             // shows while it is being typed and is gone once the edit finishes.
-            return Prose.split(book.inlineArea.value());
+            return Prose.split(book.bookState.inlineArea.value());
         }
         // The ends of the prose are not content; see `Prose`. The entry's own description is trimmed
         // where it is parsed (`ClientQuestCache`), so both readings of this file agree about the ends.
@@ -462,7 +469,7 @@ final class BookEditorControls {
      * from the model, which is the same one the validator refuses the entry with.
      */
     private String tableTypeRefusal(String typeId) {
-        if (book.overlay != PanelKind.TABLE_EDITOR) {
+        if (book.bookState.overlay != PanelKind.TABLE_EDITOR) {
             return "";
         }
         net.minecraft.resources.Identifier id =
@@ -472,7 +479,7 @@ final class BookEditorControls {
 
     /** The rows the open type picker shows: the condition types when that is what is open, else the member's. */
     private List<InspectRow> pickerRows() {
-        if (book.pickingConditionFor != null) {
+        if (book.bookState.pickingConditionFor != null) {
             return QuestPanelLayout.conditionTypeRows();
         }
         // The table editor's strip says "Add a reward" while this page is open, so the page has no first
@@ -480,9 +487,9 @@ final class BookEditorControls {
         // chrome has not asked for and the eye reads first. Its list begins at its first group heading. A
         // quest's own card keeps the line, because its chrome is the quest's identity and a page cannot
         // rename the quest it is a guest of.
-        return book.overlay == PanelKind.TABLE_EDITOR
-                ? QuestPanelLayout.typeRowsNamedInChrome(book.pickingEntryType)
-                : QuestPanelLayout.typeRows(book.pickingEntryType);
+        return book.bookState.overlay == PanelKind.TABLE_EDITOR
+                ? QuestPanelLayout.typeRowsNamedInChrome(book.bookState.pickingEntryType)
+                : QuestPanelLayout.typeRows(book.bookState.pickingEntryType);
     }
 
     /**
@@ -528,11 +535,11 @@ final class BookEditorControls {
      * untakeable rows.
      */
     private List<dev.ellipog.tenet.client.dev.TypePicker.Entry> templateCatalogue() {
-        var kind = book.pickingConditionFor != null
+        var kind = book.bookState.pickingConditionFor != null
                 ? dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION
-                : "rewards".equals(book.pickingEntryType)
+                : "rewards".equals(book.bookState.pickingEntryType)
                         ? dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.REWARD
-                        : "tasks".equals(book.pickingEntryType)
+                        : "tasks".equals(book.bookState.pickingEntryType)
                                 ? dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.TASK
                                 : null;
         if (kind == null) {
@@ -569,9 +576,9 @@ final class BookEditorControls {
      * of its own which says what the pick is for — so this is the line under it rather than a repeat of it.
      */
     private String typePageHeading() {
-        return book.pickingConditionFor != null
+        return book.bookState.pickingConditionFor != null
                 ? Labels.of("tenet.dev.panel.add_condition")
-                : Labels.of("tasks".equals(book.pickingEntryType)
+                : Labels.of("tasks".equals(book.bookState.pickingEntryType)
                         ? "tenet.dev.panel.add_a_task" : "tenet.dev.panel.add_a_reward");
     }
 
@@ -596,47 +603,49 @@ final class BookEditorControls {
      */
     void drawTypePicker(GuiRenderer r, BookGeometry.Rect band, int mouseX, int mouseY) {
         typeHint = null;
-        book.typeFrame = ItemPickerLayout.Frame.of(band);
-        String query = book.typeSearch == null ? "" : book.typeSearch.value();
-        if (!query.equals(book.typeQuery)) {
+        book.bookState.typeFrame = ItemPickerLayout.Frame.of(band);
+        String query = book.bookState.typeSearch == null ? "" : book.bookState.typeSearch.value();
+        if (!query.equals(book.bookState.typeQuery)) {
             // A keystroke is a new list: the selection goes back to nothing and the scroll to the top,
             // because an index into the old list does not name anything in this one.
-            book.typeQuery = query;
-            book.typeSelected = -1;
-            book.typeBody.setScrollY(0);
+            book.bookState.typeQuery = query;
+            book.bookState.typeSelected = -1;
+            book.bookState.typeBody.setScrollY(0);
         }
-        book.typeRows = dev.ellipog.tenet.client.dev.TypePicker.compose(typeCatalogue(), query,
+        book.bookState.typeRows = dev.ellipog.tenet.client.dev.TypePicker.compose(typeCatalogue(), query,
                 typePageHeading());
-        QuestBookScreen.bindList(book.typeBody, book.typeBar, book.typeFrame.list(), book.typeFrame.scrollbar(),
-                ItemPickerLayout.contentHeight(book.typeRows), ItemPickerLayout.ROW_HEIGHT);
-        int typeScroll = book.typeBody.scrollY();
-        if (book.typeSelected >= 0) {
-            book.typeSelected = ItemPickerLayout.clamp(book.typeRows, book.typeSelected);
+        QuestBookScreen.bindList(book.bookState.typeBody, book.bookState.typeBar,
+                book.bookState.typeFrame.list(), book.bookState.typeFrame.scrollbar(),
+                ItemPickerLayout.contentHeight(book.bookState.typeRows), ItemPickerLayout.ROW_HEIGHT);
+        int typeScroll = book.bookState.typeBody.scrollY();
+        if (book.bookState.typeSelected >= 0) {
+            book.bookState.typeSelected = ItemPickerLayout.clamp(book.bookState.typeRows, book.bookState.typeSelected);
         }
 
         // Clipped to the list, not to the page: a row scrolled up under the search box would otherwise
         // paint into it, and an item icon draws at its own depth, so it would show *through* the box.
-        try (GuiRenderer.Scoped clip = r.clip(book.typeFrame.list().x(), book.typeFrame.list().y(),
-                book.typeFrame.list().right(), book.typeFrame.list().bottom())) {
-            if (book.typeRows.isEmpty()) {
+        try (GuiRenderer.Scoped clip = r.clip(book.bookState.typeFrame.list().x(), book.bookState.typeFrame.list().y(),
+                book.bookState.typeFrame.list().right(), book.bookState.typeFrame.list().bottom())) {
+            if (book.bookState.typeRows.isEmpty()) {
                 r.text("Type to search what this build can add, or scroll the list.",
-                        book.typeFrame.list().x() + 4, book.typeFrame.list().y() + 4, ArmatureTheme.faint());
+                        book.bookState.typeFrame.list().x() + 4, book.bookState.typeFrame.list().y() + 4,
+                                ArmatureTheme.faint());
             }
             else {
-                book.itemPicker.drawPickerRows(r, book.typeFrame, book.typeRows, typeScroll,
-                        book.typeSelected, mouseX, mouseY,
+                book.itemPicker.drawPickerRows(r, book.bookState.typeFrame, book.bookState.typeRows, typeScroll,
+                        book.bookState.typeSelected, mouseX, mouseY,
                         this::pickerIcon, row -> false);
             }
         }
         // The bar, outside the clip so it is the full height of the list, and in a strip of its own so it
         // is beside the rows rather than over the ids at their right.
-        QuestBookScreen.drawBar(r, book.typeBar, mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.typeBar, mouseX, mouseY);
         // The row under the pointer says what it is, and says why when it cannot be taken. The buttons
         // these rows replaced carried this as a tooltip, and a drawn row has no tooltip: the hint band is
         // where this panel already answers "what is this?", and it is the same band for both hosts.
-        int over = ItemPickerLayout.rowAt(book.typeRows, book.typeFrame, typeScroll, mouseY);
-        if (over >= 0 && over < book.typeRows.size()) {
-            ItemPickerLayout.Row row = book.typeRows.get(over);
+        int over = ItemPickerLayout.rowAt(book.bookState.typeRows, book.bookState.typeFrame, typeScroll, mouseY);
+        if (over >= 0 && over < book.bookState.typeRows.size()) {
+            ItemPickerLayout.Row row = book.bookState.typeRows.get(over);
             if (!row.id().isEmpty()) {
                 String described = pickerTooltip(row.id()).stream()
                         .map(Component::getString)
@@ -661,27 +670,29 @@ final class BookEditorControls {
      *     the page's, which is what lets the caller treat it as a press outside the card
      */
     boolean pressTypePicker(double mouseX, double mouseY) {
-        if (book.typeFrame == null) {
+        if (book.bookState.typeFrame == null) {
             return false;
         }
-        int index = ItemPickerLayout.rowAt(book.typeRows, book.typeFrame, book.typeBody.scrollY(), mouseY);
+        int index = ItemPickerLayout.rowAt(book.bookState.typeRows, book.bookState.typeFrame,
+                book.bookState.typeBody.scrollY(), mouseY);
         if (index < 0) {
             return false;
         }
-        ItemPickerLayout.Row row = book.typeRows.get(index);
+        ItemPickerLayout.Row row = book.bookState.typeRows.get(index);
         if (!ItemPickerLayout.pickable(row)) {
             typeHint = row.note().isEmpty() ? typeHint : row.note();
             return true;
         }
-        book.typeSelected = index;
+        book.bookState.typeSelected = index;
         book.questEditor.pressTypeRow(row.id());
         return true;
     }
 
     /** The selected row's type, for Enter: the id of the row the keyboard is on, or null. */
     String selectedType() {
-        ItemPickerLayout.Row row = book.typeSelected >= 0 && book.typeSelected < book.typeRows.size()
-                ? book.typeRows.get(book.typeSelected) : null;
+        ItemPickerLayout.Row row = book.bookState.typeSelected >= 0
+                && book.bookState.typeSelected < book.bookState.typeRows.size()
+                ? book.bookState.typeRows.get(book.bookState.typeSelected) : null;
         return row == null || !ItemPickerLayout.pickable(row) ? null : row.id();
     }
 
@@ -697,9 +708,9 @@ final class BookEditorControls {
         if (id == null) {
             return ItemStack.EMPTY;
         }
-        return book.pickingConditionFor != null
+        return book.bookState.pickingConditionFor != null
                 ? dev.ellipog.tenet.quest.condition.ConditionTypes.iconOf(id).toStack()
-                : typeIcon(book.pickingEntryType, typeId);
+                : typeIcon(book.bookState.pickingEntryType, typeId);
     }
 
     /** A picker row's hover: the author's description, from whichever registry the picker is over. */    private List<Component> pickerTooltip(String typeId) {
@@ -715,9 +726,9 @@ final class BookEditorControls {
             out.add(Component.literal(template.typeId()));
             return List.copyOf(out);
         }
-        List<String> lines = book.pickingConditionFor != null
+        List<String> lines = book.bookState.pickingConditionFor != null
                 ? QuestPanelLayout.conditionTypeTooltip(typeId)
-                : QuestPanelLayout.typeTooltip(book.pickingEntryType, typeId);
+                : QuestPanelLayout.typeTooltip(book.bookState.pickingEntryType, typeId);
         List<Component> out = new ArrayList<>();
         for (String line : lines) {
             out.add(Component.literal(line));
@@ -742,8 +753,8 @@ final class BookEditorControls {
         // local and cleared here rather than inside the two cases, because "any other press disarms" is the
         // rule the card's own Delete follows: a cross that asked and then survived a press somewhere else
         // would remove a row on one press, and the row it named is a position in a list that may have moved.
-        String armedEntry = book.entryConfirmRemove;
-        book.entryConfirmRemove = null;
+        String armedEntry = book.bookState.entryConfirmRemove;
+        book.bookState.entryConfirmRemove = null;
         switch (target.action()) {
             case FLAG -> {
                 if (quest != null && book.editTarget() != null) {
@@ -771,7 +782,7 @@ final class BookEditorControls {
                 // cross in the book. See `entryConfirmRemove` for why the arm is a path and why it dies with
                 // the next press.
                 if (!target.path().equals(armedEntry)) {
-                    book.entryConfirmRemove = target.path();
+                    book.bookState.entryConfirmRemove = target.path();
                     book.status("Press again to remove this condition", true);
                     return;
                 }
@@ -793,7 +804,7 @@ final class BookEditorControls {
                 // The same cross, on the same edge, as the canvas menu's "Delete dependency" -- which asks
                 // twice. One of the two had to be wrong; this is the one that was.
                 if (!target.path().equals(armedEntry)) {
-                    book.entryConfirmRemove = target.path();
+                    book.bookState.entryConfirmRemove = target.path();
                     book.status("Press again to remove the requirement \"" + target.path() + "\"", true);
                     return;
                 }
@@ -815,7 +826,7 @@ final class BookEditorControls {
                 // row's own removal asks before it takes the entry away.
                 String entry = "h:" + target.member() + "." + target.index();
                 if (!entry.equals(armedEntry)) {
-                    book.entryConfirmRemove = entry;
+                    book.bookState.entryConfirmRemove = entry;
                     book.status("Press again to remove this entry", true);
                     return;
                 }
@@ -825,13 +836,13 @@ final class BookEditorControls {
                 // The press claims the row; whether it becomes a drag is the threshold's, further on.
                 // The press's own coordinates are recorded because the threshold compares against them,
                 // and this press never reached the canvas branch that usually sets them.
-                book.dragRowMember = target.member();
-                book.dragRowQuest = book.editTarget();
-                book.dragRowFrom = target.index();
-                book.dragRowLive = false;
-                book.dragRowPointerY = mouseY;
-                book.pressX = mouseX;
-                book.pressY = mouseY;
+                book.bookState.dragRowMember = target.member();
+                book.bookState.dragRowQuest = book.editTarget();
+                book.bookState.dragRowFrom = target.index();
+                book.bookState.dragRowLive = false;
+                book.bookState.dragRowPointerY = mouseY;
+                book.bookState.pressX = mouseX;
+                book.bookState.pressY = mouseY;
             }
         }
     }
@@ -844,20 +855,20 @@ final class BookEditorControls {
      */
     void openInlineEditor(QuestBookScreen.EditTarget target, double mouseX, double mouseY) {
         closeInlineEditor();
-        book.editingPath = target.path();
+        book.bookState.editingPath = target.path();
         boolean area = "description".equals(target.path()) || target.action() == QuestBookScreen.EditAction.RAW;
         BookGeometry.Rect box = inlineBox(target, area);
         if (area) {
             String initial = target.action() == QuestBookScreen.EditAction.RAW
                     ? rawText(target.path()) : target.value();
-            book.inlineArea = new ArmatureTextArea(box.x(), box.y(), box.width(), box.height(), initial);
-            book.inlineArea.onSubmit(text -> commitInlineText(target.path(), text));
+            book.bookState.inlineArea = new ArmatureTextArea(box.x(), box.y(), box.width(), box.height(), initial);
+            book.bookState.inlineArea.onSubmit(text -> commitInlineText(target.path(), text));
             // No box: the ink and the pitch of the prose this replaces, so clicking in changes nothing
             // but the caret. The pitch is the overlay's own -- the layout below was built with
             // `OverlayLayout.LINE_HEIGHT` a line and `PARAGRAPH_GAP` between paragraphs, and the
             // drawing here has to land on the same lines or the paragraph moves on every click.
-            book.inlineArea.colours(InlineEdit.ink(target.path()), InlineEdit.NO_BOX, InlineEdit.NO_BOX);
-            book.inlineArea.advance(OverlayLayout.LINE_HEIGHT, OverlayLayout.PARAGRAPH_GAP);
+            book.bookState.inlineArea.colours(InlineEdit.ink(target.path()), InlineEdit.NO_BOX, InlineEdit.NO_BOX);
+            book.bookState.inlineArea.advance(OverlayLayout.LINE_HEIGHT, OverlayLayout.PARAGRAPH_GAP);
             // A widget, not a renderable widget: it is drawn by `drawOpenEditor`, clipped to the body, and
             // drawn *once*. The renderable list is painted before the card and before the blur, clipped to
             // the book band rather than to the card -- so with the field's box following the prose past the
@@ -865,18 +876,18 @@ final class BookEditorControls {
             // i scroll too far it goes into the background, yes blurred, but still there"*. As a child it
             // still takes the keyboard and the pointer; as a renderable it was a second copy nothing could
             // clip, which is also where the frozen slab two rounds ago came from.
-            book.addWidget(book.inlineArea);
-            book.setFocused(book.inlineArea);
+            book.addWidget(book.bookState.inlineArea);
+            book.setFocused(book.bookState.inlineArea);
         }
         else {
-            book.inlineField = new ArmatureTextField(box.x(), box.y(), box.width(), box.height(),
+            book.bookState.inlineField = new ArmatureTextField(box.x(), box.y(), box.width(), box.height(),
                     target.value());
-            book.inlineField.onSubmit(text -> commitInlineText(target.path(), text));
+            book.bookState.inlineField.onSubmit(text -> commitInlineText(target.path(), text));
             // The same rule as the area, one line high: the reader's ink for this value, and no box.
-            book.inlineField.colours(InlineEdit.ink(target.path()), InlineEdit.NO_BOX, InlineEdit.NO_BOX);
+            book.bookState.inlineField.colours(InlineEdit.ink(target.path()), InlineEdit.NO_BOX, InlineEdit.NO_BOX);
             // A child, not a renderable widget: see the note on the area above.
-            book.addWidget(book.inlineField);
-            book.setFocused(book.inlineField);
+            book.addWidget(book.bookState.inlineField);
+            book.setFocused(book.bookState.inlineField);
         }
 
         // **The click that opened the field is the click that places the caret.** Without this the value
@@ -889,11 +900,11 @@ final class BookEditorControls {
         // behaviours, the widget's, from the press it was always meant to be. The target is inside the
         // widget's box in every case: the description's box *is* its frame, and a row's field is its
         // mark opened out by its padding.
-        if (book.inlineArea != null) {
-            book.inlineArea.mouseClicked(clickAsLeft(mouseX, mouseY), false);
+        if (book.bookState.inlineArea != null) {
+            book.bookState.inlineArea.mouseClicked(clickAsLeft(mouseX, mouseY), false);
         }
-        else if (book.inlineField != null) {
-            book.inlineField.mouseClicked(clickAsLeft(mouseX, mouseY), false);
+        else if (book.bookState.inlineField != null) {
+            book.bookState.inlineField.mouseClicked(clickAsLeft(mouseX, mouseY), false);
         }
     }
 
@@ -956,36 +967,39 @@ final class BookEditorControls {
      */
     void followCaret() {
         net.minecraft.client.gui.components.AbstractWidget editor =
-                book.inlineArea != null ? book.inlineArea : book.inlineField;
+                book.bookState.inlineArea != null ? book.bookState.inlineArea : book.bookState.inlineField;
         if (editor == null || !editor.visible) {
             followedPath = null;
             return;
         }
-        if (InlineEdit.inHeader(book.editingPath)) {
+        if (InlineEdit.inHeader(book.bookState.editingPath)) {
             // A header piece is not in the scroll: the title line does not move when the body scrolls, so
             // there is nothing to follow -- and following it would scroll the body *up* to chase a target
             // that sits above the body's top edge, which is a card that jumps when a title is clicked.
             followedPath = null;
             return;
         }
-        String value = book.inlineArea != null ? book.inlineArea.value() : book.inlineField.value();
-        int caret = book.inlineArea != null ? book.inlineArea.caret() : book.inlineField.caret();
-        if (book.editingPath != null && book.editingPath.equals(followedPath)
+        String value = book.bookState.inlineArea != null ? book.bookState.inlineArea.value()
+                : book.bookState.inlineField.value();
+        int caret = book.bookState.inlineArea != null ? book.bookState.inlineArea.caret()
+                : book.bookState.inlineField.caret();
+        if (book.bookState.editingPath != null && book.bookState.editingPath.equals(followedPath)
                 && caret == followedCaret && value.equals(followedValue)) {
             return;
         }
-        followedPath = book.editingPath;
+        followedPath = book.bookState.editingPath;
         followedValue = value;
         followedCaret = caret;
 
         Viewport body = book.overlayBody();
         int margin = 8;
-        int top = editor.getY() + (book.inlineArea != null ? book.inlineArea.caretTop() : book.inlineField.caretTop());
+        int top = editor.getY() + (book.bookState.inlineArea != null ? book.bookState.inlineArea.caretTop()
+                : book.bookState.inlineField.caretTop());
         if (top < body.originY() + margin) {
-            book.overlayView.scrollBy(top - body.originY() - margin);
+            book.bookState.overlayView.scrollBy(top - body.originY() - margin);
         }
         else if (top + OverlayLayout.LINE_HEIGHT > body.viewBottom() - margin) {
-            book.overlayView.scrollBy(top + OverlayLayout.LINE_HEIGHT - body.viewBottom() + margin);
+            book.bookState.overlayView.scrollBy(top + OverlayLayout.LINE_HEIGHT - body.viewBottom() + margin);
         }
     }
 
@@ -998,11 +1012,11 @@ final class BookEditorControls {
      * field is a press on it.
      */
     private BookGeometry.Rect openEditorFrame() {
-        if (book.editingPath == null) {
+        if (book.bookState.editingPath == null) {
             return null;
         }
-        for (QuestBookScreen.EditTarget target : book.editTargets) {
-            if (book.editingPath.equals(target.path())) {
+        for (QuestBookScreen.EditTarget target : book.bookState.editTargets) {
+            if (book.bookState.editingPath.equals(target.path())) {
                 return target.box();
             }
         }
@@ -1022,12 +1036,12 @@ final class BookEditorControls {
      * a second rule here.
      */
     boolean moveOpenCaret(double mouseX, double mouseY) {
-        if (book.inlineArea != null) {
-            book.inlineArea.mouseClicked(clickAsLeft(mouseX, mouseY), false);
+        if (book.bookState.inlineArea != null) {
+            book.bookState.inlineArea.mouseClicked(clickAsLeft(mouseX, mouseY), false);
             return true;
         }
-        if (book.inlineField != null) {
-            book.inlineField.mouseClicked(clickAsLeft(mouseX, mouseY), false);
+        if (book.bookState.inlineField != null) {
+            book.bookState.inlineField.mouseClicked(clickAsLeft(mouseX, mouseY), false);
             return true;
         }
         return false;
@@ -1088,7 +1102,8 @@ final class BookEditorControls {
         }
         // A saved template's name belongs to the Assets page's own list: the field is drawn over
         // the row and clipped to the band the rows are drawn in, scrolled rows and all.
-        if (path != null && path.startsWith(QuestBookScreen.TEMPLATE_ROW_PREFIX) && book.bookAssets.assetsFrame != null) {
+        if (path != null && path.startsWith(QuestBookScreen.TEMPLATE_ROW_PREFIX)
+                && book.bookAssets.assetsFrame != null) {
             BookGeometry.Rect band = book.bookAssets.assetsFrame.rows();
             return BookGeometry.Rect.at(band.x(), band.y(), band.right(), band.bottom());
         }
@@ -1112,7 +1127,7 @@ final class BookEditorControls {
      * where that row actually is -- folds, scroll and all.
      */
     private BookGeometry.Rect tableRowRegion(String path) {
-        if (book.overlay != PanelKind.TABLE_EDITOR || book.tableEditorFrame == null || path == null
+        if (book.bookState.overlay != PanelKind.TABLE_EDITOR || book.bookState.tableEditorFrame == null || path == null
                 || !path.startsWith("entries.")) {
             return null;
         }
@@ -1129,8 +1144,8 @@ final class BookEditorControls {
         if (index < 0 || index >= entries) {
             return null;
         }
-        return dev.ellipog.tenet.client.dev.TableEditorLayout.rowRect(entries, book.tableEditorFrame,
-                book.tableEditorBody.scrollY(), index, book.bookAssets.tableFolds());
+        return dev.ellipog.tenet.client.dev.TableEditorLayout.rowRect(entries, book.bookState.tableEditorFrame,
+                book.bookState.tableEditorBody.scrollY(), index, book.bookAssets.tableFolds());
     }
 
     /**
@@ -1155,16 +1170,16 @@ final class BookEditorControls {
      * be a field nobody could see, which is the same fault the region above is about.
      */
     void drawOpenEditor(GuiRenderer r) {
-        if (book.editingPath == null) {
+        if (book.bookState.editingPath == null) {
             return;
         }
-        BookGeometry.Rect region = inlineRegion(book.editingPath);
+        BookGeometry.Rect region = inlineRegion(book.bookState.editingPath);
         try (GuiRenderer.Scoped clip = r.clip(region.x(), region.y(), region.right(), region.bottom())) {
-            if (book.inlineArea != null && book.inlineArea.visible) {
-                book.inlineArea.render(r);
+            if (book.bookState.inlineArea != null && book.bookState.inlineArea.visible) {
+                book.bookState.inlineArea.render(r);
             }
-            if (book.inlineField != null && book.inlineField.visible) {
-                book.inlineField.render(r);
+            if (book.bookState.inlineField != null && book.bookState.inlineField.visible) {
+                book.bookState.inlineField.render(r);
             }
         }
     }
@@ -1182,53 +1197,53 @@ final class BookEditorControls {
      * caret intact -- when its target scrolls into view.
      */
     void repositionInlineEditor() {
-        if (book.editingPath == null) {
+        if (book.bookState.editingPath == null) {
             return;
         }
         // The quest card's list, then the Assets panel's: a path lives in one or the other --
         // quest fields name quest pieces, template names name shelf rows -- so whichever list
         // holds it is where its box is read from. Without the second list a rename box would go
         // blind the frame after it opened, standing down while its row is still on screen.
-        QuestBookScreen.EditTarget target = inlineTarget(book.editTargets);
+        QuestBookScreen.EditTarget target = inlineTarget(book.bookState.editTargets);
         if (target == null) {
             target = inlineTarget(book.bookAssets.assetsTargets);
         }
         if (target == null) {
-            if (book.inlineArea != null) {
-                book.inlineArea.visible = false;
-                book.inlineArea.active = false;
+            if (book.bookState.inlineArea != null) {
+                book.bookState.inlineArea.visible = false;
+                book.bookState.inlineArea.active = false;
             }
-            if (book.inlineField != null) {
-                book.inlineField.visible = false;
-                book.inlineField.active = false;
+            if (book.bookState.inlineField != null) {
+                book.bookState.inlineField.visible = false;
+                book.bookState.inlineField.active = false;
             }
             return;
         }
         {
-            boolean area = book.inlineArea != null;
+            boolean area = book.bookState.inlineArea != null;
             BookGeometry.Rect box = inlineBox(target, area);
             // On screen is a question about the box and the region the piece belongs to, not about the
             // target existing: the box follows the prose through a scroll now, so the only thing that
             // stands the field down is the whole of it being off its view -- where typing would be
             // typing blind. The region is the header for a header piece and the body for the rest; asking
             // the body about the title is what stood that field down on the frame it opened.
-            BookGeometry.Rect region = inlineRegion(book.editingPath);
+            BookGeometry.Rect region = inlineRegion(book.bookState.editingPath);
             boolean onScreen = box.bottom() > region.y() && box.y() < region.bottom();
             if (area) {
-                book.inlineArea.setX(box.x());
-                book.inlineArea.setY(box.y());
-                book.inlineArea.setWidth(box.width());
-                book.inlineArea.setHeight(box.height());
-                book.inlineArea.visible = onScreen;
-                book.inlineArea.active = onScreen;
+                book.bookState.inlineArea.setX(box.x());
+                book.bookState.inlineArea.setY(box.y());
+                book.bookState.inlineArea.setWidth(box.width());
+                book.bookState.inlineArea.setHeight(box.height());
+                book.bookState.inlineArea.visible = onScreen;
+                book.bookState.inlineArea.active = onScreen;
             }
             else {
-                book.inlineField.setX(box.x());
-                book.inlineField.setY(box.y());
-                book.inlineField.setWidth(box.width());
-                book.inlineField.setHeight(box.height());
-                book.inlineField.visible = onScreen;
-                book.inlineField.active = onScreen;
+                book.bookState.inlineField.setX(box.x());
+                book.bookState.inlineField.setY(box.y());
+                book.bookState.inlineField.setWidth(box.width());
+                book.bookState.inlineField.setHeight(box.height());
+                book.bookState.inlineField.visible = onScreen;
+                book.bookState.inlineField.active = onScreen;
             }
         }
     }
@@ -1239,7 +1254,7 @@ final class BookEditorControls {
      */
     private QuestBookScreen.EditTarget inlineTarget(List<QuestBookScreen.EditTarget> targets) {
         for (QuestBookScreen.EditTarget target : targets) {
-            if (book.editingPath.equals(target.path())) {
+            if (book.bookState.editingPath.equals(target.path())) {
                 return target;
             }
         }
@@ -1338,9 +1353,9 @@ final class BookEditorControls {
     private void commitInlineText(String path, String text) {
         // A field the table editor opened: its value belongs to a table, and the quest op below would
         // write the path into the quest instead. One branch, before anything else looks at the path.
-        if (book.tableEdit != null && book.tableEdit.path().equals(path)) {
-            QuestBookScreen.TableEdit edit = book.tableEdit;
-            book.tableEdit = null;
+        if (book.bookState.tableEdit != null && book.bookState.tableEdit.path().equals(path)) {
+            QuestBookScreen.TableEdit edit = book.bookState.tableEdit;
+            book.bookState.tableEdit = null;
             closeInlineEditor();
             commitTableText(edit, text);
             book.rebuildWidgets();
@@ -1508,11 +1523,11 @@ final class BookEditorControls {
         // References first: removing a focused widget blurs it, and a blur submits -- the field's own
         // re-entrancy guard catches that, but the state should not outlive the widget for a moment
         // longer than it has to either.
-        ArmatureTextField field = book.inlineField;
-        ArmatureTextArea area = book.inlineArea;
-        book.inlineField = null;
-        book.inlineArea = null;
-        book.editingPath = null;
+        ArmatureTextField field = book.bookState.inlineField;
+        ArmatureTextArea area = book.bookState.inlineArea;
+        book.bookState.inlineField = null;
+        book.bookState.inlineArea = null;
+        book.bookState.editingPath = null;
         if (field != null) {
             book.removeBookWidget(field);
         }

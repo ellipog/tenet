@@ -158,7 +158,7 @@ final class BookQuestRows {
     /** The stamp in force for this frame's rows. See {@link RowStamp}. */
     RowStamp rowStamp() {
         return new RowStamp(ClientQuestCache.treeRevision(), ClientQuestCache.progressRevision(),
-                book.pendingClaims.revision(), ClientQuestCache.textRevision(), TextEpoch.now());
+                book.bookState.pendingClaims.revision(), ClientQuestCache.textRevision(), TextEpoch.now());
     }
 
     /**
@@ -314,9 +314,9 @@ final class BookQuestRows {
         java.util.UUID self = book.minecraft().player == null ? null : book.minecraft().player.getUUID();
         boolean claimable = self != null
                 && ClientQuestCache.canClaimReward(self, entry, index)
-                && !book.pendingClaims.isMarked(PendingClaims.rewardKey(entry.id(), index))
-                && !book.pendingClaims.isMarked(PendingClaims.questKey(entry.id()))
-                && !book.pendingClaims.isMarked(PendingClaims.chapterKey(entry.chapterId()));
+                && !book.bookState.pendingClaims.isMarked(PendingClaims.rewardKey(entry.id(), index))
+                && !book.bookState.pendingClaims.isMarked(PendingClaims.questKey(entry.id()))
+                && !book.bookState.pendingClaims.isMarked(PendingClaims.chapterKey(entry.chapterId()));
         return new RowStrings(stamp.tree(), stamp.progress(), stamp.marks(), stamp.text(),
                 stamp.font(),
                 missingItem ? Component.translatable("tenet.screen.missing_item").getString()
@@ -343,7 +343,7 @@ final class BookQuestRows {
         RowKey key = new RowKey(RowKind.TASK, questId, taskIndex);
         long tree = ClientQuestCache.treeRevision();
         long progress = ClientQuestCache.progressRevision();
-        long marks = book.pendingClaims.revision();
+        long marks = book.bookState.pendingClaims.revision();
         PlacedContributors hit = rowContributors.get(key);
         if (hit != null && hit.matches(tree, progress, marks, facesRight, leftLimit)) {
             return hit.placed();
@@ -433,7 +433,7 @@ final class BookQuestRows {
         // the hover come from one description of where a row is -- the rowTooltips contract.
         RecipeLookups.Target target = BookRowTargets.ofTask(task);
         if (target != null) {
-            book.rowItems.add(new QuestBookScreen.RowItem(row, target));
+            book.bookState.rowItems.add(new QuestBookScreen.RowItem(row, target));
         }
         // A checkmark hands in on press, like the legacy format's: the row is the button. Only with no
         // recipe target (a checkmark never has one, but the rule is the target's, not the type's)
@@ -442,10 +442,10 @@ final class BookQuestRows {
         boolean checkmarkHandsIn = target == null && "tenet:checkmark".equals(task.type())
                 && handIn && !locked;
         if (checkmarkHandsIn) {
-            book.checkmarkRows.add(new QuestBookScreen.CheckmarkRow(row, entry.id(), index));
+            book.bookState.checkmarkRows.add(new QuestBookScreen.CheckmarkRow(row, entry.id(), index));
         }
         if (!task.filter().isEmpty()) {
-            book.filterRows.add(new QuestBookScreen.FilterRow(row, task.filter()));
+            book.bookState.filterRows.add(new QuestBookScreen.FilterRow(row, task.filter()));
         }
         if (row.contains(mouseX, mouseY)) {
             // The player's explanation, not the author's: this hover is read by someone who has never
@@ -484,7 +484,7 @@ final class BookQuestRows {
                 // the footer Submit by accident is a player the row failed.
                 lines.add("Click to hand in");
             }
-            book.rowTooltips.add(new QuestBookScreen.RowTooltip(row, lines));
+            book.bookState.rowTooltips.add(new QuestBookScreen.RowTooltip(row, lines));
         }
         BookSettings.rowWash(r, row, contentRight, hover);
 
@@ -718,11 +718,11 @@ final class BookQuestRows {
         // Collected from the drawing pass, like the rowTooltips below.
         RecipeLookups.Target target = (claimable || claimed) ? null : BookRowTargets.ofReward(reward);
         if (target != null) {
-            book.rowItems.add(new QuestBookScreen.RowItem(row, target));
+            book.bookState.rowItems.add(new QuestBookScreen.RowItem(row, target));
         }
         // A claimable row answers the press the way the Rewards menu's button does.
         if (claimable) {
-            book.rewardClaimRows.add(new QuestBookScreen.RewardClaimRow(row, entry.id(), index));
+            book.bookState.rewardClaimRows.add(new QuestBookScreen.RewardClaimRow(row, entry.id(), index));
         }
         if (row.contains(mouseX, mouseY)) {
             // The task row's rule, one member over: the player's explanation, never the author's.
@@ -744,7 +744,7 @@ final class BookQuestRows {
                 else if (RecipeLookups.canOpen(target)) {
                     lines.add("Click for recipes");
                 }
-                book.rowTooltips.add(new QuestBookScreen.RowTooltip(row, lines));
+                book.bookState.rowTooltips.add(new QuestBookScreen.RowTooltip(row, lines));
             }
         }
         BookSettings.rowWash(r, row, contentRight, hover);

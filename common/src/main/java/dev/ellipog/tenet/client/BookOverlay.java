@@ -84,7 +84,7 @@ final class BookOverlay {
         // has to describe the current window before it is drawn -- and this is the first thing in the
         // frame that needs it, because the drawing itself happens before the widget pass.
         book.sidebarViewport();
-        QuestBookScreen.drawBar(r, book.sidebarView.bar(), mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.sidebarView.bar(), mouseX, mouseY);
     }
     /**
      * The party panel, whichever face it is showing.
@@ -96,14 +96,14 @@ final class BookOverlay {
      * column's, so a row scrolled past its edge is cut off rather than drawn over the other column.
      */
     private void drawPartyOverlay(GuiRenderer r, int mouseX, int mouseY, long now) {
-        BookGeometry.Rect card = book.partyCard;
-        if (card == null || book.partyLeftFace == null) {
+        BookGeometry.Rect card = book.bookState.partyCard;
+        if (card == null || book.bookState.partyLeftFace == null) {
             return;
         }
 
         // The armed Disband lapses on its own: a control still saying "press again" a minute after the
         // first press is a control that lies about what it will do next.
-        if (book.disbandPress.lapsed(now)) {
+        if (book.bookState.disbandPress.lapsed(now)) {
             book.questEditor.disarmDisband();
         }
 
@@ -117,11 +117,13 @@ final class BookOverlay {
         ArmatureTheme.panel(r, card.x(), card.y(), card.width(), card.height(),
                 ArmatureTheme.panel(), ArmatureTheme.panelEdge());
 
-        drawPartyFace(r, book.partyLeftFace, book.partyLeftLayout, book.partyLeftView, book.partyColumn(true),
+        drawPartyFace(r, book.bookState.partyLeftFace, book.bookState.partyLeftLayout,
+                book.bookState.partyLeftView, book.partyColumn(true),
                 mouseX, mouseY,
                 now);
-        if (book.partyRightFace != null) {
-            drawPartyFace(r, book.partyRightFace, book.partyRightLayout, book.partyRightView,
+        if (book.bookState.partyRightFace != null) {
+            drawPartyFace(r, book.bookState.partyRightFace, book.bookState.partyRightLayout,
+                    book.bookState.partyRightView,
                     book.partyColumn(false), mouseX,
                     mouseY, now);
         }
@@ -135,9 +137,9 @@ final class BookOverlay {
         // are stacked into one, so a second face is exactly what there is not, and the roster's rows and
         // their kick/transfer buttons would have stopped being drawn.
         PartyRoster roster = book.partyRoster();
-        if (roster.isReal() && book.partyPhase == QuestBookScreen.PartyPhase.NONE && book.partiesAvailable()
-                && book.partyLeftLayout != null) {
-            drawPartyMembers(r, book.partyLeftLayout, roster, book.partyColumn(true), mouseX, mouseY, now);
+        if (roster.isReal() && book.bookState.partyPhase == QuestBookScreen.PartyPhase.NONE && book.partiesAvailable()
+                && book.bookState.partyLeftLayout != null) {
+            drawPartyMembers(r, book.bookState.partyLeftLayout, roster, book.partyColumn(true), mouseX, mouseY, now);
         }
     }
 
@@ -162,9 +164,9 @@ final class BookOverlay {
         int slideDx = PanelLayout.slideOffset(book.panelRail(PanelKind.PARTY),
                 book.panelRevealElapsed(PanelKind.PARTY, now), book.panelRevealMillis());
         book.questEditor.placePartyLineControls(face, layout, body, slideDx);
-        book.questEditor.placePartyField(book.partyCreateField, face, layout, "solo:create", body, slideDx);
-        book.questEditor.placePartyField(book.partyNameField, face, layout, "left:name", body, slideDx);
-        book.questEditor.placePartyField(book.partySearchField, face, layout, "right:search", body, slideDx);
+        book.questEditor.placePartyField(book.bookState.partyCreateField, face, layout, "solo:create", body, slideDx);
+        book.questEditor.placePartyField(book.bookState.partyNameField, face, layout, "left:name", body, slideDx);
+        book.questEditor.placePartyField(book.bookState.partySearchField, face, layout, "right:search", body, slideDx);
         try (GuiRenderer.Scoped clip = r.clip(body)) {
             for (PartyPanelLayout.Line line : face.lines()) {
                 Slot slot = layout.slot(line.key());
@@ -258,7 +260,7 @@ final class BookOverlay {
                 hovered = member.key();
             }
         }
-        book.rowHover.update(hovered, now);
+        book.bookState.rowHover.update(hovered, now);
         for (PartyRoster.Member member : roster.members()) {
             Slot slot = layout.slot(member.key());
             if (slot == null) {
@@ -266,7 +268,7 @@ final class BookOverlay {
             }
             Slot onScreen = BookQuestEditor.screenSlot(body, slot);
 
-            float hover = book.rowHover.amount(member.key(), now);
+            float hover = book.bookState.rowHover.amount(member.key(), now);
 
             int portraitX = onScreen.x() + PartyPanelLayout.HEAD_INSET;
             r.face(member.id(), portraitX,
@@ -299,8 +301,8 @@ final class BookOverlay {
             // hover-only buttons are undiscoverable, and on touch there is no hover to discover
             // them with.
             Slot rowSlot = layout.slot(member.key());
-            ArmatureButton remove = book.partyRemoveButtons.get(member.id());
-            ArmatureButton transfer = book.partyTransferButtons.get(member.id());
+            ArmatureButton remove = book.bookState.partyRemoveButtons.get(member.id());
+            ArmatureButton transfer = book.bookState.partyTransferButtons.get(member.id());
             boolean actionsShown = (remove != null || transfer != null)
                     && (hover > 0.05F
                             || (remove != null && remove.isHoveredOrFocused())
@@ -389,13 +391,13 @@ final class BookOverlay {
         // reached exactly when the dock is a presented column -- which is the same question its guard used to
         // re-ask, one frame later and in a second place. `toolsFrame` is the build's, and a frame that has not
         // built one has nothing to draw.
-        if (book.toolsFrame == null) {
+        if (book.bookState.toolsFrame == null) {
             return;
         }
         // A picker belongs to the chapter it was opened for: switching chapters under it would aim its
         // commit at the wrong file, so it closes here rather than at each of the three switch paths.
-        if (book.colourPopover.isOpen()
-                && !java.util.Objects.equals(book.popoverChapter, QuestBookScreen.effectiveChapter())) {
+        if (book.bookState.colourPopover.isOpen()
+                && !java.util.Objects.equals(book.bookState.popoverChapter, QuestBookScreen.effectiveChapter())) {
             book.closeColourPopover();
         }
         // And it belongs to the chip it was opened from: a row scrolled out of the drawer's viewport
@@ -406,17 +408,17 @@ final class BookOverlay {
         // The list is an argument because a picker can be anchored in another one: the element panel draws an
         // element row at the same key this tab does, and its own chip is not this tab's business. See
         // `chipOnScreen`, which answers true for an anchor that belongs elsewhere.
-        if (book.colourPopover.isOpen() && !book.chipOnScreen(book.toolsView)) {
+        if (book.bookState.colourPopover.isOpen() && !book.chipOnScreen(book.bookState.toolsView)) {
             book.closeColourPopover();
         }
-        if (book.toolsTab == ToolsLayout.Tab.CHAPTER) {
-            if (book.chapterLayout == null) {
+        if (book.bookState.toolsTab == ToolsLayout.Tab.CHAPTER) {
+            if (book.bookState.chapterLayout == null) {
                 return;
             }
             // The panel's own surface, drawn by the same method the book tab uses.
             ToolsPanel.State state = new ToolsPanel.State(book.questEditor.editedTheme(),
                     book.editedBackground(), book.questEditor.currentPalette());
-            ToolsPanel.drawChrome(r, book.toolsFrame, state);
+            ToolsPanel.drawChrome(r, book.bookState.toolsFrame, state);
             // The chapter's own rows, identity first: the band that used to stand here was a second,
             // unclickable copy of the identity rows below it, and it is gone -- the icon, title and
             // subtitle are edited in the fold at the top of this list.
@@ -425,29 +427,34 @@ final class BookOverlay {
             // cycling rows' arrows drawn by a third class beside it and hit-tested by a fourth path; all of
             // that is `ToolsPanel`'s one dispatch, which is what "one panel" means. STACKED, because a
             // chapter's labels are wider than any strip this drawer reserves -- see `ToolsLayout.stack`.
-            ToolsPanel.drawRows(r, book.toolsFrame.list(), book.toolsView.viewport(), book.chapterLayout,
-                    book.chapterRows,
+            ToolsPanel.drawRows(r, book.bookState.toolsFrame.list(), book.bookState.toolsView.viewport(),
+                    book.bookState.chapterLayout,
+                    book.bookState.chapterRows,
                     state, mouseX, mouseY, InspectLayout.Mode.STACKED);
             if (book.toolsAppearanceVisible()) {
-                ToolsPanel.drawRows(r, book.toolsFrame.list(), book.toolsView.viewport(), book.chapterLayout,
-                        book.chapterAppearanceRows, state, mouseX, mouseY);
+                ToolsPanel.drawRows(r, book.bookState.toolsFrame.list(), book.bookState.toolsView.viewport(),
+                        book.bookState.chapterLayout,
+                        book.bookState.chapterAppearanceRows, state, mouseX, mouseY);
             }
             // The rows the drag reorders, in the order they are drawn, and the line over them. Only the
             // quest rows take part -- the identity fields above them are not a list.
-            try (GuiRenderer.Scoped clip = r.clip(book.toolsFrame.list().x(), book.toolsFrame.list().y(),
-                    book.toolsFrame.list().right(), book.toolsFrame.list().bottom())) {
-                book.dragRowSlots.put("chapter", book.rowDrag.chapterQuestRowRects());
-                if (book.dragRowLive && "chapter".equals(book.dragRowMember)) {
-                    book.bookRewards.drawRowDragIndicator(r, book.dragRowSlots.get("chapter"), book.dragRowPointerY,
-                            BookRewards.onScreenBand(book.toolsView.viewport()));
+            try (GuiRenderer.Scoped clip = r.clip(book.bookState.toolsFrame.list().x(),
+                    book.bookState.toolsFrame.list().y(),
+                    book.bookState.toolsFrame.list().right(), book.bookState.toolsFrame.list().bottom())) {
+                book.bookState.dragRowSlots.put("chapter", book.rowDrag.chapterQuestRowRects());
+                if (book.bookState.dragRowLive && "chapter".equals(book.bookState.dragRowMember)) {
+                    book.bookRewards.drawRowDragIndicator(r, book.bookState.dragRowSlots.get("chapter"),
+                            book.bookState.dragRowPointerY,
+                            BookRewards.onScreenBand(book.bookState.toolsView.viewport()));
                 }
             }
         }
         else {
-            if (book.toolsLayout == null) {
+            if (book.bookState.toolsLayout == null) {
                 return;
             }
-            ToolsPanel.draw(r, book.toolsFrame, book.toolsView.viewport(), book.toolsLayout, book.toolsRows,
+            ToolsPanel.draw(r, book.bookState.toolsFrame, book.bookState.toolsView.viewport(),
+                    book.bookState.toolsLayout, book.bookState.toolsRows,
                     new ToolsPanel.State(book.questEditor.editedTheme(), book.editedBackground(),
                             book.questEditor.currentPalette()), mouseX, mouseY);
         }
@@ -463,8 +470,8 @@ final class BookOverlay {
         // `chapterHelp`. That is the second half of the move: the chapter's rows used to need a tooltip
         // loop of their own because they were a different kind of row.
         ToolsLayout.Hovered hovered = ToolsLayout.helpAt(book.activeRows(), book.activeLayout(),
-                book.toolsView.viewport(), mouseX, mouseY,
-                book.toolsTab == ToolsLayout.Tab.CHAPTER ? this::chapterHelp : ToolsLayout::help);
+                book.bookState.toolsView.viewport(), mouseX, mouseY,
+                book.bookState.toolsTab == ToolsLayout.Tab.CHAPTER ? this::chapterHelp : ToolsLayout::help);
         if (hovered != null && book.questEditor.inTools(mouseX, mouseY)) {
             // A fault's own sentence is the fault, not a key: it bypasses `Labels` (whose
             // `tenet.`-prefix scan would mangle text naming this mod) and reaches the box
@@ -473,15 +480,16 @@ final class BookOverlay {
                     ? ProblemText.tooltipLines(hovered.help())
                     : List.of(Labels.of(hovered.help()));
             if (!tip.isEmpty()) {
-                book.rowTooltips.add(new QuestBookScreen.RowTooltip(
-                        ToolsLayout.onScreen(book.toolsView.viewport(), book.activeLayout().slot(hovered.key())),
+                book.bookState.rowTooltips.add(new QuestBookScreen.RowTooltip(
+                        ToolsLayout.onScreen(book.bookState.toolsView.viewport(),
+                                book.activeLayout().slot(hovered.key())),
                         tip));
             }
         }
         // The bar, from the kit's own rectangles and drawn only when there is more than fits -- the same
         // call the sidebar and the party panel make. It was missing entirely, which left a list that
         // scrolled with nothing on screen saying so.
-        QuestBookScreen.drawBar(r, book.toolsView.bar(), mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.toolsView.bar(), mouseX, mouseY);
     }
 
     /**
@@ -522,7 +530,7 @@ final class BookOverlay {
         if (!isProblemRow(key)) {
             return null;
         }
-        for (ToolsLayout.Action row : book.chapterRows) {
+        for (ToolsLayout.Action row : book.bookState.chapterRows) {
             if (key.equals(row.key())) {
                 return row.value();
             }
@@ -566,7 +574,7 @@ final class BookOverlay {
      * listings clear before they fill and a press must never land on a panel that is already gone.
      */
     void drawPanels(GuiRenderer r, Matrix3x2fStack pose, int mouseX, int mouseY, long now) {
-        book.editTargets.clear();
+        book.bookState.editTargets.clear();
         int duration = book.panelRevealMillis();
         for (PanelKind kind : PanelStack.presented(book.columns(), book.panelFolded())) {
             BookGeometry.Rect rail = book.panelRail(kind);
@@ -614,20 +622,20 @@ final class BookOverlay {
      */
     private void drawDepartedPanels(GuiRenderer r, Matrix3x2fStack pose, int mouseX, int mouseY, long now) {
         int exitMs = book.panelExitMillis();
-        if (exitMs <= 0 || book.panelDepartStarts.isEmpty()) {
+        if (exitMs <= 0 || book.bookState.panelDepartStarts.isEmpty()) {
             return;
         }
         // Snapshotted, not truncated: a departed draw re-runs its kind's listing, and listings clear
         // before they fill — the quest editor most of all. Truncating back to a size would keep a clear
         // that wiped the live rails' targets while leaving the departed ones standing: presses landing
         // on invisible rows. Restoring the exact list keeps the exit press-dead by construction.
-        java.util.List<QuestBookScreen.EditTarget> keptTargets = java.util.List.copyOf(book.editTargets);
+        java.util.List<QuestBookScreen.EditTarget> keptTargets = java.util.List.copyOf(book.bookState.editTargets);
         // drawSurface names its kind as it draws; the live loop above leaves whatever it drew last,
         // and this loop must leave the same rather than a rail that is already gone.
-        PanelKind keptSurface = book.surfaceKind;
+        PanelKind keptSurface = book.bookState.surfaceKind;
         try {
-            for (PanelKind kind : java.util.List.copyOf(book.panelDepartStarts.keySet())) {
-                BookGeometry.Rect rail = book.departRails.get(kind);
+            for (PanelKind kind : java.util.List.copyOf(book.bookState.panelDepartStarts.keySet())) {
+                BookGeometry.Rect rail = book.bookState.departRails.get(kind);
                 if (rail == null) {
                     continue;
                 }
@@ -637,8 +645,8 @@ final class BookOverlay {
                     continue;
                 }
                 int offset = PanelLayout.departOffset(rail, elapsed, exitMs);
-                book.departDrawKind = kind;
-                book.departDrawRail = rail;
+                book.bookState.departDrawKind = kind;
+                book.bookState.departDrawRail = rail;
                 try (GuiRenderer.Scoped clip =
                         r.clip(shown.x(), shown.y(), shown.right(), shown.bottom())) {
                     if (offset != 0) {
@@ -656,8 +664,8 @@ final class BookOverlay {
                     }
                 }
                 finally {
-                    book.departDrawKind = null;
-                    book.departDrawRail = null;
+                    book.bookState.departDrawKind = null;
+                    book.bookState.departDrawRail = null;
                 }
             }
         }
@@ -665,9 +673,9 @@ final class BookOverlay {
             // Whatever the departed kinds registered while drawing goes — including a clear that wiped
             // the live rails' targets: the snapshot above puts the live list back whole, so a press
             // must never land on a panel that is already gone.
-            book.editTargets.clear();
-            book.editTargets.addAll(keptTargets);
-            book.surfaceKind = keptSurface;
+            book.bookState.editTargets.clear();
+            book.bookState.editTargets.addAll(keptTargets);
+            book.bookState.surfaceKind = keptSurface;
         }
     }
 
@@ -684,7 +692,7 @@ final class BookOverlay {
      * fields themselves — the relationship they need, and the reason there is no Z step here.
      */
     void drawPanelOverlays(GuiRenderer renderer) {
-        for (java.util.function.Consumer<GuiRenderer> overlay : book.panelOverlays) {
+        for (java.util.function.Consumer<GuiRenderer> overlay : book.bookState.panelOverlays) {
             overlay.accept(renderer);
         }
         book.editorControls.drawOpenEditor(renderer);
@@ -826,7 +834,7 @@ final class BookOverlay {
             // comes from the viewport, so the grip and the rows it describes come from one object.
             // Only while the list is expanded and settled: the sliver has no rows at all, and mid-wipe
             // the bar would draw at its target while the surface travels.
-            if (shown.expanded() && book.sidebarSlideStart < 0) {
+            if (shown.expanded() && book.bookState.sidebarSlideStart < 0) {
                 drawSidebarScrollbar(r, mouseX, mouseY);
             }
         }
@@ -847,7 +855,7 @@ final class BookOverlay {
                              long now) {
         // What the four accessors answer for, for the whole of this kind's drawing: its body's clip, its
         // rows, its footer. Set here rather than by the caller, so a second caller cannot forget it.
-        book.surfaceKind = kind;
+        book.bookState.surfaceKind = kind;
         if (kind == PanelKind.PARTY) {
             // The party: its faces fill the rail's body band and its controls sit in the shared footer.
             // `drawPartyOverlay` paints the surface itself, like every other kind -- the frame fills nothing.
@@ -946,7 +954,7 @@ final class BookOverlay {
         choicePending = false;
         choiceError = null;
         pressedChoiceEntry = -1;
-        book.choiceView.scrollTo(0);
+        book.bookState.choiceView.scrollTo(0);
         book.rebuildWidgets();
     }
 
@@ -1029,7 +1037,7 @@ final class BookOverlay {
      * one drawing path, one hit test, and the item's own sprite where the player can see it.
      */
     void buildChoiceWidgets() {
-        book.choiceRows = List.of();
+        book.bookState.choiceRows = List.of();
         choiceLayout = null;
         ClientChoiceOffers.Offer offer = ClientChoiceOffers.current();
         if (offer == null) {
@@ -1039,15 +1047,15 @@ final class BookOverlay {
         for (int i = 0; i < offer.entries().size(); i++) {
             rows.add(InspectRow.action(CHOICE_PREFIX + i, choiceLabel(offer.entries().get(i))));
         }
-        book.choiceRows = List.copyOf(rows);
+        book.bookState.choiceRows = List.copyOf(rows);
 
         Viewport body = book.overlayBody();
-        choiceLayout = InspectLayout.build(book.choiceRows, body.viewWidth(), Measure.monospace(6, 9));
-        book.choiceView.clear();
-        book.choiceView.whole(true);
-        book.choiceView.viewport().bounds(body.originX(), body.originY(), body.viewWidth(),
+        choiceLayout = InspectLayout.build(book.bookState.choiceRows, body.viewWidth(), Measure.monospace(6, 9));
+        book.bookState.choiceView.clear();
+        book.bookState.choiceView.whole(true);
+        book.bookState.choiceView.viewport().bounds(body.originX(), body.originY(), body.viewWidth(),
                 body.viewHeight());
-        book.choiceView.apply(choiceLayout, body.viewWidth());
+        book.bookState.choiceView.apply(choiceLayout, body.viewWidth());
 
         // The footer's one control, on the rectangle every card's footer uses. Dismissing is not a
         // refusal -- see `closeChoice` -- and saying so is the whole point of labelling it rather than
@@ -1167,27 +1175,27 @@ final class BookOverlay {
         // the rows and the entries they name are drawn in the same pass.
         ClientChoiceOffers.Offer entries = ClientChoiceOffers.current();
         Viewport body = book.overlayBody();
-        book.choiceView.apply(choiceLayout, body.viewWidth());
-        book.choiceRowRects.clear();
+        book.bookState.choiceView.apply(choiceLayout, body.viewWidth());
+        book.bookState.choiceRowRects.clear();
         try (GuiRenderer.Scoped clip = r.clip(body.originX(), body.originY(), body.originX() + body.viewWidth(),
                 body.originY() + body.viewHeight())) {
-            for (int i = 0; i < book.choiceRows.size(); i++) {
-                var slot = choiceLayout.slot(book.choiceRows.get(i).key());
+            for (int i = 0; i < book.bookState.choiceRows.size(); i++) {
+                var slot = choiceLayout.slot(book.bookState.choiceRows.get(i).key());
                 if (slot == null) {
                     continue;
                 }
-                var onScreen = InspectLayout.onScreen(book.choiceView.viewport(), slot);
+                var onScreen = InspectLayout.onScreen(book.bookState.choiceView.viewport(), slot);
                 BookGeometry.Rect rect = BookGeometry.Rect.at(onScreen.x(), onScreen.y(),
                         onScreen.width(), onScreen.height());
                 // Registered where it is drawn: the rail's slide shifts the drawing, so the press
                 // follows it through the same shift. See `shiftHit`.
-                book.choiceRowRects.add(book.shiftHit(rect));
+                book.bookState.choiceRowRects.add(book.shiftHit(rect));
                 if (entries != null && i < entries.entries().size()) {
                     drawChoiceRow(r, entries.entries().get(i), rect, mouseX, mouseY);
                 }
             }
         }
-        QuestBookScreen.drawBar(r, book.choiceView.bar(), mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.choiceView.bar(), mouseX, mouseY);
     }
 
     /**
@@ -1221,7 +1229,7 @@ final class BookOverlay {
             if (!entry.item().isEmpty()) {
                 // The id on hover, because an entry is otherwise only as identifiable as its label --
                 // and a label an author wrote can be as vague as "a surprise".
-                book.pendingLabels.add(new QuestBookScreen.PendingLabel(rect, entry.item()));
+                book.bookState.pendingLabels.add(new QuestBookScreen.PendingLabel(rect, entry.item()));
             }
         }
     }

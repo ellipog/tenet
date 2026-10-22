@@ -317,7 +317,7 @@ final class BookAssets {
         // draws the name, so the row must not draw it underneath. See `InlineEdit.replaces`.
         boolean renaming = cullable
                 && dev.ellipog.tenet.client.dev.InlineEdit.replaces(QuestBookScreen.TEMPLATE_ROW_PREFIX + line.id(),
-                        book.editingPath);
+                        book.bookState.editingPath);
         if (!renaming) {
             r.text(Measure.truncate(line.label(), Math.max(0, room), book.textMeasure(r)), box.x() + inset,
                     baseline, ink);
@@ -588,12 +588,12 @@ final class BookAssets {
                 // Copy, on a row whose press also opens the table. The server's referrer guard refuses a
                 // table something still points at, which is not the same thing as asking -- an unreferenced
                 // table is the ordinary case, and one press was enough to rename it out of the way.
-                if (!target.path().equals(book.assetsConfirmRemove)) {
-                    book.assetsConfirmRemove = target.path();
+                if (!target.path().equals(book.bookState.assetsConfirmRemove)) {
+                    book.bookState.assetsConfirmRemove = target.path();
                     book.status("Press again to remove \"" + target.path() + "\"", true);
                     return;
                 }
-                book.assetsConfirmRemove = null;
+                book.bookState.assetsConfirmRemove = null;
                 book.bookRewards.deleteTable(target.path());
             }
             case ASSETS_TEMPLATE_SORT -> {
@@ -618,12 +618,12 @@ final class BookAssets {
             case ASSETS_TEMPLATE_DELETE -> {
                 // The same second press the tables' cross asks for: a saved setup is the author's own
                 // work, and one press on a thirteen-pixel cross must never be enough to lose it.
-                if (!target.path().equals(book.assetsConfirmRemove)) {
-                    book.assetsConfirmRemove = target.path();
+                if (!target.path().equals(book.bookState.assetsConfirmRemove)) {
+                    book.bookState.assetsConfirmRemove = target.path();
                     book.status("Press again to delete \"" + target.value() + "\"", true);
                     return;
                 }
-                book.assetsConfirmRemove = null;
+                book.bookState.assetsConfirmRemove = null;
                 if (dev.ellipog.tenet.client.dev.ComponentTemplates.delete(target.path())) {
                     book.status("Deleted \"" + target.value() + "\"", false);
                 }
@@ -754,22 +754,22 @@ final class BookAssets {
      */
     private void openTableEditorOn(String table) {
         dev.ellipog.tenet.client.ClientWorking.rememberTable(table);
-        book.tableAddress = dev.ellipog.tenet.editor.TableAddress.of(table);
-        book.tableStack.clear();
-        book.tableApplied = 0;
-        book.tableUndone = 0;
-        book.tableFolded.clear();
-        book.tableShowRoll = false;
-        book.tableImportOpen = false;
-        book.tablePreview = dev.ellipog.tenet.quest.reward.TableReward.Mode.RANDOM;
+        book.bookState.tableAddress = dev.ellipog.tenet.editor.TableAddress.of(table);
+        book.bookState.tableStack.clear();
+        book.bookState.tableApplied = 0;
+        book.bookState.tableUndone = 0;
+        book.bookState.tableFolded.clear();
+        book.bookState.tableShowRoll = false;
+        book.bookState.tableImportOpen = false;
+        book.bookState.tablePreview = dev.ellipog.tenet.quest.reward.TableReward.Mode.RANDOM;
         // Back to the panel, not to the book: the editor was opened from a list.
-        book.tableReturn = PanelKind.ASSETS;
+        book.bookState.tableReturn = PanelKind.ASSETS;
         book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.TABLE_EDITOR));
         book.rebuildWidgets();
     }
 
     void pressTableEditor(double mouseX, double mouseY) {
-        if (book.tableEditorFrame == null || book.tableAddress == null) {
+        if (book.bookState.tableEditorFrame == null || book.bookState.tableAddress == null) {
             return;
         }
         // (The Import popover was asked first here, because it is drawn on top and the scan below takes the
@@ -778,7 +778,7 @@ final class BookAssets {
         // widget pass this method never sees. The block was here rather than in the gate because the arm
         // that calls this is only reached when a drawn target is under the pointer, which is exactly the
         // hole a press in the popover's own padding fell through.)
-        for (QuestBookScreen.EditTarget target : book.editTargets) {
+        for (QuestBookScreen.EditTarget target : book.bookState.editTargets) {
             if (!target.box().contains(mouseX, mouseY)) {
                 continue;
             }
@@ -789,7 +789,7 @@ final class BookAssets {
         // that misses it, the same rule the sidebar's menu follows, and the press is spent doing it. Kept
         // although the gate now answers every press while the popover is up: this is the same sentence, and
         // a reader looking for "what closes it" should find it where the panel's other presses are.
-        book.tableImportOpen = false;
+        book.bookState.tableImportOpen = false;
     }
 
     // ------------------------------------------------------------------
@@ -831,14 +831,14 @@ final class BookAssets {
                                       dev.ellipog.tenet.client.dev.TableRowFields.Kind kind,
                                       String shown, BookGeometry.Rect box, int textX, int textY,
                                       double mouseX, double mouseY) {
-        if (book.tableAddress == null) {
+        if (book.bookState.tableAddress == null) {
             return;
         }
         String path = tableEntryPath(index, field);
         // The commit goes to the TABLE: the inline editor's own commit path writes a quest field, and a
         // path like `entries.1.reward.amount` written into a quest file is a stray member in the wrong
         // file. `tableEdit` is what says which file this box belongs to.
-        book.tableEdit = new QuestBookScreen.TableEdit(path, kind);
+        book.bookState.tableEdit = new QuestBookScreen.TableEdit(path, kind);
         book.editorControls.openInlineEditor(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.FIELD,
                 path, box, textX, textY, shown, null, index),
                 mouseX, mouseY);
@@ -846,7 +846,7 @@ final class BookAssets {
 
     /** A switch inside a fold: the field negated. */
     void toggleTableFlag(int index, String field) {
-        if (book.tableAddress == null || field.isEmpty()) {
+        if (book.bookState.tableAddress == null || field.isEmpty()) {
             return;
         }
         JsonObject entry = draftedEntry(index);
@@ -864,7 +864,7 @@ final class BookAssets {
      * does not hold is left alone; see {@link QuestBookScreen#nextOption}.
      */
     void cycleTableChoice(int index, String field) {
-        if (book.tableAddress == null || field.isEmpty()) {
+        if (book.bookState.tableAddress == null || field.isEmpty()) {
             return;
         }
         JsonObject entry = draftedEntry(index);
@@ -880,7 +880,7 @@ final class BookAssets {
 
     /** A stepper inside a fold: one entry's numeric field, nudged. Shift moves ten. */
     void nudgeTableNumber(int index, String field, int direction) {
-        if (book.tableAddress == null || field.isEmpty()) {
+        if (book.bookState.tableAddress == null || field.isEmpty()) {
             return;
         }
         JsonObject entry = draftedEntry(index);
@@ -922,7 +922,7 @@ final class BookAssets {
      */
     void forgetFoldAfterRemove(int removed) {
         java.util.Set<Integer> moved = new java.util.LinkedHashSet<>();
-        for (int at : book.tableFolded) {
+        for (int at : book.bookState.tableFolded) {
             if (at < removed) {
                 moved.add(at);
             }
@@ -931,8 +931,8 @@ final class BookAssets {
             }
             // The fold at the removed position is dropped: it belonged to the entry that is gone.
         }
-        book.tableFolded.clear();
-        book.tableFolded.addAll(moved);
+        book.bookState.tableFolded.clear();
+        book.bookState.tableFolded.addAll(moved);
     }
 
     /**
@@ -949,33 +949,33 @@ final class BookAssets {
      *              the other half, and it already came from the caller.
      */
     void openTableItemPick(String path, int entryIndex, String title) {
-        if (book.tableAddress == null) {
+        if (book.bookState.tableAddress == null) {
             return;
         }
         // The standalone picker overlay rather than the card's page of it: the card is not what is open
         // here, and a page of a panel that is not on screen is a page nobody can see.
-        book.tablePickPath = path == null ? "" : path;
-        book.tablePickReturn = true;
+        book.bookState.tablePickPath = path == null ? "" : path;
+        book.bookState.tablePickReturn = true;
         forgetPickSubject();
-        book.pickTarget = QuestBookScreen.PickTarget.QUEST;
-        book.pickTitle = title;
+        book.bookState.pickTarget = QuestBookScreen.PickTarget.QUEST;
+        book.bookState.pickTitle = title;
         // The subject line names the table, and the icon shows what is being replaced — the table's own
         // icon, or the item the picked one will replace. The card's picker has said both since it was
         // written; this page said neither, so it was a list of the whole item registry with no statement
         // of which table or which field it was for.
-        book.pickName = book.bookRewards.tableTitle();
-        book.pickIcon = tablePickSubjectFor(book.tablePickPath, entryIndex);
-        book.pickingItemPath = path == null || path.isEmpty() ? "entries.new" : path;
-        book.pickingItemCurrent = "";
+        book.bookState.pickName = book.bookRewards.tableTitle();
+        book.bookState.pickIcon = tablePickSubjectFor(book.bookState.tablePickPath, entryIndex);
+        book.bookState.pickingItemPath = path == null || path.isEmpty() ? "entries.new" : path;
+        book.bookState.pickingItemCurrent = "";
         // Only the picture override may be cleared: it is optional, so removing the whole object
         // restores the type's own picture. Every other item field here is required by its type.
-        book.pickingItemClearPath = path != null && path.endsWith(".icon") ? path : null;
-        book.pickerSource = null;
-        book.pickerObserveType = "";
-        book.pickerFrame = null;
-        book.itemSearch = null;
-        book.pickerSelected = -1;
-        book.pickerBody.setScrollY(0);
+        book.bookState.pickingItemClearPath = path != null && path.endsWith(".icon") ? path : null;
+        book.bookState.pickerSource = null;
+        book.bookState.pickerObserveType = "";
+        book.bookState.pickerFrame = null;
+        book.bookState.itemSearch = null;
+        book.bookState.pickerSelected = -1;
+        book.bookState.pickerBody.setScrollY(0);
         book.questEditor.openPickerOverlay();
     }
 
@@ -1009,15 +1009,15 @@ final class BookAssets {
         if (!target.chapterId().equals(QuestBookScreen.effectiveChapter())) {
             book.bookSidebar.selectChapter(target.chapterId());
         }
-        QuestBookScreen.selectedQuest = questId;
-        QuestBookScreen.multiSelection.clear();
+        BookScreenState.selectedQuest = questId;
+        BookScreenState.multiSelection.clear();
         // The view is the caller's now, not the chapter auto-centre's: `centreCanvas` re-centres a
         // chapter once, and a glide it kept overriding would never arrive.
-        QuestBookScreen.pannedChapter = QuestBookScreen.effectiveChapter();
-        QuestBookScreen.centred = true;
+        BookScreenState.pannedChapter = QuestBookScreen.effectiveChapter();
+        BookScreenState.centred = true;
         startGlide(target);
-        book.flashQuest = questId;
-        book.flashStart = Util.getMillis();
+        book.bookState.flashQuest = questId;
+        book.bookState.flashStart = Util.getMillis();
     }
 
     /**
@@ -1025,19 +1025,19 @@ final class BookAssets {
      */
     private void startGlide(ClientQuestCache.Entry entry) {
         Viewport view = book.viewport();
-        book.glideQuest = entry.id();
-        book.glideStart = Util.getMillis();
+        book.bookState.glideQuest = entry.id();
+        book.bookState.glideStart = Util.getMillis();
         // The locate takes the whole camera: a zoom glide still stepping must not fight it, for the same
         // reason the hand cancels either of them.
         book.bookCanvas.zoomGlideStart = -1L;
-        book.glideFromX = view.offsetX();
-        book.glideFromY = view.offsetY();
+        book.bookState.glideFromX = view.offsetX();
+        book.bookState.glideFromY = view.offsetY();
         // Content coordinates for the node's middle, through the drawing's own helpers — so the target
         // is the node as it is drawn, draft size included, rather than a second opinion about where it
         // is. The zoom does not change: "show me where it is" is not "zoom in on it".
-        book.glideToX = CanvasReveal.offsetX(view.viewWidth(),
+        book.bookState.glideToX = CanvasReveal.offsetX(view.viewWidth(),
                 view.contentX(book.bookRewards.nodeCentreX(entry)), view.scale());
-        book.glideToY = CanvasReveal.offsetY(view.viewHeight(),
+        book.bookState.glideToY = CanvasReveal.offsetY(view.viewHeight(),
                 view.contentY(book.bookRewards.nodeCentreY(entry)), view.scale());
     }
 
@@ -1049,7 +1049,7 @@ final class BookAssets {
      * task the player is watching change, and the count would be the only thing that moved.
      */
     boolean submitOfferedWithMarks(String questId, int taskIndex) {
-        return !book.pendingClaims.isMarked(PendingClaims.taskKey(questId, taskIndex))
+        return !book.bookState.pendingClaims.isMarked(PendingClaims.taskKey(questId, taskIndex))
                 && ClientQuestCache.submitOffered(questId, taskIndex);
     }
 
@@ -1153,20 +1153,20 @@ final class BookAssets {
                 // The panel stays open, which is what the button now says. The rebuild is the field
                 // question: the title box is built either way, but the picker's widget host has to be torn
                 // down.
-                book.pickingEntryType = null;
-                book.tableShowRoll = false;
+                book.bookState.pickingEntryType = null;
+                book.bookState.tableShowRoll = false;
                 book.rebuildWidgets();
             }
             case TABLE_IMPORT_MENU -> {
-                if (!book.tableImportOpen) {
+                if (!book.bookState.tableImportOpen) {
                     // Stamped on the way in, like every menu: the popover climbs into place below.
-                    book.tableImportOpenedAt = net.minecraft.util.Util.getMillis();
+                    book.bookState.tableImportOpenedAt = net.minecraft.util.Util.getMillis();
                 }
-                book.tableImportOpen = !book.tableImportOpen;
+                book.bookState.tableImportOpen = !book.bookState.tableImportOpen;
             }
             case TABLE_PREVIEW -> {
-                book.tablePreview = dev.ellipog.tenet.client.dev.TableEditorLayout
-                        .nextPreview(book.tablePreview);
+                book.bookState.tablePreview = dev.ellipog.tenet.client.dev.TableEditorLayout
+                        .nextPreview(book.bookState.tablePreview);
             }
             // How a reward row draws this table: each press flips the drafted value, so a burst of
             // presses accumulates like the rolls stepper above rather than fighting the replica.
@@ -1202,7 +1202,8 @@ final class BookAssets {
                     double step = BookEditorControls.shiftDown() ? 10 : 1;
                     double next = Math.max(0, model.get().entries().get(index).weight()
                             + (target.action() == QuestBookScreen.EditAction.TABLE_WEIGHT_UP ? step : -step));
-                    book.bookRewards.sendTableValue("entries." + index + ".weight", new com.google.gson.JsonPrimitive(next));
+                    book.bookRewards.sendTableValue("entries." + index + ".weight",
+                            new com.google.gson.JsonPrimitive(next));
                 }
             }
             case TABLE_WEIGHT -> {
@@ -1221,8 +1222,8 @@ final class BookAssets {
                         target.box(), target.textX(), target.textY(), mouseX, mouseY);
             }
             case TABLE_FOLD -> {
-                if (!book.tableFolded.remove(index)) {
-                    book.tableFolded.add(index);
+                if (!book.bookState.tableFolded.remove(index)) {
+                    book.bookState.tableFolded.add(index);
                 }
             }
             case TABLE_FOLD_FLAG -> book.bookAssets.toggleTableFlag(index, target.path());
@@ -1245,20 +1246,22 @@ final class BookAssets {
                 // inline table's removal uses. A cross is the narrowest control on the row and the row
                 // below it is another cross, so a mis-click here costs an entry and a second mis-click
                 // costs another.
-                if (!book.tableConfirmReplace) {
-                    book.tableConfirmReplace = true;
+                if (!book.bookState.tableConfirmReplace) {
+                    book.bookState.tableConfirmReplace = true;
                     book.status("Press again to remove this entry", true);
                     return;
                 }
-                book.tableConfirmReplace = false;
+                book.bookState.tableConfirmReplace = false;
                 // A list position that moved is no longer about the entry the author touched: the same
                 // rule the card follows when a task is removed. See FieldDraft#forgetList.
-                BookRewards.tableDraft.forgetList(QuestBookScreen.effectiveChapter(), book.bookRewards.tableOwnerKey(), "entries");
+                BookRewards.tableDraft.forgetList(QuestBookScreen.effectiveChapter(),
+                        book.bookRewards.tableOwnerKey(), "entries");
                 // And the folds move with it: they are keyed by position, so every open fold above the
                 // hole has to shift down with the row it belongs to -- otherwise entry 3's fields are
                 // drawn under entry 2's name, and the next press on that fold edits the wrong entry.
                 book.bookAssets.forgetFoldAfterRemove(index);
-                book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Remove(book.tableAddress, index));
+                book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Remove(book.bookState.tableAddress,
+                        index));
             }
             case TABLE_ADD_ITEM -> book.bookAssets.openTableItemPick("", -1, "Add an item to the table");
             case TABLE_ENTRY_ITEM -> book.bookAssets.openTableItemPick(
@@ -1267,45 +1270,45 @@ final class BookAssets {
             case TABLE_ICON -> book.bookAssets.openTableItemPick("icon.item", -1, "Choose this table's icon");
             case TABLE_IMPORT -> {
                 // The popover's choice is the press: it closes with the row it ran.
-                book.tableImportOpen = false;
+                book.bookState.tableImportOpen = false;
                 // A sentinel: a refused import answers with the editor's own reply payload, and without
                 // one it would consume the next edit's -- misattributing every reply after it.
                 // An import is answered by an edit reply whatever happens -- `handleTableImport` replies
                 // on success and on refusal -- so its marker is consumed by the reply loop, like an op's.
                 if (ClientEditReplies.noteSent(QuestBookScreen.REPLICA_SENTINEL) != null) {
                     ArmatureNetwork.sendToServer(
-                            new dev.ellipog.tenet.net.TableImportRequestPayload(book.tableAddress, false));
+                            new dev.ellipog.tenet.net.TableImportRequestPayload(book.bookState.tableAddress, false));
                 }
             }
             case TABLE_IMPORT_CHEST -> {
-                book.tableImportOpen = false;
+                book.bookState.tableImportOpen = false;
                 if (ClientEditReplies.noteSent(QuestBookScreen.REPLICA_SENTINEL) != null) {
                     ArmatureNetwork.sendToServer(
-                            new dev.ellipog.tenet.net.TableImportRequestPayload(book.tableAddress, true));
+                            new dev.ellipog.tenet.net.TableImportRequestPayload(book.bookState.tableAddress, true));
                 }
             }
             case TABLE_ROLL -> {
                 // One button, two meanings, and the label says which: over the entries it rolls, over the
                 // roll it goes back. The roll's own state is what decides, so the two can never disagree.
-                if (book.tableShowRoll) {
-                    book.tableShowRoll = false;
-                    book.tableImportOpen = false;
-                    book.rollBody.setScrollY(0);
+                if (book.bookState.tableShowRoll) {
+                    book.bookState.tableShowRoll = false;
+                    book.bookState.tableImportOpen = false;
+                    book.bookState.rollBody.setScrollY(0);
                     return;
                 }
-                book.rollBody.setScrollY(0);
+                book.bookState.rollBody.setScrollY(0);
                 // The panel only flips to the roll when the request can actually be sent: showing a roll
                 // nobody asked for would be a panel describing a question that was never put.
                 if (ClientEditReplies.noteSent(QuestBookScreen.REPLICA_SENTINEL) == null) {
                     return;
                 }
-                book.tableShowRoll = true;
+                book.bookState.tableShowRoll = true;
                 // The reading the author has selected travels as it stands. It used to travel as a
                 // derived `includeEmpty` flag, which the server turned back into one of two modes --
                 // so "All once" and "Choice" came back as weighted rolls of a table whose own panel
                 // said every entry is granted. See TableRollRequestPayload.
                 ArmatureNetwork.sendToServer(new dev.ellipog.tenet.net.TableRollRequestPayload(
-                        book.tableAddress, QuestBookScreen.TABLE_ROLL_COUNT, book.tablePreview));
+                        book.bookState.tableAddress, QuestBookScreen.TABLE_ROLL_COUNT, book.bookState.tablePreview));
             }
             case TABLE_UNDO -> tableUndo();
             case TABLE_OPEN_CHILD -> {
@@ -1369,7 +1372,7 @@ final class BookAssets {
      * answers waiting to disagree.
      */
     dev.ellipog.tenet.client.dev.TableEditorLayout.Folds tableFolds() {
-        return dev.ellipog.tenet.client.dev.TableEditorLayout.Folds.of(book.tableFolded,
+        return dev.ellipog.tenet.client.dev.TableEditorLayout.Folds.of(book.bookState.tableFolded,
                 book.bookAssets::tableFoldLines);
     }
 
@@ -1404,9 +1407,9 @@ final class BookAssets {
 
     /** Leaves the picker a table opened: back to the editor, with the pick forgotten. */
     void closeTablePick() {
-        book.tablePickPath = null;
+        book.bookState.tablePickPath = null;
         book.itemPicker.closeItemPicker();
-        if (book.tableAddress != null) {
+        if (book.bookState.tableAddress != null) {
             book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.TABLE_EDITOR));
         }
         book.rebuildWidgets();
@@ -1414,23 +1417,23 @@ final class BookAssets {
 
     /** Ctrl+Z in the editor: the frame's own history, and never past the table it opened on. */
     void tableUndo() {
-        if (book.tableAddress == null || book.tableApplied <= 0) {
+        if (book.bookState.tableAddress == null || book.bookState.tableApplied <= 0) {
             book.status("Nothing to undo in this table", true);
             return;
         }
         // The drafts go first: the server is about to put the file back, and a pending value still
         // holding what was undone would keep drawing it -- a Ctrl+Z that looks like it did nothing.
         BookRewards.tableDraft.forgetOwner(QuestBookScreen.effectiveChapter(), book.bookRewards.tableOwnerKey());
-        book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Undo(book.tableAddress));
+        book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Undo(book.bookState.tableAddress));
     }
 
     void tableRedo() {
-        if (book.tableAddress == null || book.tableUndone <= 0) {
+        if (book.bookState.tableAddress == null || book.bookState.tableUndone <= 0) {
             book.status("Nothing to redo in this table", true);
             return;
         }
         BookRewards.tableDraft.forgetOwner(QuestBookScreen.effectiveChapter(), book.bookRewards.tableOwnerKey());
-        book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Redo(book.tableAddress));
+        book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Redo(book.bookState.tableAddress));
     }
 
     // ------------------------------------------------------------------
@@ -1465,24 +1468,24 @@ final class BookAssets {
      * that arms, so the next field added to the subject cannot be forgotten by two of the three.
      */
     void forgetPickSubject() {
-        book.pickTarget = null;
-        book.pickTitle = "";
-        book.pickIcon = ItemStack.EMPTY;
-        book.pickTexture = "";
-        book.pickSprite = "";
-        book.pickName = "";
+        book.bookState.pickTarget = null;
+        book.bookState.pickTitle = "";
+        book.bookState.pickIcon = ItemStack.EMPTY;
+        book.bookState.pickTexture = "";
+        book.bookState.pickSprite = "";
+        book.bookState.pickName = "";
     }
 
     void clearPickers() {
-        book.pickingEntryType = null;
-        book.pickingConditionFor = null;
-        book.tablePickPath = null;
+        book.bookState.pickingEntryType = null;
+        book.bookState.pickingConditionFor = null;
+        book.bookState.tablePickPath = null;
         // Cleared before the item picker closes, because that is what tells it *not* to hand the overlay
         // back to the table editor: this is a exit, not a return.
-        book.tablePickReturn = false;
+        book.bookState.tablePickReturn = false;
         // And the type page's own return flag with it, for the same reason: a stale one would have the
         // next page of a quest card leaving itself back into a table that is not on screen.
-        book.typePickReturn = false;
+        book.bookState.typePickReturn = false;
         book.itemPicker.closeItemPicker();
     }
 
@@ -1520,7 +1523,7 @@ final class BookAssets {
      * the press — a stale inventory, or a stage granted in the last second.
      */
     void submit(String questId, int taskIndex) {
-        if (!book.pendingClaims.mark(PendingClaims.taskKey(questId, taskIndex),
+        if (!book.bookState.pendingClaims.mark(PendingClaims.taskKey(questId, taskIndex),
                 net.minecraft.util.Util.getMillis())) {
             // Already in flight: a second press for one task is not a second packet.
             return;

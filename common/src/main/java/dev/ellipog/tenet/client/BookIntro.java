@@ -75,7 +75,8 @@ final class BookIntro {
             r.fill(0, 0, book.width, book.height, ArmatureTheme.dim());
         }
 
-        if (book.naming != null || !book.menu.isEmpty() || book.pickingEntryType != null) {
+        if (book.bookState.naming != null || !book.bookState.menu.isEmpty()
+                || book.bookState.pickingEntryType != null) {
             // Something the author is reading is open — the naming card, a right-click menu, the
             // type picker — so the tooltip stands aside while the spotlight stays: covering the menu
             // that says "New quest here" with a tooltip that says nearly the same would be the tour
@@ -273,7 +274,8 @@ final class BookIntro {
             case QUEST -> book.geometry().canvas();
             // The card's own add rows once it is open, else the canvas they will be made on.
             case TASK -> book.bookCanvas.introTaskBox != null ? book.bookCanvas.introTaskBox : book.geometry().canvas();
-            case REWARD -> book.bookCanvas.introRewardBox != null ? book.bookCanvas.introRewardBox : book.geometry().canvas();
+            case REWARD -> book.bookCanvas.introRewardBox != null ? book.bookCanvas.introRewardBox
+                    : book.geometry().canvas();
             case DONE -> null;
         };
     }

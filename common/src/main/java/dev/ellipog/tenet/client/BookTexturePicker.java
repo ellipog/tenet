@@ -95,11 +95,11 @@ final class BookTexturePicker {
         book.bookCanvas.texturePickElement = elementId;
         textureSearch = null;
         textureQuery = "";
-        book.textureSelected = -1;
-        book.textureBody.setScrollY(0);
-        book.textureMatches = List.of();
-        book.textureRows = List.of();
-        book.textureFrame = null;
+        book.bookState.textureSelected = -1;
+        book.bookState.textureBody.setScrollY(0);
+        book.bookState.textureMatches = List.of();
+        book.bookState.textureRows = List.of();
+        book.bookState.textureFrame = null;
         textureCatalogue();
         rebuildTextureRows("");
         book.applyColumns(PanelStack.afterOpen(book.columns(), PanelKind.TEXTURE));
@@ -115,10 +115,10 @@ final class BookTexturePicker {
      * answer, so it is the only thing that pays for it.
      */
     private void rebuildTextureRows(String query) {
-        book.textureMatches = ItemPicker.rank(textureCatalogue(), query, ItemPicker.LIMIT);
+        book.bookState.textureMatches = ItemPicker.rank(textureCatalogue(), query, ItemPicker.LIMIT);
         // The highlighted row is the file the target is drawn from: the canvas's own texture, or the element
         // the picker was opened for -- so a list opened from a picture marks that picture's file.
-        book.textureRows = TexturePicker.rows(textureCatalogue(), pickerCurrentTexture(), query);
+        book.bookState.textureRows = TexturePicker.rows(textureCatalogue(), pickerCurrentTexture(), query);
     }
 
     /** The file the picker's target is drawn from, or empty when it names none. */
@@ -144,11 +144,11 @@ final class BookTexturePicker {
         book.deferForLastDeparted(() -> {
             textureSearch = null;
             textureQuery = "";
-            book.textureSelected = -1;
-            book.textureBody.setScrollY(0);
-            book.textureMatches = List.of();
-            book.textureRows = List.of();
-            book.textureFrame = null;
+            book.bookState.textureSelected = -1;
+            book.bookState.textureBody.setScrollY(0);
+            book.bookState.textureMatches = List.of();
+            book.bookState.textureRows = List.of();
+            book.bookState.textureFrame = null;
         });
         book.rebuildWidgets();
     }
@@ -169,7 +169,7 @@ final class BookTexturePicker {
         textureSearch.onSubmit(text -> { });
         book.addRenderableWidget(textureSearch);
         // The placeholder after the pass, and nothing else: see the item picker's own copy of this note.
-        book.panelOverlays.add(r -> {
+        book.bookState.panelOverlays.add(r -> {
             if (textureSearch == null || !textureSearch.value().isEmpty()) {
                 return;
             }
@@ -205,7 +205,7 @@ final class BookTexturePicker {
 
         // Both header lines stop short of the fold control when this column carries one. The second is the
         // one that noticed: the subject line is a texture's path, and a path is longer than any column.
-        int headerRoom = Math.max(0, book.headerTextRoom(book.surfaceCard(book.surfaceKind)) - (left + 14));
+        int headerRoom = Math.max(0, book.headerTextRoom(book.surfaceCard(book.bookState.surfaceKind)) - (left + 14));
         Measure headerMeasure = Measure.of(r::textWidth, r.lineHeight());
         r.text(Measure.truncate(Labels.of("tenet.dev.texture.title"), headerRoom, headerMeasure),
                 left + 14, top + 12, ArmatureTheme.title());
@@ -233,52 +233,56 @@ final class BookTexturePicker {
     private void drawTexturePicker(GuiRenderer r, Viewport body, int mouseX, int mouseY) {
         BookGeometry.Rect bodyRect = BookGeometry.Rect.at(body.originX(), body.originY(),
                 body.viewWidth(), body.viewHeight());
-        book.textureFrame = ItemPickerLayout.Frame.of(bodyRect);
+        book.bookState.textureFrame = ItemPickerLayout.Frame.of(bodyRect);
         String query = textureSearch == null ? "" : textureSearch.value();
         if (!query.equals(textureQuery)) {
             // A keystroke is a new list: the selection goes back to its first row and the scroll to the
             // top, because an index into the old list names nothing in this one. The list itself is
             // rebuilt here and nowhere else -- see `rebuildTextureRows` for why the drawing must not.
             textureQuery = query;
-            book.textureSelected = -1;
-            book.textureBody.setScrollY(0);
+            book.bookState.textureSelected = -1;
+            book.bookState.textureBody.setScrollY(0);
             rebuildTextureRows(query);
         }
-        QuestBookScreen.bindList(book.textureBody, book.textureBar, book.textureFrame.list(),
-                book.textureFrame.scrollbar(),
-                ItemPickerLayout.contentHeight(book.textureRows), ItemPickerLayout.ROW_HEIGHT);
-        int textureScroll = book.textureBody.scrollY();
-        if (book.textureSelected >= 0) {
-            book.textureSelected = ItemPickerLayout.clamp(book.textureRows, book.textureSelected);
+        QuestBookScreen.bindList(book.bookState.textureBody, book.bookState.textureBar,
+                book.bookState.textureFrame.list(),
+                book.bookState.textureFrame.scrollbar(),
+                ItemPickerLayout.contentHeight(book.bookState.textureRows), ItemPickerLayout.ROW_HEIGHT);
+        int textureScroll = book.bookState.textureBody.scrollY();
+        if (book.bookState.textureSelected >= 0) {
+            book.bookState.textureSelected = ItemPickerLayout.clamp(book.bookState.textureRows,
+                    book.bookState.textureSelected);
         }
 
         // Clipped to the list, not the body: a row half scrolled under the search box belongs at the
         // box's edge, which is where the list starts -- the item picker's own note says the same.
-        try (GuiRenderer.Scoped clip = r.clip(book.textureFrame.list().x(), book.textureFrame.list().y(),
-                book.textureFrame.list().right(), book.textureFrame.list().bottom())) {
-            if (book.textureRows.isEmpty()) {
-                r.text(Labels.of("tenet.dev.texture.hint"), book.textureFrame.list().x() + 4,
-                        book.textureFrame.list().y() + 4, ArmatureTheme.faint());
+        try (GuiRenderer.Scoped clip = r.clip(book.bookState.textureFrame.list().x(),
+                book.bookState.textureFrame.list().y(),
+                book.bookState.textureFrame.list().right(), book.bookState.textureFrame.list().bottom())) {
+            if (book.bookState.textureRows.isEmpty()) {
+                r.text(Labels.of("tenet.dev.texture.hint"), book.bookState.textureFrame.list().x() + 4,
+                        book.bookState.textureFrame.list().y() + 4, ArmatureTheme.faint());
                 return;
             }
             Measure measure = book.textMeasure(r);
-            for (int i = 0; i < book.textureRows.size(); i++) {
+            for (int i = 0; i < book.bookState.textureRows.size(); i++) {
                 BookGeometry.Rect rect =
-                        ItemPickerLayout.rowRect(book.textureRows, book.textureFrame, textureScroll, i);
+                        ItemPickerLayout.rowRect(book.bookState.textureRows, book.bookState.textureFrame,
+                                textureScroll, i);
                 // Off the list is not drawn -- the clip would cut a row the keyboard can still land on
                 // and the wheel can bring back, and a half row at the edge is exactly what the clip is
                 // for, so only the wholly-out ones are skipped.
-                if (rect.bottom() <= book.textureFrame.list().y()
-                        || rect.y() >= book.textureFrame.list().bottom()) {
+                if (rect.bottom() <= book.bookState.textureFrame.list().y()
+                        || rect.y() >= book.bookState.textureFrame.list().bottom()) {
                     continue;
                 }
-                ItemPickerLayout.Row row = book.textureRows.get(i);
+                ItemPickerLayout.Row row = book.bookState.textureRows.get(i);
                 if (row.kind() == ItemPickerLayout.Kind.HEADING) {
                     r.text(row.label(), rect.x() + 2, rect.y() + (rect.height() - 8) / 2,
                             ArmatureTheme.faint());
                     continue;
                 }
-                if (i == book.textureSelected) {
+                if (i == book.bookState.textureSelected) {
                     r.fill(rect.x(), rect.y(), rect.right(), rect.bottom(), ArmatureTheme.recessed());
                 }
                 else if (rect.contains(mouseX, mouseY)) {
@@ -291,7 +295,7 @@ final class BookTexturePicker {
                     // The picture in the row's own square, at its aspect: the one thing an id cannot
                     // say and the whole reason this picker exists rather than a second text field.
                     ToolsPanel.drawTextureThumb(r, new Slot(row.id(), rect.x() + 1, rect.y() + 1,
-                            box, box), row.id(), book.textureSizes);
+                            box, box), row.id(), book.bookState.textureSizes);
                     textX = rect.x() + 20;
                 }
                 else if (missing) {
@@ -314,7 +318,7 @@ final class BookTexturePicker {
         }
         // The list's bar, in the frame's own strip and outside the clip: the item picker's arrangement,
         // because the two pages are the same act with a different catalogue.
-        QuestBookScreen.drawBar(r, book.textureBar, mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.textureBar, mouseX, mouseY);
     }
 
     /**
@@ -327,10 +331,10 @@ final class BookTexturePicker {
      * next press is a correction rather than a reopened picker.
      */
     void pressTextureRow(int index) {
-        if (index < 0 || index >= book.textureRows.size()) {
+        if (index < 0 || index >= book.bookState.textureRows.size()) {
             return;
         }
-        ItemPickerLayout.Row row = book.textureRows.get(index);
+        ItemPickerLayout.Row row = book.bookState.textureRows.get(index);
         if (!ItemPickerLayout.pickable(row)) {
             return;
         }
@@ -351,17 +355,18 @@ final class BookTexturePicker {
      */
     void commitFromTexturePicker() {
         String query = textureSearch == null ? "" : textureSearch.value();
-        String exact = ItemPicker.exactId(query, book.textureMatches);
+        String exact = ItemPicker.exactId(query, book.bookState.textureMatches);
         if (exact != null) {
             if (book.questEditor.commitCanvasTexture(exact)) {
                 closeTexturePicker();
             }
             return;
         }
-        ItemPickerLayout.Row row = book.textureSelected >= 0 && book.textureSelected < book.textureRows.size()
-                ? book.textureRows.get(book.textureSelected) : null;
+        ItemPickerLayout.Row row = book.bookState.textureSelected >= 0
+                && book.bookState.textureSelected < book.bookState.textureRows.size()
+                ? book.bookState.textureRows.get(book.bookState.textureSelected) : null;
         if (row != null && ItemPickerLayout.pickable(row)) {
-            pressTextureRow(book.textureSelected);
+            pressTextureRow(book.bookState.textureSelected);
             return;
         }
         book.status(query.isBlank() ? "Type to search, or paste a texture id"

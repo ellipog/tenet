@@ -72,34 +72,34 @@ final class BookItemPicker {
      */
     void openSearchPicker(QuestBookScreen.EditTarget target, EditorField field, String observeType) {
         book.editorControls.closeInlineEditor();
-        book.pickingEntryType = null;
-        book.settingsOpen = false;
-        book.pickerFromSettings = false;
+        book.bookState.pickingEntryType = null;
+        book.bookState.settingsOpen = false;
+        book.bookState.pickerFromSettings = false;
         book.bookAssets.forgetPickSubject();
-        book.pickTarget = QuestBookScreen.PickTarget.QUEST;
-        book.draggingSlider = null;
-        book.settingsDraft.clear();
-        book.pickingItemPath = target.path();
+        book.bookState.pickTarget = QuestBookScreen.PickTarget.QUEST;
+        book.bookState.draggingSlider = null;
+        book.bookState.settingsDraft.clear();
+        book.bookState.pickingItemPath = target.path();
         JsonObject quest = book.replicaQuest();
         JsonElement current = quest == null ? null : QuestPanelLayout.get(quest, target.path());
-        book.pickingItemCurrent = current != null && current.isJsonPrimitive() ? current.getAsString() : "";
-        book.pickingItemClearPath = null;
-        book.pickerSource = field.source();
-        book.pickerObserveType = observeType;
-        book.pickerEntries = SearchCatalogue.list(field.source(), observeType);
-        book.pickerInventory = List.of();
-        book.pickerMatches = List.of();
-        book.pickerRows = List.of();
-        book.pickerFrame = null;
-        book.pickerQuery = "";
+        book.bookState.pickingItemCurrent = current != null && current.isJsonPrimitive() ? current.getAsString() : "";
+        book.bookState.pickingItemClearPath = null;
+        book.bookState.pickerSource = field.source();
+        book.bookState.pickerObserveType = observeType;
+        book.bookState.pickerEntries = SearchCatalogue.list(field.source(), observeType);
+        book.bookState.pickerInventory = List.of();
+        book.bookState.pickerMatches = List.of();
+        book.bookState.pickerRows = List.of();
+        book.bookState.pickerFrame = null;
+        book.bookState.pickerQuery = "";
         // A picker opens on an empty box. The box keeps its text across rebuilds -- that is what makes it
         // usable while typing -- but a query from the last field would filter this field's list, and the
         // first rows are what say what this one can hold.
-        book.itemSearch = null;
-        book.pickerSelected = -1;
-        book.pickerBody.setScrollY(0);
+        book.bookState.itemSearch = null;
+        book.bookState.pickerSelected = -1;
+        book.bookState.pickerBody.setScrollY(0);
         // A search pick is never an icon pick: no tabs, whatever the last pick was.
-        book.pickerKind = QuestBookScreen.PickerKind.ITEM;
+        book.bookState.pickerKind = QuestBookScreen.PickerKind.ITEM;
         placeArmedPick();
         book.rebuildWidgets();
     }
@@ -119,7 +119,7 @@ final class BookItemPicker {
      * drawn as the panel it is, and this answers false for it.
      */
     boolean pickerAsColumn() {
-        return book.overlay2 == PanelKind.PICKER;
+        return book.bookState.overlay2 == PanelKind.PICKER;
     }
 
     /**
@@ -154,10 +154,10 @@ final class BookItemPicker {
 
     /** A press on a file row: a texture sets the icon, the clear row removes it. */
     void pressFileRow(int index) {
-        if (index < 0 || index >= book.textureRows.size()) {
+        if (index < 0 || index >= book.bookState.textureRows.size()) {
             return;
         }
-        ItemPickerLayout.Row row = book.textureRows.get(index);
+        ItemPickerLayout.Row row = book.bookState.textureRows.get(index);
         if (!ItemPickerLayout.pickable(row)) {
             return;
         }
@@ -223,13 +223,13 @@ final class BookItemPicker {
      * before the server answers, so this write is already whole.
      */
     private void commitIconObject(JsonObject icon) {
-        if (book.pickTarget != null && book.pickTarget != QuestBookScreen.PickTarget.QUEST) {
+        if (book.bookState.pickTarget != null && book.bookState.pickTarget != QuestBookScreen.PickTarget.QUEST) {
             commitDockIcon(icon);
             return;
         }
         String quest = book.editTarget();
-        String path = book.pickingItemPath;
-        String clearPath = book.pickingItemClearPath;
+        String path = book.bookState.pickingItemPath;
+        String clearPath = book.bookState.pickingItemClearPath;
         closeItemPicker();
         if (!book.mayEditNow() || quest == null || path == null) {
             book.rebuildWidgets();
@@ -275,7 +275,7 @@ final class BookItemPicker {
      */
     private void commitDockIcon(JsonObject icon) {
         String word = icon == null ? "" : describeIcon(icon);
-        if (book.pickTarget == QuestBookScreen.PickTarget.BOOK) {
+        if (book.bookState.pickTarget == QuestBookScreen.PickTarget.BOOK) {
             closeItemPicker();
             if (!book.mayEditNow()) {
                 book.rebuildWidgets();
@@ -286,7 +286,7 @@ final class BookItemPicker {
             book.rebuildWidgets();
             return;
         }
-        boolean group = book.pickTarget == QuestBookScreen.PickTarget.GROUP;
+        boolean group = book.bookState.pickTarget == QuestBookScreen.PickTarget.GROUP;
         closeItemPicker();
         if (!book.mayEditNow()) {
             book.rebuildWidgets();
@@ -354,10 +354,10 @@ final class BookItemPicker {
 
     /** A press on a picker row: an item sets the field, the clear row removes it, a heading nothing. */
     void pressPickerRow(int index) {
-        if (index < 0 || index >= book.pickerRows.size()) {
+        if (index < 0 || index >= book.bookState.pickerRows.size()) {
             return;
         }
-        ItemPickerLayout.Row row = book.pickerRows.get(index);
+        ItemPickerLayout.Row row = book.bookState.pickerRows.get(index);
         if (!ItemPickerLayout.pickable(row)) {
             return;
         }
@@ -365,7 +365,7 @@ final class BookItemPicker {
             commitPicker(null, 1);
             return;
         }
-        if (row.kind() == ItemPickerLayout.Kind.MISSING && row.id().equals(book.pickingItemCurrent)) {
+        if (row.kind() == ItemPickerLayout.Kind.MISSING && row.id().equals(book.bookState.pickingItemCurrent)) {
             // The field's own missing value, pressed: it is already what the field says, so this is
             // "keep it" -- the picker closes and no edit is spent saying nothing.
             closeItemPicker();
@@ -385,17 +385,18 @@ final class BookItemPicker {
      * screen says so rather than setting the field to whatever happened to sort first.
      */
     void commitFromPicker() {
-        String query = book.itemSearch == null ? "" : book.itemSearch.value();
-        if (book.pickerTabsVisible() && book.pickerKind == QuestBookScreen.PickerKind.SPRITE) {
+        String query = book.bookState.itemSearch == null ? "" : book.bookState.itemSearch.value();
+        if (book.pickerTabsVisible() && book.bookState.pickerKind == QuestBookScreen.PickerKind.SPRITE) {
             // No rows to walk: the box's own text is the answer, shape-checked by the commit.
             commitSpriteText(query);
             return;
         }
-        if (book.pickerTabsVisible() && book.pickerKind == QuestBookScreen.PickerKind.FILE) {
+        if (book.pickerTabsVisible() && book.bookState.pickerKind == QuestBookScreen.PickerKind.FILE) {
             // The keyboard's row first, then a typed id: the same rule the item tab reads by,
             // on this tab's own rows rather than the item list's.
-            if (book.textureSelected >= 0 && book.textureSelected < book.textureRows.size()) {
-                ItemPickerLayout.Row fileRow = book.textureRows.get(book.textureSelected);
+            if (book.bookState.textureSelected >= 0
+                    && book.bookState.textureSelected < book.bookState.textureRows.size()) {
+                ItemPickerLayout.Row fileRow = book.bookState.textureRows.get(book.bookState.textureSelected);
                 if (ItemPickerLayout.pickable(fileRow)) {
                     if (fileRow.kind() == ItemPickerLayout.Kind.CLEAR) {
                         commitPicker(null, 1);
@@ -409,15 +410,16 @@ final class BookItemPicker {
             commitFileText(query);
             return;
         }
-        String exact = ItemPicker.exactId(query, book.pickerMatches);
+        String exact = ItemPicker.exactId(query, book.bookState.pickerMatches);
         if (exact != null) {
             // A whole id typed is one of the thing, the way a catalogue row is: there is no stack behind
             // a name somebody typed.
             commitPicker(exact, 1);
             return;
         }
-        ItemPickerLayout.Row row = book.pickerSelected >= 0 && book.pickerSelected < book.pickerRows.size()
-                ? book.pickerRows.get(book.pickerSelected) : null;
+        ItemPickerLayout.Row row = book.bookState.pickerSelected >= 0
+                && book.bookState.pickerSelected < book.bookState.pickerRows.size()
+                ? book.bookState.pickerRows.get(book.bookState.pickerSelected) : null;
         if (row != null && (row.kind() == ItemPickerLayout.Kind.ITEM
                 || row.kind() == ItemPickerLayout.Kind.MISSING)) {
             commitPicker(row.id(), row.count());
@@ -438,18 +440,18 @@ final class BookItemPicker {
      * drawn for such a field, and this is the second gate in case anything ever draws one anyway.
      */
     void commitPicker(String id, int count) {
-        if (book.pickTarget != null && book.pickTarget != QuestBookScreen.PickTarget.QUEST) {
+        if (book.bookState.pickTarget != null && book.bookState.pickTarget != QuestBookScreen.PickTarget.QUEST) {
             commitDockPicker(id);
             return;
         }
         // A pick made from the table editor: the item goes into the table rather than into a quest
         // field, and the item's own data goes with it -- the same "the sword I am holding" rule the
         // card's item fields have. The count too, when the entry being made is new: see `itemEntry`.
-        if (book.tablePickPath != null) {
+        if (book.bookState.tablePickPath != null) {
             commitTablePick(id, id == null ? "" : pickedDataOf(id), count);
             return;
         }
-        if (book.pickerKind == QuestBookScreen.PickerKind.ENTITY && book.isIconPick()) {
+        if (book.bookState.pickerKind == QuestBookScreen.PickerKind.ENTITY && book.isIconPick()) {
             // An entity for a picture, from a row or a typed id alike: the whole object, never a
             // bare id — a string where the codec reads an object is a file that will not load.
             // Null is clear, through the same clear path the rows use.
@@ -457,8 +459,8 @@ final class BookItemPicker {
             return;
         }
         String quest = book.editTarget();
-        String path = book.pickingItemPath;
-        String clearPath = book.pickingItemClearPath;
+        String path = book.bookState.pickingItemPath;
+        String clearPath = book.bookState.pickingItemClearPath;
         String data = id == null ? "" : pickedDataOf(id);
         closeItemPicker();
         if (!book.mayEditNow() || quest == null || path == null) {
@@ -556,7 +558,7 @@ final class BookItemPicker {
      * is the default -- paper for a chapter, the first chapter's for a group -- not an empty item.
      */
     private void commitDockPicker(String id) {
-        if (book.pickTarget == QuestBookScreen.PickTarget.BOOK) {
+        if (book.bookState.pickTarget == QuestBookScreen.PickTarget.BOOK) {
             // The book's icon is a plain id, not an item reference: there is no components member to
             // carry, so the id is the whole value and null clears it.
             closeItemPicker();
@@ -569,7 +571,7 @@ final class BookItemPicker {
             book.rebuildWidgets();
             return;
         }
-        boolean group = book.pickTarget == QuestBookScreen.PickTarget.GROUP;
+        boolean group = book.bookState.pickTarget == QuestBookScreen.PickTarget.GROUP;
         String data = id == null ? "" : pickedDataOf(id);
         closeItemPicker();
         if (!book.mayEditNow()) {
@@ -646,80 +648,89 @@ final class BookItemPicker {
             bodyRect = BookGeometry.Rect.at(bodyRect.x(), tabBottom, bodyRect.width(),
                     Math.max(0, bodyRect.y() + bodyRect.height() - tabBottom));
         }
-        if (tabs && (book.pickerKind == QuestBookScreen.PickerKind.FILE
-                || book.pickerKind == QuestBookScreen.PickerKind.SPRITE)) {
+        if (tabs && (book.bookState.pickerKind == QuestBookScreen.PickerKind.FILE
+                || book.bookState.pickerKind == QuestBookScreen.PickerKind.SPRITE)) {
             drawPictureTab(r, bodyRect, mouseX, mouseY);
             return;
         }
-        book.pickerFrame = ItemPickerLayout.Frame.of(bodyRect);
-        String query = book.itemSearch == null ? "" : book.itemSearch.value();
-        if (!query.equals(book.pickerQuery)) {
+        book.bookState.pickerFrame = ItemPickerLayout.Frame.of(bodyRect);
+        String query = book.bookState.itemSearch == null ? "" : book.bookState.itemSearch.value();
+        if (!query.equals(book.bookState.pickerQuery)) {
             // A keystroke is a new list: the selection goes back to its first row and the scroll to the
             // top, because an index into the old list does not name anything in this one.
-            book.pickerQuery = query;
-            book.pickerSelected = -1;
-            book.pickerBody.setScrollY(0);
+            book.bookState.pickerQuery = query;
+            book.bookState.pickerSelected = -1;
+            book.bookState.pickerBody.setScrollY(0);
         }
-        book.pickerMatches = book.pickerSource != null && query.isBlank()
+        book.bookState.pickerMatches = book.bookState.pickerSource != null && query.isBlank()
                 // A search field opens on the first ten of its list rather than on nothing: the list is
                 // what says what the field can hold, and a picker that shows an empty box until you type
                 // reads as one that found nothing. Typing ranks exactly as it does for items.
-                ? book.pickerEntries.stream().limit(FIRST_ROWS).toList()
-                : ItemPicker.rank(book.pickerEntries, query, ItemPicker.LIMIT);
+                ? book.bookState.pickerEntries.stream().limit(FIRST_ROWS).toList()
+                : ItemPicker.rank(book.bookState.pickerEntries, query, ItemPicker.LIMIT);
         // A typed `#tag` is a value a RegistryRef field takes, and a `#` is not a resource location: without
         // the flag the box refuses the spelling the field's own codec reads. See ItemPicker#missingCandidate.
-        boolean tagsAllowed = book.pickerSource != null
-                && EditorSources.valueKind(book.pickerSource, book.pickerObserveType)
+        boolean tagsAllowed = book.bookState.pickerSource != null
+                && EditorSources.valueKind(book.bookState.pickerSource, book.bookState.pickerObserveType)
                         == EditorSources.Value.ID_OR_TAG;
-        String typedCandidate = ItemPicker.missingCandidate(query, book.pickerMatches, tagsAllowed);
+        String typedCandidate = ItemPicker.missingCandidate(query, book.bookState.pickerMatches, tagsAllowed);
         // What "the current value is real" means depends on what is being listed: an item is known when
         // the build has it, and a registry value is known when the field's own grammar takes it -- which
         // is why a `#minecraft:village` is no longer reported as a missing id by the picker listing it.
-        boolean currentKnown = book.pickingItemCurrent.isEmpty()
-                || (book.pickerSource != null
-                        ? EditorSources.accepts(book.pickerSource, book.pickerObserveType, book.pickingItemCurrent)
-                        : !QuestBookScreen.itemStack(book.pickingItemCurrent).isEmpty());
-        book.pickerRows = ItemPickerLayout.compose(book.pickerInventory, book.pickerMatches,
-                new ItemPickerLayout.Current(book.pickingItemCurrent, currentKnown,
-                        book.pickingItemClearPath != null),
+        boolean currentKnown = book.bookState.pickingItemCurrent.isEmpty()
+                || (book.bookState.pickerSource != null
+                        ? EditorSources.accepts(book.bookState.pickerSource, book.bookState.pickerObserveType,
+                                book.bookState.pickingItemCurrent)
+                        : !QuestBookScreen.itemStack(book.bookState.pickingItemCurrent).isEmpty());
+        book.bookState.pickerRows = ItemPickerLayout.compose(book.bookState.pickerInventory,
+                book.bookState.pickerMatches,
+                new ItemPickerLayout.Current(book.bookState.pickingItemCurrent, currentKnown,
+                        book.bookState.pickingItemClearPath != null),
                 typedCandidate, query,
                 // The item picker's own rule for its results (null), and the search field's own words for
                 // its list -- see ItemPickerLayout#compose. The entity tab names its own heading: the
                 // source's name reads as one entity, and this list is all of them.
-                book.pickerKind == QuestBookScreen.PickerKind.ENTITY ? Labels.of("tenet.dev.picker.entities")
-                        : book.pickerSource == null ? null : EditorSpecs.label(book.pickerSource.name()));
-        QuestBookScreen.bindList(book.pickerBody, book.pickerBar, book.pickerFrame.list(), book.pickerFrame.scrollbar(),
-                ItemPickerLayout.contentHeight(book.pickerRows), ItemPickerLayout.ROW_HEIGHT);
-        int pickerScroll = book.pickerBody.scrollY();
+                book.bookState.pickerKind == QuestBookScreen.PickerKind.ENTITY ? Labels.of("tenet.dev.picker.entities")
+                        : book.bookState.pickerSource == null ? null
+                                : EditorSpecs.label(book.bookState.pickerSource.name()));
+        QuestBookScreen.bindList(book.bookState.pickerBody, book.bookState.pickerBar,
+                book.bookState.pickerFrame.list(), book.bookState.pickerFrame.scrollbar(),
+                ItemPickerLayout.contentHeight(book.bookState.pickerRows), ItemPickerLayout.ROW_HEIGHT);
+        int pickerScroll = book.bookState.pickerBody.scrollY();
         // `-1` is "nothing chosen yet", and it stays that way until the author chooses. A selection
         // invented here would be Enter's answer on a picker nobody has touched -- and the first pickable
         // row is often Clear, so that answer would quietly empty the field. `clamp` re-lands a real
         // selection when the list changes size, and answers -1 when nothing is pickable, which is the
         // same honest nothing. See `commitFromPicker` for what Enter does with it.
-        if (book.pickerSelected >= 0) {
-            book.pickerSelected = ItemPickerLayout.clamp(book.pickerRows, book.pickerSelected);
+        if (book.bookState.pickerSelected >= 0) {
+            book.bookState.pickerSelected = ItemPickerLayout.clamp(book.bookState.pickerRows,
+                    book.bookState.pickerSelected);
         }
 
         // **Clipped to the list, not to the body.** A row half scrolled under the search box was
         // painting into it -- and an item icon draws at its own depth, so it showed *through* the
         // box's fill. A row's edge belongs at the box's edge, which is where the list starts.
-        try (GuiRenderer.Scoped clip = r.clip(book.pickerFrame.list().x(), book.pickerFrame.list().y(),
-                book.pickerFrame.list().right(), book.pickerFrame.list().bottom())) {
-            if (book.pickerRows.isEmpty()) {
-                r.text(book.pickerSource == null
+        try (GuiRenderer.Scoped clip = r.clip(book.bookState.pickerFrame.list().x(),
+                book.bookState.pickerFrame.list().y(),
+                book.bookState.pickerFrame.list().right(), book.bookState.pickerFrame.list().bottom())) {
+            if (book.bookState.pickerRows.isEmpty()) {
+                r.text(book.bookState.pickerSource == null
                                 ? "Type to search every item, or pick something you carry."
                                 : "Type to search what this build has, or an id it does not -- "
                                         + "pressing the row that appears keeps it.",
-                        book.pickerFrame.list().x() + 4, book.pickerFrame.list().y() + 4, ArmatureTheme.faint());
+                        book.bookState.pickerFrame.list().x() + 4, book.bookState.pickerFrame.list().y() + 4,
+                                ArmatureTheme.faint());
                 return;
             }
-            drawPickerRows(r, book.pickerFrame, book.pickerRows, pickerScroll, book.pickerSelected, mouseX, mouseY,
-                    book.pickerKind == QuestBookScreen.PickerKind.ENTITY ? this::entityIconOf : this::itemIconOf,
+            drawPickerRows(r, book.bookState.pickerFrame, book.bookState.pickerRows, pickerScroll,
+                    book.bookState.pickerSelected, mouseX, mouseY,
+                    book.bookState.pickerKind == QuestBookScreen.PickerKind.ENTITY ? this::entityIconOf
+                            : this::itemIconOf,
                     row -> row.kind() == ItemPickerLayout.Kind.MISSING);
         }
         // The list's bar, in the strip the frame kept for it: outside the clip, so its groove is the
         // full height of the list rather than the part of it that happens to be on screen.
-        QuestBookScreen.drawBar(r, book.pickerBar, mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.pickerBar, mouseX, mouseY);
     }
 
     /** The sprite tab's clear row from the last frame's own drawing — the press contract. */
@@ -734,7 +745,7 @@ final class BookItemPicker {
      * rather than on the canvas later. Enter commits; the verdict line says what Enter will do.
      */
     private void drawSpriteTab(GuiRenderer r, BookGeometry.Rect bodyRect, int mouseX, int mouseY) {
-        String value = book.itemSearch == null ? "" : book.itemSearch.value().trim();
+        String value = book.bookState.itemSearch == null ? "" : book.bookState.itemSearch.value().trim();
         spriteClearRect = null;
         int x = bodyRect.x() + 4;
         int y = bodyRect.y() + 6;
@@ -761,7 +772,7 @@ final class BookItemPicker {
             r.text(Measure.truncate(Labels.of("tenet.dev.picker.sprite_live"),
                     bodyRect.width() - 8, measure), x, textY + 10, ArmatureTheme.faint());
         }
-        if (book.pickingItemClearPath != null) {
+        if (book.bookState.pickingItemClearPath != null) {
             // Clear lives here too, so a sprite author never has to visit Items to remove the
             // picture: the commit below already knows the clear path.
             BookGeometry.Rect clear = BookGeometry.Rect.at(x, textY + 26,
@@ -800,49 +811,53 @@ final class BookItemPicker {
      * box's own text, which is exactly what the node will draw, missing mark and all.
      */
     private void drawPictureTab(GuiRenderer r, BookGeometry.Rect bodyRect, int mouseX, int mouseY) {
-        if (book.pickerKind == QuestBookScreen.PickerKind.SPRITE) {
+        if (book.bookState.pickerKind == QuestBookScreen.PickerKind.SPRITE) {
             drawSpriteTab(r, bodyRect, mouseX, mouseY);
             return;
         }
-        String query = book.itemSearch == null ? "" : book.itemSearch.value();
-        if (!query.equals(book.pickerFileQuery)) {
+        String query = book.bookState.itemSearch == null ? "" : book.bookState.itemSearch.value();
+        if (!query.equals(book.bookState.pickerFileQuery)) {
             // A keystroke is a new list, like the item tab's: the selection goes back to nothing
             // pickable-by-position and the scroll to the top.
-            book.pickerFileQuery = query;
-            book.textureSelected = -1;
-            book.textureBody.setScrollY(0);
+            book.bookState.pickerFileQuery = query;
+            book.bookState.textureSelected = -1;
+            book.bookState.textureBody.setScrollY(0);
         }
-        book.textureMatches = ItemPicker.rank(book.texturePicker.textureCatalogue(), query, ItemPicker.LIMIT);
+        book.bookState.textureMatches = ItemPicker.rank(book.texturePicker.textureCatalogue(), query, ItemPicker.LIMIT);
         List<ItemPickerLayout.Row> rows = new ArrayList<>(
                 TexturePicker.rows(book.texturePicker.textureCatalogue(), "", query));
-        if (book.pickingItemClearPath != null) {
+        if (book.bookState.pickingItemClearPath != null) {
             // Clear lives on every tab, not only Items: an author on Files must not have to leave
             // to remove the picture, and the commit below already knows the clear path.
             rows.add(0, ItemPickerLayout.Row.of(ItemPickerLayout.Kind.CLEAR, "",
                     Labels.of("tenet.dev.picker.clear"),
                     Labels.of("tenet.dev.picker.clear_detail")));
         }
-        book.textureRows = List.copyOf(rows);
-        book.textureFrame = ItemPickerLayout.Frame.of(bodyRect);
-        QuestBookScreen.bindList(book.textureBody, book.textureBar, book.textureFrame.list(),
-                book.textureFrame.scrollbar(),
-                ItemPickerLayout.contentHeight(book.textureRows), ItemPickerLayout.ROW_HEIGHT);
-        if (book.textureSelected >= 0) {
-            book.textureSelected = ItemPickerLayout.clamp(book.textureRows, book.textureSelected);
+        book.bookState.textureRows = List.copyOf(rows);
+        book.bookState.textureFrame = ItemPickerLayout.Frame.of(bodyRect);
+        QuestBookScreen.bindList(book.bookState.textureBody, book.bookState.textureBar,
+                book.bookState.textureFrame.list(),
+                book.bookState.textureFrame.scrollbar(),
+                ItemPickerLayout.contentHeight(book.bookState.textureRows), ItemPickerLayout.ROW_HEIGHT);
+        if (book.bookState.textureSelected >= 0) {
+            book.bookState.textureSelected = ItemPickerLayout.clamp(book.bookState.textureRows,
+                    book.bookState.textureSelected);
         }
-        try (GuiRenderer.Scoped clip = r.clip(book.textureFrame.list().x(), book.textureFrame.list().y(),
-                book.textureFrame.list().right(), book.textureFrame.list().bottom())) {
-            if (book.textureRows.isEmpty()) {
+        try (GuiRenderer.Scoped clip = r.clip(book.bookState.textureFrame.list().x(),
+                book.bookState.textureFrame.list().y(),
+                book.bookState.textureFrame.list().right(), book.bookState.textureFrame.list().bottom())) {
+            if (book.bookState.textureRows.isEmpty()) {
                 r.text(Labels.of("tenet.dev.texture.hint"),
-                        book.textureFrame.list().x() + 4, book.textureFrame.list().y() + 4,
+                        book.bookState.textureFrame.list().x() + 4, book.bookState.textureFrame.list().y() + 4,
                         ArmatureTheme.faint());
                 return;
             }
-            drawPickerRows(r, book.textureFrame, book.textureRows, book.textureBody.scrollY(), book.textureSelected,
+            drawPickerRows(r, book.bookState.textureFrame, book.bookState.textureRows,
+                    book.bookState.textureBody.scrollY(), book.bookState.textureSelected,
                     mouseX, mouseY, this::itemIconOf,
                     row -> row.kind() == ItemPickerLayout.Kind.MISSING);
         }
-        QuestBookScreen.drawBar(r, book.textureBar, mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.textureBar, mouseX, mouseY);
     }
 
     /**
@@ -904,7 +919,7 @@ final class BookItemPicker {
                 // one branch so a file row reads alike in both pickers.
                 int box = Math.max(8, rect.height() - 2);
                 ToolsPanel.drawTextureThumb(r, new Slot(row.id(), rect.x() + 1, rect.y() + 1,
-                        box, box), row.id(), book.textureSizes);
+                        box, box), row.id(), book.bookState.textureSizes);
                 textX = rect.x() + 20;
             }
             else {
@@ -1003,7 +1018,7 @@ final class BookItemPicker {
 
     /** The picked entry's custom data, from what the player carries. Unknown ids have none. */
     private String pickedDataOf(String id) {
-        for (ItemPicker.Entry entry : book.pickerInventory) {
+        for (ItemPicker.Entry entry : book.bookState.pickerInventory) {
             if (entry.id().equals(id)) {
                 return entry.data();
             }
@@ -1030,10 +1045,10 @@ final class BookItemPicker {
      * was looking at.
      */
     boolean pressImportPopover(double mouseX, double mouseY, int button) {
-        BookGeometry.Rect box = book.tableImportBox;
+        BookGeometry.Rect box = book.bookState.tableImportBox;
         boolean onRow = false;
         if (button == InputConstants.MOUSE_BUTTON_LEFT && box != null && box.contains(mouseX, mouseY)) {
-            for (QuestBookScreen.EditTarget target : book.editTargets) {
+            for (QuestBookScreen.EditTarget target : book.bookState.editTargets) {
                 boolean mine = target.action() == QuestBookScreen.EditAction.TABLE_IMPORT
                         || target.action() == QuestBookScreen.EditAction.TABLE_IMPORT_CHEST;
                 if (mine && target.box().contains(mouseX, mouseY)) {
@@ -1044,7 +1059,7 @@ final class BookItemPicker {
             }
         }
         if (!onRow) {
-            book.tableImportOpen = false;
+            book.bookState.tableImportOpen = false;
         }
         return true;
     }
@@ -1061,9 +1076,9 @@ final class BookItemPicker {
 
     /** The picker's commit when the pick belongs to a table: an entry, an item field, or the icon. */
     private void commitTablePick(String id, String data, int count) {
-        String path = book.tablePickPath;
-        book.tablePickPath = null;
-        if (book.tableAddress == null || path == null) {
+        String path = book.bookState.tablePickPath;
+        book.bookState.tablePickPath = null;
+        if (book.bookState.tableAddress == null || path == null) {
             book.rebuildWidgets();
             return;
         }
@@ -1074,7 +1089,8 @@ final class BookItemPicker {
             if (path.endsWith(".icon")) {
                 JsonObject fields = new JsonObject();
                 fields.add(path, com.google.gson.JsonNull.INSTANCE);
-                book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.SetFields(book.tableAddress, fields));
+                book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.SetFields(book.bookState.tableAddress,
+                        fields));
                 book.status("tenet.status.cleared", false);
             }
             else {
@@ -1095,7 +1111,8 @@ final class BookItemPicker {
             }
             JsonObject fields = new JsonObject();
             fields.add(path, icon);
-            book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.SetFields(book.tableAddress, fields));
+            book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.SetFields(book.bookState.tableAddress,
+                    fields));
             book.status("Set to " + id, false);
         }
         else if (path.isEmpty()) {
@@ -1108,7 +1125,7 @@ final class BookItemPicker {
             int at = model.map(dev.ellipog.tenet.quest.loot.RewardTable::entryCount).orElse(0);
             BookRewards.tableDraft.forgetList(QuestBookScreen.effectiveChapter(),
                     book.bookRewards.tableOwnerKey(), "entries");
-            book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Insert(book.tableAddress, at,
+            book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Insert(book.bookState.tableAddress, at,
                     QuestPanelLayout.itemEntry(id, count, components)));
             book.status("Added " + (count > 1 ? count + "x " : "") + id, false);
         }
@@ -1125,7 +1142,8 @@ final class BookItemPicker {
             else {
                 fields.add(sibling, components);
             }
-            book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.SetFields(book.tableAddress, fields));
+            book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.SetFields(book.bookState.tableAddress,
+                    fields));
             book.status("Set to " + id, false);
         }
         book.bookAssets.closeTablePick();
@@ -1137,39 +1155,39 @@ final class BookItemPicker {
 
     void openItemPicker(QuestBookScreen.EditTarget target, boolean returnToSettings) {
         book.editorControls.closeInlineEditor();
-        book.pickingEntryType = null;
-        book.settingsOpen = false;
-        book.pickerFromSettings = returnToSettings;
+        book.bookState.pickingEntryType = null;
+        book.bookState.settingsOpen = false;
+        book.bookState.pickerFromSettings = returnToSettings;
         // The card's picker, named as such: the dock's two icons are the other targets, and a stale one
         // left set would route this pick to a chapter's or a group's file. The reset comes first, so the
         // title can never be a sentence the last pick left behind.
         book.bookAssets.forgetPickSubject();
-        book.pickTarget = QuestBookScreen.PickTarget.QUEST;
-        book.draggingSlider = null;
-        book.settingsDraft.clear();
-        book.pickingItemPath = target.path();
+        book.bookState.pickTarget = QuestBookScreen.PickTarget.QUEST;
+        book.bookState.draggingSlider = null;
+        book.bookState.settingsDraft.clear();
+        book.bookState.pickingItemPath = target.path();
         JsonObject quest = book.replicaQuest();
         JsonElement current = quest == null ? null : QuestPanelLayout.get(quest, target.path());
-        book.pickingItemCurrent = current != null && current.isJsonPrimitive() ? current.getAsString() : "";
-        book.pickingItemClearPath = ItemPicker.clearPath(target.path());
+        book.bookState.pickingItemCurrent = current != null && current.isJsonPrimitive() ? current.getAsString() : "";
+        book.bookState.pickingItemClearPath = ItemPicker.clearPath(target.path());
         // The item catalogue, and this pick is items: a search left set from the last one would list
         // biomes for a field that wants an item.
-        book.pickerSource = null;
-        book.pickerObserveType = "";
-        book.pickerEntries = BookItemPicker.catalogue();
-        book.pickerInventory = BookItemPicker.carried();
-        book.pickerMatches = List.of();
-        book.pickerRows = List.of();
-        book.pickerFrame = null;
-        book.pickerQuery = "";
+        book.bookState.pickerSource = null;
+        book.bookState.pickerObserveType = "";
+        book.bookState.pickerEntries = BookItemPicker.catalogue();
+        book.bookState.pickerInventory = BookItemPicker.carried();
+        book.bookState.pickerMatches = List.of();
+        book.bookState.pickerRows = List.of();
+        book.bookState.pickerFrame = null;
+        book.bookState.pickerQuery = "";
         // An empty box, for the same reason the search picker gets one: the last field's query must not
         // filter this field's list.
-        book.itemSearch = null;
-        book.pickerSelected = -1;
-        book.pickerBody.setScrollY(0);
+        book.bookState.itemSearch = null;
+        book.bookState.pickerSelected = -1;
+        book.bookState.pickerBody.setScrollY(0);
         // Items first, every time: the tabs greet an icon pick on the arm every icon picker before
         // this one chose, and a file tab left over would list textures for an item field.
-        book.pickerKind = QuestBookScreen.PickerKind.ITEM;
+        book.bookState.pickerKind = QuestBookScreen.PickerKind.ITEM;
         book.itemPicker.placeArmedPick();
         book.rebuildWidgets();
     }
@@ -1188,25 +1206,27 @@ final class BookItemPicker {
         // the box — and its placeholder — from the retained path, then watch the settle null the field out
         // from under the placeholder. That draw is the crash, not a glitch. Everything the sinking surface
         // itself reads stays for the slide; the path is the one thing a build also reads.
-        book.pickingItemPath = null;
-        if (book.overlay2 == PanelKind.PICKER) {
+        book.bookState.pickingItemPath = null;
+        if (book.bookState.overlay2 == PanelKind.PICKER) {
             book.applyColumns(PanelStack.afterClose(book.columns(), true));
         }
         // Back to the page it was opened from, before anything else looks at the state: the picker is
         // closed either way, and an author who pressed Change… on the settings page belongs there
         // afterwards rather than in the card's editor.
-        if (book.pickerFromSettings) {
-            book.pickerFromSettings = false;
-            book.settingsOpen = true;
+        if (book.bookState.pickerFromSettings) {
+            book.bookState.pickerFromSettings = false;
+            book.bookState.settingsOpen = true;
         }
         // The dock's picker has no card behind it to return to: its overlay *is* the picker, so closing
         // it puts the book back. Read before the target is cleared, because only a dock pick owns the
         // overlay -- a pick from the card closes back into the card.
-        boolean ownOverlay = book.pickTarget != null && book.pickTarget != QuestBookScreen.PickTarget.QUEST && book.overlay == PanelKind.PICKER;
+        boolean ownOverlay = book.bookState.pickTarget != null
+                && book.bookState.pickTarget != QuestBookScreen.PickTarget.QUEST
+                && book.bookState.overlay == PanelKind.PICKER;
         // A pick made from the table editor closes back into the editor rather than into the card: the
         // picker is a page of *that* panel while it is open, and the panel is where the author was.
-        if (book.tablePickReturn && book.overlay == PanelKind.PICKER) {
-            book.tablePickReturn = false;
+        if (book.bookState.tablePickReturn && book.bookState.overlay == PanelKind.PICKER) {
+            book.bookState.tablePickReturn = false;
             book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.TABLE_EDITOR));
         }
         if (ownOverlay) {
@@ -1218,17 +1238,17 @@ final class BookItemPicker {
         // owed to the slide rather than nulled under it. Runs at settle, or early on reopen.
         book.deferForLastDeparted(() -> {
             book.bookAssets.forgetPickSubject();
-            book.pickingItemClearPath = null;
-            book.pickerKind = QuestBookScreen.PickerKind.ITEM;
-            book.pickerEntries = List.of();
-            book.pickerInventory = List.of();
-            book.pickerMatches = List.of();
-            book.pickerRows = List.of();
-            book.pickerFrame = null;
-            book.pickerQuery = "";
-            book.pickerSelected = -1;
-            book.pickerBody.setScrollY(0);
-            book.itemSearch = null;
+            book.bookState.pickingItemClearPath = null;
+            book.bookState.pickerKind = QuestBookScreen.PickerKind.ITEM;
+            book.bookState.pickerEntries = List.of();
+            book.bookState.pickerInventory = List.of();
+            book.bookState.pickerMatches = List.of();
+            book.bookState.pickerRows = List.of();
+            book.bookState.pickerFrame = null;
+            book.bookState.pickerQuery = "";
+            book.bookState.pickerSelected = -1;
+            book.bookState.pickerBody.setScrollY(0);
+            book.bookState.itemSearch = null;
         });
     }
 

@@ -178,19 +178,19 @@ final class BookCanvas {
      * people already have.
      */
     static void selectForCard(String id) {
-        if (QuestBookScreen.multiSelection.contains(id)) {
-            QuestBookScreen.multiSelection.remove(id);
-            QuestBookScreen.selectedQuest = id;
+        if (BookScreenState.multiSelection.contains(id)) {
+            BookScreenState.multiSelection.remove(id);
+            BookScreenState.selectedQuest = id;
             return;
         }
-        if (id.equals(QuestBookScreen.selectedQuest)) {
-            if (QuestBookScreen.multiSelection.isEmpty()) {
-                QuestBookScreen.selectedQuest = null;
+        if (id.equals(BookScreenState.selectedQuest)) {
+            if (BookScreenState.multiSelection.isEmpty()) {
+                BookScreenState.selectedQuest = null;
             }
             return;
         }
-        QuestBookScreen.selectedQuest = id;
-        QuestBookScreen.multiSelection.clear();
+        BookScreenState.selectedQuest = id;
+        BookScreenState.multiSelection.clear();
     }
 
     /**
@@ -212,9 +212,9 @@ final class BookCanvas {
         for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
             live.add(entry.id());
         }
-        QuestBookScreen.multiSelection.removeIf(id -> !live.contains(id));
-        if (QuestBookScreen.selectedQuest != null && !live.contains(QuestBookScreen.selectedQuest)) {
-            QuestBookScreen.selectedQuest = null;
+        BookScreenState.multiSelection.removeIf(id -> !live.contains(id));
+        if (BookScreenState.selectedQuest != null && !live.contains(BookScreenState.selectedQuest)) {
+            BookScreenState.selectedQuest = null;
         }
     }
 
@@ -239,7 +239,7 @@ final class BookCanvas {
         if (chapter == null) {
             return;
         }
-        if (QuestBookScreen.centred && chapter.equals(QuestBookScreen.pannedChapter)) {
+        if (BookScreenState.centred && chapter.equals(BookScreenState.pannedChapter)) {
             return;
         }
 
@@ -254,8 +254,8 @@ final class BookCanvas {
                     if (entry.matches(candidate.autofocus())) {
                         book.viewport().centreOn(entry.x(), entry.y(),
                                 entry.x() + entry.size(), entry.y() + entry.size());
-                        QuestBookScreen.pannedChapter = chapter;
-                        QuestBookScreen.centred = true;
+                        BookScreenState.pannedChapter = chapter;
+                        BookScreenState.centred = true;
                         return;
                     }
                 }
@@ -289,8 +289,8 @@ final class BookCanvas {
         // clamp is applied, deliberately: this is the call that defines where a canvas starts, so
         // applying one would move content the caller had just positioned.
         book.viewport().centreOn(minX, minY, maxX, maxY);
-        QuestBookScreen.pannedChapter = chapter;
-        QuestBookScreen.centred = true;
+        BookScreenState.pannedChapter = chapter;
+        BookScreenState.centred = true;
     }
 
     /**
@@ -304,7 +304,7 @@ final class BookCanvas {
      */
     void zoomAt(double mouseX, double mouseY, float factor) {
         // A zoom is the hand taking the camera: a glide still in flight must not fight it.
-        book.glideQuest = null;
+        book.bookState.glideQuest = null;
         zoomGlideStart = -1L;
         book.viewport().zoomAt(mouseX, mouseY, factor);
     }
@@ -319,7 +319,7 @@ final class BookCanvas {
      * cameras moving at once is not a thing the view can do.
      */
     void zoomCentre(float factor) {
-        book.glideQuest = null;
+        book.bookState.glideQuest = null;
         zoomGlideFrom = book.viewport().scale();
         zoomGlideTo = zoomGlideFrom * factor;
         zoomGlideStart = net.minecraft.util.Util.getMillis();
@@ -365,7 +365,7 @@ final class BookCanvas {
 
     /** The shape the canvas should draw, with a pending settings-page change winning over the tree. */
     private static QuestShape drawnShape(ClientQuestCache.Entry entry) {
-        String name = QuestBookScreen.fieldDraft.text(entry.chapterId(), entry.id(), "shape", "");
+        String name = BookScreenState.fieldDraft.text(entry.chapterId(), entry.id(), "shape", "");
         if (!name.isEmpty()) {
             for (QuestShape shape : QuestShape.values()) {
                 if (shape.name().equalsIgnoreCase(name)) {
@@ -425,25 +425,27 @@ final class BookCanvas {
      * canvas is not drawn while a card is up, so a glide cannot run on behind one.
      */
     private void advanceGlide(long now) {
-        if (book.glideQuest == null) {
+        if (book.bookState.glideQuest == null) {
             return;
         }
-        ClientQuestCache.Entry target = book.entryFor(book.glideQuest);
+        ClientQuestCache.Entry target = book.entryFor(book.bookState.glideQuest);
         if (target == null || !target.chapterId().equals(QuestBookScreen.effectiveChapter())) {
             // The chapter changed under the glide (a sidebar press mid-flight): the view belongs to the
             // chapter now, and dragging it to a node that is not on screen is the wrong kind of help.
-            book.glideQuest = null;
+            book.bookState.glideQuest = null;
             return;
         }
-        long elapsed = now - book.glideStart;
+        long elapsed = now - book.bookState.glideStart;
         Viewport view = book.viewport();
         if (elapsed >= CanvasReveal.GLIDE_MILLIS) {
-            view.setOffset(book.glideToX, book.glideToY);
-            book.glideQuest = null;
+            view.setOffset(book.bookState.glideToX, book.bookState.glideToY);
+            book.bookState.glideQuest = null;
             return;
         }
-        view.setOffset(CanvasReveal.glide(book.glideFromX, book.glideToX, elapsed, CanvasReveal.GLIDE_MILLIS),
-                CanvasReveal.glide(book.glideFromY, book.glideToY, elapsed, CanvasReveal.GLIDE_MILLIS));
+        view.setOffset(CanvasReveal.glide(book.bookState.glideFromX, book.bookState.glideToX, elapsed,
+                CanvasReveal.GLIDE_MILLIS),
+                CanvasReveal.glide(book.bookState.glideFromY, book.bookState.glideToY, elapsed,
+                        CanvasReveal.GLIDE_MILLIS));
     }
 
     // ------------------------------------------------------------------
@@ -576,7 +578,7 @@ final class BookCanvas {
         // invisible control that acted would be worse than one that cannot be reached. Only the selected
         // element wears them, and only while editing: a reader has no gestures for them at all.
         ElementSlot gripped = book.mayEditNow()
-                ? elementSlot(QuestBookScreen.selectedElement) : null;
+                ? elementSlot(BookScreenState.selectedElement) : null;
         if (gripped != null) {
             drawElementGrips(r, gripped);
         }
@@ -644,7 +646,7 @@ final class BookCanvas {
         // screen box so panning does not re-stamp.
         // The focused id unwrapped once for the loop rather than per node: `focused()` answers an
         // Optional, and mapping it per node allocates two throwaways per visible node per frame.
-        String focusedId = book.canvasFocus.focused().orElse(null);
+        String focusedId = book.bookState.canvasFocus.focused().orElse(null);
         List<FrameNode> nodes = frameNodes;
         for (FrameNode node : nodes) {
             int nx = node.x() + dx;
@@ -653,8 +655,8 @@ final class BookCanvas {
             if (nx >= cRight || nx + nSize <= cLeft || ny >= cBottom || ny + nSize <= cTop) {
                 continue;
             }
-            float flash = node.id().equals(book.flashQuest)
-                    ? CanvasReveal.flash(now - book.flashStart, CanvasReveal.FLASH_MILLIS) : 0F;
+            float flash = node.id().equals(book.bookState.flashQuest)
+                    ? CanvasReveal.flash(now - book.bookState.flashStart, CanvasReveal.FLASH_MILLIS) : 0F;
             drawNode(r, node, nx, ny, nodeHover.amount(node.id(), now), flash, detail, focusedId);
         }
         // Titles in their own pass, after every node, so a label can see the other nodes -- see the
@@ -682,11 +684,11 @@ final class BookCanvas {
 
         // The editor's in-progress gestures, drawn over everything they touch: the marquee is what the
         // author is reaching for, and the rubber line is the edge they are about to make.
-        if (book.marqueeActive) {
+        if (book.bookState.marqueeActive) {
             drawMarquee(r);
         }
-        if (book.edgeDragLive && book.edgeDragFrom != null) {
-            ClientQuestCache.Entry from = book.entryFor(book.edgeDragFrom);
+        if (book.bookState.edgeDragLive && book.bookState.edgeDragFrom != null) {
+            ClientQuestCache.Entry from = book.entryFor(book.bookState.edgeDragFrom);
             if (from != null) {
                 // The chapter's default, because the landing quest -- whose style the new edge will wear --
                 // is not known until the pointer lets go. It is the same style the line gets unless that
@@ -694,18 +696,18 @@ final class BookCanvas {
                 drawStyled(r, from.chapterDependencyStyle(),
                         new LineArt.Point(nodeScreenX(from) + nodeSize(from) / 2,
                                 nodeScreenY(from) + nodeSize(from) / 2),
-                        new LineArt.Point((int) book.edgeDragX, (int) book.edgeDragY),
+                        new LineArt.Point((int) book.bookState.edgeDragX, (int) book.bookState.edgeDragY),
                         // The pointer end has no node, so its half is zero and the head rides at the
                         // pointer exactly; the source's own half keeps its end clear of its rim.
                         nodeSize(from) / 2, 0, ArmatureTheme.hoverRing());
             }
         }
-        if (book.pickingDependency) {
+        if (book.bookState.pickingDependency) {
             // Named, because the pick survives a chapter switch: the author may be looking at another
             // chapter's nodes and needs to know which quest is gaining the prerequisite.
-            String hint = book.pendingPick == null
+            String hint = book.bookState.pendingPick == null
                     ? "click the quest to depend on \u00b7 escape cancels"
-                    : "click the quest to depend on \u00b7 for " + book.pendingPick.quest()
+                    : "click the quest to depend on \u00b7 for " + book.bookState.pendingPick.quest()
                             + " \u00b7 escape cancels";
             int hintX = book.canvasLeft() + 10;
             int hintY = book.canvasTop() + 10;
@@ -731,10 +733,10 @@ final class BookCanvas {
      * select is the rectangle being drawn, which is the whole honesty a rubber band has.
      */
     private void drawMarquee(GuiRenderer r) {
-        int left = Math.min(book.marqueeX0, book.marqueeX1);
-        int right = Math.max(book.marqueeX0, book.marqueeX1);
-        int top = Math.min(book.marqueeY0, book.marqueeY1);
-        int bottom = Math.max(book.marqueeY0, book.marqueeY1);
+        int left = Math.min(book.bookState.marqueeX0, book.bookState.marqueeX1);
+        int right = Math.max(book.bookState.marqueeX0, book.bookState.marqueeX1);
+        int top = Math.min(book.bookState.marqueeY0, book.bookState.marqueeY1);
+        int bottom = Math.max(book.bookState.marqueeY0, book.bookState.marqueeY1);
         r.fill(left, top, right + 1, top + 1, ArmatureTheme.selectedRing());
         r.fill(left, bottom, right + 1, bottom + 1, ArmatureTheme.selectedRing());
         r.fill(left, top, left + 1, bottom + 1, ArmatureTheme.selectedRing());
@@ -772,8 +774,8 @@ final class BookCanvas {
      * quest leaves no light behind.
      */
     private String glowSelection() {
-        if (book.overlay == PanelKind.QUEST && book.overlayQuest != null) {
-            return book.overlayQuest;
+        if (book.bookState.overlay == PanelKind.QUEST && book.bookState.overlayQuest != null) {
+            return book.bookState.overlayQuest;
         }
         List<String> sel = QuestBookScreen.selection();
         return sel.size() == 1 ? sel.get(0) : null;
@@ -1182,9 +1184,9 @@ final class BookCanvas {
     /** Rebuilds the frame's canvas if anything it is drawn from has moved. See {@link CanvasState}. */
     private void stampCanvas(GuiRenderer r, List<ClientQuestCache.Entry> quests) {
         CanvasState key = new CanvasState(ClientQuestCache.treeRevision(),
-                ClientQuestCache.progressRevision(), QuestBookScreen.fieldDraft.version(),
-                        book.editors.epoch(), book.draggedNode,
-                book.dragNodeX, book.dragNodeY, book.viewport().scale(),
+                ClientQuestCache.progressRevision(), BookScreenState.fieldDraft.version(),
+                        book.bookState.editors.epoch(), book.bookState.draggedNode,
+                book.bookState.dragNodeX, book.bookState.dragNodeY, book.viewport().scale(),
                 book.canvasLeft(), book.canvasTop(), book.canvasRight(), book.canvasBottom(), book.visibleCanvasRight(),
                 QuestBookScreen.effectiveChapter(),
                 ArmatureTheme.current(), book.mayEditNow(), ClientQuestCache.textRevision(),
@@ -1197,15 +1199,15 @@ final class BookCanvas {
                 // element the author has just asked for, and stop drawing the one they have just asked away.
                 // The *values* need no component here -- `draft` above is `fieldDraft`'s own version, which
                 // moves whenever an element's field is drafted.
-                QuestBookScreen.elementDraft.version(),
+                BookScreenState.elementDraft.version(),
                 // The element the Chapter tab's list has chosen, so the ring on the canvas follows the
                 // panel's own selection: two views of one choice, and a ring that arrived a frame late
                 // because the stamp could not see it would be the one place they disagreed.
-                QuestBookScreen.selectedElement,
+                BookScreenState.selectedElement,
                 // And the link draft's version, for the same reason as the element's: a marker added or
                 // deleted re-stamps. The *values* need no component here either -- `draft` above is
                 // `fieldDraft`'s own version, which moves whenever a link's field is drafted.
-                QuestBookScreen.linkDraft.version(),
+                BookScreenState.linkDraft.version(),
                 // A gesture in flight re-stamps, exactly as an element's drag does: the canvas draws the
                 // link as the hand has it. One component, because a link has one gesture -- a move.
                 linkPreview,
@@ -1280,7 +1282,7 @@ final class BookCanvas {
             // cached outline table, so the canvas follows the click. A quest with no icon of its
             // own wears its first task's, cycling for a filter — see adoptedQuestIcon.
             QuestShape drawnShape = drawnShape(entry);
-            int drawnRotation = QuestBookScreen.fieldDraft.number(entry.chapterId(), entry.id(), "rotation",
+            int drawnRotation = BookScreenState.fieldDraft.number(entry.chapterId(), entry.id(), "rotation",
                     entry.rotation());
             boolean draftedLook = drawnShape != entry.shape() || drawnRotation != entry.rotation();
             ItemStack nodeIcon = entry.icon();
@@ -1296,7 +1298,7 @@ final class BookCanvas {
                     draftedLook ? ClientQuestCache.geometry(drawnShape, drawnRotation)
                             : entry.geometry(),
                     nodeIcon, entry.textureIcon(), entry.spriteIcon(),
-                    QuestBookScreen.fieldDraft.decimal(entry.chapterId(), entry.id(), "iconScale", entry.iconScale()),
+                    BookScreenState.fieldDraft.decimal(entry.chapterId(), entry.id(), "iconScale", entry.iconScale()),
                     QuestNodeArt.edgeFor(state), QuestNodeArt.washFor(state), entry.hideLockIcon()));
         }
         frameNodes = List.copyOf(nodes);
@@ -1399,7 +1401,7 @@ final class BookCanvas {
             List<ClientQuestCache.Entry> named = stampNamed;
             named.clear();
             for (ClientQuestCache.Entry entry : quests) {
-                if (QuestBookScreen.fieldDraft.flag(entry.chapterId(), entry.id(), "showTitle", entry.showTitle())) {
+                if (BookScreenState.fieldDraft.flag(entry.chapterId(), entry.id(), "showTitle", entry.showTitle())) {
                     named.add(entry);
                 }
             }
@@ -1539,9 +1541,9 @@ final class BookCanvas {
         // alias, and opening by an alias works only as long as every lookup resolves one.
         // A `change_page` value may carry the legacy `/page` suffix after its quest id; the card
         // scrolls rather than pages, so the suffix is read and left behind.
-        QuestBookScreen.selectedQuest = target.id();
-        QuestBookScreen.selectedElement = null;
-        QuestBookScreen.multiSelection.clear();
+        BookScreenState.selectedQuest = target.id();
+        BookScreenState.selectedElement = null;
+        BookScreenState.multiSelection.clear();
         book.bookRewards.openOverlay(target.id());
     }
 
@@ -1588,7 +1590,7 @@ final class BookCanvas {
      */
     private CanvasElementArt.Look elementLook(ElementSlot slot) {
         String id = slot.element().id();
-        boolean selected = book.mayEditNow() && id.equals(QuestBookScreen.selectedElement);
+        boolean selected = book.mayEditNow() && id.equals(BookScreenState.selectedElement);
         boolean hovered = id.equals(hoveredElement)
                 && (book.mayEditNow() || pressable(slot.element()));
         return new CanvasElementArt.Look(selected, hovered, slot.marked());
@@ -1936,14 +1938,15 @@ final class BookCanvas {
      */
     private String[] lineHover(List<FrameEdge> edges, double mouseX, double mouseY, int panDx,
             int panDy) {
-        boolean moving = book.draggedNode != null || book.bendDragFrom != null || book.edgeDragLive;
+        boolean moving = book.bookState.draggedNode != null || book.bookState.bendDragFrom != null
+                || book.bookState.edgeDragLive;
         float scale = book.viewport().scale();
         int panX = book.viewport().offsetX();
         int panY = book.viewport().offsetY();
         long revision = ClientQuestCache.treeRevision();
         // The two the geometry also depends on, and they are not optional -- see the note below.
-        long draft = QuestBookScreen.fieldDraft.version();
-        long editors = book.editors.epoch();
+        long draft = BookScreenState.fieldDraft.version();
+        long editors = book.bookState.editors.epoch();
         boolean same = !moving && !lastLineHoverMoving
                 && mouseX == lastLineHoverX && mouseY == lastLineHoverY
                 && scale == lastLineHoverScale && panX == lastLineHoverPanX && panY == lastLineHoverPanY
@@ -1985,11 +1988,11 @@ final class BookCanvas {
      * line is what gets rebuilt.
      */
     private FrameEdge liveBendEdge() {
-        if (book.bendDragFrom == null || book.bendDragTo == null) {
+        if (book.bookState.bendDragFrom == null || book.bookState.bendDragTo == null) {
             return null;
         }
-        ClientQuestCache.Entry dependency = book.entryFor(book.bendDragFrom);
-        ClientQuestCache.Entry dependent = book.entryFor(book.bendDragTo);
+        ClientQuestCache.Entry dependency = book.entryFor(book.bookState.bendDragFrom);
+        ClientQuestCache.Entry dependent = book.entryFor(book.bookState.bendDragTo);
         if (dependency == null || dependent == null) {
             return null;
         }
@@ -1998,12 +2001,12 @@ final class BookCanvas {
         // not in the list at all, which `frameEdge` then re-decides anyway.
         int baseColour = ArmatureTheme.line();
         for (FrameEdge edge : canvasEdges) {
-            if (edge.matches(book.bendDragFrom, book.bendDragTo)) {
+            if (edge.matches(book.bookState.bendDragFrom, book.bookState.bendDragTo)) {
                 baseColour = edge.baseColour();
                 break;
             }
         }
-        return frameEdge(dependency, dependent, book.bendDragFrom, baseColour, false);
+        return frameEdge(dependency, dependent, book.bookState.bendDragFrom, baseColour, false);
     }
 
     /**
@@ -2015,13 +2018,13 @@ final class BookCanvas {
      * live, so the common frame pays nothing.
      */
     private List<FrameEdge> drawnEdges() {
-        if (book.bendDragFrom == null || book.bendDragTo == null) {
+        if (book.bookState.bendDragFrom == null || book.bookState.bendDragTo == null) {
             return canvasEdges;
         }
         FrameEdge bent = liveBendEdge();
         List<FrameEdge> live = new ArrayList<>(canvasEdges);
         for (int i = 0; i < live.size(); i++) {
-            if (!live.get(i).matches(book.bendDragFrom, book.bendDragTo)) {
+            if (!live.get(i).matches(book.bookState.bendDragFrom, book.bookState.bendDragTo)) {
                 continue;
             }
             if (bent == null) {
@@ -2085,7 +2088,7 @@ final class BookCanvas {
      * it is reached by zooming out, not by a file.
      */
     int nodeSize(ClientQuestCache.Entry entry) {
-        int size = QuestBookScreen.fieldDraft.number(entry.chapterId(), entry.id(), "size", entry.size());
+        int size = BookScreenState.fieldDraft.number(entry.chapterId(), entry.id(), "size", entry.size());
         return Math.max(12, Math.round(size * book.viewport().scale()));
     }
 
@@ -2118,25 +2121,25 @@ final class BookCanvas {
      * The first version of the drag read after claiming and every commit landed at 0,0.
      */
     float nodeX(ClientQuestCache.Entry entry) {
-        if (entry.id().equals(book.draggedNode)) {
-            return book.dragNodeX;
+        if (entry.id().equals(book.bookState.draggedNode)) {
+            return book.bookState.dragNodeX;
         }
-        return book.editors != null && book.editors.hasMoved(entry.id())
-                ? (float) book.editors.movedX(entry.id()) : entry.x();
+        return book.bookState.editors != null && book.bookState.editors.hasMoved(entry.id())
+                ? (float) book.bookState.editors.movedX(entry.id()) : entry.x();
     }
 
     /** The same, for y. See {@link #nodeX}. */
     float nodeY(ClientQuestCache.Entry entry) {
-        if (entry.id().equals(book.draggedNode)) {
-            return book.dragNodeY;
+        if (entry.id().equals(book.bookState.draggedNode)) {
+            return book.bookState.dragNodeY;
         }
-        return book.editors != null && book.editors.hasMoved(entry.id())
-                ? (float) book.editors.movedY(entry.id()) : entry.y();
+        return book.bookState.editors != null && book.bookState.editors.hasMoved(entry.id())
+                ? (float) book.bookState.editors.movedY(entry.id()) : entry.y();
     }
 
     /** Whether a node is selected at all: the primary the panel edits, or one of the multi-selection. */
     static boolean isSelected(String id) {
-        return id.equals(QuestBookScreen.selectedQuest) || QuestBookScreen.multiSelection.contains(id);
+        return id.equals(BookScreenState.selectedQuest) || BookScreenState.multiSelection.contains(id);
     }
 
     /**
@@ -2288,7 +2291,7 @@ final class BookCanvas {
      * can be older than it.
      */
     static DependencyStyle lineStyle(ClientQuestCache.Entry entry, String dependencyId) {
-        JsonElement drafted = QuestBookScreen.fieldDraft.value(entry.chapterId(), entry.id(), "dependencyLines");
+        JsonElement drafted = BookScreenState.fieldDraft.value(entry.chapterId(), entry.id(), "dependencyLines");
         DependencyStyle own = drafted != null && drafted.isJsonObject()
                 ? DependencyStyle.from(drafted.getAsJsonObject().get(dependencyId))
                 : entry.dependencyLines().getOrDefault(dependencyId, DependencyStyle.UNSET);
@@ -2598,7 +2601,8 @@ final class BookCanvas {
      */
     LineArt.Point[] lineEnds(ClientQuestCache.Entry from, ClientQuestCache.Entry to,
                                      DependencyStyle style) {
-        LineArt.Point fromCentre = new LineArt.Point(book.bookRewards.nodeCentreX(from), book.bookRewards.nodeCentreY(from));
+        LineArt.Point fromCentre = new LineArt.Point(book.bookRewards.nodeCentreX(from),
+                book.bookRewards.nodeCentreY(from));
         LineArt.Point toCentre = new LineArt.Point(book.bookRewards.nodeCentreX(to), book.bookRewards.nodeCentreY(to));
         return new LineArt.Point[] {
                 book.bookCanvas.endPoint(from, fromCentre, toCentre, style.fromAnchorOrNull()),
@@ -2636,26 +2640,29 @@ final class BookCanvas {
      */
     DependencyStyle styleFor(ClientQuestCache.Entry dependent, String dependencyId) {
         DependencyStyle style = lineStyle(dependent, dependencyId);
-        if (book.bendDragFrom == null || !book.bendDragFrom.equals(dependencyId)
-                || !book.bendDragTo.equals(dependent.id())) {
+        if (book.bookState.bendDragFrom == null || !book.bookState.bendDragFrom.equals(dependencyId)
+                || !book.bookState.bendDragTo.equals(dependent.id())) {
             return style;
         }
         java.util.Optional<Double> from = java.util.Optional.ofNullable(
-                BookRewards.HANDLE_FROM.equals(book.bendDragKind) ? book.anchorPreview : style.fromAnchor().orElse(null));
+                BookRewards.HANDLE_FROM.equals(book.bookState.bendDragKind) ? book.bookState.anchorPreview
+                        : style.fromAnchor().orElse(null));
         java.util.Optional<Double> to = java.util.Optional.ofNullable(
-                BookRewards.HANDLE_TO.equals(book.bendDragKind) ? book.anchorPreview : style.toAnchor().orElse(null));
+                BookRewards.HANDLE_TO.equals(book.bookState.bendDragKind) ? book.bookState.anchorPreview
+                        : style.toAnchor().orElse(null));
         java.util.Optional<java.util.List<Double>> fromHandle = style.fromHandle();
         java.util.Optional<java.util.List<Double>> toHandle = style.toHandle();
-        if (book.handlePreview != null) {
-            if (BookRewards.HANDLE_FROM_HANDLE.equals(book.bendDragKind)) {
-                fromHandle = java.util.Optional.of(book.handlePreview);
+        if (book.bookState.handlePreview != null) {
+            if (BookRewards.HANDLE_FROM_HANDLE.equals(book.bookState.bendDragKind)) {
+                fromHandle = java.util.Optional.of(book.bookState.handlePreview);
             }
-            else if (BookRewards.HANDLE_TO_HANDLE.equals(book.bendDragKind)) {
-                toHandle = java.util.Optional.of(book.handlePreview);
+            else if (BookRewards.HANDLE_TO_HANDLE.equals(book.bookState.bendDragKind)) {
+                toHandle = java.util.Optional.of(book.bookState.handlePreview);
             }
         }
         return new DependencyStyle(style.form(), style.arrows(), style.dash(), style.weight(),
-                java.util.Optional.ofNullable(book.bendPreview == null ? style.bend().orElse(null) : book.bendPreview),
+                java.util.Optional.ofNullable(book.bookState.bendPreview == null ? style.bend().orElse(null)
+                        : book.bookState.bendPreview),
                 from, to, fromHandle, toHandle,
                 style.arrowHead(), style.arrowPlace(), style.arrowDensity());
     }

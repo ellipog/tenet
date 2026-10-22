@@ -94,13 +94,13 @@ final class BookSettings {
 
     /** The settings card: the rows, the two lines of header, and the scrollbar when it is needed. */
     void drawSettingsOverlay(GuiRenderer r, int mouseX, int mouseY) {
-        if (book.appearanceCard == null) {
+        if (book.bookState.appearanceCard == null) {
             return;
         }
-        int left = book.appearanceCard.x();
-        int top = book.appearanceCard.y();
-        int w = book.appearanceCard.width();
-        int h = book.appearanceCard.height();
+        int left = book.bookState.appearanceCard.x();
+        int top = book.bookState.appearanceCard.y();
+        int w = book.bookState.appearanceCard.width();
+        int h = book.bookState.appearanceCard.height();
 
         ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
         ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, 45, ArmatureTheme.raised(),
@@ -117,11 +117,11 @@ final class BookSettings {
                         : "Saved as you change them",
                 textX, top + 26, ArmatureTheme.faint());
 
-        if (book.appearanceLayout == null) {
+        if (book.bookState.appearanceLayout == null) {
             return;
         }
-        Viewport body = book.appearanceView.viewport();
-        book.appearanceView.apply(book.appearanceLayout, body.viewWidth());
+        Viewport body = book.bookState.appearanceView.viewport();
+        book.bookState.appearanceView.apply(book.bookState.appearanceLayout, body.viewWidth());
         // The arrival's travel, re-applied after the placing above: this draw re-places every
         // frame, which would otherwise pin every widget while its own panel travels — a switch
         // that stays behind while its card slides in reads as not attached to it. Same bases
@@ -134,26 +134,26 @@ final class BookSettings {
             if (travel != 0) {
                 for (String key : List.of(SettingsLayout.TEXT_KEY, SettingsLayout.HUD_KEY,
                         SettingsLayout.SIDEBAR_KEY)) {
-                    AbstractWidget widget = book.appearanceView.get(key);
+                    AbstractWidget widget = book.bookState.appearanceView.get(key);
                     if (widget == null) {
                         continue;
                     }
-                    Integer base = book.slideBaseX.get(widget);
+                    Integer base = book.bookState.slideBaseX.get(widget);
                     if (base == null) {
                         base = widget.getX();
-                        book.slideBaseX.put(widget, base);
+                        book.bookState.slideBaseX.put(widget, base);
                     }
                     widget.setX(base + travel);
                 }
             }
         }
         QuestPanel.drawRows(r, BookGeometry.Rect.at(body.originX(), body.originY(),
-                body.viewWidth(), body.viewHeight()), body, book.appearanceLayout,
-                book.appearanceRows, mouseX, mouseY);
+                body.viewWidth(), body.viewHeight()), body, book.bookState.appearanceLayout,
+                book.bookState.appearanceRows, mouseX, mouseY);
         // The bar, which draws nothing at all when the rows fit -- so the `if` that used to guard this
         // call is gone: it was a second answer to a question the bar already answers, and the two would
         // have disagreed the day a card grew a scrollbar it did not need.
-        QuestBookScreen.drawBar(r, book.appearanceView.bar(), mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.appearanceView.bar(), mouseX, mouseY);
     }
 
 
@@ -184,11 +184,13 @@ final class BookSettings {
         int iconX = left + 14;
         int iconY = top + (46 - iconBox) / 2;
         net.minecraft.resources.Identifier pickTextureId =
-                book.pickTexture.isEmpty() ? null : net.minecraft.resources.Identifier.tryParse(book.pickTexture);
+                book.bookState.pickTexture.isEmpty() ? null
+                        : net.minecraft.resources.Identifier.tryParse(book.bookState.pickTexture);
         net.minecraft.resources.Identifier pickSpriteId =
-                book.pickSprite.isEmpty() ? null : net.minecraft.resources.Identifier.tryParse(book.pickSprite);
-        if (!book.pickIcon.isEmpty()) {
-            r.icon(book.pickIcon, iconX, iconY, iconBox);
+                book.bookState.pickSprite.isEmpty() ? null
+                        : net.minecraft.resources.Identifier.tryParse(book.bookState.pickSprite);
+        if (!book.bookState.pickIcon.isEmpty()) {
+            r.icon(book.bookState.pickIcon, iconX, iconY, iconBox);
         }
         else if (pickTextureId != null) {
             r.texture(pickTextureId, iconX, iconY, iconBox, iconBox);
@@ -203,17 +205,17 @@ final class BookSettings {
         //
         // Both lines stop short of the fold control when this column carries one: the subject line is a
         // table's or a quest's name, and a name is a pack's string rather than a length this file knows.
-        String heading = book.pickTitle.isEmpty()
-                ? book.pickTarget == QuestBookScreen.PickTarget.BOOK ? "Choose the book's icon"
-                : book.pickTarget == QuestBookScreen.PickTarget.GROUP ? "Choose the group's icon"
+        String heading = book.bookState.pickTitle.isEmpty()
+                ? book.bookState.pickTarget == QuestBookScreen.PickTarget.BOOK ? "Choose the book's icon"
+                : book.bookState.pickTarget == QuestBookScreen.PickTarget.GROUP ? "Choose the group's icon"
                 : "Choose the chapter's icon"
-                : book.pickTitle;
-        int headerRoom = Math.max(0, book.headerTextRoom(book.surfaceCard(book.surfaceKind)) - textX);
+                : book.bookState.pickTitle;
+        int headerRoom = Math.max(0, book.headerTextRoom(book.surfaceCard(book.bookState.surfaceKind)) - textX);
         Measure headerMeasure = Measure.of(r::textWidth, r.lineHeight());
         r.text(Measure.truncate(heading, headerRoom, headerMeasure),
                 textX, top + 12, ArmatureTheme.title());
-        if (!book.pickName.isEmpty()) {
-            r.text(Measure.truncate(book.pickName, headerRoom, headerMeasure),
+        if (!book.bookState.pickName.isEmpty()) {
+            r.text(Measure.truncate(book.bookState.pickName, headerRoom, headerMeasure),
                     textX, top + 26, ArmatureTheme.faint());
         }
 
@@ -262,7 +264,7 @@ final class BookSettings {
             int w = i == kinds.length - 1 ? left + width - x : tabWidth;
             BookGeometry.Rect rect = BookGeometry.Rect.at(x, y, w, QuestBookScreen.PICKER_TAB_STRIP);
             pickerTabRects.put(kinds[i], rect);
-            boolean selected = book.pickerKind == kinds[i];
+            boolean selected = book.bookState.pickerKind == kinds[i];
             if (selected) {
                 r.fill(rect.x(), rect.y(), rect.right(), rect.bottom(), ArmatureTheme.recessed());
             }
@@ -294,15 +296,15 @@ final class BookSettings {
     boolean pressPickerTab(double mouseX, double mouseY) {
         for (Map.Entry<QuestBookScreen.PickerKind, BookGeometry.Rect> tab : pickerTabRects.entrySet()) {
             if (tab.getValue().contains(mouseX, mouseY)) {
-                if (tab.getKey() != book.pickerKind) {
-                    book.pickerKind = tab.getKey();
-                    if (book.itemSearch != null) {
-                        book.itemSearch.setValue("");
+                if (tab.getKey() != book.bookState.pickerKind) {
+                    book.bookState.pickerKind = tab.getKey();
+                    if (book.bookState.itemSearch != null) {
+                        book.bookState.itemSearch.setValue("");
                     }
-                    book.pickerSelected = -1;
-                    book.pickerBody.setScrollY(0);
-                    book.textureSelected = -1;
-                    book.textureBody.setScrollY(0);
+                    book.bookState.pickerSelected = -1;
+                    book.bookState.pickerBody.setScrollY(0);
+                    book.bookState.textureSelected = -1;
+                    book.bookState.textureBody.setScrollY(0);
                     preparePickerTab();
                     book.rebuildWidgets();
                 }
@@ -322,36 +324,36 @@ final class BookSettings {
      * the shared commit paths can mistake them for a field search.
      */
     private void preparePickerTab() {
-        if (book.pickerKind == QuestBookScreen.PickerKind.ENTITY) {
-            book.pickerSource = EditorField.Source.ENTITY;
-            book.pickerObserveType = "";
-            book.pickerEntries = SearchCatalogue.list(EditorField.Source.ENTITY, "");
-            book.pickerInventory = List.of();
-            book.pickerMatches = List.of();
-            book.pickerRows = List.of();
-            book.pickerFrame = null;
-            book.pickerQuery = "";
+        if (book.bookState.pickerKind == QuestBookScreen.PickerKind.ENTITY) {
+            book.bookState.pickerSource = EditorField.Source.ENTITY;
+            book.bookState.pickerObserveType = "";
+            book.bookState.pickerEntries = SearchCatalogue.list(EditorField.Source.ENTITY, "");
+            book.bookState.pickerInventory = List.of();
+            book.bookState.pickerMatches = List.of();
+            book.bookState.pickerRows = List.of();
+            book.bookState.pickerFrame = null;
+            book.bookState.pickerQuery = "";
             pickerEntityQuery = "";
         }
-        else if (book.pickerKind == QuestBookScreen.PickerKind.ITEM) {
-            book.pickerSource = null;
-            book.pickerObserveType = "";
-            book.pickerEntries = BookItemPicker.catalogue();
-            book.pickerInventory = BookItemPicker.carried();
-            book.pickerMatches = List.of();
-            book.pickerRows = List.of();
-            book.pickerFrame = null;
-            book.pickerQuery = "";
+        else if (book.bookState.pickerKind == QuestBookScreen.PickerKind.ITEM) {
+            book.bookState.pickerSource = null;
+            book.bookState.pickerObserveType = "";
+            book.bookState.pickerEntries = BookItemPicker.catalogue();
+            book.bookState.pickerInventory = BookItemPicker.carried();
+            book.bookState.pickerMatches = List.of();
+            book.bookState.pickerRows = List.of();
+            book.bookState.pickerFrame = null;
+            book.bookState.pickerQuery = "";
         }
         else {
-            book.pickerSource = null;
-            book.pickerObserveType = "";
-            book.pickerFileQuery = "";
+            book.bookState.pickerSource = null;
+            book.bookState.pickerObserveType = "";
+            book.bookState.pickerFileQuery = "";
         }
     }
 
     void drawOverlay(GuiRenderer r, int mouseX, int mouseY, long now) {
-        ClientQuestCache.Entry entry = book.entryFor(book.overlayQuest);
+        ClientQuestCache.Entry entry = book.entryFor(book.bookState.overlayQuest);
         if (entry == null) {
             return;
         }
@@ -403,7 +405,7 @@ final class BookSettings {
             // fact must not be silent. The editor's icon row and the picker both say it in full.
             QuestBookScreen.drawItemPlaceholder(r, iconX, iconY, iconBox);
             r.text("!", iconX + iconBox - 2, iconY - 2, ArmatureTheme.blocked());
-            book.pendingLabels.add(new QuestBookScreen.PendingLabel(BookGeometry.Rect.at(iconX, iconY,
+            book.bookState.pendingLabels.add(new QuestBookScreen.PendingLabel(BookGeometry.Rect.at(iconX, iconY,
                     iconBox, iconBox),
                     "missing item - the id is kept, so the mod can come back"));
         }
@@ -435,7 +437,7 @@ final class BookSettings {
         // advances, decided per stamp. See headerCutEpoch for what moves a stamp.
         long cutEpoch = headerCutEpoch(r);
         int titleAdvance = r.textWidth(QuestBookScreen.titleOf(entry));
-        if (!InlineEdit.replaces("title", book.editingPath)) {
+        if (!InlineEdit.replaces("title", book.bookState.editingPath)) {
             titleAdvance = RichText.draw(r,
                     RichText.cut(BookQuestEditor.titleOfRaw(entry), Integer.MAX_VALUE, book.textMeasure(r), cutEpoch),
                     textX, top + 12, InlineEdit.ink("title"));
@@ -447,7 +449,7 @@ final class BookSettings {
         // The read line carries the chapter name as well; the field edits the subtitle alone, so
         // drawing both would print the chapter title through the field's text. Each part wears its
         // own colours, drawn left to right off the running advance.
-        if (!InlineEdit.replaces("subtitle", book.editingPath)) {
+        if (!InlineEdit.replaces("subtitle", book.bookState.editingPath)) {
             int atX = RichText.draw(r,
                     RichText.cut(entry.chapterTitleTextRaw(), Integer.MAX_VALUE, book.textMeasure(r),
                             cutEpoch),
@@ -485,13 +487,13 @@ final class BookSettings {
         Viewport body = book.overlayBody();
         Measure measure = book.textMeasure(r);
         Layout layout = overlayLayout(r, entry);
-        book.overlayView.apply(layout, body.viewWidth());
+        book.bookState.overlayView.apply(layout, body.viewWidth());
 
         // Which row the pointer is over, resolved once for the whole body before anything is drawn.
         // `update` is called exactly once per frame rather than once per row: a pointer is a single
         // point, so there is at most one hovered row and asking per row would be the same answer
         // computed three times while never being told that the answer is "none".
-        book.rowHover.update(rowAt(layout, body, rowKeysOf(entry), mouseX, mouseY), now);
+        book.bookState.rowHover.update(rowAt(layout, body, rowKeysOf(entry), mouseX, mouseY), now);
 
         // The clip, the scroll clamp and the scrollbar all read this one rectangle. They used to be
         // three expressions for it — bodyLeft/bodyRight/bodyTop/bodyBottom written out in the drawing
@@ -502,10 +504,10 @@ final class BookSettings {
         // lists at the end of the frame: a press arrives *between* frames, so the list it reads has to
         // be the last frame's drawing — the same lifecycle `editTargets` has, and the reason a list
         // cleared after drawing would always be empty by the time a click asks.
-        book.rowItems.clear();
-        book.filterRows.clear();
-        book.checkmarkRows.clear();
-        book.rewardClaimRows.clear();
+        book.bookState.rowItems.clear();
+        book.bookState.filterRows.clear();
+        book.bookState.checkmarkRows.clear();
+        book.bookState.rewardClaimRows.clear();
         dependencyTargets.clear();
         try (GuiRenderer.Scoped clip = r.clip(body)) {
             drawProse(r, layout, body, mouseX, mouseY);
@@ -519,7 +521,7 @@ final class BookSettings {
         // that can happen here.
         // The theme's own scrollbar tokens, for the same reason the sidebar's uses them: the overlay's
         // bar was drawn from `recessed` and `controlEdge`, neither of which was chosen for the job.
-        QuestBookScreen.drawBar(r, book.overlayView.bar(), mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.overlayView.bar(), mouseX, mouseY);
     }
 
     /**
@@ -587,8 +589,8 @@ final class BookSettings {
      * drawing can ask for.
      */
     private List<OverlayLayout.Prose> readerProse(GuiRenderer r, List<String> description, int column) {
-        book.readerProse.clear();
-        book.linkRects.clear();
+        book.bookState.readerProse.clear();
+        book.bookState.linkRects.clear();
         // Measured at the font's own size: a block's scale is the kit's to apply (RichText.scale), so the
         // wrapped widths and the drawn runs come from one rule rather than two.
         dev.ellipog.armature.client.ui.kit.RichText.StyledWidth styled = (text, bold, italic) -> r.styledWidth(text, bold, italic, 1F);
@@ -656,7 +658,7 @@ final class BookSettings {
                 texts.add(block.text().substring(line.start(), line.end()));
                 widest = Math.max(widest, dev.ellipog.armature.client.ui.kit.RichText.styledWidth(block, line.start(), line.end(), styled));
             }
-            book.readerProse.add(new QuestBookScreen.ProseBlock(block, lines, List.copyOf(spans), null));
+            book.bookState.readerProse.add(new QuestBookScreen.ProseBlock(block, lines, List.copyOf(spans), null));
             // The block's own pitch, from the same rule the drawing advances by: a heading's lines are
             // taller, and the space reserved for them has to be the space they take.
             prose.add(new OverlayLayout.Prose(texts, widest,
@@ -667,7 +669,7 @@ final class BookSettings {
     /** One picture as a block the full column wide and the picture tall. */
     private void emitImage(List<OverlayLayout.Prose> prose, RichText.PlacedImage placed, int column) {
         RichText.ImageBox box = RichText.fitImage(placed.image(), column);
-        book.readerProse.add(new QuestBookScreen.ProseBlock(null, List.of(), List.of(), placed));
+        book.bookState.readerProse.add(new QuestBookScreen.ProseBlock(null, List.of(), List.of(), placed));
         prose.add(new OverlayLayout.Prose(List.of(""), column, box.height()));
     }
 
@@ -682,18 +684,18 @@ final class BookSettings {
      * longest line, so wrapping to it would narrow the paragraph a little more on every pass.
      */
     private void drawProse(GuiRenderer r, Layout layout, Viewport body, int mouseX, int mouseY) {
-        if (book.readerProse.isEmpty()) {
+        if (book.bookState.readerProse.isEmpty()) {
             // Nothing to draw: a quest with no description has no description block at all, and the
             // layout places no row for one.
             return;
         }
-        book.linkRects.clear();
-        for (int i = 0; i < book.readerProse.size(); i++) {
+        book.bookState.linkRects.clear();
+        for (int i = 0; i < book.bookState.readerProse.size(); i++) {
             Slot slot = placed(layout, body, OverlayLayout.proseKey(i));
             if (slot == null) {
                 continue;
             }
-            QuestBookScreen.ProseBlock block = book.readerProse.get(i);
+            QuestBookScreen.ProseBlock block = book.bookState.readerProse.get(i);
             // A picture block draws its file, not words: the slot reserves the column the layout gave
             // it, and the picture sits in it by its alignment. Missing files draw nothing, the way a
             // chapter picture with no file behind it draws nothing — a reader with half a pack still
@@ -746,7 +748,8 @@ final class BookSettings {
                     r.styledText(List.of(new GuiRenderer.StyledRun(piece.text(), bold, italic,
                             underline, piece.scale())), x, lineY, colour);
                     if (box != null) {
-                        book.linkRects.add(new QuestBookScreen.LinkRect(book.shiftHit(box), link == null ? "" : link,
+                        book.bookState.linkRects.add(new QuestBookScreen.LinkRect(book.shiftHit(box),
+                                link == null ? "" : link,
                                 quest == null ? "" : quest));
                     }
                     x += width;
@@ -800,7 +803,7 @@ final class BookSettings {
             String key = OverlayLayout.taskKey(i);
             Slot slot = placed(layout, body, key);
             if (slot != null) {
-                book.bookQuestRows.drawTaskRow(r, entry, i, slot, book.rowHover.amount(key, now), mouseX,
+                book.bookQuestRows.drawTaskRow(r, entry, i, slot, book.bookState.rowHover.amount(key, now), mouseX,
                         mouseY, book.bookQuestRows.rowStamp());
             }
         }
@@ -823,7 +826,7 @@ final class BookSettings {
         int tasks = entry.tasks().size();
         int rewards = entry.rewards().size();
         int deps = QuestBookScreen.dependenciesOf(entry).size();
-        RowKeysKey key = new RowKeysKey(entry.id(), tasks, rewards, deps, QuestBookScreen.fieldDraft.version());
+        RowKeysKey key = new RowKeysKey(entry.id(), tasks, rewards, deps, BookScreenState.fieldDraft.version());
         if (rowKeys != null && key.equals(rowKeysKey)) {
             return rowKeys;
         }
@@ -884,7 +887,7 @@ final class BookSettings {
      * when there is a viewer to answer with.
      */
     boolean pressRowItem(double mouseX, double mouseY) {
-        for (QuestBookScreen.RowItem item : book.rowItems) {
+        for (QuestBookScreen.RowItem item : book.bookState.rowItems) {
             if (item.box().contains(mouseX, mouseY)) {
                 RecipeLookups.open(item.target());
                 return true;
@@ -901,7 +904,7 @@ final class BookSettings {
      * stops offering the moment the first press lands.
      */
     boolean pressCheckmarkRow(double mouseX, double mouseY) {
-        for (QuestBookScreen.CheckmarkRow row : book.checkmarkRows) {
+        for (QuestBookScreen.CheckmarkRow row : book.bookState.checkmarkRows) {
             if (row.box().contains(mouseX, mouseY)) {
                 book.bookAssets.submit(row.questId(), row.taskIndex());
                 return true;
@@ -920,7 +923,7 @@ final class BookSettings {
      * registered, so this cannot steal a press a recipe lookup answers.
      */
     boolean pressRewardClaimRow(double mouseX, double mouseY) {
-        for (QuestBookScreen.RewardClaimRow row : book.rewardClaimRows) {
+        for (QuestBookScreen.RewardClaimRow row : book.bookState.rewardClaimRows) {
             if (row.box().contains(mouseX, mouseY)) {
                 book.bookRewards.claimReward(row.questId(), row.rewardIndex());
                 return true;
@@ -935,7 +938,7 @@ final class BookSettings {
      * and the tooltip already says so, so the press falls through to whatever else answers.
      */
     boolean pressFilterRow(double mouseX, double mouseY) {
-        for (QuestBookScreen.FilterRow preview : book.filterRows) {
+        for (QuestBookScreen.FilterRow preview : book.bookState.filterRows) {
             if (preview.box().contains(mouseX, mouseY)) {
                 var matches = dev.ellipog.tenet.client.FilterMatches.of(preview.expression());
                 if (matches.isEmpty()) {
@@ -956,9 +959,9 @@ final class BookSettings {
      * swap and the scroll reset have to happen here rather than in the transition.
      */
     private void openFilterPanel(String expression) {
-        book.filterExpression = expression;
-        book.filterLayout = null;
-        book.filterView.scrollTo(0);
+        book.bookState.filterExpression = expression;
+        book.bookState.filterLayout = null;
+        book.bookState.filterView.scrollTo(0);
         book.applyColumns(PanelStack.afterOpen(book.columns(), PanelKind.FILTER));
         book.rebuildWidgets();
     }
@@ -982,7 +985,7 @@ final class BookSettings {
                 Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
         r.fill(left + 1, top + 46, left + w - 1, top + 47, ArmatureTheme.panelEdge());
 
-        var matches = dev.ellipog.tenet.client.FilterMatches.of(book.filterExpression);
+        var matches = dev.ellipog.tenet.client.FilterMatches.of(book.bookState.filterExpression);
         String heading = matches.total() == 1 ? "1 accepted item" : matches.total() + " accepted items";
         if (matches.truncated()) {
             heading += " (first " + matches.shown().size() + " shown)";
@@ -997,7 +1000,7 @@ final class BookSettings {
         // FilterMatches' own memo, so only these three move the build.
         long filterText = ClientQuestCache.textRevision();
         long filterEpoch = TextEpoch.now();
-        if (book.filterLayout == null || filterLayoutWidth != body.viewWidth()
+        if (book.bookState.filterLayout == null || filterLayoutWidth != body.viewWidth()
                 || filterTextRevision != filterText || filterStamp != filterEpoch) {
             List<InspectRow> rows = new ArrayList<>();
             for (int i = 0; i < matches.shown().size(); i++) {
@@ -1005,38 +1008,38 @@ final class BookSettings {
                         matches.shown().get(i).getHoverName().getString()));
             }
             filterListRows = List.copyOf(rows);
-            book.filterLayout = InspectLayout.build(filterListRows, body.viewWidth(),
+            book.bookState.filterLayout = InspectLayout.build(filterListRows, body.viewWidth(),
                     Measure.monospace(6, 9));
             filterLayoutWidth = body.viewWidth();
             filterTextRevision = filterText;
             filterStamp = filterEpoch;
-            book.filterView.clear();
-            book.filterView.whole(true);
-            book.filterView.viewport().bounds(body.originX(), body.originY(), body.viewWidth(),
+            book.bookState.filterView.clear();
+            book.bookState.filterView.whole(true);
+            book.bookState.filterView.viewport().bounds(body.originX(), body.originY(), body.viewWidth(),
                     body.viewHeight());
-            book.filterView.apply(book.filterLayout, body.viewWidth());
+            book.bookState.filterView.apply(book.bookState.filterLayout, body.viewWidth());
             // Truncated once per build rather than per row per frame: the labels above are already
             // resolved, and these are the same slots the draw reads — onScreen only translates, so
             // the widths agree by construction.
             List<String> shown = new ArrayList<>(filterListRows.size());
             for (InspectRow row : filterListRows) {
-                var slot = book.filterLayout.slot(row.key());
+                var slot = book.bookState.filterLayout.slot(row.key());
                 int room = slot == null ? 0 : Math.max(0, slot.width() - QuestBookScreen.ROW_ICON - 8);
                 shown.add(Measure.truncate(row.label(), room, measure));
             }
             filterShownText = List.copyOf(shown);
         }
-        book.filterView.apply(book.filterLayout, body.viewWidth());
+        book.bookState.filterView.apply(book.bookState.filterLayout, body.viewWidth());
         filterListRects.clear();
         filterShown.clear();
         try (GuiRenderer.Scoped clip = r.clip(body.originX(), body.originY(), body.originX() + body.viewWidth(),
                 body.originY() + body.viewHeight())) {
             for (int i = 0; i < filterListRows.size(); i++) {
-                var slot = book.filterLayout.slot(filterListRows.get(i).key());
+                var slot = book.bookState.filterLayout.slot(filterListRows.get(i).key());
                 if (slot == null) {
                     continue;
                 }
-                var onScreen = InspectLayout.onScreen(book.filterView.viewport(), slot);
+                var onScreen = InspectLayout.onScreen(book.bookState.filterView.viewport(), slot);
                 BookGeometry.Rect rect = BookGeometry.Rect.at(onScreen.x(), onScreen.y(),
                         onScreen.width(), onScreen.height());
                 filterListRects.add(rect);
@@ -1054,7 +1057,7 @@ final class BookSettings {
                         rect.y() + (rect.height() - r.lineHeight()) / 2, ArmatureTheme.body());
             }
         }
-        QuestBookScreen.drawBar(r, book.filterView.bar(), mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.filterView.bar(), mouseX, mouseY);
     }
 
     /** A press on one of the list's rows: the match's recipes, where a viewer is installed. */
@@ -1109,7 +1112,7 @@ final class BookSettings {
             String key = OverlayLayout.rewardKey(i);
             Slot slot = placed(layout, body, key);
             if (slot != null) {
-                book.bookQuestRows.drawRewardRow(r, entry, i, slot, book.rowHover.amount(key, now), mouseX,
+                book.bookQuestRows.drawRewardRow(r, entry, i, slot, book.bookState.rowHover.amount(key, now), mouseX,
                         mouseY, book.bookQuestRows.rowStamp());
             }
         }
@@ -1157,7 +1160,7 @@ final class BookSettings {
             // came out zero and every row stopped answering. `dependencyBar` owns the derivation and its own
             // test asserts it is never empty, which is the property that broke.
             Slot bar = OverlayLayout.dependencyBar(row, book.overlayBodyRect().right());
-            float hover = book.rowHover.amount(key, now);
+            float hover = book.bookState.rowHover.amount(key, now);
             if (hover > 0F) {
                 r.fill(bar.x(), bar.y(), bar.right(), bar.bottom(),
                         Colour.translucent(ArmatureTheme.rowHover(), hover));

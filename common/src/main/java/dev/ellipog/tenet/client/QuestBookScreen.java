@@ -2,7 +2,6 @@ package dev.ellipog.tenet.client;
 
 import dev.ellipog.armature.api.client.ArmatureClient;
 import dev.ellipog.armature.client.ArmatureButton;
-import dev.ellipog.armature.client.ArmatureTextArea;
 import dev.ellipog.armature.client.ArmatureTextField;
 import dev.ellipog.armature.client.ArmatureScrollStyle;
 import dev.ellipog.armature.client.ArmatureTheme;
@@ -16,7 +15,6 @@ import dev.ellipog.armature.client.render.GuiGraphicsRenderer;
 import dev.ellipog.armature.client.render.GuiRenderer;
 import dev.ellipog.armature.client.render.TextEpoch;
 import dev.ellipog.armature.client.ui.inspect.InspectLayout;
-import dev.ellipog.armature.client.ui.inspect.InspectRow;
 import dev.ellipog.armature.client.ui.kit.Colour;
 import dev.ellipog.armature.client.ui.kit.Hover;
 import dev.ellipog.armature.client.ui.kit.Layout;
@@ -38,21 +36,12 @@ import dev.ellipog.tenet.client.ClientEditReplies;
 import dev.ellipog.tenet.client.viewer.QuestBookFocus;
 import dev.ellipog.tenet.client.viewer.RecipeLookups;
 import dev.ellipog.tenet.quest.CanvasElement;
-import dev.ellipog.tenet.client.dev.ChapterPanelLayout;
 import dev.ellipog.tenet.client.dev.ChapterTheme;
 import dev.ellipog.tenet.client.dev.ClientEditorClipboard;
-import dev.ellipog.tenet.quest.EditorField;
-import dev.ellipog.tenet.quest.EditorSources;
-import dev.ellipog.tenet.client.dev.ItemPicker;
-import dev.ellipog.tenet.client.dev.ItemPickerLayout;
 import dev.ellipog.tenet.client.dev.Labels;
 import dev.ellipog.tenet.client.dev.QuestSettingsLayout;
-import dev.ellipog.tenet.client.dev.SettingsDraft;
 import dev.ellipog.tenet.client.dev.QuestPanelLayout;
-import dev.ellipog.tenet.client.dev.SidebarDrag;
 import dev.ellipog.tenet.client.dev.ToolsLayout;
-import dev.ellipog.tenet.client.dev.ToolsPanel;
-import dev.ellipog.tenet.editor.EditorSession;
 import dev.ellipog.tenet.Constants;
 import dev.ellipog.tenet.client.ClientPartyCache;
 import dev.ellipog.tenet.progress.QuestState;
@@ -73,8 +62,6 @@ import net.minecraft.util.Util;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -190,6 +177,9 @@ public final class QuestBookScreen extends ArmatureScreen
     private static final int ROW_HEIGHT = BookGeometry.ROW_HEIGHT;
     private static final int ROW_GAP = BookGeometry.ROW_GAP;
 
+    /** The quest book's shared state. See {@link BookScreenState}. */
+    final BookScreenState bookState = new BookScreenState(this);
+
     /** The quest book's frame. See {@link BookFrame}. */
     final BookFrame bookFrame = new BookFrame(this);
 
@@ -244,75 +234,33 @@ public final class QuestBookScreen extends ArmatureScreen
     /** The quest book's row drag. See {@link BookRowDrag}. */
     final BookRowDrag rowDrag = new BookRowDrag(this);
 
-    /**
-     * The layout, rebuilt when the window changes size.
-     *
-     * <h2>Why the screen does not compute its own coordinates any more</h2>
-     *
-     * <p>Because it did, and the arithmetic was untestable. {@code QuestBookScreen} extends
-     * {@code Screen}, so it needs a running Minecraft to instantiate — which means a test can never ask
-     * it where its controls are, and "these two do not overlap" cannot be asserted at all. That is not
-     * a gap in the tests, it is the reason the bug got as far as a screenshot.
-     *
-     * <p>So the positions come from {@link BookGeometry}, which has no Minecraft in it and can be
-     * tested (see {@code BookGeometryTest}). Rebuilt on demand rather than in {@code init()} because
-     * {@code render} and {@code mouseClicked} both need it, and neither is guaranteed to run after the
-     * other — a cache keyed on the size is correct however the call order falls.
-     */
-    private BookGeometry geometry;
-    private int geometryWidth = -1;
-    private int geometryHeight = -1;
-    /** Whether the cached geometry was built for an author. See {@link #geometry}. */
-    private boolean geometryAuthor;
-    /**
-     * The sidebar state the cached geometry was built from. See {@link #sidebarEffective}: a
-     * toggle that left the geometry cached would draw yesterday's rectangles under today's
-     * widgets.
-     */
-    private SidebarState geometrySidebar = SidebarState.DEFAULT;
-
-    /**
-     * Per-frame snapshot of the geometry, canvas viewport, permission check, and active chapter.
-     *
-     * <p>Captured once at the top of {@link #extractRenderState} (and {@link BookFrame#renderWith} when driven
-     * directly by a test), refreshed if the frame triggers a widget rebuild, and cleared when the frame
-     * finishes or {@link #init} runs. Without this, {@link #viewport} and {@link #geometry} re-ran
-     * permission checks and allocated {@link SidebarState} records hundreds of times per frame.
-     */
-    boolean frameActive;
-    private BookGeometry frameGeometry;
-    private Viewport frameViewport;
-    boolean frameMayEdit;
-    static boolean frameChapterActive;
-    private static String frameChapter;
-
     void snapshotFrame() {
-        frameActive = false;
-        frameChapterActive = false;
-        frameMayEdit = dev.ellipog.tenet.QuestAuthority.mayEditClient(minecraft);
-        boolean author = frameMayEdit && !bookCanvas.previewAsPlayer;
+        bookState.frameActive = false;
+        BookScreenState.frameChapterActive = false;
+        bookState.frameMayEdit = dev.ellipog.tenet.QuestAuthority.mayEditClient(minecraft);
+        boolean author = bookState.frameMayEdit && !bookCanvas.previewAsPlayer;
         SidebarState sidebar = sidebarEffective();
-        if (geometry == null || geometryWidth != width || geometryHeight != height
-                || geometryAuthor != author || !geometrySidebar.equals(sidebar)) {
-            geometry = new BookGeometry(width, height, author, author, sidebar);
-            geometryWidth = width;
-            geometryHeight = height;
-            geometryAuthor = author;
-            geometrySidebar = sidebar;
+        if (bookState.geometry == null || bookState.geometryWidth != width || bookState.geometryHeight != height
+                || bookState.geometryAuthor != author || !bookState.geometrySidebar.equals(sidebar)) {
+            bookState.geometry = new BookGeometry(width, height, author, author, sidebar);
+            bookState.geometryWidth = width;
+            bookState.geometryHeight = height;
+            bookState.geometryAuthor = author;
+            bookState.geometrySidebar = sidebar;
         }
-        frameGeometry = geometry;
-        BookGeometry.Rect canvas = frameGeometry.canvas();
-        frameViewport = VIEW.bounds(canvas.x(), canvas.y(), canvas.width(), canvas.height());
-        frameChapter = BookContent.computeEffectiveChapter();
-        frameActive = true;
-        frameChapterActive = true;
+        bookState.frameGeometry = bookState.geometry;
+        BookGeometry.Rect canvas = bookState.frameGeometry.canvas();
+        bookState.frameViewport = BookScreenState.VIEW.bounds(canvas.x(), canvas.y(), canvas.width(), canvas.height());
+        BookScreenState.frameChapter = BookContent.computeEffectiveChapter();
+        bookState.frameActive = true;
+        BookScreenState.frameChapterActive = true;
     }
 
     void clearFrameSnapshot() {
-        frameActive = false;
-        frameChapterActive = false;
-        frameGeometry = null;
-        frameViewport = null;
+        bookState.frameActive = false;
+        BookScreenState.frameChapterActive = false;
+        bookState.frameGeometry = null;
+        bookState.frameViewport = null;
     }
 
     /**
@@ -326,13 +274,13 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private SidebarState sidebarEffective() {
         SidebarState stored = DevMode.sidebarState();
-        int width = sidebarLiveWidth != null ? sidebarLiveWidth : stored.width();
+        int width = bookState.sidebarLiveWidth != null ? bookState.sidebarLiveWidth : stored.width();
         if (!stored.floating()) {
             // Docked is the old column, always expanded: the old mode cannot collapse, whatever
             // the file's other answers say.
             return new SidebarState(width, false, true, false);
         }
-        if (stored.collapsed() && sidebarPeeking) {
+        if (stored.collapsed() && bookState.sidebarPeeking) {
             // A peek draws as a floating expanded box: the full rows over the canvas, with
             // nothing written. Lifting the pointer resolves back to the sliver on its own.
             return new SidebarState(width, true, stored.pinned(), false);
@@ -353,8 +301,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * are the reason the key is three comparisons rather than one.
      */
     BookGeometry geometry() {
-        if (frameActive && frameGeometry != null) {
-            return frameGeometry;
+        if (bookState.frameActive && bookState.frameGeometry != null) {
+            return bookState.frameGeometry;
         }
         // A previewing operator gets the reader's geometry: the card, no band, no full-bleed. That is
         // the whole point of the preview — the panel shrinks to exactly what a player without the
@@ -362,19 +310,19 @@ public final class QuestBookScreen extends ArmatureScreen
         // canvas, not the band, which this geometry does not have.
         boolean author = questEditor.mayEdit() && !bookCanvas.previewAsPlayer;
         SidebarState sidebar = sidebarEffective();
-        if (geometry == null || geometryWidth != width || geometryHeight != height
-                || geometryAuthor != author || !geometrySidebar.equals(sidebar)) {
+        if (bookState.geometry == null || bookState.geometryWidth != width || bookState.geometryHeight != height
+                || bookState.geometryAuthor != author || !bookState.geometrySidebar.equals(sidebar)) {
             // Full-bleed for an author, a card for a reader, and a band for the same author. See
             // `BookGeometry`'s constructor: the margin and the maximum size exist so a reading panel does
             // not read as a wall, and an author is not reading -- every spare pixel is canvas or colour
             // list.
-            geometry = new BookGeometry(width, height, author, author, sidebar);
-            geometryWidth = width;
-            geometryHeight = height;
-            geometryAuthor = author;
-            geometrySidebar = sidebar;
+            bookState.geometry = new BookGeometry(width, height, author, author, sidebar);
+            bookState.geometryWidth = width;
+            bookState.geometryHeight = height;
+            bookState.geometryAuthor = author;
+            bookState.geometrySidebar = sidebar;
         }
-        return geometry;
+        return bookState.geometry;
     }
 
     /**
@@ -452,8 +400,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * threshold -- see the note above {@link BookCanvas#MAX_LABEL_WIDTH} -- so a further-out view reads as fewer
      * names, not as a broken one.
      */
-    private static final float MIN_ZOOM = 0.2F;
-    private static final float MAX_ZOOM = 2.2F;
+    static final float MIN_ZOOM = 0.2F;
+    static final float MAX_ZOOM = 2.2F;
 
     /**
      * How far the pointer must move before a press counts as a drag rather than a click.
@@ -469,53 +417,6 @@ public final class QuestBookScreen extends ArmatureScreen
      * exactly this long, and with motion off the window is not there at all.
      */
     private static final int PANEL_REVEAL_MAX = 180;
-    final Hover rowHover = new Hover();
-
-    static String selectedChapter;
-    static String selectedQuest;
-
-    /**
-     * The quests selected besides the primary one, which is {@link #selectedQuest}.
-     *
-     * <p>Static with the selection it extends, for the same reason: a marquee that survives reopening
-     * the book is the selection an author put down and walked away from. The panel edits the primary
-     * alone -- a property panel over six quests at once is six panels pretending to be one -- so the
-     * multi-selection exists for the canvas's whole-hand gestures: drag them together, delete them
-     * together, copy them together.
-     */
-    static final Set<String> multiSelection = new LinkedHashSet<>();
-
-    /**
-     * The marquee: where the rectangle started, and where the pointer is now, in screen coordinates.
-     *
-     * <p>Screen coordinates because the rectangle is drawn as it is dragged and a zoom mid-drag should
-     * not move what the author is holding; the selection test at release maps each node into the same
-     * space, so the rectangle and the test it feeds agree about what "inside" means.
-     */
-    boolean marqueeActive;
-    int marqueeX0;
-    int marqueeY0;
-    int marqueeX1;
-    int marqueeY1;
-
-    /**
-     * The quest an edge drag is carrying from, once the drag is live.
-     *
-     * <p>Right is the edge's button: a right-press on a node that never moves does nothing, and the
-     * same threshold that tells a click from a node drag tells this one from that. A live edge drag
-     * draws the line to the pointer and lands on whatever node is under the release -- the arrow
-     * points the way the drag went: from the prerequisite to the quest that depends on it.
-     */
-    String edgeDragFrom;
-    boolean edgeDragLive;
-    double edgeDragX;
-    double edgeDragY;
-
-    /** Whether the next canvas click adds a dependency instead of selecting. Escape cancels. */
-    boolean pickingDependency;
-
-    /** What the pick is for, and the rules a click follows: see {@code DependencyPick}. */
-    dev.ellipog.tenet.client.dev.DependencyPick pendingPick;
 
     /** One block of the reader's description: what it is, the lines it was wrapped to, and the token look over it. */
     record ProseBlock(dev.ellipog.armature.client.ui.kit.RichText.Paragraph paragraph,
@@ -532,184 +433,6 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * The reader's description, parsed and wrapped for this frame.
-     *
-     * <p>One parse serves three things -- the layout takes the lines and widths, the drawing takes the runs,
-     * and the link rectangles are cut from what the drawing did -- so they cannot disagree about what the
-     * prose says or where it is. Rebuilt where the reader's card is drawn, which is once a frame and the
-     * same cost class as the wrap it replaces.
-     */
-    final List<ProseBlock> readerProse = new ArrayList<>();
-
-    /** What the reader's card drew this frame: the targets a hover and a click are matched against. */
-    final List<LinkRect> linkRects = new ArrayList<>();
-
-    /**
-     * The chapter whose missing theme was last reported, so the warning is not repeated every frame.
-     *
-     * <h2>What this guards, and what it used to</h2>
-     *
-     * <p>It used to guard the <i>application</i> of a chapter's theme, because applying one was a global
-     * side effect that {@link #init} would otherwise repeat on every resize and every widget rebuild.
-     * A chapter's theme is now applied by opening a scope around the canvas and the overlay, which costs
-     * nothing to re-open and resets no tween — so there is nothing left to guard except the message.
-     *
-     * <p>The message does still need guarding: it is emitted from inside a per-frame drawing path, and a
-     * chapter with a misspelled theme name would otherwise write a line of log per frame, which buries
-     * everything else in it. Once per chapter, cleared on disconnect, is the useful amount.
-     */
-    private static String warnedThemeFor;
-
-    /**
-     * The canvas transform: pan, zoom, the mapping from a quest's own coordinates to the screen, and
-     * the rectangle currently visible. Shared across openings, like the selection above it.
-     *
-     * <h2>Where the four things that used to be here went</h2>
-     *
-     * <p>This was {@code float zoom}, {@code int panX}, {@code int panY} and the bound arithmetic
-     * beside them — and every place that needed a coordinate wrote the conversion out itself: the two
-     * methods that turn a quest into a screen position, the hit test, the pan on drag, the zoom about
-     * the pointer, and {@link BookCanvas#centreCanvas}, which solved the same equation a second time from the
-     * content's bounding box. Five copies of one transform, and the copy that decided what a click
-     * selected was the one nothing could check.
-     *
-     * <p>It is {@link Viewport}'s now — the same object a scrolling list uses at a smaller range, which
-     * is why it is in the kit rather than in {@code ui.graph}. Two things follow, and both are the
-     * reason rather than a side effect: the zoom-about-the-pointer arithmetic is asserted against a
-     * known transform in Armature's own tests instead of being judged in a screenshot, and there is
-     * exactly one place in this repo that knows how to map content space onto screen space.
-     *
-     * <p><b>No content size is ever set on it, deliberately.</b> A canvas may be dragged off into
-     * empty space: a player exploring a large questline should not be stopped at an invisible edge, and
-     * a chapter's bounding box is not a wall. A view that wants a clamp asks for one by saying how much
-     * content it has; this one never does, so the offset is whatever the drag put there.
-     */
-    private static final Viewport VIEW = Viewport.of(MIN_ZOOM, MAX_ZOOM);
-
-    static String pannedChapter;
-    static boolean centred;
-
-    // --- per-open state ------------------------------------------------------
-
-    PanelKind overlay = PanelKind.NONE;
-
-    /**
-     * The second column: what the thing in {@link #overlay} opened, or {@link PanelKind#NONE}.
-     *
-     * <p>A field beside {@code overlay} rather than a stack object replacing it, and the reason is the
-     * hundred branches that read {@code overlay == PanelKind.X}: rewriting them all into accessor calls
-     * would be churn in the one file where churn is expensive, and none of them changed meaning. So the
-     * two fields carry the arrangement and {@code PanelStack} owns every rule about it —
-     * {@link #columns()} and {@link #applyColumns} are the whole of the bridge.
-     */
-    PanelKind overlay2 = PanelKind.NONE;
-
-    /**
-     * Whether the author has the Book/Chapter dock latched.
-     *
-     * <h2>Why this is a field, and what it stopped being</h2>
-     *
-     * <p>The dock used to <i>be</i> edit mode: it was derived from it — {@code drawerOpen()} answered
-     * {@code mayEditNow()} — so it appeared when the Edit pill latched and went away with it. That gave the
-     * Edit pill a second meaning, "close the panel so the dock comes back", because the dock and a panel
-     * shared column 1 and the dock was not drawn while a panel was in it. An author pressing Edit to leave
-     * edit mode got the panel closed instead, and had to press again to do what they asked for.
-     *
-     * <h2>And what it stopped being after that</h2>
-     *
-     * <p>It is the screen's mirror of {@link PanelStack.Columns#dock()}, written by {@link #applyColumns}
-     * and by nothing else — {@link #pressAuthorPill} goes through the rules like every other opening, so
-     * there is one writer of the arrangement rather than one writer and a latch beside it. That matters
-     * because the dock is no longer the fallback occupant of column 1: it owns its own rail, so it is
-     * neither hidden behind a panel nor revealed by closing one, and the only thing that may take it away
-     * is a press that names it — the pill, the X or Escape.
-     *
-     * <p>Session-only, like {@link #overlay} — nothing about the arrangement reaches disk.
-     */
-    boolean dockOpen;
-
-    /**
-     * The kind whose surface the four accessors below answer for: what is being drawn, built, or pressed.
-     *
-     * <h2>Why a field rather than a parameter through thirty methods</h2>
-     *
-     * <p>Every position inside a panel — its body's clip, its footer's controls, its rows' rectangles — comes
-     * from {@code overlayLeft/Top/Width/Height}, which used to read {@code overlay}. With one surface that
-     * was the same question; with two it is not, and a kind in the second column would have measured itself
-     * against the first column's rectangle. Threading a rectangle through the twenty-odd methods that ask
-     * would be the tidier answer and a much larger change; this is one assignment per surface, written by the
-     * three places that have one — {@link BookOverlay#drawSurface}, {@link BookQuestEditor#buildOverlayWidgets} and the press dispatch
-     * — and each of them sets it immediately before the code that reads it, so it cannot be stale: there is
-     * no path that reads these accessors between two surfaces.
-     *
-     * <p>Defaults to {@link PanelKind#NONE}, which {@code surfaceCard} answers with the modal rectangle —
-     * the shape every kind had before this mode existed, so a path that somehow forgot to set it draws what
-     * it always drew rather than nothing.
-     */
-    PanelKind surfaceKind = PanelKind.NONE;
-
-    /** What the player asked the second column to do. Read at startup, written when the fold is pressed. */
-    PanelStack.Fold foldChoice = PanelStack.Fold.AUTO;
-
-    /**
-     * When each rail started arriving, in {@code Util.getMillis()} terms; no entry means settled.
-     *
-     * <h2>Per kind, because the dock must arrive once and then stay</h2>
-     *
-     * <p>There was one timestamp for the whole arrangement, and it was harmless while opening a panel also
-     * took the dock's rail: the dock appeared with the panel, so one wipe covered both. The dock now keeps
-     * its own rail, so one timestamp means <b>every panel opening re-wipes the dock</b> — the author's tools
-     * sliding in again each time they click a node, which reads as the dock closing and reopening, and is
-     * the very thing this round exists to stop. A map is what makes "this rail is arriving; that one is
-     * already there" sayable.
-     *
-     * <p>Captured where the rail is opened — <b>at the action</b> — rather than on the next tick.
-     * {@code tick} runs at twenty hertz, so a start timestamp read there would eat up to forty-nine
-     * milliseconds of the reveal, which is a quarter of it. {@code startGlide} and the
-     * locate flash already do it this way for the same reason.
-     *
-     * <p>{@link #applyColumns} drops the entries of anything that left the arrangement, so a kind closed
-     * mid-wipe and opened again later starts its second arrival at the beginning rather than part-way
-     * through the first.
-     */
-    final java.util.Map<PanelKind, Long> panelRevealStarts =
-            new java.util.EnumMap<>(PanelKind.class);
-
-    /**
-     * Whether a rebuild is owed because a rail arrived while its controls were travelling.
-     *
-     * <p>Set by the per-frame slide while any rail is still moving: the settle frame leaves every
-     * widget at its built position but inert, and the rebuild in {@code tick} is what hands back
-     * their live state. A widget list changed inside a render is the one thing this screen never
-     * does, so the flag is the whole of the handover between the two.
-     */
-    boolean panelBuildPending;
-
-    /**
-     * Which rail is being built, while it is being built — or null anywhere else.
-     *
-     * <p>The bucket the widget overrides below file into: a control built by {@link BookQuestEditor#buildColumn} (or
-     * the fold control's, or the choice card's) belongs to the rail it was placed against, and the
-     * per-frame slide moves exactly those widgets. The header, the sidebar and the view cluster build
-     * with this null, so their controls never travel — they are not on a rail that arrives.
-     */
-    PanelKind slideBucket;
-
-    /**
-     * Every sliding widget by rail, and the X it was placed at.
-     *
-     * <p>Cleared with everything else in {@code init} and filled as the columns build; the bases are
-     * read on the first slide frame rather than at filing (see {@link #slidePanelWidgets}). The slide
-     * never writes a placed position — it writes {@code base + offset} every frame — so a rebuild for
-     * any other reason (a replica arriving mid-slide, a press) cannot strand a widget off its rail: the
-     * next frame re-derives the same answer from the same base.
-     */
-    final java.util.Map<PanelKind, java.util.List<AbstractWidget>> slideWidgets =
-            new java.util.EnumMap<>(PanelKind.class);
-    final java.util.Map<AbstractWidget, Integer> slideBaseX =
-            new java.util.IdentityHashMap<>();
-
-    /**
      * Files a widget under the rail being built, when one is.
      *
      * <p>Called by both widget overrides: every panel widget is an {@code AbstractWidget} with a
@@ -720,10 +443,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * of those fields at the window's edge for as long as the panel is open.
      */
     private void noteSlideWidget(GuiEventListener added) {
-        if (slideBucket == null || !(added instanceof AbstractWidget widget)) {
+        if (bookState.slideBucket == null || !(added instanceof AbstractWidget widget)) {
             return;
         }
-        slideWidgets.computeIfAbsent(slideBucket, kind -> new java.util.ArrayList<>()).add(widget);
+        bookState.slideWidgets.computeIfAbsent(bookState.slideBucket, kind -> new java.util.ArrayList<>()).add(widget);
     }
 
     /**
@@ -755,58 +478,9 @@ public final class QuestBookScreen extends ArmatureScreen
         return added;
     }
 
-    /**
-     * When each departed rail started leaving, in {@code Util.getMillis()} terms.
-     *
-     * <p>The exit's answer to {@link #panelRevealStarts}: a rail that left the arrangement keeps
-     * drawing — sinking into the edge it arrived from — until its duration is spent. Recorded in
-     * {@link #applyColumns}, the one writer of the arrangement, beside the arrival stamps; forgotten
-     * in {@code tick} once settled, in {@code init} on any rebuild, and in {@code removed} with the
-     * screen, so a stored rectangle can never outlive the window it was measured in.
-     */
-    final java.util.Map<PanelKind, Long> panelDepartStarts =
-            new java.util.EnumMap<>(PanelKind.class);
-
-    /**
-     * The rectangle each departed rail is still drawn in.
-     *
-     * <p>Snapshotted at close time — and it is the <i>shown</i> rectangle, not the full rail, so a rail
-     * closed mid-enter leaves from where it stood rather than jumping to whole and sinking. With it,
-     * the exit needs nothing else from the arrangement it just left.
-     */
-    final java.util.Map<PanelKind, BookGeometry.Rect> departRails =
-            new java.util.EnumMap<>(PanelKind.class);
-
-    /**
-     * The content cleanup each departed rail is still owed, by rail.
-     *
-     * <p>Closing nulls the state a panel was drawn from — its quest, its rows, its armed deletes — and
-     * the exiting surface still reads that state for the length of its slide. So a close schedules its
-     * nullings here instead of running them, stamped with the arrangement they closed under. They run
-     * when the rail has sunk <i>and nothing has moved since</i> — in {@code tick} on settle — or eagerly
-     * in {@link #applyColumns} when the same kind reopens first (teardown before setup, the order a
-     * close-then-open has always had). A settle that finds a newer arrangement leaves them parked: the
-     * reopen they belong to has not happened yet, and running them under it would null state a new
-     * panel just set. {@code init} runs none of them — a rebuild is not a settle — but it keeps its
-     * hands off the draw content of departing rails (see the party guard there), and {@code removed}
-     * runs them all, because a stored cleanup must never be dropped on the floor.
-     */
-    final java.util.Map<PanelKind, java.util.List<StampedTeardown>> pendingTeardowns =
-            new java.util.EnumMap<>(PanelKind.class);
-
     /** A cleanup with the arrangement it closed under, so a settle can tell stale from owed. */
     record StampedTeardown(long epoch, Runnable teardown) {
     }
-
-    /**
-     * How many arrangements this screen has written: bumped by {@link #applyColumns} on every call.
-     *
-     * <p>What a scheduled cleanup is stamped with, and what the tick compares before running one. Equal
-     * means the close is still the latest thing that happened — nothing reopened, so nothing fresh
-     * stands where the nullings land. Different means something moved since, and the cleanup waits for
-     * its own kind's reopen (or the screen's end) rather than nulling under a new panel.
-     */
-    long arrangementEpoch;
 
     /**
      * Runs a rail's owed cleanups, if any — whatever arrangement they were stamped under — then
@@ -816,7 +490,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * for {@code removed}. The tick's settle is the selective one; see its own note.
      */
     private void runTeardowns(PanelKind kind) {
-        java.util.List<StampedTeardown> owed = pendingTeardowns.remove(kind);
+        java.util.List<StampedTeardown> owed = bookState.pendingTeardowns.remove(kind);
         if (owed != null) {
             for (StampedTeardown stamped : owed) {
                 stamped.teardown().run();
@@ -826,20 +500,10 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Runs every owed cleanup. For {@code removed}: exits end when their world does. */
     private void runAllTeardowns() {
-        for (PanelKind kind : java.util.List.copyOf(pendingTeardowns.keySet())) {
+        for (PanelKind kind : java.util.List.copyOf(bookState.pendingTeardowns.keySet())) {
             runTeardowns(kind);
         }
     }
-
-    /**
-     * The rails the latest {@link #applyColumns} retired, in presented order.
-     *
-     * <p>What a close schedules its deferred nullings under: the call just moved these rails out, so
-     * they are the exits that still need their content. Read immediately — the next arrangement change
-     * overwrites it — which is why every close below snapshots nothing and simply calls
-     * {@link #deferForLastDeparted} before doing anything else that moves rails.
-     */
-    private java.util.List<PanelKind> lastDeparted = java.util.List.of();
 
     /**
      * Schedules a cleanup under every rail the latest arrangement change retired, once.
@@ -867,9 +531,9 @@ public final class QuestBookScreen extends ArmatureScreen
                 teardown.run();
             }
         };
-        StampedTeardown stamped = new StampedTeardown(arrangementEpoch, once);
+        StampedTeardown stamped = new StampedTeardown(bookState.arrangementEpoch, once);
         for (PanelKind kind : kinds) {
-            pendingTeardowns.computeIfAbsent(kind, key -> new java.util.ArrayList<>()).add(stamped);
+            bookState.pendingTeardowns.computeIfAbsent(kind, key -> new java.util.ArrayList<>()).add(stamped);
         }
     }
 
@@ -888,7 +552,7 @@ public final class QuestBookScreen extends ArmatureScreen
             teardown.run();
             return;
         }
-        java.util.LinkedHashSet<PanelKind> keys = new java.util.LinkedHashSet<>(lastDeparted);
+        java.util.LinkedHashSet<PanelKind> keys = new java.util.LinkedHashSet<>(bookState.lastDeparted);
         for (PanelKind kind : family) {
             if (kind != null && kind != PanelKind.NONE) {
                 keys.add(kind);
@@ -919,124 +583,22 @@ public final class QuestBookScreen extends ArmatureScreen
      *
      * <p>The exit's {@link #panelRevealElapsed}: a kind with no entry is not departing, so there is no
      * "settled means draw it whole" tail — the drawing only ever runs for entries in
-     * {@link #panelDepartStarts}.
+     * {@link BookScreenState#panelDepartStarts}.
      */
     long panelDepartElapsed(PanelKind kind, long now) {
-        Long start = panelDepartStarts.get(kind);
+        Long start = bookState.panelDepartStarts.get(kind);
         return start == null ? Long.MAX_VALUE : now - start;
     }
 
     /** Whether one rail is still sinking out, which is when its surface is still drawn. */
     boolean panelDeparting(PanelKind kind, long now) {
-        return panelDepartStarts.containsKey(kind)
+        return bookState.panelDepartStarts.containsKey(kind)
                 && PanelLayout.revealed(panelDepartElapsed(kind, now), panelExitMillis()) < 1F;
     }
-
-    /**
-     * The rail a departed draw answers with, while it answers.
-     *
-     * <p>Set around each departed kind's {@link BookOverlay#drawSurface} and cleared after: {@link #panelRail} reads
-     * the live arrangement, which no longer holds the kind, so without this the exiting surface would
-     * draw itself into whichever rail the arrangement now gives that answer. Scoped per draw rather than
-     * per frame, so a throw cannot leak one kind's rectangle into another's.
-     */
-    PanelKind departDrawKind;
-    BookGeometry.Rect departDrawRail;
-
-    /**
-     * A resize in flight: the rail as grabbed, the width it had, and where the pointer was.
-     *
-     * <p>Read while the hand is down so the rail's chrome, its content and its travelling widgets all
-     * follow the pointer; written back once, on release, through the same path as any other width.
-     */
-    BookGeometry.Rect panelDragRail;
-
-    /**
-     * Which rail the hand is holding, for the whole of a resize.
-     *
-     * <p>A field rather than a read of the arrangement, and that is a fix rather than tidiness: every rail
-     * carries a grip on its inner edge, so the hand can be on any of the three. Every part of the gesture —
-     * the clamp its kind gives the width, the rectangle the live width is fed to, and which number is
-     * written when the hand lets go — has to be about <b>the rail that was grabbed</b>. Read from the first
-     * panel, grabbing the child's edge resized and then remembered the <i>first</i> panel's width.
-     */
-    PanelKind panelDragKind = PanelKind.NONE;
-
-    /**
-     * The width a resize has reached, or zero when none is in flight.
-     *
-     * <p>A live override rather than a write per frame: {@link #railWidth} answers with it while the hand is
-     * on that kind, so the rail's chrome and its content follow the pointer without the settings file being
-     * rewritten sixty times a second. It is written once, on release, and dropped in the same breath — so
-     * the width on screen and the width in the file cannot disagree.
-     *
-     * <p><b>One field, read for one kind.</b> There used to be a second for the child column, on the
-     * reasoning that column 2 owns no stored number and so its drag was forgotten; the two fields were a
-     * live override <i>per column</i>, which is the shape {@link #railWidth} exists to replace. A width is
-     * a property of a kind now — see {@code DevMode.panelWidth} — and this is the one override in flight,
-     * guarded by {@link #panelDragKind} so it can only ever be read for the kind the hand is on.
-     */
-    int panelLiveWidth;
 
     // ------------------------------------------------------------------
     // The reward-table panels
     // ------------------------------------------------------------------
-
-    /** The table the editor is on, or null when no table panel is open. */
-    dev.ellipog.tenet.editor.TableAddress tableAddress;
-
-    /**
-     * The tables the editor walked through to get here, most recent first.
-     *
-     * <p>A stack rather than a single address, because a table's entries can be tables: pressing one
-     * opens it, and `Done`/Escape must come back rather than close the panel on the author.
-     */
-    final java.util.Deque<dev.ellipog.tenet.editor.TableAddress> tableStack =
-            new java.util.ArrayDeque<>();
-
-    /**
-     * What this client has had accepted in the current frame, and what it has taken back.
-     *
-     * <p>The frame's undo floor and redo ceiling. Undo is allowed only while {@code tableApplied} is
-     * positive, so Ctrl+Z cannot reach past the table the author opened into the file's earlier history
-     * — and redo only while {@code tableUndone} is, so it cannot replay a step this frame never undid.
-     * Both move on an <b>accepted</b> reply and on nothing else: a refused edit changes neither.
-     */
-    int tableApplied;
-    int tableUndone;
-
-    /** The mode the editor is reading the table as: what the chances are computed against. */
-    dev.ellipog.tenet.quest.reward.TableReward.Mode tablePreview =
-            dev.ellipog.tenet.quest.reward.TableReward.Mode.RANDOM;
-
-    /**
-     * The table panels' scrolls: <b>one viewport each</b>, and the bar that owns each one.
-     *
-     * <h2>Why these are two fields where there used to be one</h2>
-     *
-     * <p>There was one {@code int tableScroll} for both panels, and the two lists are different
-     * lengths in different bands: the browser's rows are 22 pixels and the editor's 20, and each panel
-     * clamped the offset against its own {@code maxScroll} but read the number the other had left
-     * there. Scroll to the bottom of the editor's entries, go back to the browser, and the browser's
-     * list was where the editor had put it — a list arriving part-way down for no reason the person
-     * looking at it could see. The viewport is what makes that unrepresentable rather than unlikely:
-     * the offset, the clamp and the bar's range are one object's, and there is one object per list.
-     *
-     * <p>The roll pane keeps its own, on the panel's own terms: it is a page of its own, and moving it
-     * must not move the entry list under it.
-     */
-    final Viewport tableBrowserBody = Viewport.fixed();
-    final ScrollBar tableBrowserBar = new ScrollBar(tableBrowserBody);
-    final Viewport tableEditorBody = Viewport.fixed();
-    final ScrollBar tableEditorBar = new ScrollBar(tableEditorBody);
-    final Viewport rollBody = Viewport.fixed();
-    final ScrollBar rollBar = new ScrollBar(rollBody);
-
-    /** Whether the toolbar's Import popover is showing. See `drawTableImportPopover`. */
-    boolean tableImportOpen;
-
-    /** Where the popover drew itself last frame, which is what a press inside it is measured against. */
-    BookGeometry.Rect tableImportBox;
 
     /** The roll pane's line pitch. */
     static final int ROLL_PITCH = 12;
@@ -1049,42 +611,6 @@ public final class QuestBookScreen extends ArmatureScreen
      * control lie about what it was about to do.
      */
     static final int TABLE_ROLL_COUNT = 10;
-    int tableSelected = -1;
-    dev.ellipog.tenet.client.dev.TableBrowserLayout.Frame tableBrowserFrame;
-    dev.ellipog.tenet.client.dev.TableEditorLayout.Frame tableEditorFrame;
-
-    /** The entries the editor has folded open, by position. */
-    final java.util.Set<Integer> tableFolded = new java.util.LinkedHashSet<>();
-
-    /**
-     * A picker opened from the table editor, and what the pick is for.
-     *
-     * <p>Empty string means "a new entry from the picked item"; anything else is the path the item goes
-     * to — {@code icon.item}, or an entry's {@code entries.2.reward.item}. The picker itself is the
-     * book's own, so a table is edited with the same list an item reward is.
-     */
-    String tablePickPath;
-
-    /** Whether the roll report is showing over the entry list. */
-    boolean tableShowRoll;
-
-    /** Whether the next press on a table would throw away an inline table, so it asks first. */
-    boolean tableConfirmReplace;
-
-    /**
-     * The same, for the Assets panel's own {@code ×}.
-     *
-     * <p>A field of its own rather than {@link BookRewards#tableConfirmDelete}, and that is the point: the two panels
-     * are two surfaces that both list tables, and one field would let an arm made in one of them fire on
-     * the first press in the other. The rule is "the control that asked is the control that confirms", and
-     * sharing the arming is how that stops being true.
-     *
-     * <p>The Assets panel was the last destructive control in this book with no second press at all:
-     * {@code deleteTable} straight from the press, one chip from Copy, with no status line and no arm.
-     * Nothing found it, because the browser's {@code ×} <i>does</i> ask and the two verbs read as one
-     * control in two places -- which is exactly the fault a check for this rule has to catch.
-     */
-    String assetsConfirmRemove;
 
 
     /**
@@ -1111,161 +637,13 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     static final String REPLICA_SENTINEL = ClientEditReplies.REPLICA_SENTINEL;
 
-    /** Whether the picker on screen was opened by the table editor, so it closes back into it. */
-    boolean tablePickReturn;
-
-    /**
-     * The same, for the type picker: a list of rewards opened from the table editor.
-     *
-     * <p>Its own flag rather than a shared one because the two pages are closed by different code --
-     * the item picker's `closeItemPicker` knows how to leave a table, and the type page's own close is
-     * below -- and because the press that adds a type has to know which file it is adding to. See
-     * {@code pressTypeRow}, which is where the difference matters.
-     */
-    boolean typePickReturn;
-
-    /**
-     * The table field the open inline editor is editing, and what kind of value it is, or null.
-     *
-     * <p>The card's inline editor commits a field of the <b>quest</b>; a weight is a field of a table.
-     * The two share the widget and the commit path, so the one that knows which file it writes to has to
-     * say so -- without this, typing a weight sent {@code entries.1.weight} to the quest file.
-     *
-     * <p>The kind travels with the path because the box hands back a <b>string</b> and the file does not
-     * hold one: this began as a path alone and the commit was written for the only field it had, so the
-     * branch parsed a double. That is right for a weight and wrong for everything else the fold now
-     * edits — a command is a string, {@code levels} is a boolean, an id is an id, and the raw row is
-     * whole JSON. One kind, read from the control that opened the box, is what keeps the commit from
-     * guessing.
-     */
-    TableEdit tableEdit;
-
     /** One field of a table, and how the text typed into a box becomes its value. */
     record TableEdit(String path, dev.ellipog.tenet.client.dev.TableRowFields.Kind kind) {
     }
 
-    /**
-     * The overlay a table panel was opened over, and must give back when it closes.
-     *
-     * <p>{@code PanelKind.QUEST} when the panel came from a reward's card — which is the usual way — so
-     * selecting a table, pressing Done or pressing Escape returns to the card the author was editing
-     * rather than dropping them onto the canvas. The first version always closed to {@code NONE}, which
-     * is what made picking a table feel like being thrown out of the quest.
-     *
-     * <p>Empty for a panel a command asked for: there is no card behind that one, and the book is where
-     * it should end up.
-     */
-    PanelKind tableReturn = PanelKind.NONE;
-
-    /**
-     * The table a replica request is outstanding for, so a refusal can be filed against it.
-     *
-     * <p>A refused replica answers with an <b>empty chapter</b> — a table is a file, not a chapter's — so it
-     * arrived looking like news about some other chapter and was recorded against a chapter with no name.
-     * The panel's copy stayed missing, `ClientTableReplica.refusal` stayed null, and the panel said "Waiting
-     * for this table's file..." for as long as the author was willing to stare at it, while the server had
-     * already said why. One field is what connects the refusal back to the table it is about.
-     */
-    String replicaAskedFor;
-
-    /** The quest whose overlay is open, by id. */
-    String overlayQuest;
-
-    /**
-     * The card's back stack: one entry per "Requires" jump, newest last.
-     *
-     * <p>A prerequisite chain is four deep — Rocket, Fuel Tank, Steel Plate, Blast Furnace — before a
-     * reader notices they cannot step back without losing the thread, so every jump out of a card
-     * remembers the card it left: which quest, and where its body was scrolled and folded. Cleared
-     * when the card closes or a fresh card opens from the canvas; a jump or a step back keeps it.
-     */
-    final List<CardVisit> overlayHistory = new ArrayList<>();
-
     /** One card in the back stack: the quest, and the body state it was left in. */
     record CardVisit(String questId, int scrollY, Set<String> folded) {
     }
-
-    /**
-     * The locate-on-canvas move in flight: which node it is going to, and where it started.
-     *
-     * <p>Advanced once a frame from the canvas drawing — the only place the move can be seen, since a
-     * card hides the canvas — and cancelled by any manual pan or zoom, because a camera that fights the
-     * hand is worse than no camera move at all.
-     */
-    String glideQuest;
-    long glideStart;
-    int glideFromX;
-    int glideFromY;
-    int glideToX;
-    int glideToY;
-
-    /** The node whose outline is flashing after a locate, and when the flash began. */
-    String flashQuest;
-    long flashStart;
-
-    /**
-     * The party panel's laid-out rows, and the scroll view that places its controls from them.
-     *
-     * <h2>Why the layout is a field rather than a local of the widget pass</h2>
-     *
-     * <p>Because the Remove buttons and the action buttons are <b>widgets</b>, and a widget's position is
-     * fixed at construction. So the layout that placed those buttons has to be the one the drawing reads,
-     * or the row a member's name is written on and the button that removes them would come from two
-     * computations that agree until one of them changed — and the panel scrolls, so the two also have to
-     * agree about how far it has been scrolled.
-     *
-     * <p>The scroll is a {@link ScrollView} rather than a pair of origin fields, and that is the whole of
-     * what closed the panel's stated limitation: it was "clipped rather than scrollable", which meant a
-     * roster taller than its card simply lost its last rows — the drawing skipped them and the widgets
-     * were never placed. A control now gets its rectangle from the same viewport the drawing reads, and
-     * the ones outside it are hidden rather than misplaced, which is also what stops a row scrolled past
-     * the card's edge from answering the pointer. See {@code PartyPanelLayout} for the layout and
-     * {@code ScrollView} for the placement; between them there is one expression for where a row is.
-     */
-    Layout partyLeftLayout;
-    Layout partyRightLayout;
-    PartyPanelLayout.Face partyLeftFace;
-    PartyPanelLayout.Face partyRightFace;
-    final ScrollView partyLeftView = ScrollView.of(Viewport.fixed());
-    final ScrollView partyRightView = ScrollView.of(Viewport.fixed());
-
-    /**
-     * The card the panel was built into: what the widgets were placed inside, and what the drawing and
-     * the click-outside test read.
-     *
-     * <h2>Why this is a field rather than a second computation</h2>
-     *
-     * <p>Because the card is built once and everything inside it is placed from that one rectangle — the
-     * two columns, their viewports, the footer and the clip. A drawing that re-derived it would be the
-     * second arithmetic this panel was rewritten twice to remove.
-     */
-    BookGeometry.Rect partyCard;
-
-    /**
-     * The rows each column drew, kept because a row's <i>label</i> is drawn by the panel rather than by
-     * a widget: only the controls are widgets, so the drawing needs the same lines the controls were
-     * made from, and a second derivation of them is how a name ends up beside somebody else's button.
-     */
-    List<PartyPanelLayout.Line> partyLeftLines = new ArrayList<>();
-    List<PartyPanelLayout.Line> partyRightLines = new ArrayList<>();
-
-    /**
-     * The footer's Disband control, and whether it has been pressed once and is waiting for a second.
-     *
-     * <h2>Why Disband asks and the rest do not</h2>
-     *
-     * <p>Because it is the only control on the panel whose mistake cannot be undone by pressing
-     * something else: Remove takes one player out and Leave takes you out, and the party survives both.
-     * Disband ends it for everybody in it, including the members who are offline and cannot be asked.
-     *
-     * <p>The control is kept rather than found by key because the label is changed <b>on it</b>. A
-     * rebuild would be the other way to change a label, and it cannot be: a rebuild goes through
-     * {@code init}, which disarms — so arming and rebuilding would be the same press, and the second
-     * press would send. The window is three seconds: a confirmation that never expires is not a
-     * confirmation, it is a flag a player sets and forgets.
-     */
-    ArmatureButton disbandButton;
-    final ArmedPress disbandPress = new ArmedPress();
 
     /** Which question the panel is asking, if any: the flows that need an answer before acting. */
     enum PartyPhase {
@@ -1279,348 +657,6 @@ public final class QuestBookScreen extends ArmatureScreen
         CONFIRM_DISBAND
     }
 
-    PartyPhase partyPhase = PartyPhase.NONE;
-
-    /**
-     * What the solo face's two fields hold between rebuilds.
-     *
-     * <p>Kept because a rebuild recreates the widgets — the roster revision moves on every push, and a
-     * rebuild is what redraws the panel — so the text a player was typing has to survive in a field the
-     * screen owns, or it would be wiped by somebody else's join.
-     */
-    String partyCreateName = "";
-    String partySearch = "";
-    boolean partyCreateFocused;
-    boolean partySearchFocused;
-    ArmatureTextField partyCreateField;
-    ArmatureTextField partySearchField;
-    ArmatureTextField partyNameField;
-
-    /**
-     * The member rows' owner controls, by member id.
-     *
-     * <p>Kept because their <b>visibility</b> is decided at draw time from the row's hover: the widgets
-     * exist whenever the viewer may use them, and a row that is not hovered draws neither. See
-     * {@code drawPartyMembers} — the alternative, creating them on hover, would be widgets made in a
-     * drawing pass.
-     */
-    final Map<UUID, ArmatureButton> partyRemoveButtons = new java.util.HashMap<>();
-    final Map<UUID, ArmatureButton> partyTransferButtons = new java.util.HashMap<>();
-
-    /**
-     * Every row control the panel built, by control key.
-     *
-     * <h2>Why these are placed here rather than registered with the scroll view</h2>
-     *
-     * <p>{@code ScrollView} matches a registered widget to a slot <b>by key</b>, and its slots are the
-     * layout's rows. A row with one control registered under the row's own key works -- and that is how
-     * the search field is handled. A row with <b>two</b> controls cannot: two widgets would need one
-     * row key, and a control key like {@code right:open:switch} is a key no row carries -- so the view
-     * hides it as "registered but not in this layout". That is exactly what happened to the settings
-     * switches and the rename pencil: built, added, invisible.
-     *
-     * <p>So the controls are placed from {@link PartyPanelLayout#controlSlots} every frame, in the same
-     * pass that reads the layout for everything else -- one derivation for the rectangle, read by the
-     * placement, the hover logic and the preview. The scroll views keep what they are good at: the
-     * clamp, the bar and the wheel.
-     */
-    final Map<String, net.minecraft.client.gui.components.AbstractWidget> partyControls =
-            new java.util.HashMap<>();
-
-    /** The measure every party row is built with. Fixed-width, because a row is a fixed height. */
-    static final Measure TEXT_MEASURE = Measure.monospace(6, 9);
-
-    /**
-     * The member row's own metrics live in {@link PartyPanelLayout}, where the row's composition is.
-     *
-     * <p>They were six private constants here, which is where they were unreadable from: a drawing
-     * metric in the one class in either mod that cannot be asked anything. See that class's note.
-     */
-
-    /**
-     * The party strip's control, so the drawing can keep its label current.
-     *
-     * <p>Nulled in {@code init} with the list it comes from, exactly as {@link #closeButton} is: leaving
-     * it set across a rebuild would have {@code drawPartyStrip} writing a message onto a control the
-     * screen no longer owns.
-     */
-    ArmatureButton partyButton;
-
-    /**
-     * The overlay body's scroll, as a scroll view rather than an int.
-     *
-     * <h2>What this replaced</h2>
-     *
-     * <p>An {@code int overlayScroll} that the wheel wrote <b>unclamped</b>, and that
-     * {@link BookSettings#drawOverlay} clamped much later against a height produced by a separate
-     * {@code measureOverlay} pass. Three places holding one number — the writer, the clamp and the
-     * scrollbar — which agreed only by hand, and only until somebody scrolled. A flick past the bottom
-     * left the offset out of range until the next frame happened to correct it.
-     *
-     * <p>Here the clamp, the position and the thumb are one object's, and {@link BookSettings#overlayLayout} is the
-     * single call that says how much content there is, so the bar cannot claim a range the drawing does
-     * not fill.
-     *
-     * <p>The viewport is fixed-scale: there is no canvas inside the overlay, so a zoom control here
-     * would be a control for something that does not exist.
-     *
-     * <p>No widgets are registered in it. The overlay's two controls are placed by {@link BookGeometry}
-     * from the card's own rectangles rather than by the scroll, so what this contributes is the scroll
-     * range, the clamp and the scrollbar.
-     */
-    final ScrollView overlayView = ScrollView.of(Viewport.fixed());
-
-    /**
-     * The choice offer's own list, while its card is open: one row per entry the server offered.
-     *
-     * <p>A view of its own rather than {@link #overlayView}, for the reason that one is the card's: the
-     * two are never open at once, and a shared view would carry the quest card's scroll into a question
-     * with three answers.
-     */
-    final ScrollView choiceView = ScrollView.of(Viewport.fixed());
-
-    /** The choice offer's rows and layout, for the card that is open. */
-    List<InspectRow> choiceRows = List.of();
-
-    /**
-     * The accepted-items list's own view, while its rail is open: one row per match the
-     * expression names.
-     *
-     * <p>Its own view for the reason {@link #choiceView} is: the two lists are never open on the
-     * same quest at once in the same scroll position, and a shared view would carry one list's
-     * position into the other.
-     */
-    final ScrollView filterView = ScrollView.of(Viewport.fixed());
-    Layout filterLayout;
-
-    /** The expression the open list was read from; empty when no list is open. */
-    String filterExpression = "";
-
-    /**
-     * The rewards panel's own list: a chapter accordion whose quests fold open onto their rewards.
-     *
-     * <p>Its own view for the reason {@link #choiceView} is: the two cards are never open at once, and a
-     * shared scroll would carry one list's position into the other.
-     */
-    final ScrollView rewardView = ScrollView.of(Viewport.fixed());
-
-    /**
-     * What a press has already asked the server for, and when it asked — the optimistic half of the book.
-     *
-     * <p>A row reads collected the moment it is pressed, and a hand-in reads handed in. What the mark is
-     * <i>not</i> is a second source of truth: it changes what is drawn and never what is sent, and it goes
-     * for exactly three reasons — the server's answer agreed with it, the thing it named left the tree, or
-     * it outlived {@link PendingClaims#BACKSTOP_MILLIS}. See that class for why the third one is reported
-     * rather than silent, and for why this is no longer cleared on a progress revision: <b>any</b> sync
-     * used to empty it, which made a row the player had just pressed flicker back to ready.
-     */
-    final PendingClaims pendingClaims = new PendingClaims();
-
-    /**
-     * The controls the rewards card built, so a refresh can take them down before it builds again.
-     *
-     * <p>Needed because {@code ScrollView.clear()} forgets its own map and does not unregister anything —
-     * so a card rebuilt without a full {@code init()} would leave its previous buttons on the screen:
-     * drawn nowhere, and still taking presses. This is the list that makes a scoped refresh possible.
-     */
-    List<ArmatureButton> rewardControls = List.of();
-
-    /** The marks the rewards card's controls were built for; see {@link BookRewards#reconcilePendingClaims}. */
-    long rewardMarksRevision = -1L;
-
-    /**
-     * The offer rows' rectangles, from the last frame's drawing.
-     *
-     * <p>Stored rather than recomputed, because the rows are drawn by this screen and a press must land
-     * on the row it was drawn under -- the rule every drawn list in this book follows.
-     */
-    final List<BookGeometry.Rect> choiceRowRects = new ArrayList<>();
-
-    /** The header's way into the panel, kept so its tooltip can say whether anything is waiting. */
-    ArmatureButton rewardsButton;
-
-    /**
-     * The pinned list's own rows, scroll view and layout: one switch and one row per pin.
-     *
-     * <p>Per-kind state rather than part of the arrangement, the way the element panel's rows are: the
-     * arrangement names that a pinned rail is open, and these name what it is showing.
-     */
-    final dev.ellipog.armature.client.ui.kit.ScrollView pinnedView =
-            dev.ellipog.armature.client.ui.kit.ScrollView.of(
-                    dev.ellipog.armature.client.ui.kit.Viewport.fixed());
-    List<ToolsLayout.Action> pinnedRows = List.of();
-    Layout pinnedLayout;
-
-    /**
-     * What each pin row draws at its left edge, resolved when the rows are built.
-     *
-     * <p>At build rather than per frame: the rows are rebuilt whenever the tree moves, and a frame that
-     * walked the cache per row would pay the lookup sixty times a second for an answer that cannot
-     * change between rebuilds. An id the tree does not hold keeps an empty stack, and the row keeps
-     * the icon's room either way, so a late icon does not shift the title it lands beside.
-     */
-    final Map<String, ItemStack> pinnedIcons = new HashMap<>();
-
-    /**
-     * The pinned panel's drawn targets: what the chrome registers, and what its own press walks.
-     *
-     * <p>Its own list rather than the editor's, for the reason the element panel has one: the editor's
-     * list still holds the marks the panel behind it drew, and a press inside this panel must not be
-     * able to land on one of those.
-     */
-    final List<EditTarget> pinnedTargets = new ArrayList<>();
-
-    /** The progress revision the rewards panel's rows were built at; see {@link BookFrame#tick}. */
-    long rewardsRevision = -1;
-
-    /**
-     * The settings card's own list, rows and view; see {@link SettingsLayout}.
-     *
-     * <p>Named for the appearance rather than for the card, because the card's own Settings *page* --
-     * the quest editor's property inspector -- already owns {@code settingsView} and its siblings. Two
-     * surfaces called settings in one screen is one too many; this one is the player's.
-     */
-    final ScrollView appearanceView = ScrollView.of(Viewport.fixed());
-    List<InspectRow> appearanceRows = List.of();
-    Layout appearanceLayout;
-
-    /** The card's own rect, sized to its rows; null until the card is built. */
-    BookGeometry.Rect appearanceCard;
-
-    /**
-     * The canvas's keyboard focus: which node the arrow keys are standing on.
-     *
-     * <p>The nodes are custom-drawn and hit-tested, so they are invisible to focus, tab order and the
-     * narrator — this is the screen's half of the answer. See {@link CanvasFocus} for the rule.
-     */
-    final CanvasFocus canvasFocus = new CanvasFocus();
-
-    /**
-     * The chapter list, as a scroll view over {@link BookGeometry#sidebarViewport()}.
-     *
-     * <h2>Why the rows are widgets rather than drawn lines</h2>
-     *
-     * <p>Because they are the thing a click lands on, and a hand-drawn row cannot take focus, cannot be
-     * narrated, and has no hover state unless this class reimplements one per row. Every one of those is
-     * already solved by {@code AbstractWidget}, and the price of getting them is a class that moves the
-     * widget when the content scrolls — which is {@link ScrollView}'s whole job.
-     *
-     * <p>The viewport is fixed-scale: a sidebar does not zoom, and a view that reported a zoom range of
-     * one would be a view whose zoom controls are drawn, enabled, and do nothing.
-     *
-     * <p>The bar this view draws is a control, and the kit owns it rather than this screen:
-     * {@link ScrollBar} decides whether a press is the grip's or the groove's, maps a pointer's y back
-     * onto a scroll offset, and pages on a held groove. That mapping is the inverse of the drawing's own
-     * formula, so it lives beside it — see that class's note.
-     *
-     * <p>It is <b>not</b> cleared on a resize, and that is deliberate. {@code init} runs on every resize
-     * and on every rebuild, and the outline's expansion state — and so the player's collapses — lives in
-     * {@link #sidebar}, which is keyed on the tree rather than on the window. The scroll offset lives in
-     * this object's viewport, so it survives a resize too: a window dragged narrower while the list is
-     * scrolled keeps its place, which is what every other list on any platform does.
-     */
-    final ScrollView sidebarView = ScrollView.of(Viewport.fixed());
-
-    /**
-     * Whether the sidebar's rows currently leave room for the scrollbar's gutter.
-     *
-     * <p>Decided in {@link BookQuestEditor#buildSidebarWidgets} from the rows it places, because that is the one
-     * place that knows the count — and read by {@link #sidebarViewport()}, which binds the bounds
-     * every frame. A field rather than a recompute, so the per-frame bounds and the placed rows
-     * cannot disagree: both answer from the same build. True until the first build, which is
-     * today's reservation, so a screen that never builds rows draws what it always drew.
-     */
-    boolean sidebarReserveScrollbar = true;
-
-    /**
-     * The waiting-counts the row suffixes were last set from.
-     *
-     * <p>Compared by content every tick: a claim lands as a changed map, and only a changed map
-     * touches the buttons — so thirty rows are not re-examined for a progress tick that moved
-     * nothing. Set by the build for the buttons it just made, so a row rebuilt mid-drag carries
-     * its suffix from its first frame rather than waiting a tick for it.
-     */
-    Map<String, Integer> sidebarWaiting;
-
-    /**
-     * The selection the suffix colours were last set for.
-     *
-     * <p>The count keeps the accent dimmed on the selected row, so a chapter change re-applies
-     * even when no count moved — otherwise the newly selected row keeps full accent until the
-     * next claim. Compared beside the map above: one string equality per tick, and the row walk
-     * only when something actually changed.
-     */
-    String sidebarSuffixChapter;
-
-    /**
-     * The sidebar's outline, and the tree revision it was built from.
-     *
-     * <h2>Why the outline is kept rather than rebuilt</h2>
-     *
-     * <p>Because it holds the player's collapsed groups. Rebuilding it from the server's data on every
-     * <code>init</code> would re-seed it from the authored defaults, so a resize would silently reopen
-     * every group the player had closed — and a rebuild happens on every window resize, every click that
-     * selects a chapter, and every quest the screen opens.
-     *
-     * <p>The revision is what decides when to rebuild, and it is the counter
-     * {@code ClientQuestCache.treeRevision()} exists to provide: it moves when a tree arrives and when a
-     * cache is cleared, and <b>not</b> when a screen merely reads one. So a resize, a scroll, a toggle
-     * and a redraw all leave the outline alone, and a reload — which is a tree arriving — builds a new
-     * one. See that method's own note for why the unit is "a tree arrived" rather than "the tree
-     * differs".
-     *
-     * <p>{@code -1} rather than {@code 0} for the initial value, because a revision is only ever
-     * compared and a real one could legitimately be zero on the first tree. A sentinel that cannot be
-     * mistaken for a real value is the difference between "definitely stale" and "probably stale".
-     */
-    static SidebarLayout sidebar;
-    static List<SidebarLayout.ChapterRow> sidebarChapters = List.of();
-    static long sidebarRevision = -1;
-
-    /** And the other three inputs the outline's rows depend on. See {@link #sidebar()}. */
-    static long sidebarProgress = -1;
-
-    /**
-     * And the language, since the rows carry chapter and group <b>names</b>.
-     *
-     * <p>Its own field rather than folded into {@code sidebarRevision}, because that one is the tree's
-     * and a locale arriving is not a tree: the outline's rows, their order and the player's own
-     * expansions are all unchanged, and only the words in them are. Keeping them apart is what lets
-     * this rebuild the outline for a language change without pretending the questline moved.
-     */
-    static long sidebarText = -1;
-
-    /**
-     * Which groups the player has opened or closed, over the groups' own defaults.
-     *
-     * <p>Kept across sidebar rebuilds, and a sidebar is rebuilt every time the tree arrives — which is
-     * after every structural edit. Without this the authored {@code collapsedByDefault} won every time,
-     * so a group snapped shut the moment something was dragged into it.
-     */
-    static final Map<String, Boolean> sidebarExpansion = new LinkedHashMap<>();
-
-    /**
-     * The chapter list's slide: when the wipe started, and the rectangle it started from. {@code -1}
-     * when settled, which is most frames: the wipe is 160 milliseconds of travel between two
-     * states the widgets already hold, so there is nothing to animate the rest of the time.
-     *
-     * <p>The target is never stored because it is never needed: the geometry is built from the
-     * effective state, so its sidebar rectangle <i>is</i> where the wipe lands. A rebuild for any
-     * other reason mid-slide keeps the same target, which is what stops a replica arriving
-     * mid-wipe from stranding the list between two widths.
-     */
-    long sidebarSlideStart = -1;
-    BookGeometry.Rect sidebarSlideFromRect;
-
-    /**
-     * Hover-peek: the strip is hovered, so the collapsed list shows as a floating preview.
-     *
-     * <p>Transient — the file never hears about it. The effective state resolves it before the
-     * geometry is built (collapsed + peeking draws as floating expanded), so no rectangle ever
-     * describes a hover, and lifting the pointer puts the strip back without writing anything.
-     */
-    boolean sidebarPeeking;
-
     /**
      * How long the pointer must rest on the strip before the peek opens, in milliseconds.
      *
@@ -1630,9 +666,6 @@ public final class QuestBookScreen extends ArmatureScreen
      * never overstays: arriving is the part that has to prove itself, not leaving.
      */
     private static final long SIDEBAR_PEEK_DWELL_MILLIS = 120;
-
-    /** When the current sliver hover began, or -1 outside it. Read by the dwell above. */
-    long sidebarPeekHoverStart = -1;
 
     /**
      * How much room the sliver's hover zone gets past its visible edge, in GUI pixels.
@@ -1660,9 +693,6 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private static final long SIDEBAR_PEEK_LEAVE_MILLIS = 200;
 
-    /** When the current outside-the-keep-zone spell began, or -1 inside it. */
-    long sidebarPeekLeaveStart = -1;
-
     /**
      * Rows the collapsing list left behind, drawn by hand till the wipe lands.
      *
@@ -1675,243 +705,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * hover, or be narrated from a position the card has already left, which is the ghost the
      * kept-widgets ride flashed.
      */
-    private record SidebarDeparted(AbstractWidget widget, int x, int y) {
+    record SidebarDeparted(AbstractWidget widget, int x, int y) {
     }
-
-    /** The departed rows, in build order. Empty unless a collapse or unpeek wipe is travelling. */
-    final List<SidebarDeparted> sidebarDeparted = new ArrayList<>();
-
-    /**
-     * The box the departed rows were built for, filed when the collapse starts.
-     *
-     * <p>The travel's anchor: orphans and the cluster are positioned from this, never from the
-     * wipe's start, so a collapse that reverses an expand mid-wipe continues from mid-wipe
-     * instead of snapping the rows back to full for a frame. Null outside a departure.
-     */
-    BookGeometry.Rect sidebarDepartAnchor;
-
-    /**
-     * How far the departed rows lead the wipe's edge, measured when the collapse starts.
-     *
-     * <p>Glued rows end a fixed overhang past the panel's edge — the viewport stops them short
-     * of the box's own edge, but not short of the book's — and discarding them at the settle
-     * would snap that overhang away as a glitch at the end of the ride. Ramping this from
-     * nothing to exactly that overhang over the wipe puts every row fully past the edge the
-     * frame it lands, so the discard changes nothing visible. Measured eagerly against the
-     * sliver, so no constant can go stale against another window size.
-     */
-    private int sidebarDepartOverhang;
-
-    /**
-     * Whether the list is sliding out with departed rows aboard.
-     *
-     * <p>A collapse writes the file at once, files the full rows as orphans, and leaves the
-     * sliver built behind them: the rows ride the card back to the sliver instead of vanishing
-     * the frame it starts, and the settle only discards them. The rails' departed panels are
-     * the same arrangement — state rebuilt at close, content drawn till it lands — for the same
-     * reason: a close that pops its content reads as a glitch, not a gesture. With no motion
-     * there is no wipe to ride, so this never sets and the collapse lands immediately.
-     */
-    boolean sidebarDeparting;
-
-    /**
-     * Whether the open unpinned box has seen the pointer inside it yet, since it opened.
-     *
-     * <p>See {@code updateSidebarPeek}: auto-hide fires on leaving, and leaving needs an arrival
-     * first — otherwise a freshly opened box slams shut on its first frame with the pointer
-     * elsewhere. Cleared on every expand, set while hovered.
-     */
-    boolean sidebarBoxHovered;
-
-    /**
-     * Whether the last unpeek was an act rather than a pointer leaving.
-     *
-     * <p>Escape, a map click or B puts the strip back while the pointer is still over it; without
-     * this the dwell would start over at once and re-open the preview under a stationary hand.
-     * Cleared the moment the pointer leaves the strip, so an honest return still peeks.
-     */
-    boolean sidebarPeekCooling;
-
-    /**
-     * A resize of the list in flight: the list as grabbed, the width it had, and where the
-     * pointer was. The mirror of {@code panelDragRail} and its two companions, for the opposite
-     * edge: the list docks left, so its handle is its right.
-     */
-    BookGeometry.Rect sidebarDragRail;
-
-    /**
-     * A live width override while the edge is held: {@link #sidebarEffective} answers with it
-     * instead of the file, so the chrome, the rows and the controls all follow the pointer
-     * without the settings file being written sixty times a second. Null when the hand is off.
-     */
-    Integer sidebarLiveWidth;
-
-    /**
-     * Every widget the chapter list built, for the wipe to travel with while it expands.
-     * <p>Filed as the list builds — rows, toolbar, box squares — and read only on the frame path:
-     * an expanding wipe offsets them by the wipe's own shortfall, so the rows ride the card's
-     * edge instead of popping in once it has landed. Same-frame restore, so nothing can leak
-     * into the next frame whatever happens between the two. A collapse needs none of it: its
-     * rows were filed as orphans when it started (see {@code sidebarDeparted}) and are drawn by
-     * hand, so the strip's own icons sit inside the wipe at every frame. The mirror of
-     * `slideBaseX`, for the list rather than the rails.
-     */
-    final List<AbstractWidget> sidebarRowWidgets = new ArrayList<>();
-
-    /** Each travelling row's placed position, filed on the first slide frame like the rails' own. */
-    final Map<AbstractWidget, int[]> sidebarTravelBase = new IdentityHashMap<>();
-
-    /**
-     * The view cluster's three buttons, for the sidebar's wipe to travel with.
-     *
-     * <p>The cluster sits beside the list at the rows' height, so when the list slides the
-     * cluster glides with its edge rather than jumping between its docked and floating seats.
-     * Filed here rather than read from the children: the pass holds every widget, and a slide
-     * that moved all of them would move the header too.
-     */
-    final List<AbstractWidget> viewClusterWidgets = new ArrayList<>();
-
-    boolean dragging;
-    boolean pressMoved;
-
-    /**
-     * Whether the press that started this gesture landed on a column without anything in it claiming it.
-     *
-     * <p>Such a press is the canvas's — the column floats over the graph rather than being a hole in it, so
-     * dragging from the panel's own surface moves the graph, which is what "the canvas stays live" has to
-     * mean when the column covers most of a reader's window. But it is <b>not</b> a click on empty canvas,
-     * and this is what tells the two apart at the release: without it, letting go over the panel would read
-     * as "press blank space" and close the panel the reader was dragging from.
-     */
-    boolean panelPress;
-
-    /**
-     * The scrollbar the pointer is holding, or null.
-     *
-     * <h2>Why one field holds the gesture rather than a branch per list</h2>
-     *
-     * <p>Because this screen has fifteen scrollable regions and a drag has to survive the pointer
-     * leaving whichever one it started in. The version this replaces re-derived the subject from the
-     * <i>live pointer position</i> on every move, which had two consequences that both arrived as
-     * reports about feel rather than about logic: dragging the left party column's bar and moving the
-     * pointer rightwards transferred the drag to the right column's bar, and any bar whose release
-     * branch somebody had forgotten — there were three — stayed held until the next press.
-     *
-     * <p>So a press captures one bar here, and the move, the release and the hold-repeat are that
-     * bar's and nothing else's. It is also the whole of "the grab survives leaving the bar": the
-     * pointer may leave the strip, the panel and the window, and the gesture is still the button.
-     */
-    ScrollBar heldBar;
-
-    double pressX;
-    double pressY;
-
-    /**
-     * The content point the pan is holding, not the offset it started at.
-     *
-     * <p>In content coordinates because a drag says "I am holding this bit of the world", and a zoom
-     * during the drag moves the world. The offset captured at press was the first version and it had a
-     * visible fault: hold the canvas and turn the wheel, and each mouse move slid the canvas back to
-     * where the drag began -- because the pan put back an offset that the zoom had deliberately
-     * changed. See {@code Viewport.dragTo}, which is that arithmetic with a test.
-     */
-    float panContentX;
-    float panContentY;
-
-    /** The node under the pointer when the press began, if any. */
-    String pressedNode;
-
-    /**
-     * The editors this session has open, by chapter. Created on first use.
-     *
-     * <p>Null until the book is in a state where editing is possible at all — see {@link #editor()} — and
-     * a field rather than a local because an editor holds unsaved work: a rebuild, a resize or a glance at
-     * another chapter must not throw it away.
-     */
-    /** Positions asked for and not yet answered. Built once: it holds no chapter, so nothing to reset. */
-    final EditorSession editors = new EditorSession();
-
-    /**
-     * Which panel the dock is showing: the tools this panel started as, or the quest the canvas has
-     * selected. The strip that replaced the title row switches it.
-     *
-     * <p>The theme panel's own state — the selected colour, the scroll, the fold — lives in fields the
-     * tab switch never touches, so going to the Quest tab and back is exactly where you left it. That
-     * permanence is the reason the dock grew tabs rather than swapping its contents.
-     */
-    ToolsLayout.Tab toolsTab = ToolsLayout.Tab.BOOK;
-
-    /**
-     * Whether the copy row is waiting for its second press, and the button its label is changed on.
-     *
-     * <h2>Why the label is changed on the button rather than by a rebuild</h2>
-     *
-     * <p>The same reason the party's Disband does it (see {@code disarmDisband}): a rebuild goes through
-     * {@code init}, which disarms -- so arming and rebuilding cannot be the same press. The label the
-     * row model carries is still the armed one while armed (see {@code ToolsLayout.canvasRows}), which is
-     * what the arming press's own rebuild draws; any later rebuild builds the plain one.
-     */
-    boolean canvasCopyArmed;
-    ArmatureButton canvasCopyButton;
-
-    /**
-     * Whether the rebuild in flight is the arming press's own.
-     *
-     * <p>One flag for the one rebuild that must not disarm: {@code init} clears {@link #canvasCopyArmed}
-     * because a rebuild is a fresh panel, and the arming press deliberately rebuilds the rows so the
-     * armed label is the row's own. Without the guard the arm would be cleared by the rebuild that shows
-     * it, and the second press could never confirm anything.
-     */
-    boolean canvasCopyArming;
-
-    /**
-     * Whether the panel is editing the open chapter's theme rather than the player's own.
-     *
-     * <p>Derived from the tab in {@link BookQuestEditor#buildToolsWidgets}, never toggled: the chapter tab edits the
-     * chapter and the book tab edits the player, so there is no switch that can leave one tab's edits
-     * pointed at the other's file. The chapter's writes go through the same field op every other
-     * chapter edit uses, so an undo takes them back like any other change.
-     */
-    boolean themeTargetsChapter;
-
-    /** The chapter tab's appearance rows, built with the rest of the chapter's list. */
-    List<ToolsLayout.Action> chapterAppearanceRows = List.of();
-
-    /** The panel's list: its rows are widgets, so they move when it scrolls. */
-    final dev.ellipog.armature.client.ui.kit.ScrollView toolsView =
-            dev.ellipog.armature.client.ui.kit.ScrollView.of(
-                    dev.ellipog.armature.client.ui.kit.Viewport.fixed());
-
-    ToolsLayout.Frame toolsFrame;
-
-    /** The colour picker overlay: one colour at a time, opened from a row's chip. */
-    final dev.ellipog.tenet.client.dev.ColourPopover colourPopover =
-            new dev.ellipog.tenet.client.dev.ColourPopover();
-
-    /** The fields the drawer built, for the label half of their gesture. See {@link BookInput#armLabelScrub}. */
-    final List<dev.ellipog.tenet.client.dev.ScrubField> rowFields = new ArrayList<>();
-
-    /** The chapter the picker was opened for, so a chapter switch under it closes it. */
-    String popoverChapter;
-
-    /**
-     * When the picker opened, in {@code Util.getMillis()} terms; -1 when it is shut.
-     *
-     * <p>Stamped by both openers beside the filing below. The settle is measured from it, so a picker
-     * reopened onto another chip starts its arrival over rather than continuing the old one.
-     */
-    private long popoverOpenedAt = -1L;
-
-    /**
-     * The picker's four fields as placed, by widget.
-     *
-     * <p>Filed on open, when {@code place} has just run: the per-frame settle writes
-     * {@code base + offset} and never the built position itself, so a rebuild mid-settle — same
-     * widgets, re-registered — cannot strand a field off its surface. Cleared on close with the
-     * widgets it names.
-     */
-    private final java.util.Map<AbstractWidget, Integer> popoverBaseX =
-            new java.util.IdentityHashMap<>();
 
     /** How far beside its anchor the picker opens before settling into place. Small and quick. */
     private static final int POPOVER_SETTLE_PX = 12;
@@ -1927,10 +722,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * four fields and the pointer, so the three cannot disagree mid-settle.
      */
     private int popoverOffset(long now) {
-        if (!colourPopover.isOpen() || popoverOpenedAt < 0) {
+        if (!bookState.colourPopover.isOpen() || bookState.popoverOpenedAt < 0) {
             return 0;
         }
-        float arrived = PanelLayout.revealed(now - popoverOpenedAt, POPOVER_SETTLE_MILLIS);
+        float arrived = PanelLayout.revealed(now - bookState.popoverOpenedAt, POPOVER_SETTLE_MILLIS);
         return Math.round(POPOVER_SETTLE_PX * (1F - arrived));
     }
 
@@ -1943,12 +738,12 @@ public final class QuestBookScreen extends ArmatureScreen
      * where it is drawn.
      */
     private void slidePopoverWidgets(long now) {
-        if (!colourPopover.isOpen()) {
+        if (!bookState.colourPopover.isOpen()) {
             return;
         }
         int offset = popoverOffset(now);
-        for (net.minecraft.client.gui.components.AbstractWidget widget : colourPopover.widgets()) {
-            Integer base = popoverBaseX.get(widget);
+        for (net.minecraft.client.gui.components.AbstractWidget widget : bookState.colourPopover.widgets()) {
+            Integer base = bookState.popoverBaseX.get(widget);
             if (base != null) {
                 widget.setX(base + offset);
             }
@@ -1957,11 +752,11 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Files the picker's fields at their placed positions and stamps the settle. Both openers call. */
     void filePopoverArrival() {
-        popoverBaseX.clear();
-        for (net.minecraft.client.gui.components.AbstractWidget widget : colourPopover.widgets()) {
-            popoverBaseX.put(widget, widget.getX());
+        bookState.popoverBaseX.clear();
+        for (net.minecraft.client.gui.components.AbstractWidget widget : bookState.colourPopover.widgets()) {
+            bookState.popoverBaseX.put(widget, widget.getX());
         }
-        popoverOpenedAt = net.minecraft.util.Util.getMillis();
+        bookState.popoverOpenedAt = net.minecraft.util.Util.getMillis();
     }
 
     /**
@@ -1973,7 +768,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * reads through here.
      */
     double pickerPointerX(double mouseX) {
-        return colourPopover.isOpen() ? mouseX - popoverOffset(net.minecraft.util.Util.getMillis()) : mouseX;
+        return bookState.colourPopover.isOpen() ? mouseX - popoverOffset(net.minecraft.util.Util.getMillis()) : mouseX;
     }
 
     /**
@@ -1997,33 +792,6 @@ public final class QuestBookScreen extends ArmatureScreen
                                dev.ellipog.armature.client.ui.kit.ScrollView view,
                                dev.ellipog.armature.client.ui.inspect.InspectLayout.Mode mode) {
     }
-
-    /** What the open picker is anchored to, or null when none is open. */
-    PopoverChip popoverChip;
-
-    /** The controls the open colour picker muted, so closing it wakes those and only those. */
-    private final List<net.minecraft.client.gui.components.AbstractWidget> mutedBehind = new ArrayList<>();
-
-    /** The frame's pointer, for redraws that run outside the pass that receives it. */
-    int renderMouseX;
-    int renderMouseY;
-
-
-    Layout toolsLayout;
-    List<ToolsLayout.Action> toolsRows = List.of();
-
-    /** The quest panel's rows and layout, for the tab it is shown on. */
-    private List<InspectRow> questRows = List.of();
-    private Layout questLayout;
-
-    /**
-     * The entries folded to their badges, by {@code member.index}.
-     *
-     * <p>The same index-keyed shape {@link BookQuestEditor#questFolded} uses, and for the same reason: the key names a
-     * position in a list the card rebuilds from the tree, and a key that survived a switch of quests would
-     * be folding an entry nobody chose.
-     */
-    final Set<String> entryFolded = new LinkedHashSet<>();
 
     /** What a click in the card's editor can land on. */
     enum EditAction {
@@ -2147,12 +915,6 @@ public final class QuestBookScreen extends ArmatureScreen
                               int textY, String value, String member, int index) {
     }
 
-    /** The editor's pressable pieces, from the last frame's drawing. */
-    final List<EditTarget> editTargets = new ArrayList<>();
-
-    /** The book's own transient messages; see {@link ToastStack} for why chat is not enough. */
-    final ToastStack toasts = new ToastStack();
-
     /**
      * The reward counts the badges read, rebuilt only when the progress, the tree or the marks move.
      *
@@ -2167,15 +929,13 @@ public final class QuestBookScreen extends ArmatureScreen
                                 Map<String, Integer> byQuest, Map<String, Integer> byChapter) {
     }
 
-    private RewardCounts rewardCounts;
-
     /** The badge counts in force, recomputed when the progress, the tree, the viewer or the marks change. */
     RewardCounts rewardCounts() {
         long progress = ClientQuestCache.progressRevision();
         long tree = ClientQuestCache.treeRevision();
-        long marks = pendingClaims.revision();
+        long marks = bookState.pendingClaims.revision();
         java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
-        RewardCounts current = rewardCounts;
+        RewardCounts current = bookState.rewardCounts;
         if (current != null && current.progress() == progress && current.tree() == tree
                 && current.marks() == marks && java.util.Objects.equals(current.player(), self)) {
             return current;
@@ -2193,9 +953,9 @@ public final class QuestBookScreen extends ArmatureScreen
                 byChapter.merge(entry.chapterId(), 1, Integer::sum);
             }
         }
-        rewardCounts = new RewardCounts(progress, tree, marks, self,
+        bookState.rewardCounts = new RewardCounts(progress, tree, marks, self,
                 Map.copyOf(byQuest), Map.copyOf(byChapter));
-        return rewardCounts;
+        return bookState.rewardCounts;
     }
 
     /**
@@ -2209,11 +969,11 @@ public final class QuestBookScreen extends ArmatureScreen
         if (self == null) {
             return 0;
         }
-        boolean whole = pendingClaims.isMarked(PendingClaims.questKey(entry.id()))
-                || pendingClaims.isMarked(PendingClaims.chapterKey(entry.chapterId()));
+        boolean whole = bookState.pendingClaims.isMarked(PendingClaims.questKey(entry.id()))
+                || bookState.pendingClaims.isMarked(PendingClaims.chapterKey(entry.chapterId()));
         return PendingClaims.outstanding(entry.rewards().size(),
                 index -> ClientQuestCache.canClaimReward(self, entry, index),
-                index -> whole || pendingClaims.isMarked(PendingClaims.rewardKey(entry.id(), index)));
+                index -> whole || bookState.pendingClaims.isMarked(PendingClaims.rewardKey(entry.id(), index)));
     }
 
     /** Whether this player has anything at all left to collect from one quest. */
@@ -2226,7 +986,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * progress or the tree moves.
      *
      * <p>One walk over the entries per revision rather than one per chapter per frame, and the same
-     * shape as {@link #rewardCounts} deliberately — but kept a separate cache because it answers a
+     * shape as {@link BookScreenState#rewardCounts} deliberately — but kept a separate cache because it answers a
      * different question. A "count" on a chapter row already means "quests with rewards waiting"
      * ({@code claimableByChapter}); this one means "quests finished", and two maps that both looked
      * like chapter counts would eventually be read for one another.
@@ -2240,15 +1000,13 @@ public final class QuestBookScreen extends ArmatureScreen
                                  Map<String, ChapterProgress> byChapter) {
     }
 
-    private ChapterCounts chapterCounts;
-
     /** The per-chapter completion in force, recomputed when the progress, the tree or the viewer moves. */
     ChapterCounts chapterCounts() {
         long progress = ClientQuestCache.progressRevision();
         long tree = ClientQuestCache.treeRevision();
         java.util.UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
         boolean authoring = mayEditNow();
-        ChapterCounts current = chapterCounts;
+        ChapterCounts current = bookState.chapterCounts;
         if (current != null && current.progress() == progress && current.tree() == tree
                 && java.util.Objects.equals(current.player(), self) && current.authoring() == authoring) {
             return current;
@@ -2281,8 +1039,8 @@ public final class QuestBookScreen extends ArmatureScreen
                 counts.put(chapter.id(), new ChapterProgress(pair[1], pair[1]));
             }
         }
-        chapterCounts = new ChapterCounts(progress, tree, self, authoring, counts);
-        return chapterCounts;
+        bookState.chapterCounts = new ChapterCounts(progress, tree, self, authoring, counts);
+        return bookState.chapterCounts;
     }
 
     /**
@@ -2325,137 +1083,20 @@ public final class QuestBookScreen extends ArmatureScreen
                 : "tenet.screen.rewards.claim_done", claimed, total).getString(), halted);
     }
 
-    /**
-     * Says a grant overflowed: what the player's inventory could not hold is on the floor.
-     *
-     * <p>Called by {@code QuestNotifier} when the server's overflow payload arrives, and only while
-     * this screen is the one being read — the action bar carries the same sentence to a player who is
-     * not looking at the book, and the HUD is not drawn behind a screen. See {@link ToastStack}.
-     */
-    /**
-     * Labels waiting to be drawn, after everything else.
-     *
-     * <p>A tooltip drawn where it is discovered is a tooltip the next row can paint over -- the row
-     * below draws later and wins. Collected and drawn last, the same rule the screen's own tooltip
-     * pass follows.
-     *
-     * <p>What a producer records is the <b>anchor</b> -- the control the caption belongs to -- and not
-     * a box. Sizing, folding, the choice of side and the promise that the box is on the screen are
-     * {@link Tooltips#drawAt}'s, because a caption is the same surface as a pointer tooltip and a
-     * screen that hand-rolled one drew its border a pixel outside the box and clamped against the
-     * <i>card</i> -- which is the window's edge only while the book is full-bleed, and never the
-     * window's edge on a docked panel. A producer cannot forget any of that now, because it has
-     * nothing left to forget.
-     */
-    final List<PendingLabel> pendingLabels = new ArrayList<>();
-
     record PendingLabel(BookGeometry.Rect anchor, String text) {
     }
-
-    /**
-     * The explanation of a hovered task or reward row, waiting to be drawn with the tooltips.
-     *
-     * <p>Collected the same way the pending labels are, and for a sharper version of the same reason:
-     * the row is drawn <b>inside the card body's clip</b>, and a tooltip belongs over everything,
-     * including the edge it reaches past. A box drawn at the row would be cut off at the body's edge;
-     * drawn in the tooltip layer it is not. One entry at most per frame -- a pointer is a single point
-     * -- but a list, so the collecting code does not have to know that.
-     */
-    final List<RowTooltip> rowTooltips = new ArrayList<>();
 
     record RowTooltip(Slot box, List<String> lines) {
     }
 
-    /**
-     * A task's or reward's row that can send the player to a recipe viewer, from the last frame's
-     * own drawing — the contract {@code editTargets} and the picker rows already use, so a press
-     * lands on the row that was drawn and a row scrolled out of the card is not pressable.
-     */
-    final List<RowItem> rowItems = new ArrayList<>();
-
     record RowItem(Slot box, RecipeLookups.Target target) {
     }
 
-    /**
-     * Filter rows that open the accepted-items list. The whole row, icon to text end: a filter
-     * row carries no recipe target ({@code BookRowTargets} answers null for it, since only
-     * {@code tenet:item_tag} tasks send a tag), so nothing competes for the press and the row
-     * that lights up is the row that answers.
-     */
-    final List<FilterRow> filterRows = new ArrayList<>();
-
     record FilterRow(Slot box, String expression) {}
-
-    /**
-     * Checkmark rows that hand in on press. The whole row, like a filter row's: a bare checkmark
-     * carries no recipe target, so nothing competes for the press — and a titled one answers here
-     * only when it has no target either, because a press that could open recipes must keep doing
-     * that. Registered while drawing, read by the click, cleared with the other row lists.
-     */
-    final List<CheckmarkRow> checkmarkRows = new ArrayList<>();
 
     record CheckmarkRow(Slot box, String questId, int taskIndex) {}
 
-    /**
-     * Reward rows that collect on press. Only claimable rows are registered — a finished quest's
-     * outstanding rewards — so a press that could open recipes keeps doing that everywhere else.
-     * Registered while drawing, read by the click, cleared with the other row lists.
-     */
-    final List<RewardClaimRow> rewardClaimRows = new ArrayList<>();
-
     record RewardClaimRow(Slot box, String questId, int rewardIndex) {}
-
-    /** The field being edited inline, by path, and the widget editing it. One at a time. */
-    String editingPath;
-    ArmatureTextField inlineField;
-    ArmatureTextArea inlineArea;
-
-    /**
-     * The settings page: shape, size, placement and rules, over the whole card body.
-     *
-     * <p>It was a popover of stepper rows above the Settings button, and the third playtest's report
-     * was that it read as a form — a shape you cycle with + and −, a size that does nothing above 48,
-     * and a preview nowhere. The page draws the node it is changing, offers the shapes as shapes, and
-     * spans the size the format actually allows. The rows are gone with the popover: what is left of
-     * the inspector is the dock's own panel and the type picker.
-     */
-    boolean settingsOpen;
-    final dev.ellipog.armature.client.ui.kit.ScrollView settingsView =
-            dev.ellipog.armature.client.ui.kit.ScrollView.of(
-                    dev.ellipog.armature.client.ui.kit.Viewport.fixed());
-    List<dev.ellipog.tenet.client.dev.QuestSettingsLayout.Row> settingsRows = List.of();
-    Layout settingsLayout;
-    final dev.ellipog.tenet.client.dev.SettingsDraft settingsDraft =
-            new dev.ellipog.tenet.client.dev.SettingsDraft();
-
-    /**
-     * The card's field values the server has not answered yet — see {@code FieldDraft} for why a
-     * stepper cannot wait for the round trip. It is a second draft rather than the settings page's
-     * because it expires on a different signal: the settings preview reads the tree, which arrives in
-     * milliseconds, while these fields read the replica, which lags by up to its retry window.
-     */
-    static final dev.ellipog.tenet.client.dev.FieldDraft fieldDraft =
-            new dev.ellipog.tenet.client.dev.FieldDraft();
-
-    /**
-     * The canvas elements this client has asked for and the tree has not confirmed: the array's shape.
-     *
-     * <p>{@code fieldDraft} beside it holds the <i>values</i> inside that shape, under one owner per element;
-     * the two are read together in {@link BookPins#elementsNow}. See {@code ElementDraft} for why one draft could not
-     * do both.
-     */
-    static final dev.ellipog.tenet.client.dev.ElementDraft elementDraft =
-            new dev.ellipog.tenet.client.dev.ElementDraft();
-
-    /**
-     * The quest links this client has asked for and the tree has not confirmed: the array's shape.
-     *
-     * <p>{@code fieldDraft} beside it holds the <i>values</i> inside that shape, under one owner per link;
-     * the two are read together in {@link BookPins#linksNow}. See {@code LinkDraft} for why one draft could not
-     * do both — and why this is not the element draft with a second list in it.
-     */
-    static final dev.ellipog.tenet.client.dev.LinkDraft linkDraft =
-            new dev.ellipog.tenet.client.dev.LinkDraft();
 
     /**
      * The {@code fieldDraft} owner of one quest link's own fields.
@@ -2477,24 +1118,6 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     static final String ELEMENT_OWNER_PREFIX = "#element:";
 
-    /** Which slider the pointer has hold of ("size"/"iconScale"/"rotation"), or null. */
-    String draggingSlider;
-
-    /** The chapter panel's rows and layout, for the dock's Chapter tab. */
-    /**
-     * The Chapter tab's own rows: the open chapter's identity, rules, group and quest list.
-     *
-     * <p>Tools rows, like the Book tab's beside them -- see {@code ChapterPanelLayout.rows}, which builds
-     * them, and {@code ToolsPanel}, which draws them. They were {@code InspectRow}s until this round, which
-     * is why several comments in this file still name the inspector: the chapter's rows are the drawer's
-     * now, and the inspector keeps the quest card, the settings card and the rewards list.
-     */
-    List<ToolsLayout.Action> chapterRows = List.of();
-    Layout chapterLayout;
-
-    /** Which list the modal's type picker is adding to ("tasks"/"rewards"), or null when it is closed. */
-    String pickingEntryType;
-
     /**
      * A type picker row that applies a saved setup instead of a fresh default: the template's id
      * under this prefix.
@@ -2504,19 +1127,6 @@ public final class QuestBookScreen extends ArmatureScreen
      * rows resolve inside their own section, where a template id can never meet a quest id.
      */
     static final String TEMPLATE_ROW_PREFIX = "template:";
-
-    /**
-     * Which entry's conditions list the picker is adding to, as a path ("tasks.3"), or null.
-     *
-     * <p>Separate from {@link #pickingEntryType} rather than a third member name, because the insert is
-     * a different op: a task is a new element of a top-level list ({@code EditorOp.Insert}), and a
-     * condition is a rebuilt nested array written with {@code SetField} — nested arrays have no Insert.
-     * When this is set the picker lists condition types; when the member is set it lists that member's.
-     */
-    String pickingConditionFor;
-
-    /** Which field the item picker is setting, or null when it is closed. */
-    String pickingItemPath;
 
     /**
      * What the open picture picker is showing: one tab of the four arms.
@@ -2531,9 +1141,6 @@ public final class QuestBookScreen extends ArmatureScreen
     /* Package-visible for the picker tests: the tabs are screen state, the payloads are not. */
     enum PickerKind { ITEM, FILE, SPRITE, ENTITY }
 
-    PickerKind pickerKind = PickerKind.ITEM;
-    String pickerFileQuery = "";
-
     /** The tab strip's height, in pixels: one row of four tabs under the picker's header. */
     static final int PICKER_TAB_STRIP = 16;
 
@@ -2545,13 +1152,13 @@ public final class QuestBookScreen extends ArmatureScreen
      * table pick never qualifies even though its path says "icon".
      */
     boolean isIconPick() {
-        if (tablePickPath != null) {
+        if (bookState.tablePickPath != null) {
             return false;
         }
-        if (pickTarget != null && pickTarget != PickTarget.QUEST) {
+        if (bookState.pickTarget != null && bookState.pickTarget != PickTarget.QUEST) {
             return true;
         }
-        return isIconPath(pickingItemPath);
+        return isIconPath(bookState.pickingItemPath);
     }
 
     /**
@@ -2568,36 +1175,6 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * What the open picker is listing, when it is not items.
-     *
-     * <p>A search field -- a dimension, a biome, a statistic -- opens the same card, the same list and the
-     * same box as the item picker does; what changes is where the rows come from. Null means items, which
-     * is what every pick before this one was.
-     */
-    EditorField.Source pickerSource;
-
-    /**
-     * The observation mode the open search field was opened under, and empty for every other source.
-     *
-     * <p>Kept rather than re-read while drawing, because it is what the list was gathered for: the
-     * target field of an observation task lists blocks for a block observation and entity tags for an
-     * entity one, so a mode re-read a frame later would be a list and a rule that disagreed. It is also
-     * what says whether the field's values are ids or a `#tag` -- see {@code EditorSources#valueKind}.
-     */
-    String pickerObserveType = "";
-
-    /**
-     * Whether the picker was opened from the settings page, and should hand back to it.
-     *
-     * <p>The page's Icon row opens the same picker the card does, and the picker closes the page while it
-     * is up -- a list is what you are reading, and the page behind it is context. What the report caught
-     * was the other half: choosing an item closed the picker and left the author in the card's editor,
-     * with the page they were working on gone. Coming back is the whole of "Change…" as a button on that
-     * page rather than a detour out of it.
-     */
-    boolean pickerFromSettings;
-
-    /**
      * Which of the three things an open picker is setting: a quest's field, the chapter's icon, or its
      * group's icon.
      *
@@ -2608,134 +1185,6 @@ public final class QuestBookScreen extends ArmatureScreen
      * selected. Cleared with the picker's other state.
      */
     enum PickTarget { QUEST, CHAPTER, GROUP, BOOK }
-
-    /**
-     * What the open picker card says it is for, in the caller's own words.
-     *
-     * <p>Empty means "ask {@link PickTarget}" — which is right for the three icon picks, whose sentences
-     * name the subject they already carry in {@code pickName}. A pick that is not about a chapter, a
-     * group or the book has no sentence there, and used to get the chapter's.
-     */
-    String pickTitle = "";
-
-    /** The open picker's target, or null when it is closed. */
-    PickTarget pickTarget;
-
-    /**
-     * The icon and the name the picker's own card shows, so the card says what it is about.
-     *
-     * <p>Set when the picker opens and refreshed whenever its widgets are rebuilt: the row the press came
-     * from is behind the card, and "Pick an item" alone would not say which chapter's or group's icon is
-     * being set. For a group these are the group's <b>own</b> icon and title -- an empty stack is the
-     * honest picture of a group that has none of its own yet.
-     */
-    ItemStack pickIcon = ItemStack.EMPTY;
-    String pickName = "";
-    /** The picker's subject picture when it wears a texture or a sprite icon. */
-    String pickTexture = "";
-    String pickSprite = "";
-
-    /** The value that field holds now, for the clear row; empty when there is none. */
-    String pickingItemCurrent = "";
-
-    /**
-     * The path a clear removes, when clearing is legal at all; null leaves the clear row off.
-     *
-     * <p>From {@link ItemPicker#clearPath}: the icon, and only the icon. A clear row on a task used
-     * to delete a required field, save, and take the quest out of the tree.
-     */
-    String pickingItemClearPath;
-
-    /** The picker's search box, while it is open. Read for its text and cleared with the picker. */
-    ArmatureTextField itemSearch;
-
-    /**
-     * The type picker's own state: its search box, its rows, the band they are drawn in and the scroll.
-     *
-     * <p>Beside the item picker's rather than sharing it, which is not tidiness: the two are laid out in
-     * different bands (that one over the card, this one inside whichever card owns the page), and one set
-     * of fields would be two layouts in one variable. The rows are the last drawing's, so the press reads
-     * what was drawn rather than a second computation of it.
-     */
-    ArmatureTextField typeSearch;
-    List<ItemPickerLayout.Row> typeRows = List.of();
-    ItemPickerLayout.Frame typeFrame;
-    String typeQuery = "";
-    int typeSelected = -1;
-    /** The list's scroll, its clamp and its bar as one object, and the strip the bar is drawn in. */
-    final Viewport typeBody = Viewport.fixed();
-    final ScrollBar typeBar = new ScrollBar(typeBody);
-
-    /** The registry's entries, and the player's carried stacks -- gathered once, when the picker opens. */
-    List<ItemPicker.Entry> pickerEntries = List.of();
-    List<ItemPicker.Entry> pickerInventory = List.of();
-
-    /**
-     * The picker's last drawing: the rows, the frame and the scroll the press has to agree with.
-     *
-     * <p>The click reads these rather than recomputing, for the reason every drawn control here is
-     * hit-tested from the drawing's own derivation: two computations of the same list, taken a frame
-     * apart, are two chances to land on different rows.
-     */
-    List<ItemPickerLayout.Row> pickerRows = List.of();
-    ItemPickerLayout.Frame pickerFrame;
-    List<ItemPicker.Entry> pickerMatches = List.of();
-    String pickerQuery = "";
-    int pickerSelected = -1;
-    /** The list's scroll, its clamp and its bar as one object, on the type page's own terms. */
-    final Viewport pickerBody = Viewport.fixed();
-    final ScrollBar pickerBar = new ScrollBar(pickerBody);
-    List<ItemPicker.Entry> textureMatches = List.of();
-    List<ItemPickerLayout.Row> textureRows = List.of();
-    ItemPickerLayout.Frame textureFrame;
-    int textureSelected = -1;
-    /** The list's scroll, its clamp and its bar as one object, on the same terms again. */
-    final Viewport textureBody = Viewport.fixed();
-    final ScrollBar textureBar = new ScrollBar(textureBody);
-
-    /**
-     * The sizes the texture rows' pictures read, keyed by file.
-     *
-     * <p>Their own map because the row and the picker both draw {@code ToolsPanel.drawTextureThumb} and
-     * each asks the PNG's header for its dimensions; a keep per file turns a per-frame read into one per
-     * file per session. It lives with the screen rather than the drawing for the reason every other
-     * piece of state does -- the drawing is a pure function of what it is handed.
-     */
-    final Map<Identifier, Optional<GuiRenderer.TextureSize>> textureSizes =
-            new LinkedHashMap<>();
-
-    /**
-     * The row drag: which list, which row, and the y the line is drawn at.
-     *
-     * <p>One state for three lists -- a quest's tasks, its rewards, and the dock Chapter tab's quest
-     * list -- because the gesture is one gesture. What differs is the op the release sends, and that is
-     * read off {@link #dragRowMember}. Null/&#8209;1 between drags.
-     */
-    String dragRowMember;
-    String dragRowQuest;
-    int dragRowFrom = -1;
-    boolean dragRowLive;
-    double dragRowPointerY;
-
-    /**
-     * The sidebar tree's drag: the row a press landed on, whether it has travelled, and what it means.
-     *
-     * <p>A second set of fields rather than reuse of the row drag's, because the tree's gesture has one
-     * question the flat lists do not: <b>which container</b>. The row keys are the sidebar's own
-     * ({@code group:} / {@code chapter:} prefixes), and {@link SidebarDrag} answers with a container key
-     * and a position among its children — so what is kept here is the key and the last answer, not an
-     * index into a list that the drop itself may move things out of.
-     */
-    String sidebarDragKey;
-    boolean sidebarDragGroup;
-    boolean sidebarDragLive;
-    double sidebarDragPointerY;
-    double sidebarDragPressX;
-    double sidebarDragPressY;
-    SidebarDrag.Drop sidebarDrop;
-
-    /** Whether the naming card is open, and what it is naming. */
-    Naming naming;
 
     /** Which of the three things the naming card does. */
     enum NamingMode {
@@ -2755,15 +1204,6 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * The sidebar's inline create or rename, when one is in flight.
-     *
-     * <p>The naming card used to do this from the right rail; creates and renames happen in the
-     * list itself now, where the author clicked. The card keeps duplicates, which is the one mode
-     * that pre-fills both fields rather than growing an id from a title.
-     */
-    InlineNaming inlineEdit;
-
-    /**
      * One inline create or rename: what is being made, and where it goes.
      *
      * <p>The op layer is untouched — the session carries what {@code submitNaming} read from the
@@ -2776,217 +1216,16 @@ public final class QuestBookScreen extends ArmatureScreen
             return new InlineNaming(kind, mode, targetId, groupId, show);
         }
     }
-
-    /** The inline session's title field, and the id field while its disclosure is open. */
-    ArmatureTextField inlineTitle;
-    ArmatureTextField inlineId;
     static final String INLINE_STATUS_KEY = SidebarLayout.INLINE_PREFIX + "status";
 
-    /** The sidebar's right-click menu: its items and where it was opened. Empty when it is shut. */
-    List<BookMenu.MenuItem> menu = List.of();
-    int menuX;
-    int menuY;
-
-    /**
-     * When the menu opened, in {@code Util.getMillis()} terms; -1 when it is shut.
-     *
-     * <p>Stamped by {@link #openMenu} — the one writer — and read by {@link BookMenu#menuRise}. Cleared with the
-     * items in {@link BookMenu#closeMenu}, so a shut menu never owes an arrival.
-     */
-    long menuOpenedAt = -1L;
-
-    /**
-     * The menu row whose submenu is showing, or -1.
-     *
-     * <p>State rather than a question asked of the pointer, and that is the whole of the fix for a
-     * submenu that vanished on the way to it: while the pointer is on the panel — or in the bridge
-     * between the two panels — this stays where it was, so travelling to a group does not cross a frame
-     * where the row is not hovered and the destinations are gone.
-     */
-    int submenuRow = -1;
-
-    /**
-     * The curve being bent by hand: which line, whether the drag has started, and the bow it previews.
-     *
-     * <p>The preview is a field rather than a file write because a drag is one edit: the drawing reads it
-     * so the curve follows the hand, and the release is the one op that makes it real.
-     */
-    String bendDragFrom;
-    String bendDragTo;
-    Double bendPreview;
-
-    /** Which handle of that line is being dragged: "from", "to" or "bend". */
-    String bendDragKind;
-    /** The angle an end handle is previewing, or null. */
-    Double anchorPreview;
-
-    /** A split control point being dragged, as `[along, across]`. */
-    java.util.List<Double> handlePreview;
-
-    /**
-     * The rows each list is drawn at, this frame, in drawing order -- the seam the gap is counted
-     * against. Rebuilt by the drawing and read by the release, one derivation for both.
-     */
-    final Map<String, List<BookGeometry.Rect>> dragRowSlots = new LinkedHashMap<>();
-
-    /** Whether the modal's Delete has been pressed once and is waiting for the confirming second. */
-    boolean confirmingDelete;
-
-    /**
-     * The card's armed entry removal: which row's cross asked, or null.
-     *
-     * <p>Keyed by the row's own path, because that is what the press names — and consumed by the <b>next</b>
-     * press whatever it is, because a path is a position rather than an id: an arm that outlived the row it
-     * named would be spent on whatever moved into that position. {@code pressEditTarget} takes it at the
-     * top, which is the one door every card press comes through.
-     *
-     * <p>The table editor's own entry cross has asked twice since it was written, and the comment there
-     * says it is "the same confirm-in-place the inline table's removal uses" — but the card's rows, which
-     * are the same control in the other panel, did not ask at all.
-     */
-    String entryConfirmRemove;
-
-    /**
-     * The Delete key's own two-press rule, which is the same rule.
-     *
-     * <p>Held as an object rather than a boolean because it also remembers <b>which</b> quests were named,
-     * and that is the part a field cannot express: a boolean would let the confirming press delete a
-     * selection the author was never asked about. See {@link ArmedDelete}, which is where the rule lives
-     * so it can be tested without a running client.
-     */
-    final ArmedDelete armedDelete = new ArmedDelete();
-
-    /** The modal's Delete, so a press anywhere else can disarm it. The party's Disband set the shape. */
-    ArmatureButton questDeleteButton;
-
-    /**
-     * The node the drag is carrying, once the drag is one: past the threshold, following the pointer.
-     *
-     * <p>Null between a press and the threshold, so a click never looks like a wiggle; the node under
-     * the pointer at press is {@link #pressedNode} until then.
-     */
-    String draggedNode;
-
-    /**
-     * Where that node is now, in content coordinates, and where inside it the pointer grabbed it.
-     *
-     * <p><b>Not named {@code dragX} and {@code dragY}.</b> Vanilla's {@code mouseDragged} declares its
-     * own parameters under exactly those two names, and a field under the same name is shadowed by
-     * them for the whole method body: the follow step's {@code dragX = ...} wrote the <i>parameter</i>,
-     * the field never moved, and the drag — which reads the field to draw the node and to commit it —
-     * did nothing at all while looking exactly like code that worked. Every commit was 0,0 until the
-     * press read the position first, after which every commit was the press position: a drag that
-     * cannot move the thing it is dragging. The names are the fix; the state machine around them is
-     * the rewrite.
-     */
-    float dragNodeX;
-    float dragNodeY;
-    float dragGrabX;
-    float dragGrabY;
-
-    /**
-     * This screen's own controls, in the order they were created.
-     *
-     * <p>Kept because {@code Screen.renderables} is private — established by the compiler after being
-     * assumed otherwise. Keeping the list is the better arrangement anyway: a screen that knows which
-     * widgets are its own can ask them questions the vanilla base class has no concept of, which is
-     * what {@link BookFrame#drawTooltips} does.
-     */
-    final List<ArmatureButton> buttons = new ArrayList<>();
-
-    /**
-     * What an open panel draws <b>after</b> the widget pass, because the widget pass cannot draw it.
-     *
-     * <h2>What is in here, and the much longer list that is not</h2>
-     *
-     * <p>A panel is drawn in the chrome band, <i>before</i> the widget pass, so its controls are already
-     * on top of their own surface and need nothing from this list. What needs it is the ink the pass has
-     * no widget for: a search box's placeholder, which is text drawn over the field's own fill, and the
-     * clip a placeholder needs so it cannot paint outside the band it belongs to.
-     *
-     * <p><b>This list used to hold the fields themselves</b>, and every one of them was there for a reason
-     * that no longer exists: a card was painted <i>after</i> the widget pass, so a field left to that pass
-     * was painted over -- placed, clickable and invisible, which is the fourth playtest's "labels drawn by
-     * the panel, every field blank". A column is drawn before the pass, so the fields are visible with no
-     * help, and re-drawing them here would be the same pixels paid for twice. They are gone; the
-     * placeholders they shared a closure with are what stayed.
-     *
-     * <h2>The one thing the pass genuinely cannot draw</h2>
-     *
-     * <p>{@code drawOpenEditor} -- the inline field an author types into -- is a {@code addWidget} child
-     * rather than a renderable one, deliberately: a renderable copy could not be clipped and showed through
-     * the world as a blurred ghost. So it is drawn by hand, and it used to be drawn <b>only</b> inside the
-     * modal path -- which means that in the one presentation this mod has, the field an author is typing
-     * into was never painted at all. It is drawn after this list for the same reason these entries are.
-     */
-    final List<java.util.function.Consumer<GuiRenderer>> panelOverlays = new ArrayList<>();
-
-    /**
-     * How many rosters had arrived when the party panel was last built.
-     *
-     * <h2>Why a counter, and why the panel needs one at all</h2>
-     *
-     * <p>Because a party's roster is <b>pushed while the panel describing it is open</b>.
-     * {@code PartySyncPayload}'s own note names that as the case that stops the roster being
-     * request-only: somebody accepts an invite or an officer removes somebody, and the person looking
-     * at the panel is owed a redraw. The widgets are created in {@code init} and placed once, so a
-     * message arriving in between changes {@link ClientPartyCache} and nothing else — the panel goes on
-     * drawing the roster it was built with, which is a party that has since gained or lost a member.
-     * Every row in it is still a real name, which is what makes it convincing.
-     *
-     * <p>Compared against a counter rather than against the two snapshots, and that is
-     * {@code ClientQuestCache.treeRevision}'s argument read the other way: "a roster arrived" is a fact
-     * about a message, while "the roster differs" is a judgement this screen would have to make with
-     * its own answer for an identical re-send. {@code -1} rather than {@code 0} so the initial value
-     * cannot be mistaken for a real roster that has been drawn.
-     */
-    /**
-     * Whether this client has told Armature what the book's panels watch.
-     *
-     * <h2>Why the list is here, and why it is guarded</h2>
-     *
-     * <p>Because a panel that watches nothing is exactly the failure this replaces — the one that has to
-     * be closed and reopened — and the sources are <b>this screen's own</b>: each is a cache it draws
-     * from. Registering on the first {@code init} keeps the list beside the drawing that depends on it,
-     * rather than in a loader's setup file, once per loader, which is where the third panel's entry gets
-     * forgotten.
-     *
-     * <p>Guarded because {@code init} runs on every resize and after every automatic rebuild, and the
-     * registry is a list: registering again on each pass would grow it with the number of times the
-     * window was resized.
-     *
-     * <p>What each one buys: the <b>tree</b> is the sidebar's rows, so a reload rebuilds them; the
-     * <b>party</b> is the roster's rows and the Remove buttons placed in them. Progress is deliberately
-     * not watched here: it increments on every item-count tick and lock refresh, and tearing down the
-     * whole widget list for a task count moving is a hitch on every sync. Progress-driven widgets
-     * (chapter gates, reward counts, the reader footer and the rewards inbox) check their own state.
-     */
-    private static boolean watchingSources;
-
     private static void watchSources() {
-        if (watchingSources) {
+        if (BookScreenState.watchingSources) {
             return;
         }
-        watchingSources = true;
+        BookScreenState.watchingSources = true;
         ArmatureLive.watch("tenet.tree", ClientQuestCache::treeRevision);
         ArmatureLive.watch("tenet.party", ClientPartyCache::rosterRevision);
     }
-
-    /**
-     * Close, which is in {@link #buttons} but is not drawn by the widget pass.
-     *
-     * <h2>Why this is a field rather than one more entry in the list</h2>
-     *
-     * <p>Because Close is the only control that lives in the header, and the widget pass is clipped
-     * from the sidebar's list top downwards — so that a scrolled row can never be drawn through the
-     * title bar. That clip would swallow Close, which is why it is drawn by hand in the chrome layer
-     * instead. The field is what lets that happen; see `buildHeaderChrome`.
-     *
-     * <p>It is still in {@link #buttons} as well, and that is deliberate rather than redundant:
-     * {@code drawTooltips} walks that list, so a control missing from it would draw and respond and
-     * simply have no tooltip.
-     */
-    ArmatureButton closeButton;
 
     public QuestBookScreen() {
         super(Component.translatable("tenet.screen.quest_book.title"));
@@ -3145,12 +1384,12 @@ public final class QuestBookScreen extends ArmatureScreen
      * {@link BookInput#mouseScrolled} routes the wheel by it.
      */
     Viewport sidebarViewport() {
-        BookGeometry.Rect rect = geometry().sidebarViewport(mayEditNow(), sidebarReserveScrollbar);
+        BookGeometry.Rect rect = geometry().sidebarViewport(mayEditNow(), bookState.sidebarReserveScrollbar);
         // The pitch goes with the bounds, because both are the frame's: this list moves a row at a time
         // -- the wheel snaps to `pitch()`, and the bar's page keeps one of those rows on screen -- and
         // the bar is where both of those numbers now live.
-        sidebarView.bar().pitch(SidebarLayout.pitch());
-        return sidebarView.viewport().bounds(rect.x(), rect.y(), rect.width(), rect.height());
+        bookState.sidebarView.bar().pitch(SidebarLayout.pitch());
+        return bookState.sidebarView.viewport().bounds(rect.x(), rect.y(), rect.width(), rect.height());
     }
 
     /**
@@ -3161,10 +1400,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * scrolling list is constructed at 0,0 and placed by its view afterwards.
      */
     private void travelSidebarWidget(AbstractWidget widget, int travelX, int travelY) {
-        int[] base = sidebarTravelBase.get(widget);
+        int[] base = bookState.sidebarTravelBase.get(widget);
         if (base == null) {
             base = new int[] {widget.getX(), widget.getY()};
-            sidebarTravelBase.put(widget, base);
+            bookState.sidebarTravelBase.put(widget, base);
         }
         widget.setX(base[0] + travelX);
         widget.setY(base[1] + travelY);
@@ -3172,7 +1411,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Puts one travelled widget back where the build placed it. See {@link #travelSidebarWidget}. */
     private void restoreSidebarTravel(AbstractWidget widget) {
-        int[] base = sidebarTravelBase.get(widget);
+        int[] base = bookState.sidebarTravelBase.get(widget);
         if (base != null) {
             widget.setX(base[0]);
             widget.setY(base[1]);
@@ -3197,17 +1436,17 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void drawDepartedSidebar(GuiRenderer renderer) {
         long now = net.minecraft.util.Util.getMillis();
-        if (!sidebarSliding(now) || sidebarDepartAnchor == null) {
+        if (!sidebarSliding(now) || bookState.sidebarDepartAnchor == null) {
             return;
         }
         BookGeometry.Rect wipe = sidebarWipeRect(now);
-        int travelX = wipe.x() - sidebarDepartAnchor.x()
-                + wipe.width() - sidebarDepartAnchor.width();
-        int travelY = wipe.y() - sidebarDepartAnchor.y();
-        float progress = PanelLayout.revealed(now - sidebarSlideStart, panelRevealMillis());
-        int lead = Math.round(sidebarDepartOverhang * progress);
+        int travelX = wipe.x() - bookState.sidebarDepartAnchor.x()
+                + wipe.width() - bookState.sidebarDepartAnchor.width();
+        int travelY = wipe.y() - bookState.sidebarDepartAnchor.y();
+        float progress = PanelLayout.revealed(now - bookState.sidebarSlideStart, panelRevealMillis());
+        int lead = Math.round(bookState.sidebarDepartOverhang * progress);
         try (GuiRenderer.Scoped clip = renderer.clip(wipe.x(), wipe.y(), wipe.right(), wipe.bottom())) {
-            for (SidebarDeparted departed : sidebarDeparted) {
+            for (SidebarDeparted departed : bookState.sidebarDeparted) {
                 AbstractWidget widget = departed.widget();
                 widget.setX(departed.x() + travelX - lead);
                 widget.setY(departed.y() + travelY);
@@ -3228,7 +1467,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * file says on the frame of the press.
      */
     boolean sidebarSliding(long now) {
-        return sidebarSlideStart >= 0 && now - sidebarSlideStart < panelRevealMillis();
+        return bookState.sidebarSlideStart >= 0 && now - bookState.sidebarSlideStart < panelRevealMillis();
     }
 
     /**
@@ -3240,11 +1479,11 @@ public final class QuestBookScreen extends ArmatureScreen
      * read it never branch on whether a wipe is running.
      */
     BookGeometry.Rect sidebarWipeRect(long now) {
-        if (sidebarSlideStart < 0 || sidebarSlideFromRect == null) {
+        if (bookState.sidebarSlideStart < 0 || bookState.sidebarSlideFromRect == null) {
             return geometry().sidebar();
         }
-        return PanelLayout.sidebarWipeRect(sidebarSlideFromRect, geometry().sidebar(),
-                now - sidebarSlideStart, panelRevealMillis());
+        return PanelLayout.sidebarWipeRect(bookState.sidebarSlideFromRect, geometry().sidebar(),
+                now - bookState.sidebarSlideStart, panelRevealMillis());
     }
 
     /**
@@ -3261,9 +1500,9 @@ public final class QuestBookScreen extends ArmatureScreen
         // starts the way back from mid-wipe rather than jumping to the far end first. The
         // departure's own filings — anchor box and overhang — measure in `orphanSidebarRows`,
         // against the sliver, once the collapse knows it is one.
-        sidebarSlideFromRect =
+        bookState.sidebarSlideFromRect =
                 sidebarSliding(now) ? sidebarWipeRect(now) : geometry().sidebar();
-        sidebarSlideStart = now;
+        bookState.sidebarSlideStart = now;
     }
 
     /**
@@ -3279,28 +1518,28 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     private void orphanSidebarRows() {
         clearFrameSnapshot();
-        sidebarDeparted.clear();
-        for (AbstractWidget widget : sidebarRowWidgets) {
-            sidebarDeparted.add(new SidebarDeparted(widget, widget.getX(), widget.getY()));
+        bookState.sidebarDeparted.clear();
+        for (AbstractWidget widget : bookState.sidebarRowWidgets) {
+            bookState.sidebarDeparted.add(new SidebarDeparted(widget, widget.getX(), widget.getY()));
             removeWidget(widget);
-            buttons.remove(widget);
-            sidebarTravelBase.remove(widget);
+            bookState.buttons.remove(widget);
+            bookState.sidebarTravelBase.remove(widget);
         }
-        sidebarRowWidgets.clear();
-        sidebarView.clear();
+        bookState.sidebarRowWidgets.clear();
+        bookState.sidebarView.clear();
         // Rebound to the collapsed zero-area viewport now, not at the settle: the bar, the wheel
         // and the menu all read this, and for the wipe's length there is no list for them to act on.
         sidebarViewport();
-        sidebarDepartAnchor = geometry().sidebarExpandedRect();
+        bookState.sidebarDepartAnchor = geometry().sidebarExpandedRect();
         BookGeometry.Rect target = geometry().sidebar();
-        int endShiftX = target.x() - sidebarDepartAnchor.x()
-                + target.width() - sidebarDepartAnchor.width();
+        int endShiftX = target.x() - bookState.sidebarDepartAnchor.x()
+                + target.width() - bookState.sidebarDepartAnchor.width();
         int overhang = 0;
-        for (SidebarDeparted departed : sidebarDeparted) {
+        for (SidebarDeparted departed : bookState.sidebarDeparted) {
             overhang = Math.max(overhang,
                     departed.x() + departed.widget().getWidth() + endShiftX - bookFrame.panelRect().x());
         }
-        sidebarDepartOverhang = overhang;
+        bookState.sidebarDepartOverhang = overhang;
     }
 
     /** Slides the list away to its sliver, or brings it back, and writes the choice. */
@@ -3311,14 +1550,14 @@ public final class QuestBookScreen extends ArmatureScreen
         beginSidebarSlide();
         DevMode.setSidebarCollapsed(collapsed);
         if (collapsed) {
-            sidebarPeeking = false;
-            sidebarPeekCooling = true;
+            bookState.sidebarPeeking = false;
+            bookState.sidebarPeekCooling = true;
             // Out with the rows aboard, as orphans: filed and removed here, drawn by hand till
             // the wipe lands (see `sidebarDeparted`), so the full list rides the card back
             // instead of popping to the sliver at once — and nothing interactive is left where
             // the card was, which is the ghost the old kept-widgets ride flashed.
-            sidebarDeparting = panelRevealMillis() > 0;
-            if (sidebarDeparting) {
+            bookState.sidebarDeparting = panelRevealMillis() > 0;
+            if (bookState.sidebarDeparting) {
                 orphanSidebarRows();
             }
             else {
@@ -3330,9 +1569,9 @@ public final class QuestBookScreen extends ArmatureScreen
             // An expand re-arms the auto-hide below: without this a stale "was inside" from
             // before the collapse would fold a box whose pointer never arrived. The leave clock
             // restarts with it, for the same reason the peek's own clocks do on a transition.
-            sidebarBoxHovered = false;
-            sidebarPeekLeaveStart = -1;
-            sidebarDeparting = false;
+            bookState.sidebarBoxHovered = false;
+            bookState.sidebarPeekLeaveStart = -1;
+            bookState.sidebarDeparting = false;
             rebuildWidgets();
             cancelSidebarSlideIfStatic();
         }
@@ -3366,19 +1605,19 @@ public final class QuestBookScreen extends ArmatureScreen
      * peek arrives like an expand and leaves like a collapse.
      */
     void setSidebarPeeking(boolean peeking) {
-        if (sidebarPeeking == peeking) {
+        if (bookState.sidebarPeeking == peeking) {
             return;
         }
         beginSidebarSlide();
-        sidebarPeeking = peeking;
+        bookState.sidebarPeeking = peeking;
         if (!peeking) {
             // An acted unpeek (Escape, a map click) with the pointer still over the strip must
             // not re-dwell at once: the cooldown below waits for the pointer to leave first.
-            sidebarPeekCooling = true;
+            bookState.sidebarPeekCooling = true;
             // Out with the rows aboard, like any other collapse: filed as orphans and drawn by
             // hand till the wipe lands.
-            sidebarDeparting = panelRevealMillis() > 0;
-            if (sidebarDeparting) {
+            bookState.sidebarDeparting = panelRevealMillis() > 0;
+            if (bookState.sidebarDeparting) {
                 orphanSidebarRows();
             }
             else {
@@ -3387,17 +1626,17 @@ public final class QuestBookScreen extends ArmatureScreen
             }
             // A transition restarts every hover clock: a stale leave-stamp would otherwise end the
             // new state the frame it begins.
-            sidebarPeekLeaveStart = -1;
-            sidebarPeekHoverStart = -1;
+            bookState.sidebarPeekLeaveStart = -1;
+            bookState.sidebarPeekHoverStart = -1;
             return;
         }
         // A transition restarts every hover clock: a stale leave-stamp would otherwise end the
         // new state the frame it begins.
-        sidebarPeekLeaveStart = -1;
-        sidebarPeekHoverStart = -1;
+        bookState.sidebarPeekLeaveStart = -1;
+        bookState.sidebarPeekHoverStart = -1;
         // An arrival, even one that cuts a departure short: the preview rebuilds its rows live
         // below, so no orphans survive the switch (see `init`, which drops them with the wipe).
-        sidebarDeparting = false;
+        bookState.sidebarDeparting = false;
         rebuildWidgets();
         cancelSidebarSlideIfStatic();
     }
@@ -3412,8 +1651,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * land on.
      */
     void cancelSidebarSlideIfStatic() {
-        if (sidebarSlideFromRect != null && sidebarSlideFromRect.equals(geometry().sidebar())) {
-            sidebarSlideStart = -1;
+        if (bookState.sidebarSlideFromRect != null && bookState.sidebarSlideFromRect.equals(geometry().sidebar())) {
+            bookState.sidebarSlideStart = -1;
         }
     }
 
@@ -3437,16 +1676,16 @@ public final class QuestBookScreen extends ArmatureScreen
      * the sliver promises.
      */
     private void updateSidebarPeek(int hoverX, int hoverY, boolean owned, long now) {
-        if (owned || sidebarSliding(now) || !menu.isEmpty() || colourPopover.isOpen()) {
-            sidebarPeekHoverStart = -1;
+        if (owned || sidebarSliding(now) || !bookState.menu.isEmpty() || bookState.colourPopover.isOpen()) {
+            bookState.sidebarPeekHoverStart = -1;
             return;
         }
         if (!DevMode.isSidebarFloating()) {
-            sidebarPeekHoverStart = -1;
-            sidebarPeekCooling = false;
+            bookState.sidebarPeekHoverStart = -1;
+            bookState.sidebarPeekCooling = false;
             return;
         }
-        if (!sidebarPeeking && !DevMode.isSidebarCollapsed()) {
+        if (!bookState.sidebarPeeking && !DevMode.isSidebarCollapsed()) {
             // An open box that is not a peek: unpinned, it slides away once the pointer leaves
             // it; pinned, it stays however long the pointer is gone. The dwell does not apply
             // here — leaving is instant, because a preview that overstays is the complaint, not
@@ -3459,59 +1698,60 @@ public final class QuestBookScreen extends ArmatureScreen
             // mid row-drag, trades focus for tidiness.
             boolean inside = geometry().sidebar().inflate(SIDEBAR_KEEP_HOVER)
                     .contains(hoverX, hoverY);
-            if (!DevMode.isSidebarPinned() && sidebarBoxHovered && !inside
-                    && overlay == PanelKind.NONE && overlay2 == PanelKind.NONE && !dockOpen
-                    && sidebarDragKey == null && sidebarDragRail == null) {
-                if (sidebarPeekLeaveStart < 0) {
-                    sidebarPeekLeaveStart = now;
+            if (!DevMode.isSidebarPinned() && bookState.sidebarBoxHovered && !inside
+                    && bookState.overlay == PanelKind.NONE && bookState.overlay2 == PanelKind.NONE
+                            && !bookState.dockOpen
+                    && bookState.sidebarDragKey == null && bookState.sidebarDragRail == null) {
+                if (bookState.sidebarPeekLeaveStart < 0) {
+                    bookState.sidebarPeekLeaveStart = now;
                 }
-                else if (now - sidebarPeekLeaveStart >= SIDEBAR_PEEK_LEAVE_MILLIS) {
-                    sidebarPeekLeaveStart = -1;
-                    sidebarBoxHovered = false;
+                else if (now - bookState.sidebarPeekLeaveStart >= SIDEBAR_PEEK_LEAVE_MILLIS) {
+                    bookState.sidebarPeekLeaveStart = -1;
+                    bookState.sidebarBoxHovered = false;
                     setSidebarCollapsed(true);
                 }
             }
             else {
-                sidebarPeekLeaveStart = -1;
-                sidebarBoxHovered = geometry().sidebar().contains(hoverX, hoverY);
+                bookState.sidebarPeekLeaveStart = -1;
+                bookState.sidebarBoxHovered = geometry().sidebar().contains(hoverX, hoverY);
             }
             return;
         }
-        if (!sidebarPeeking) {
-            if (sidebarPeekCooling) {
+        if (!bookState.sidebarPeeking) {
+            if (bookState.sidebarPeekCooling) {
                 // The last unpeek was an act with the pointer still over the sliver: wait for the
                 // pointer to leave before the dwell can start over, or the preview re-opens under
                 // a hand that just put it away.
                 if (!geometry().sidebar().inflate(SIDEBAR_PEEK_HOVER).contains(hoverX, hoverY)) {
-                    sidebarPeekCooling = false;
+                    bookState.sidebarPeekCooling = false;
                 }
                 return;
             }
             if (geometry().sidebar().inflate(SIDEBAR_PEEK_HOVER).contains(hoverX, hoverY)) {
-                if (sidebarPeekHoverStart < 0) {
-                    sidebarPeekHoverStart = now;
+                if (bookState.sidebarPeekHoverStart < 0) {
+                    bookState.sidebarPeekHoverStart = now;
                 }
-                else if (now - sidebarPeekHoverStart >= SIDEBAR_PEEK_DWELL_MILLIS) {
-                    sidebarPeekHoverStart = -1;
+                else if (now - bookState.sidebarPeekHoverStart >= SIDEBAR_PEEK_DWELL_MILLIS) {
+                    bookState.sidebarPeekHoverStart = -1;
                     setSidebarPeeking(true);
                 }
             }
             else {
-                sidebarPeekHoverStart = -1;
+                bookState.sidebarPeekHoverStart = -1;
             }
             return;
         }
         if (!geometry().sidebarExpandedRect().inflate(SIDEBAR_KEEP_HOVER).contains(hoverX, hoverY)) {
-            if (sidebarPeekLeaveStart < 0) {
-                sidebarPeekLeaveStart = now;
+            if (bookState.sidebarPeekLeaveStart < 0) {
+                bookState.sidebarPeekLeaveStart = now;
             }
-            else if (now - sidebarPeekLeaveStart >= SIDEBAR_PEEK_LEAVE_MILLIS) {
-                sidebarPeekLeaveStart = -1;
+            else if (now - bookState.sidebarPeekLeaveStart >= SIDEBAR_PEEK_LEAVE_MILLIS) {
+                bookState.sidebarPeekLeaveStart = -1;
                 setSidebarPeeking(false);
             }
         }
         else {
-            sidebarPeekLeaveStart = -1;
+            bookState.sidebarPeekLeaveStart = -1;
         }
     }
 
@@ -3609,7 +1849,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * that is there.
      */
     boolean carriesFold(PanelKind kind) {
-        return overlay2 != PanelKind.NONE && overlay2 == kind;
+        return bookState.overlay2 != PanelKind.NONE && bookState.overlay2 == kind;
     }
 
     /**
@@ -3620,7 +1860,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * and every header in this book that draws a title inside a column asks for it here.
      */
     int headerTextRoom(BookGeometry.Rect rail) {
-        return PanelLayout.headerRight(rail, carriesFold(surfaceKind));
+        return PanelLayout.headerRight(rail, carriesFold(bookState.surfaceKind));
     }
 
     /**
@@ -3643,7 +1883,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * whether the dock is open.
      */
     void pressAuthorPill() {
-        boolean open = !dockOpen;
+        boolean open = !bookState.dockOpen;
         // The arrival stamp is `applyColumns`' — every rail's enter and exit is — so opening and
         // closing alike animate with no stamp at the call site. See `startPanelReveal`.
         applyColumns(PanelStack.withDock(columns(), open));
@@ -3681,11 +1921,11 @@ public final class QuestBookScreen extends ArmatureScreen
             return;
         }
         // The child's kind decides how it leaves; each of these rebuilds for itself.
-        if (overlay2 == PanelKind.PICKER) {
+        if (bookState.overlay2 == PanelKind.PICKER) {
             itemPicker.closePickerOverlay();
             return;
         }
-        if (overlay2 == PanelKind.TEXTURE) {
+        if (bookState.overlay2 == PanelKind.TEXTURE) {
             texturePicker.closeTexturePicker();
             return;
         }
@@ -3725,8 +1965,9 @@ public final class QuestBookScreen extends ArmatureScreen
      * their tools vanish and reappear in the same place. Here it is simply the third rail.
      */
     PanelStack.Columns columns() {
-        return new PanelStack.Columns(dockOpen ? PanelKind.TOOLS : PanelKind.NONE, overlay, overlay2,
-                foldChoice);
+        return new PanelStack.Columns(bookState.dockOpen ? PanelKind.TOOLS : PanelKind.NONE,
+                bookState.overlay, bookState.overlay2,
+                bookState.foldChoice);
     }
 
     /**
@@ -3738,7 +1979,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * the same question for the header's lit buttons, the drag's floor and the fold's control.
      */
     PanelKind leftKind() {
-        return overlay;
+        return bookState.overlay;
     }
 
     /**
@@ -3759,7 +2000,7 @@ public final class QuestBookScreen extends ArmatureScreen
     void applyColumns(PanelStack.Columns next) {
         java.util.List<PanelKind> before = PanelStack.presented(columns(), panelFolded());
         java.util.List<PanelKind> afterNext = PanelStack.presented(next, panelFoldedFor(next));
-        arrangementEpoch++;
+        bookState.arrangementEpoch++;
         long now = net.minecraft.util.Util.getMillis();
         int enterMs = panelRevealMillis();
         // Snapshotted from the rails as they stand — fields still hold the old arrangement, so the rails
@@ -3768,15 +2009,15 @@ public final class QuestBookScreen extends ArmatureScreen
         for (PanelKind kind : before) {
             if (!afterNext.contains(kind)) {
                 BookGeometry.Rect rail = panelRail(kind);
-                departRails.put(kind,
+                bookState.departRails.put(kind,
                         PanelLayout.revealRect(rail, panelRevealElapsed(kind, now), enterMs));
-                panelDepartStarts.put(kind, now);
+                bookState.panelDepartStarts.put(kind, now);
             }
         }
-        dockOpen = next.dock() == PanelKind.TOOLS;
-        overlay = next.left();
-        overlay2 = next.right();
-        foldChoice = next.fold();
+        bookState.dockOpen = next.dock() == PanelKind.TOOLS;
+        bookState.overlay = next.left();
+        bookState.overlay2 = next.right();
+        bookState.foldChoice = next.fold();
         java.util.List<PanelKind> after = PanelStack.presented(columns(), panelFolded());
         // Retired by this call, for the closes below to schedule under: read promptly, before anything
         // else moves rails. Empty when the call showed without hiding, which is when a deferred cleanup
@@ -3787,7 +2028,7 @@ public final class QuestBookScreen extends ArmatureScreen
                 departed.add(kind);
             }
         }
-        lastDeparted = java.util.List.copyOf(departed);
+        bookState.lastDeparted = java.util.List.copyOf(departed);
         for (PanelKind kind : after) {
             if (before.contains(kind)) {
                 continue;
@@ -3795,17 +2036,17 @@ public final class QuestBookScreen extends ArmatureScreen
             // A teardown owed to an earlier close of this same kind runs first: close-then-open has
             // always meant teardown before setup, and the deferred nullings are no exception.
             runTeardowns(kind);
-            if (panelDepartStarts.containsKey(kind)) {
+            if (bookState.panelDepartStarts.containsKey(kind)) {
                 // Reopened mid-exit: the enter continues from where the exit stood rather than jumping
                 // back to a whole rail off screen. Symmetric durations make the velocities roughly
                 // match; exactness lives in the helpers' ends, which both hold.
-                long exitElapsed = now - panelDepartStarts.get(kind);
+                long exitElapsed = now - bookState.panelDepartStarts.get(kind);
                 int exitMs = Math.max(1, panelExitMillis());
                 long mapped = enterMs <= 0 ? Long.MAX_VALUE
                         : enterMs - exitElapsed * enterMs / exitMs;
-                panelRevealStarts.put(kind, now - Math.max(0, mapped));
-                panelDepartStarts.remove(kind);
-                departRails.remove(kind);
+                bookState.panelRevealStarts.put(kind, now - Math.max(0, mapped));
+                bookState.panelDepartStarts.remove(kind);
+                bookState.departRails.remove(kind);
             }
             else {
                 bookRewards.startPanelReveal(kind);
@@ -3815,7 +2056,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // closed mid-slide and opened again later would start its second arrival part-way through the first
         // — a panel that appears already half-drawn, which reads as a glitch rather than as an opening.
         // Pruned here, at the one writer of the arrangement, so no opener has to remember to.
-        panelRevealStarts.keySet().retainAll(after);
+        bookState.panelRevealStarts.keySet().retainAll(after);
     }
 
     /**
@@ -3865,15 +2106,6 @@ public final class QuestBookScreen extends ArmatureScreen
     static final int EDITOR_ACTION_GAP = 2;
 
     /**
-     * The measured floor, remembered. Zero until it is first asked for.
-     *
-     * <p>A field rather than a constant because the labels are resolved from the language file: a static
-     * final would measure whatever language the class happened to load under, and the first frame the floor
-     * is wanted — a drag, or a panel opening — is the first moment it can honestly be measured.
-     */
-    private int editorFloor;
-
-    /**
      * The narrowest the quest editor's column may be dragged: four action buttons that still read.
      *
      * <h2>Why the content has a floor of its own, above its kind's</h2>
@@ -3894,17 +2126,17 @@ public final class QuestBookScreen extends ArmatureScreen
      * button asking "Really delete?" no longer fits its own word.
      */
     private int editorMinimumWidth() {
-        if (editorFloor > 0) {
-            return editorFloor;
+        if (bookState.editorFloor > 0) {
+            return bookState.editorFloor;
         }
         Measure measure = Measure.monospace(6, 9);
-        editorFloor = PanelStack.footerMinimumWidth(List.of(
+        bookState.editorFloor = PanelStack.footerMinimumWidth(List.of(
                         measure.width("Really delete?"),
                         measure.width(Labels.of("tenet.screen.duplicate")),
                         measure.width(Labels.of("tenet.screen.copy")),
                         measure.width(Labels.of("tenet.screen.settings"))),
                 EDITOR_ACTION_GAP, BookGeometry.BACK_WIDTH, BookGeometry.MODAL_INSET);
-        return editorFloor;
+        return bookState.editorFloor;
     }
 
     /**
@@ -3948,7 +2180,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * panel width because the dock <i>was</i> column 1.
      *
      * <p>So the player's remembered width is per kind ({@code DevMode.panelWidth}) and the override in flight
-     * is per kind too: {@link #panelLiveWidth} is read only for {@link #panelDragKind}, which is the kind the
+     * is per kind too: {@link BookScreenState#panelLiveWidth} is read only for {@link BookScreenState#panelDragKind}, which is the kind the
      * hand is holding. A width can therefore not leak from one rail to another mid-drag, which is the fault
      * the two fields were introduced to stop and did not.
      */
@@ -3956,10 +2188,10 @@ public final class QuestBookScreen extends ArmatureScreen
         if (kind == null || kind == PanelKind.NONE) {
             return 0;
         }
-        if (panelLiveWidth > 0 && panelDragKind == kind) {
+        if (bookState.panelLiveWidth > 0 && bookState.panelDragKind == kind) {
             // A resize in flight: the edge the hand is holding, which is why this is read here rather than
             // written into the settings file on every frame of the drag. Written once, on release.
-            return panelLiveWidth;
+            return bookState.panelLiveWidth;
         }
         return Math.max(PanelStack.columnWidth(kind, DevMode.panelWidth(kind)), panelContentFloor(kind));
     }
@@ -3982,8 +2214,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * canvas's edge, so folding a child away from beside the dock does not slide the whole pairing left.
      */
     private BookGeometry.Rect columnOneRail() {
-        int width = panelFolded() ? railWidth(overlay2) : railWidth(leftKind());
-        return dockOpen ? geometry().panelRailBefore(width, dockRail())
+        int width = panelFolded() ? railWidth(bookState.overlay2) : railWidth(leftKind());
+        return bookState.dockOpen ? geometry().panelRailBefore(width, dockRail())
                 : geometry().panelRail(width);
     }
 
@@ -3996,17 +2228,17 @@ public final class QuestBookScreen extends ArmatureScreen
      * and the press all agree about which rail a kind is in without any of them deriving it again.
      */
     BookGeometry.Rect panelRail(PanelKind kind) {
-        if (kind == departDrawKind && departDrawRail != null) {
-            return departDrawRail;
+        if (kind == bookState.departDrawKind && bookState.departDrawRail != null) {
+            return bookState.departDrawRail;
         }
         if (kind == PanelKind.TOOLS) {
             return dockRail();
         }
         BookGeometry.Rect first = columnOneRail();
-        if (panelFolded() || overlay2 == PanelKind.NONE || overlay2 != kind) {
+        if (panelFolded() || bookState.overlay2 == PanelKind.NONE || bookState.overlay2 != kind) {
             return first;
         }
-        return geometry().panelRailBefore(railWidth(overlay2), first);
+        return geometry().panelRailBefore(railWidth(bookState.overlay2), first);
     }
 
     /**
@@ -4025,7 +2257,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Milliseconds since one rail started arriving, or a huge number once it is settled. */
     long panelRevealElapsed(PanelKind kind, long now) {
-        Long start = panelRevealStarts.get(kind);
+        Long start = bookState.panelRevealStarts.get(kind);
         return start == null || start == 0 ? Long.MAX_VALUE : now - start;
     }
 
@@ -4068,7 +2300,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * rebuild, so a rail that is already there keeps live controls while the one beside it arrives.
      */
     boolean panelRevealing(PanelKind kind, long now) {
-        return panelRevealStarts.containsKey(kind)
+        return bookState.panelRevealStarts.containsKey(kind)
                 && PanelLayout.revealed(panelRevealElapsed(kind, now), panelRevealMillis()) < 1F;
     }
 
@@ -4096,20 +2328,20 @@ public final class QuestBookScreen extends ArmatureScreen
     private void slidePanelWidgets(long now) {
         int duration = panelRevealMillis();
         for (PanelKind kind : PanelStack.presented(columns(), panelFolded())) {
-            java.util.List<AbstractWidget> owned = slideWidgets.get(kind);
+            java.util.List<AbstractWidget> owned = bookState.slideWidgets.get(kind);
             if (owned == null || owned.isEmpty()) {
                 continue;
             }
             int offset = PanelLayout.slideOffset(panelRail(kind), panelRevealElapsed(kind, now),
                     duration);
             if (offset != 0) {
-                panelBuildPending = true;
+                bookState.panelBuildPending = true;
             }
             for (AbstractWidget widget : owned) {
-                Integer base = slideBaseX.get(widget);
+                Integer base = bookState.slideBaseX.get(widget);
                 if (base == null) {
                     base = widget.getX();
-                    slideBaseX.put(widget, base);
+                    bookState.slideBaseX.put(widget, base);
                 }
                 widget.setX(base + offset);
                 if (offset != 0) {
@@ -4120,26 +2352,26 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     /**
-     * The surface the current {@link #surfaceKind} occupies, as its four numbers.
+     * The surface the current {@link BookScreenState#surfaceKind} occupies, as its four numbers.
      *
      * <p>Read by every position inside a panel — its header's icon, its body's clip, its footer's controls,
      * its rows' rectangles — so a kind being drawn, built or pressed measures itself against its own rail
      * and never against the one beside it.
      */
     int overlayLeft() {
-        return surfaceCard(surfaceKind).x();
+        return surfaceCard(bookState.surfaceKind).x();
     }
 
     int overlayTop() {
-        return surfaceCard(surfaceKind).y();
+        return surfaceCard(bookState.surfaceKind).y();
     }
 
     int overlayWidth() {
-        return surfaceCard(surfaceKind).width();
+        return surfaceCard(bookState.surfaceKind).width();
     }
 
     int overlayHeight() {
-        return surfaceCard(surfaceKind).height();
+        return surfaceCard(bookState.surfaceKind).height();
     }
 
     // ------------------------------------------------------------------
@@ -4155,8 +2387,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * chapter be opened", and the two would disagree the first time one of them changed.
      */
     static String effectiveChapter() {
-        if (frameChapterActive) {
-            return frameChapter;
+        if (BookScreenState.frameChapterActive) {
+            return BookScreenState.frameChapter;
         }
         return BookContent.computeEffectiveChapter();
     }
@@ -4225,11 +2457,11 @@ public final class QuestBookScreen extends ArmatureScreen
      * once would be describing the previous window for an unknown number of frames.
      */
     Viewport viewport() {
-        if (frameActive && frameViewport != null) {
-            return frameViewport;
+        if (bookState.frameActive && bookState.frameViewport != null) {
+            return bookState.frameViewport;
         }
         BookGeometry.Rect canvas = geometry().canvas();
-        return VIEW.bounds(canvas.x(), canvas.y(), canvas.width(), canvas.height());
+        return BookScreenState.VIEW.bounds(canvas.x(), canvas.y(), canvas.width(), canvas.height());
     }
 
     /**
@@ -4241,7 +2473,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * they used to be three.
      */
     Viewport overlayBody() {
-        return overlayView.viewport().bounds(
+        return bookState.overlayView.viewport().bounds(
                 overlayLeft() + BODY_INSET,
                 overlayTop() + BODY_TOP,
                 overlayWidth() - BODY_INSET * 2,
@@ -4251,11 +2483,11 @@ public final class QuestBookScreen extends ArmatureScreen
     /** The whole selection: the primary first, then the rest in the order they were added. */
     static List<String> selection() {
         List<String> all = new ArrayList<>();
-        if (selectedQuest != null) {
-            all.add(selectedQuest);
+        if (BookScreenState.selectedQuest != null) {
+            all.add(BookScreenState.selectedQuest);
         }
-        for (String id : multiSelection) {
-            if (!id.equals(selectedQuest)) {
+        for (String id : BookScreenState.multiSelection) {
+            if (!id.equals(BookScreenState.selectedQuest)) {
                 all.add(id);
             }
         }
@@ -4360,7 +2592,7 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     ArmatureButton control(int x, int y, int w, int h, Component label, Runnable onPress) {
         ArmatureButton button = new ArmatureButton(x, y, w, h, label, onPress);
-        buttons.add(button);
+        bookState.buttons.add(button);
         // Nothing is recorded for a redraw, and that is the one-presentation simplification worth naming:
         // a rail is drawn in the chrome band *before* the widget pass, so this button is already on top of
         // its own surface. A card was drawn after the pass, which is why every control on one used to need a
@@ -4402,7 +2634,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * changes.
      */
     Viewport partyColumn(boolean left) {
-        ScrollView view = left ? partyLeftView : partyRightView;
+        ScrollView view = left ? bookState.partyLeftView : bookState.partyRightView;
         BookGeometry.Rect body = partyBody();
         if (body == null) {
             return view.viewport().bounds(0, 0, 0, 0);
@@ -4410,7 +2642,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // **One face gets the whole body.** A panel with no right face -- the notice, a phase, and the
         // docked party's stack -- is one column of content, so it takes the full width rather than the left
         // share of a split with nothing on the other side of it.
-        if (partyRightFace == null) {
+        if (bookState.partyRightFace == null) {
             return view.viewport().bounds(body.x(), body.y(), body.width(), body.height());
         }
         int wide = PartyPanelLayout.leftWidth(body.width());
@@ -4427,10 +2659,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * last roster rows would sit under the controls.
      */
     BookGeometry.Rect partyBody() {
-        if (partyCard == null) {
+        if (bookState.partyCard == null) {
             return null;
         }
-        PanelLayout.Frame frame = PanelLayout.frame(partyCard, carriesFold(PanelKind.PARTY),
+        PanelLayout.Frame frame = PanelLayout.frame(bookState.partyCard, carriesFold(PanelKind.PARTY),
                 BookGeometry.MODAL_FOOTER_HEIGHT);
         if (carriesFold(PanelKind.PARTY)) {
             return frame.body();
@@ -4440,13 +2672,13 @@ public final class QuestBookScreen extends ArmatureScreen
         // this column carries it, which a root never does -- the Back control is built on the
         // child column -- so nothing overlaps up there.
         BookGeometry.Rect body = frame.body();
-        int top = Math.min(partyCard.y() + PanelLayout.BODY_INSET, body.bottom());
+        int top = Math.min(bookState.partyCard.y() + PanelLayout.BODY_INSET, body.bottom());
         return BookGeometry.Rect.at(body.x(), top, body.width(), Math.max(0, body.bottom() - top));
     }
 
     /** A content-sized face's height, to hand {@code modalFramed}. */
     private int faceHeight(PartyPanelLayout.Face face, int width) {
-        return face.build(width - BookGeometry.MODAL_INSET * 2, TEXT_MEASURE).height();
+        return face.build(width - BookGeometry.MODAL_INSET * 2, BookScreenState.TEXT_MEASURE).height();
     }
 
     /** Whether parties can be used at all: singleplayer with LAN closed is the one refusal. */
@@ -4500,33 +2732,12 @@ public final class QuestBookScreen extends ArmatureScreen
      * new content, and a 90-millisecond settle replays rather than sticks.
      */
     void openMenu(List<BookMenu.MenuItem> items) {
-        menu = List.copyOf(items);
-        menuOpenedAt = net.minecraft.util.Util.getMillis();
+        bookState.menu = List.copyOf(items);
+        bookState.menuOpenedAt = net.minecraft.util.Util.getMillis();
     }
 
-    /**
-     * When the Import popover opened, in {@code Util.getMillis()} terms; -1 when it never has.
-     *
-     * <p>Stamped at the toggle that opens it — the resets elsewhere only ever shut it. Read by
-     * {@link BookRewards#importRise}, which is the popover's share of the menus' climb.
-     */
-    long tableImportOpenedAt = -1L;
-
-    // --- the previews: the same patches the writers build, stamped as pending and not sent.
-
-    /**
-     * The pending chapter look: a patch a drag is showing but has not written.
-     *
-     * <p>Kept beside the {@code FieldDraft} rather than only in it because {@link #viewportTheme} is
-     * static -- the same convention {@code selectedQuest} uses for screen-level state -- and because the
-     * canvas needs the whole patch, not one path's value. It is what makes the canvas follow a drag before
-     * the round trip; the commit then writes the same patch, and the draft's own reconcile retires both
-     * when the tree carries the value.
-     */
-    static JsonObject pendingChapterTheme;
-
     JsonObject previewBase() {
-        return themeTargetsChapter && effectiveChapter() != null
+        return bookState.themeTargetsChapter && effectiveChapter() != null
                 ? questEditor.chapterThemePatchOf(effectiveChapter()).deepCopy() : null;
     }
 
@@ -4535,8 +2746,8 @@ public final class QuestBookScreen extends ArmatureScreen
         if (chapter == null) {
             return;
         }
-        pendingChapterTheme = patch;
-        fieldDraft.set(chapter, dev.ellipog.tenet.client.dev.FieldDraft.CHAPTER_OWNER, "themePatch",
+        BookScreenState.pendingChapterTheme = patch;
+        BookScreenState.fieldDraft.set(chapter, dev.ellipog.tenet.client.dev.FieldDraft.CHAPTER_OWNER, "themePatch",
                 patch, ClientQuestCache.treeRevision(), net.minecraft.util.Util.getMillis());
     }
 
@@ -4553,7 +2764,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * which is the bug this signature closes. See {@link PopoverChip}.
      */
     boolean chipOnScreen(dev.ellipog.armature.client.ui.kit.ScrollView view) {
-        PopoverChip anchor = popoverChip;
+        PopoverChip anchor = bookState.popoverChip;
         if (anchor == null || anchor.view() != view || view.layout() == null) {
             return true;
         }
@@ -4577,10 +2788,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * should be unreachable; the guard makes it unrepresentable instead of unexpected.
      */
     void buildPopoverWidgets() {
-        if (!colourPopover.isOpen()) {
+        if (!bookState.colourPopover.isOpen()) {
             return;
         }
-        for (net.minecraft.client.gui.components.AbstractWidget widget : colourPopover.widgets()) {
+        for (net.minecraft.client.gui.components.AbstractWidget widget : bookState.colourPopover.widgets()) {
             if (!children().contains(widget)) {
                 addRenderableWidget(widget);
             }
@@ -4631,31 +2842,32 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     void refreshOverlayMute() {
         // Give back exactly what this took, before deciding what to take now.
-        for (net.minecraft.client.gui.components.AbstractWidget widget : mutedBehind) {
+        for (net.minecraft.client.gui.components.AbstractWidget widget : bookState.mutedBehind) {
             widget.active = true;
         }
-        mutedBehind.clear();
+        bookState.mutedBehind.clear();
 
         java.util.List<net.minecraft.client.gui.components.AbstractWidget> mine = new ArrayList<>();
         java.util.List<BookGeometry.Rect> bands = new ArrayList<>();
         boolean everythingElse = false;
-        if (colourPopover.isOpen()) {
+        if (bookState.colourPopover.isOpen()) {
             everythingElse = true;
-            mine.addAll(colourPopover.widgets());
+            mine.addAll(bookState.colourPopover.widgets());
         }
         // The three pages, each of which takes the card's body while it is open -- and one band for all of
         // them, because that is what they take: `typePageBand` is this same rectangle.
-        boolean pageOpen = typePageOpen() || (pickingItemPath != null && !itemPicker.pickerAsColumn()) || settingsOpen;
+        boolean pageOpen = typePageOpen() || (bookState.pickingItemPath != null
+                && !itemPicker.pickerAsColumn()) || bookState.settingsOpen;
         if (pageOpen) {
             bands.add(overlayBodyRect());
         }
-        if (typePageOpen() && typeSearch != null) {
-            mine.add(typeSearch);
+        if (typePageOpen() && bookState.typeSearch != null) {
+            mine.add(bookState.typeSearch);
         }
-        if (pickingItemPath != null && !itemPicker.pickerAsColumn() && itemSearch != null) {
-            mine.add(itemSearch);
+        if (bookState.pickingItemPath != null && !itemPicker.pickerAsColumn() && bookState.itemSearch != null) {
+            mine.add(bookState.itemSearch);
         }
-        if (settingsOpen) {
+        if (bookState.settingsOpen) {
             mine.addAll(settingsPageWidgets());
         }
         if (!everythingElse && bands.isEmpty()) {
@@ -4669,7 +2881,7 @@ public final class QuestBookScreen extends ArmatureScreen
             if (!everythingElse && !coveredByAny(widget, bands)) {
                 continue;
             }
-            mutedBehind.add(widget);
+            bookState.mutedBehind.add(widget);
             widget.active = false;
         }
     }
@@ -4690,8 +2902,8 @@ public final class QuestBookScreen extends ArmatureScreen
     /** The widgets the open settings page owns: the fields its own rows placed, and nothing else. */
     private java.util.List<net.minecraft.client.gui.components.AbstractWidget> settingsPageWidgets() {
         java.util.List<net.minecraft.client.gui.components.AbstractWidget> mine = new ArrayList<>();
-        for (dev.ellipog.tenet.client.dev.QuestSettingsLayout.Row row : settingsRows) {
-            net.minecraft.client.gui.components.AbstractWidget widget = settingsView.get(row.key());
+        for (dev.ellipog.tenet.client.dev.QuestSettingsLayout.Row row : bookState.settingsRows) {
+            net.minecraft.client.gui.components.AbstractWidget widget = bookState.settingsView.get(row.key());
             if (widget != null) {
                 mine.add(widget);
             }
@@ -4724,24 +2936,24 @@ public final class QuestBookScreen extends ArmatureScreen
      * the surface gone is the report this answers: the picker draws nothing and its boxes stay.
      */
     void closeColourPopover() {
-        if (!colourPopover.isOpen()) {
+        if (!bookState.colourPopover.isOpen()) {
             return;
         }
-        colourPopover.close();
-        for (net.minecraft.client.gui.components.AbstractWidget widget : colourPopover.widgets()) {
+        bookState.colourPopover.close();
+        for (net.minecraft.client.gui.components.AbstractWidget widget : bookState.colourPopover.widgets()) {
             while (children().contains(widget)) {
                 removeWidget(widget);
             }
         }
-        popoverOpenedAt = -1L;
-        popoverBaseX.clear();
+        bookState.popoverOpenedAt = -1L;
+        bookState.popoverBaseX.clear();
         // The controls it was covering are controls again.
         refreshOverlayMute();
     }
 
     /** The list layout the open tab is showing: the book's rows, or the chapter's combined list. */
     Layout activeLayout() {
-        return toolsTab == ToolsLayout.Tab.CHAPTER ? chapterLayout : toolsLayout;
+        return bookState.toolsTab == ToolsLayout.Tab.CHAPTER ? bookState.chapterLayout : bookState.toolsLayout;
     }
 
     /**
@@ -4752,19 +2964,20 @@ public final class QuestBookScreen extends ArmatureScreen
      * that has one needs the other.
      */
     List<ToolsLayout.Action> activeRows() {
-        if (toolsTab != ToolsLayout.Tab.CHAPTER) {
-            return toolsRows;
+        if (bookState.toolsTab != ToolsLayout.Tab.CHAPTER) {
+            return bookState.toolsRows;
         }
         // **Both halves of the chapter tab**, not just the appearance rows: the chapter's own rows are
         // drawn by the same dispatch now, so the tooltip lookup, the chooser's slot lookup and the chips'
         // walk all read one list -- and the layout they are asking is `chapterLayout`, which holds exactly
         // this pair in this order.
-        if (chapterRows.isEmpty()) {
-            return chapterAppearanceRows;
+        if (bookState.chapterRows.isEmpty()) {
+            return bookState.chapterAppearanceRows;
         }
-        List<ToolsLayout.Action> both = new ArrayList<>(chapterRows.size() + chapterAppearanceRows.size());
-        both.addAll(chapterRows);
-        both.addAll(chapterAppearanceRows);
+        List<ToolsLayout.Action> both = new ArrayList<>(bookState.chapterRows.size()
+                + bookState.chapterAppearanceRows.size());
+        both.addAll(bookState.chapterRows);
+        both.addAll(bookState.chapterAppearanceRows);
         return List.copyOf(both);
     }
 
@@ -4776,7 +2989,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * chapter tab keeps the content-only layout it has always had.
      */
     boolean toolsAppearanceVisible() {
-        return toolsTab == ToolsLayout.Tab.BOOK || (mayEditNow() && effectiveChapter() != null);
+        return bookState.toolsTab == ToolsLayout.Tab.BOOK || (mayEditNow() && effectiveChapter() != null);
     }
 
     // ------------------------------------------------------------------
@@ -4801,7 +3014,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // catches up. It has to be an overlay rather than a check per read -- the draft is keyed by the
         // op's path (`tasks.0.count`) while the drawing reads a field's path relative to its entry
         // (`count`), and the first version's per-read check therefore never matched a task or reward.
-        return fieldDraft.overlaid(chapter, target, ClientChapterReplica.quest(chapter, target));
+        return BookScreenState.fieldDraft.overlaid(chapter, target, ClientChapterReplica.quest(chapter, target));
     }
 
     /**
@@ -4813,12 +3026,12 @@ public final class QuestBookScreen extends ArmatureScreen
      * entry's own chapter, because the canvas and the delete notes ask from static helpers.
      */
     static List<String> dependenciesOf(ClientQuestCache.Entry entry) {
-        return fieldDraft.strings(entry.chapterId(), entry.id(), "dependsOn", entry.dependencies());
+        return BookScreenState.fieldDraft.strings(entry.chapterId(), entry.id(), "dependsOn", entry.dependencies());
     }
 
     /** A quest's title, with a committed rename winning over the tree the sidebar draws. */
     static String titleOf(ClientQuestCache.Entry entry) {
-        return fieldDraft.text(entry.chapterId(), entry.id(), "title", entry.titleText());
+        return BookScreenState.fieldDraft.text(entry.chapterId(), entry.id(), "title", entry.titleText());
     }
 
     /**
@@ -4829,7 +3042,8 @@ public final class QuestBookScreen extends ArmatureScreen
      * edit is for -- the two surfaces share every commit path below.
      */
     String editTarget() {
-        return overlay == PanelKind.QUEST && overlayQuest != null ? overlayQuest : selectedQuest;
+        return bookState.overlay == PanelKind.QUEST && bookState.overlayQuest != null ? bookState.overlayQuest
+                : BookScreenState.selectedQuest;
     }
 
     static boolean flagOn(JsonObject quest, String path) {
@@ -4857,9 +3071,9 @@ public final class QuestBookScreen extends ArmatureScreen
             status("tenet.status.open_a_quest_to_add_a_prerequisite_to", true);
             return;
         }
-        pendingPick = new dev.ellipog.tenet.client.dev.DependencyPick(quest, effectiveChapter(),
+        bookState.pendingPick = new dev.ellipog.tenet.client.dev.DependencyPick(quest, effectiveChapter(),
                 QuestPanelLayout.strings(replicaQuest(), "dependsOn"));
-        pickingDependency = true;
+        bookState.pickingDependency = true;
         bookCanvas.pendingLinkPick = null;
         closeOverlay();
         status("Click the quest to depend on \u2014 any chapter or group \u2014 Escape cancels", false);
@@ -4875,7 +3089,8 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** The canvas background in force for the panel's target. */
     CanvasBackground editedBackground() {
-        return themeTargetsChapter ? questEditor.editedTheme().background() : ClientAppearance.LOOK.background();
+        return bookState.themeTargetsChapter ? questEditor.editedTheme().background()
+                : ClientAppearance.LOOK.background();
     }
 
     /**
@@ -4909,52 +3124,52 @@ public final class QuestBookScreen extends ArmatureScreen
         // below because opening the editor changes which branch builds the widgets.
         String requestedTable = dev.ellipog.tenet.client.ClientTableOpen.take();
         if (requestedTable != null) {
-            tableAddress = dev.ellipog.tenet.editor.TableAddress.of(requestedTable);
-            tableStack.clear();
-            tableApplied = 0;
-            tableUndone = 0;
-            tableFolded.clear();
-            tableShowRoll = false;
-            tableImportOpen = false;
-            tablePreview = dev.ellipog.tenet.quest.reward.TableReward.Mode.RANDOM;
+            bookState.tableAddress = dev.ellipog.tenet.editor.TableAddress.of(requestedTable);
+            bookState.tableStack.clear();
+            bookState.tableApplied = 0;
+            bookState.tableUndone = 0;
+            bookState.tableFolded.clear();
+            bookState.tableShowRoll = false;
+            bookState.tableImportOpen = false;
+            bookState.tablePreview = dev.ellipog.tenet.quest.reward.TableReward.Mode.RANDOM;
             applyColumns(PanelStack.asRoot(columns(), PanelKind.TABLE_EDITOR));
         }
         // Which dock tab the author was reading, from the file that remembers it. Seeded here rather than
         // as a field initialiser because the file is read at client start, and a screen built before that
         // read would otherwise decide the tab from a default it then keeps for the session.
-        toolsTab = dev.ellipog.tenet.client.ClientWorking.CHAPTER_TAB.equals(
+        bookState.toolsTab = dev.ellipog.tenet.client.ClientWorking.CHAPTER_TAB.equals(
                 dev.ellipog.tenet.client.ClientWorking.drawerTab())
                 ? ToolsLayout.Tab.CHAPTER : ToolsLayout.Tab.BOOK;
         // And what the player asked the second column to do, from the file that remembers it — the same
         // reason and the same place: it is a preference about this client, read before anything can fold.
-        foldChoice = DevMode.panelFold();
+        bookState.foldChoice = DevMode.panelFold();
         // First, because everything below is built from the caches it names -- and the frame that
         // must notice them moving is the one after this returns. See `watchSources`.
         watchSources();
         clearWidgets();
-        buttons.clear();
-        panelOverlays.clear();
+        bookState.buttons.clear();
+        bookState.panelOverlays.clear();
         // And the slide's filing: the widgets are gone with the clear above, so their bases go too —
         // a rebuilt rail re-files as it builds, and a base left behind would slide a control that no
         // longer belongs to the kind it names.
-        slideWidgets.clear();
-        slideBaseX.clear();
-        sidebarTravelBase.clear();
+        bookState.slideWidgets.clear();
+        bookState.slideBaseX.clear();
+        bookState.sidebarTravelBase.clear();
         // And the departed rows — unless a collapse is riding out, in which case the rebuild about
         // to happen builds the sliver behind them and the orphans keep riding: dropping them here
         // would vanish the list mid-slide, which is the pop they exist to prevent. Every arrival
         // (expand, peek, float, dock) clears `sidebarDeparting` first, so keeping them here only
         // ever preserves a departure still in flight.
-        if (!sidebarDeparting) {
-            sidebarDeparted.clear();
-            sidebarDepartAnchor = null;
+        if (!bookState.sidebarDeparting) {
+            bookState.sidebarDeparted.clear();
+            bookState.sidebarDepartAnchor = null;
         }
         // Nulled with the list it came from. `init` rebuilds Close only on the branch that builds the
         // book, so leaving this set would have `render` draw a control the screen no longer owns — see
         // the guard at the drawing site for what that looks like.
-        closeButton = null;
-        partyButton = null;
-        rewardsButton = null;
+        bookState.closeButton = null;
+        bookState.partyButton = null;
+        bookState.rewardsButton = null;
         // Cleared with them: the rows are drawn from these lists, so a rebuild that left them alone
         // would draw the previous panel's rows over the new one. The card and the layouts go with them,
         // because one pass records them together and a card left behind would draw a box for a panel
@@ -4965,35 +3180,35 @@ public final class QuestBookScreen extends ArmatureScreen
         // an open panel rebuilds them below, a settled close has no exit reading them, and a reopen
         // recomputes before anything draws.
         if (!panelDeparting(PanelKind.PARTY, net.minecraft.util.Util.getMillis())) {
-            partyLeftLines = new ArrayList<>();
-            partyRightLines = new ArrayList<>();
-            partyLeftFace = null;
-            partyRightFace = null;
-            partyCard = null;
-            partyLeftLayout = null;
-            partyRightLayout = null;
+            bookState.partyLeftLines = new ArrayList<>();
+            bookState.partyRightLines = new ArrayList<>();
+            bookState.partyLeftFace = null;
+            bookState.partyRightFace = null;
+            bookState.partyCard = null;
+            bookState.partyLeftLayout = null;
+            bookState.partyRightLayout = null;
         }
         // And the scroll views' widgets, for the reason the three above are cleared: they belong to
         // the panel being replaced. `buildPartyWidgets` clears them too, but only on the branch that
         // builds a panel -- a rebuild for a quest would otherwise leave the views holding controls
         // that are no longer on the screen.
-        partyLeftView.clear();
-        partyRightView.clear();
+        bookState.partyLeftView.clear();
+        bookState.partyRightView.clear();
         // And the armed Disband, because a rebuild is a new panel: the row a player armed may not be
         // there any more, and a control that says "Confirm" for a press it no longer remembers is
         // worse than one that forgot.
-        disbandButton = null;
-        disbandPress.disarm();
+        bookState.disbandButton = null;
+        bookState.disbandPress.disarm();
         // And the armed canvas copy, for the same reason -- with one exception: the arming press's own
         // rebuild sets `canvasCopyArming`, because a rebuild is what puts the armed label on the row.
-        if (!canvasCopyArming) {
-            canvasCopyArmed = false;
+        if (!bookState.canvasCopyArming) {
+            bookState.canvasCopyArmed = false;
         }
-        canvasCopyButton = null;
-        partyNameField = null;
-        partyCreateField = null;
-        partySearchField = null;
-        partyControls.clear();
+        bookState.canvasCopyButton = null;
+        bookState.partyNameField = null;
+        bookState.partyCreateField = null;
+        bookState.partySearchField = null;
+        bookState.partyControls.clear();
         // `partyRenaming` is deliberately NOT reset here, and that is a fix for a report: the name's
         // own press sets the flag and then rebuilds, so a reset in this path cancelled the edit on the
         // same click -- "edit party name doesn't do anything". A panel opened afresh still resets it,
@@ -5018,15 +3233,15 @@ public final class QuestBookScreen extends ArmatureScreen
             ClientQuestCache.Entry entry = BookContent.cacheEntryFor(questId);
             if (entry != null) {
                 bookSidebar.selectChapter(entry.chapterId());
-                selectedQuest = questId;
-                centred = true;
+                BookScreenState.selectedQuest = questId;
+                BookScreenState.centred = true;
                 // A node click, wherever it came from: the quest takes the first column and the second is
                 // emptied, because a child belonged to the quest that is no longer showing.
                 applyColumns(PanelStack.afterNodeClick(columns()));
-                overlayQuest = questId;
+                bookState.overlayQuest = questId;
                 // A card opened from outside the book is a fresh session, not a continuation of one:
                 // there is no "where I came from" for the arrow to return to.
-                overlayHistory.clear();
+                bookState.overlayHistory.clear();
             }
         });
 
@@ -5073,14 +3288,14 @@ public final class QuestBookScreen extends ArmatureScreen
         // `buildChoiceWidgets` -- so it is the one kind with a build step of its own. Every other kind's
         // controls come from `buildColumn`, which is what makes "a column is built from what it holds"
         // true for all of them.
-        if (overlay == PanelKind.CHOICE) {
-            PanelKind outer = slideBucket;
-            slideBucket = PanelKind.CHOICE;
+        if (bookState.overlay == PanelKind.CHOICE) {
+            PanelKind outer = bookState.slideBucket;
+            bookState.slideBucket = PanelKind.CHOICE;
             try {
                 bookOverlay.buildChoiceWidgets();
             }
             finally {
-                slideBucket = outer;
+                bookState.slideBucket = outer;
             }
         }
         return;
@@ -5094,7 +3309,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * same for every one of them or a panel's footer would be placed from two different rectangles.
      */
     Map<String, BookGeometry.Rect> overlayControls(boolean hasSubmit) {
-        return geometry().questFooter(surfaceCard(surfaceKind), hasSubmit);
+        return geometry().questFooter(surfaceCard(bookState.surfaceKind), hasSubmit);
     }
 
     /** The card's body as a rectangle, for the layouts that take one. */
@@ -5109,17 +3324,17 @@ public final class QuestBookScreen extends ArmatureScreen
      * <p>Every press target is registered afresh each frame (the lists are rebuilt by the drawing), so
      * the frame's own offset is the right one: a press between frames meets positions at most a frame
      * stale, which is the same staleness every control in the game already has. Zero unless the rail
-     * this draw belongs to is travelling — read off {@link #surfaceKind}, which the surface sets before
+     * this draw belongs to is travelling — read off {@link BookScreenState#surfaceKind}, which the surface sets before
      * anything inside it registers, so a caller outside a surface can never borrow the wrong rail's
      * motion. Hover washes and scrollbar thumbs are deliberately not shifted: a highlight may lag the
      * slide by a frame, but a press must not land anywhere but on what is drawn.
      */
     BookGeometry.Rect shiftHit(BookGeometry.Rect box) {
-        if (box == null || surfaceKind == null || surfaceKind == PanelKind.NONE) {
+        if (box == null || bookState.surfaceKind == null || bookState.surfaceKind == PanelKind.NONE) {
             return box;
         }
-        int offset = PanelLayout.slideOffset(panelRail(surfaceKind),
-                panelRevealElapsed(surfaceKind, net.minecraft.util.Util.getMillis()), panelRevealMillis());
+        int offset = PanelLayout.slideOffset(panelRail(bookState.surfaceKind),
+                panelRevealElapsed(bookState.surfaceKind, net.minecraft.util.Util.getMillis()), panelRevealMillis());
         if (offset == 0) {
             return box;
         }
@@ -5155,7 +3370,7 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** Whether a type page -- a list of tasks, rewards or conditions -- is over the card. */
     boolean typePageOpen() {
-        return pickingEntryType != null || pickingConditionFor != null;
+        return bookState.pickingEntryType != null || bookState.pickingConditionFor != null;
     }
 
     static ItemStack itemStack(String id) {
@@ -5208,13 +3423,13 @@ public final class QuestBookScreen extends ArmatureScreen
     boolean pressDropdown(double mouseX, double mouseY, int button) {
         // The shared menu and the flyout beside it. `pressMenu` already means "a row runs, a flyout tunes or
         // chooses, anything else closes and is spent", so the whole of this half is asking it first.
-        if (!menu.isEmpty()) {
+        if (!bookState.menu.isEmpty()) {
             return bookMenu.pressMenu(mouseX, mouseY);
         }
         // The table editor's Import popover, on the menu's terms: two drawn rows in a box, and a press
         // anywhere inside that box that is not on one of them dismisses it rather than reaching the entry
         // row, the field or the canvas under it.
-        if (tableImportOpen && overlay == PanelKind.TABLE_EDITOR) {
+        if (bookState.tableImportOpen && bookState.overlay == PanelKind.TABLE_EDITOR) {
             return itemPicker.pressImportPopover(mouseX, mouseY, button);
         }
         return false;
@@ -5248,9 +3463,9 @@ public final class QuestBookScreen extends ArmatureScreen
      * overlay that claims presses cannot leave hover behind.
      */
     private boolean overlayOwnsPointer() {
-        return !menu.isEmpty()
-                || (tableImportOpen && overlay == PanelKind.TABLE_EDITOR)
-                || colourPopover.isOpen();
+        return !bookState.menu.isEmpty()
+                || (bookState.tableImportOpen && bookState.overlay == PanelKind.TABLE_EDITOR)
+                || bookState.colourPopover.isOpen();
     }
 
     // ------------------------------------------------------------------
@@ -5289,11 +3504,12 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     @Override
     public net.minecraft.client.renderer.Rect2i dropArea() {
-        if (overlay != PanelKind.TABLE_EDITOR || tableAddress == null || tableEditorFrame == null
-                || tableShowRoll || pickingEntryType != null) {
+        if (bookState.overlay != PanelKind.TABLE_EDITOR || bookState.tableAddress == null
+                || bookState.tableEditorFrame == null
+                || bookState.tableShowRoll || bookState.pickingEntryType != null) {
             return null;
         }
-        BookGeometry.Rect list = tableEditorFrame.list();
+        BookGeometry.Rect list = bookState.tableEditorFrame.list();
         return new net.minecraft.client.renderer.Rect2i(list.x(), list.y(), list.width(), list.height());
     }
 
@@ -5313,8 +3529,8 @@ public final class QuestBookScreen extends ArmatureScreen
         int entries = bookRewards.tableModel().map(dev.ellipog.tenet.quest.loot.RewardTable::entryCount).orElse(0);
         int at = Double.isNaN(mouseX) || Double.isNaN(mouseY)
                 ? entries
-                : dev.ellipog.tenet.client.dev.TableEditorLayout.dropIndexAt(entries, tableEditorFrame,
-                        tableEditorBody.scrollY(), mouseX, mouseY, bookAssets.tableFolds());
+                : dev.ellipog.tenet.client.dev.TableEditorLayout.dropIndexAt(entries, bookState.tableEditorFrame,
+                        bookState.tableEditorBody.scrollY(), mouseX, mouseY, bookAssets.tableFolds());
         if (at < 0) {
             return false;
         }
@@ -5330,7 +3546,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // pick of one stack are one entry, and the count is the stack's either way.
         JsonObject entry = QuestPanelLayout.itemEntry(id, stack.getCount(), components);
         BookRewards.tableDraft.forgetList(effectiveChapter(), bookRewards.tableOwnerKey(), "entries");
-        bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Insert(tableAddress, at, entry));
+        bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Insert(bookState.tableAddress, at, entry));
         status("Added " + (stack.getCount() > 1 ? stack.getCount() + "x " : "") + id, false);
         return true;
     }
@@ -5341,17 +3557,17 @@ public final class QuestBookScreen extends ArmatureScreen
         applyColumns(PanelStack.afterClose(columns(), false));
         // No reveal to cancel and no width to drop for the dock's sake: `applyColumns` has just forgotten the
         // arrival of anything that left the arrangement, and the dock is not one of the things this closes.
-        panelDragRail = null;
-        panelDragKind = PanelKind.NONE;
-        panelLiveWidth = 0;
-        rowHover.clear();
+        bookState.panelDragRail = null;
+        bookState.panelDragKind = PanelKind.NONE;
+        bookState.panelLiveWidth = 0;
+        bookState.rowHover.clear();
         // The content nullings are deferred, not dropped: the exiting rails draw from this state for the
         // length of their slide. They run when the exits sink, or early if one of these rails reopens
         // first — teardown before setup, as ever. The gestures and the commits below stay immediate: a
         // drag has no surface to follow, and a picker's commit must not wait out an animation.
         deferForLastDeparted(() -> {
-            overlayQuest = null;
-            overlayView.scrollTo(0);
+            bookState.overlayQuest = null;
+            bookState.overlayView.scrollTo(0);
             // And the element panel is about nothing once it is closed: its rows were built for one element, and a
             // subject left behind would be a panel that could be reopened onto whatever that id means later.
             bookCanvas.elementPanelId = null;
@@ -5362,31 +3578,31 @@ public final class QuestBookScreen extends ArmatureScreen
             bookCanvas.elementConfirmingDelete = null;
             // The chain of jumps ends with the card: a stale stack would replay a trail from a card the
             // reader closed, and the next card they open is a fresh session with its own history.
-            overlayHistory.clear();
+            bookState.overlayHistory.clear();
             // The folds are the card's too: the next card has its own list, and an index folded here names
             // nothing there.
-            entryFolded.clear();
+            bookState.entryFolded.clear();
             // The Assets panel's pressable list, which belongs to the frame that drew it: a list left behind
             // would answer a press on a row that is no longer on screen.
             bookAssets.assetsTargets.clear();
             bookAssets.assetsBody.setScrollY(0);
             // An arm made in the Assets panel is that panel's, so it goes when the panel does: left behind, the
             // next table of the same name would be removed on one press by a chip nobody had asked about.
-            assetsConfirmRemove = null;
-            entryConfirmRemove = null;
-            confirmingDelete = false;
-            settingsOpen = false;
-            draggingSlider = null;
-            settingsDraft.clear();
+            bookState.assetsConfirmRemove = null;
+            bookState.entryConfirmRemove = null;
+            bookState.confirmingDelete = false;
+            bookState.settingsOpen = false;
+            bookState.draggingSlider = null;
+            bookState.settingsDraft.clear();
             // The widgets go with the clear; the references and the path must not outlive them.
-            inlineField = null;
-            inlineArea = null;
-            editingPath = null;
+            bookState.inlineField = null;
+            bookState.inlineArea = null;
+            bookState.editingPath = null;
         });
         // And the colour picker when it belongs to this panel: its anchor rows are gone with it, and a
         // picker left standing would commit to an element nobody is looking at. A dock-anchored picker
         // stays -- the dock is not what closed.
-        if (popoverChip != null && popoverChip.view() == bookCanvas.elementView) {
+        if (bookState.popoverChip != null && bookState.popoverChip.view() == bookCanvas.elementView) {
             closeColourPopover();
         }
         // The editor's transient state goes with the card: a picker left armed would greet the next
@@ -5412,20 +3628,21 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     void navigateToQuest(String questId) {
         ClientQuestCache.Entry target = entryFor(questId);
-        if (target == null || questId.equals(overlayQuest)) {
+        if (target == null || questId.equals(bookState.overlayQuest)) {
             // An id the tree does not know cannot be opened, and a jump to the card already showing is
             // not a jump. Both are silent: there is nothing here for a player to fix.
             return;
         }
-        if (overlay == PanelKind.QUEST && overlayQuest != null) {
-            overlayHistory.add(new CardVisit(overlayQuest, overlayView.viewport().scrollY(),
-                    Set.copyOf(entryFolded)));
+        if (bookState.overlay == PanelKind.QUEST && bookState.overlayQuest != null) {
+            bookState.overlayHistory.add(new CardVisit(bookState.overlayQuest,
+                    bookState.overlayView.viewport().scrollY(),
+                    Set.copyOf(bookState.entryFolded)));
         }
         if (!target.chapterId().equals(effectiveChapter())) {
             bookSidebar.selectChapter(target.chapterId());
         }
-        selectedQuest = questId;
-        multiSelection.clear();
+        BookScreenState.selectedQuest = questId;
+        BookScreenState.multiSelection.clear();
         bookRewards.openOverlay(questId);
     }
 
@@ -5453,8 +3670,8 @@ public final class QuestBookScreen extends ArmatureScreen
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
             float partialTick) {
-        renderMouseX = mouseX;
-        renderMouseY = mouseY;
+        bookState.renderMouseX = mouseX;
+        bookState.renderMouseY = mouseY;
         // The intro's anchors are re-placed while drawing, so a closed panel cannot leave a stale
         // one: each frame starts with none, and the quest card's add rows file theirs as they draw.
         bookCanvas.introTaskBox = null;
@@ -5611,12 +3828,12 @@ public final class QuestBookScreen extends ArmatureScreen
                 // while the three buttons travel would frame empty air for 160 milliseconds. Same
                 // anchor the buttons read, so the mat and its controls never disagree mid-slide.
                 long clusterNow = net.minecraft.util.Util.getMillis();
-                if (sidebarSlideStart >= 0 && sidebarSliding(clusterNow)
-                        && (geometry().sidebarState().expanded() || sidebarDeparting)) {
+                if (bookState.sidebarSlideStart >= 0 && sidebarSliding(clusterNow)
+                        && (geometry().sidebarState().expanded() || bookState.sidebarDeparting)) {
                     BookGeometry.Rect wipe = sidebarWipeRect(clusterNow);
                     BookGeometry.Rect target = geometry().sidebar();
-                    BookGeometry.Rect anchor = PanelLayout.sidebarTravelAnchor(sidebarDeparting,
-                            sidebarSlideFromRect, target, sidebarDepartAnchor);
+                    BookGeometry.Rect anchor = PanelLayout.sidebarTravelAnchor(bookState.sidebarDeparting,
+                            bookState.sidebarSlideFromRect, target, bookState.sidebarDepartAnchor);
                     BookGeometry.Rect base = geometry().viewControlsFor(anchor);
                     cluster = BookGeometry.Rect.at(base.x() + wipe.right() - anchor.right(),
                             base.y() + wipe.y() - anchor.y(), base.width(), base.height());
@@ -5685,9 +3902,9 @@ public final class QuestBookScreen extends ArmatureScreen
                 // The view cluster rides the same wipe, right-edge anchored beside the list: without
                 // it the three buttons jump between their docked and floating seats while the card
                 // glides. Same bases, same restore, one frame later the same answer again.
-                boolean sidebarWipeTravelling = sidebarSlideStart >= 0
+                boolean sidebarWipeTravelling = bookState.sidebarSlideStart >= 0
                         && sidebarSliding(Util.getMillis())
-                        && (geometry().sidebarState().expanded() || sidebarDeparting);
+                        && (geometry().sidebarState().expanded() || bookState.sidebarDeparting);
                 if (sidebarWipeTravelling) {
                     BookGeometry.Rect wipe = sidebarWipeRect(Util.getMillis());
                     BookGeometry.Rect target = geometry().sidebar();
@@ -5696,9 +3913,9 @@ public final class QuestBookScreen extends ArmatureScreen
                     // and lands whole, so live widgets are glued to the surface at both ends —
                     // and a collapse that reverses an expand mid-wipe continues from mid-wipe
                     // instead of snapping the rows back to full for a frame.
-                    BookGeometry.Rect anchor = PanelLayout.sidebarTravelAnchor(sidebarDeparting,
-                            sidebarSlideFromRect, target, sidebarDepartAnchor);
-                    if (!sidebarDeparting) {
+                    BookGeometry.Rect anchor = PanelLayout.sidebarTravelAnchor(bookState.sidebarDeparting,
+                            bookState.sidebarSlideFromRect, target, bookState.sidebarDepartAnchor);
+                    if (!bookState.sidebarDeparting) {
                         // The position's travel plus the width's shortfall: a wipe that only
                         // narrows keeps the rows' right edge on the moving edge, and one that
                         // moves the card carries the rows the same pixels. Either is zero when
@@ -5706,7 +3923,7 @@ public final class QuestBookScreen extends ArmatureScreen
                         // screen when the collapse started and are drawn by hand below.
                         int rowTravelX = wipe.x() - anchor.x() + wipe.width() - anchor.width();
                         int rowTravelY = wipe.y() - anchor.y();
-                        for (AbstractWidget widget : sidebarRowWidgets) {
+                        for (AbstractWidget widget : bookState.sidebarRowWidgets) {
                             travelSidebarWidget(widget, rowTravelX, rowTravelY);
                         }
                     }
@@ -5720,7 +3937,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     int matX = mat.x() + wipe.right() - anchor.right();
                     int matY = mat.y() + wipe.y() - anchor.y();
                     int slot = 0;
-                    for (AbstractWidget widget : viewClusterWidgets) {
+                    for (AbstractWidget widget : bookState.viewClusterWidgets) {
                         widget.setX(matX + BookGeometry.VIEW_MAT);
                         widget.setY(matY + BookGeometry.VIEW_MAT
                                 + slot * (BookGeometry.VIEW_BUTTON + BookGeometry.VIEW_GAP));
@@ -5736,7 +3953,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     // when the collapse started, so the pass above cannot draw them — and the wipe's
                     // own clip inside is what keeps them on the card, which is the whole of this
                     // rewrite. Only while orphans are aboard: settled, they are already discarded.
-                    if (sidebarDeparting && !sidebarDeparted.isEmpty()) {
+                    if (bookState.sidebarDeparting && !bookState.sidebarDeparted.isEmpty()) {
                         drawDepartedSidebar(renderer);
                     }
                     // The chapter rows' progress bars and reward counts, over the rows they belong to and
@@ -5752,7 +3969,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     // Unlike the bars above, these draw for a live rail drag too: reordering from the
                     // rail is a supported gesture, and a drag with no seam is a drag with no target.
                     if (!sidebarWipeTravelling
-                            && (geometry().sidebarState().expanded() || sidebarDragLive)) {
+                            && (geometry().sidebarState().expanded() || bookState.sidebarDragLive)) {
                         bookSidebar.drawSidebarDrag(renderer);
                     }
                     // The inline session's faint line under its field: the path preview as the
@@ -5763,13 +3980,13 @@ public final class QuestBookScreen extends ArmatureScreen
                     }
                     // And the menu, which is outside the rows' clip only in the sense that it overhangs
                     // them -- it belongs to the list, and it is drawn after it so nothing paints over it.
-                    bookMenu.drawMenu(renderer, renderMouseX, renderMouseY);
+                    bookMenu.drawMenu(renderer, bookState.renderMouseX, bookState.renderMouseY);
                     return null;
                 });
                 // The rows' travel is undone; the cluster's seats are always valid — freshly built
                 // or wipe-derived — so there is nothing to put back.
-                if (sidebarWipeTravelling && !sidebarDeparting) {
-                    for (AbstractWidget widget : sidebarRowWidgets) {
+                if (sidebarWipeTravelling && !bookState.sidebarDeparting) {
+                    for (AbstractWidget widget : bookState.sidebarRowWidgets) {
                         restoreSidebarTravel(widget);
                     }
                 }
@@ -5860,7 +4077,7 @@ public final class QuestBookScreen extends ArmatureScreen
             // nothing under the picker hovers -- and the picker's own four fields are the exception: they
             // are drawn here, and `ScrubField` works its hover out from the coordinates it is given rather
             // than from `isHovered`. See `overlayOwnsPointer`.
-            if (colourPopover.isOpen()) {
+            if (bookState.colourPopover.isOpen()) {
                 // The settle, shared with the fields and the pointer: the surface shifts inside its scope
                 // while its four fields travel by their own slide, so both land together. Two scopes
                 // rather than one, because the fields are already moved — translating them again here
@@ -5871,15 +4088,16 @@ public final class QuestBookScreen extends ArmatureScreen
                 try {
                     // Aimed where it is drawn: the hover washes and the arrow-key part read the pointer
                     // through the same shift the presses do.
-                    colourPopover.render(renderer, (int) pickerPointerX(renderMouseX), renderMouseY);
+                    bookState.colourPopover.render(renderer, (int) pickerPointerX(bookState.renderMouseX),
+                            bookState.renderMouseY);
                 }
                 finally {
                     pose.popMatrix();
                 }
                 for (net.minecraft.client.gui.components.AbstractWidget widget
-                        : colourPopover.widgets()) {
+                        : bookState.colourPopover.widgets()) {
                     if (widget instanceof dev.ellipog.tenet.client.dev.ScrubField field) {
-                        field.render(renderer, renderMouseX, renderMouseY);
+                        field.render(renderer, bookState.renderMouseX, bookState.renderMouseY);
                     }
                     else if (widget instanceof dev.ellipog.armature.client.ArmatureTextField text) {
                         text.render(renderer);
@@ -5930,8 +4148,8 @@ public final class QuestBookScreen extends ArmatureScreen
             // Consumed, because they are drawn here rather than where they are collected: the card fills
             // the list while it draws, and a frame that draws no card (the overlay closed, a chapter
             // switch) must not leave last frame's label standing over the canvas.
-            pendingLabels.clear();
-            rowTooltips.clear();
+            bookState.pendingLabels.clear();
+            bookState.rowTooltips.clear();
         }
         // The frame is over: the counting renderer (dev mode only) logs its totals at most once a second.
         // Here rather than anywhere earlier because the tooltips above are the last thing a frame draws.
@@ -5948,27 +4166,12 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     // ------------------------------------------------------------------
-    // The canvas
-    // ------------------------------------------------------------------
-
-    /**
-     * The element the author has selected, or empty.
-     *
-     * <p>Deliberately <b>not</b> folded into {@link #multiSelection}: element ids and quest ids are different
-     * namespaces, and every bulk operation would otherwise have to ask which kind each id is. One element at a
-     * time is also the honest shape of the gesture — an author moves a box or a logo, and the multi-select
-     * exists for dragging a group of <i>quests</i> together. See the chapter tab's element list for the way to
-     * reach an element the canvas cannot draw.
-     */
-    static String selectedElement;
-
-    // ------------------------------------------------------------------
     // The settings card
     // ------------------------------------------------------------------
 
     /** Whether the picker is choosing a picture: the tabs greet icon picks and no other pick. */
     boolean pickerTabsVisible() {
-        return isIconPick() && !typePageOpen() && pickingItemPath != null;
+        return isIconPick() && !typePageOpen() && bookState.pickingItemPath != null;
     }
 
     /**
@@ -6087,7 +4290,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * {@code FieldDraft.overlaid}, because it builds all of its rows from the tree at once.
      */
     void sendChapterField(String path, JsonElement value) {
-        fieldDraft.set(effectiveChapter(), dev.ellipog.tenet.client.dev.FieldDraft.CHAPTER_OWNER,
+        BookScreenState.fieldDraft.set(effectiveChapter(), dev.ellipog.tenet.client.dev.FieldDraft.CHAPTER_OWNER,
                 path, value, ClientQuestCache.treeRevision(), Util.getMillis());
         send(new EditorOp.SetChapter(path, value));
     }
@@ -6104,7 +4307,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * cannot be read, because the HUD is not drawn behind a screen. See {@link ToastStack}.
      */
     void toast(String message, boolean error) {
-        toasts.add(message, error, Util.getMillis());
+        bookState.toasts.add(message, error, Util.getMillis());
     }
 
     /** Minecraft's call; the book's answer is {@link BookFrame#tick}. */
@@ -6214,10 +4417,10 @@ public final class QuestBookScreen extends ArmatureScreen
     }
 
     public static void forgetViewState() {
-        selectedChapter = null;
-        frameChapterActive = false;
-        selectedQuest = null;
-        multiSelection.clear();
+        BookScreenState.selectedChapter = null;
+        BookScreenState.frameChapterActive = false;
+        BookScreenState.selectedQuest = null;
+        BookScreenState.multiSelection.clear();
         // The viewer request goes with the selection: it names a quest of the server being left, and a
         // book opened on the next server would look for a quest that is not there.
         QuestBookFocus.clear();
@@ -6241,31 +4444,31 @@ public final class QuestBookScreen extends ArmatureScreen
         // And the stages: a gate answered from the last server's flags would open a quest this one
         // has not unlocked.
         ClientStages.clear();
-        VIEW.setScale(1.0F);
-        VIEW.setOffset(0, 0);
-        pannedChapter = null;
-        centred = false;
+        BookScreenState.VIEW.setScale(1.0F);
+        BookScreenState.VIEW.setOffset(0, 0);
+        BookScreenState.pannedChapter = null;
+        BookScreenState.centred = false;
         // The warning memory goes with them, for the same reason as everything else here: it describes
         // a chapter of a server this client is no longer connected to. Without this, rejoining the same
         // server would stay quiet about a chapter theme that is still misspelled.
         //
         // There is no theme to release any more, and there were two calls here that did it. A chapter's
         // palette lives inside one frame now, so there is nothing that could outlive a disconnect.
-        warnedThemeFor = null;
+        BookScreenState.warnedThemeFor = null;
 
         // The sidebar's outline goes too, and the revision with it. The outline holds which groups the
         // player had collapsed, which is a fact about a questline on a server this client is no longer
         // connected to -- so keeping it would open the next server's book with the last one's collapses,
         // and `-1` means the next tree definitely re-seeds rather than possibly matching a revision it
         // happens to share.
-        sidebar = null;
-        sidebarChapters = List.of();
-        sidebarRevision = -1;
-        sidebarProgress = -1;
-        sidebarText = -1;
+        BookScreenState.sidebar = null;
+        BookScreenState.sidebarChapters = List.of();
+        BookScreenState.sidebarRevision = -1;
+        BookScreenState.sidebarProgress = -1;
+        BookScreenState.sidebarText = -1;
         // And the player's own expansions, for the reason the outline goes: they belong to a questline
         // on a server this client has left.
-        sidebarExpansion.clear();
+        BookScreenState.sidebarExpansion.clear();
     }
 
     @Override
@@ -6274,17 +4477,17 @@ public final class QuestBookScreen extends ArmatureScreen
         // Exits end with their world: any cleanup a close deferred runs now rather than never — several
         // free drafts and close commits, and there is no next settle coming.
         runAllTeardowns();
-        panelDepartStarts.clear();
-        departRails.clear();
+        bookState.panelDepartStarts.clear();
+        bookState.departRails.clear();
         // And the departed rows, if the book closes mid-collapse: unregistered orphans nobody
         // draws after this, dropped with the screen rather than left for a settle that never comes.
-        sidebarDeparted.clear();
-        sidebarDepartAnchor = null;
+        bookState.sidebarDeparted.clear();
+        bookState.sidebarDepartAnchor = null;
         // The pending values die with the screen: reopening reads the server's copy, and a draft from
         // a session that is over must not answer for it.
-        fieldDraft.clear();
-        elementDraft.clear();
-        linkDraft.clear();
+        BookScreenState.fieldDraft.clear();
+        BookScreenState.elementDraft.clear();
+        BookScreenState.linkDraft.clear();
         // Nothing to undo, and that is worth recording because there used to be three lines here.
         //
         // A chapter's theme was a global claim in an earlier round: it was applied when the chapter was
@@ -6295,7 +4498,7 @@ public final class QuestBookScreen extends ArmatureScreen
         // A chapter's palette is a *region* now -- a scope around the canvas and the overlay, closed on
         // every exit path by the compiler -- so leaving the book cannot leave anything behind. This
         // comment stays so that the next person does not add the release back.
-        warnedThemeFor = null;
+        BookScreenState.warnedThemeFor = null;
     }
 
     // ------------------------------------------------------------------
@@ -6332,7 +4535,7 @@ public final class QuestBookScreen extends ArmatureScreen
      */
     static Theme viewportTheme() {
         String chapter = effectiveChapter();
-        JsonObject pending = pendingChapterTheme;
+        JsonObject pending = BookScreenState.pendingChapterTheme;
         if (chapter != null && pending != null) {
             // A drag's own patch, drawn in place of the file's: the canvas follows the gesture before
             // anything is written. The patch is whole -- the same one the release writes -- so the two
@@ -6377,8 +4580,9 @@ public final class QuestBookScreen extends ArmatureScreen
      * by whether somebody remembered to open a scope.
      */
     private boolean chapterBoundOverlay() {
-        return overlay == PanelKind.QUEST || overlay == PanelKind.PICKER || overlay == PanelKind.NAMING
-                || overlay == PanelKind.ELEMENT;
+        return bookState.overlay == PanelKind.QUEST || bookState.overlay == PanelKind.PICKER
+                || bookState.overlay == PanelKind.NAMING
+                || bookState.overlay == PanelKind.ELEMENT;
     }
 
     /**
@@ -6390,7 +4594,7 @@ public final class QuestBookScreen extends ArmatureScreen
      * a chapter scope happens to be open cannot inherit it by accident.
      */
     private Theme tooltipTheme(int mouseX, int mouseY) {
-        if (chapterBoundOverlay() || (overlay == PanelKind.NONE && inCanvas(mouseX, mouseY))) {
+        if (chapterBoundOverlay() || (bookState.overlay == PanelKind.NONE && inCanvas(mouseX, mouseY))) {
             return viewportTheme();
         }
         return ArmatureTheme.chrome();
@@ -6408,10 +4612,10 @@ public final class QuestBookScreen extends ArmatureScreen
      * one misspelled name would bury every other message the client writes.
      */
     private static void warnAboutThemeOnce(String chapter, String named) {
-        if (chapter.equals(warnedThemeFor)) {
+        if (chapter.equals(BookScreenState.warnedThemeFor)) {
             return;
         }
-        warnedThemeFor = chapter;
+        BookScreenState.warnedThemeFor = chapter;
         Constants.LOG.warn("chapter '{}' asks to be drawn in a theme called '{}', which this"
                 + " build does not have, so your own theme is in use. The themes it has are: {}",
                 chapter, named, Themes.names());
@@ -6450,10 +4654,6 @@ public final class QuestBookScreen extends ArmatureScreen
     boolean superMouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
-
-    // ------------------------------------------------------------------
-    // The base class, for the slices that answer Minecraft's calls
-    // ------------------------------------------------------------------
 
     /** {@code super.tick}, for the slice that answers it. */
     void superTick() {

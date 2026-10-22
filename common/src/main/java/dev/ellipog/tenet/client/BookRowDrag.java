@@ -48,7 +48,7 @@ final class BookRowDrag {
         if (!book.mayEditNow() || member == null || from < 0) {
             return;
         }
-        List<BookGeometry.Rect> rows = book.dragRowSlots.get(member);
+        List<BookGeometry.Rect> rows = book.bookState.dragRowSlots.get(member);
         if (rows == null || rows.isEmpty()) {
             return;
         }
@@ -63,7 +63,7 @@ final class BookRowDrag {
         if ("chapter".equals(member)) {
             // The pending order, not the replica's: two reorders inside the replica window would
             // otherwise compute the second from the first's stale order and drop it.
-            JsonObject chapter = QuestBookScreen.fieldDraft.overlaid(QuestBookScreen.effectiveChapter(),
+            JsonObject chapter = BookScreenState.fieldDraft.overlaid(QuestBookScreen.effectiveChapter(),
                     dev.ellipog.tenet.client.dev.FieldDraft.CHAPTER_OWNER,
                     ClientChapterReplica.chapterTree(QuestBookScreen.effectiveChapter()));
             List<String> names = new ArrayList<>(QuestPanelLayout.strings(chapter, "quests"));
@@ -79,7 +79,7 @@ final class BookRowDrag {
             }
             // The entries are about to shift, so a pending value indexed inside the list no longer
             // names the entry the author was editing.
-            QuestBookScreen.fieldDraft.forgetList(QuestBookScreen.effectiveChapter(), quest, member);
+            BookScreenState.fieldDraft.forgetList(QuestBookScreen.effectiveChapter(), quest, member);
             book.send(new EditorOp.MoveEntry(quest, member, from, to));
         }
         book.status("Moved to position " + (to + 1), false);
@@ -92,16 +92,16 @@ final class BookRowDrag {
      * drawing uses, so what is pressed is what is seen, scrolled or not.
      */
     int chapterQuestRowAt(double mouseX, double mouseY) {
-        if (book.chapterLayout == null) {
+        if (book.bookState.chapterLayout == null) {
             return -1;
         }
-        Viewport view = book.toolsView.viewport();
+        Viewport view = book.bookState.toolsView.viewport();
         int index = 0;
-        for (ToolsLayout.Action row : book.chapterRows) {
+        for (ToolsLayout.Action row : book.bookState.chapterRows) {
             if (!row.key().startsWith(ChapterPanelLayout.VALUE_PREFIX + "quest:")) {
                 continue;
             }
-            Slot slot = book.chapterLayout.slot(row.key());
+            Slot slot = book.bookState.chapterLayout.slot(row.key());
             if (slot != null && ToolsLayout.onScreen(view, slot).contains(mouseX, mouseY)) {
                 return index;
             }
@@ -113,15 +113,15 @@ final class BookRowDrag {
     /** The same rows as rectangles, in order -- the seams the drag's gap arithmetic counts. */
     List<BookGeometry.Rect> chapterQuestRowRects() {
         List<BookGeometry.Rect> out = new ArrayList<>();
-        if (book.chapterLayout == null) {
+        if (book.bookState.chapterLayout == null) {
             return List.copyOf(out);
         }
-        Viewport view = book.toolsView.viewport();
-        for (ToolsLayout.Action row : book.chapterRows) {
+        Viewport view = book.bookState.toolsView.viewport();
+        for (ToolsLayout.Action row : book.bookState.chapterRows) {
             if (!row.key().startsWith(ChapterPanelLayout.VALUE_PREFIX + "quest:")) {
                 continue;
             }
-            Slot slot = book.chapterLayout.slot(row.key());
+            Slot slot = book.bookState.chapterLayout.slot(row.key());
             if (slot == null) {
                 continue;
             }

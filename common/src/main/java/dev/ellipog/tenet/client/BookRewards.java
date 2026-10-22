@@ -228,10 +228,10 @@ final class BookRewards {
      * two agree for the tenth of a second the arrival lasts.
      */
     private int importRise() {
-        if (!book.tableImportOpen || book.tableImportOpenedAt < 0) {
+        if (!book.bookState.tableImportOpen || book.bookState.tableImportOpenedAt < 0) {
             return 0;
         }
-        float arrived = PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.tableImportOpenedAt,
+        float arrived = PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.bookState.tableImportOpenedAt,
                 BookItemPicker.MENU_RISE_MILLIS);
         return Math.round(BookItemPicker.MENU_RISE_PX * (1F - arrived));
     }
@@ -397,7 +397,7 @@ final class BookRewards {
      * is why the copy is preferred the moment it is current.
      */
     static JsonObject dependencyLinesOf(ClientQuestCache.Entry entry) {
-        JsonElement drafted = QuestBookScreen.fieldDraft.value(entry.chapterId(), entry.id(), "dependencyLines");
+        JsonElement drafted = BookScreenState.fieldDraft.value(entry.chapterId(), entry.id(), "dependencyLines");
         if (drafted != null && drafted.isJsonObject()) {
             return drafted.getAsJsonObject().deepCopy();
         }
@@ -558,7 +558,7 @@ final class BookRewards {
         if (chapter == null) {
             return null;
         }
-        if (book.draggedNode != null || book.marqueeActive) {
+        if (book.bookState.draggedNode != null || book.bookState.marqueeActive) {
             // A node or a marquee owns the pointer; a handle is not what this press is for.
             return null;
         }
@@ -663,7 +663,8 @@ final class BookRewards {
         }
         // A gesture owns the pointer: only the dragged line shows anything, and a node or marquee drag
         // shows nothing at all until the release.
-        boolean gesture = book.bendDragFrom != null || book.draggedNode != null || book.marqueeActive;
+        boolean gesture = book.bookState.bendDragFrom != null || book.bookState.draggedNode != null
+                || book.bookState.marqueeActive;
         int cLeft = book.canvasLeft();
         int cTop = book.canvasTop();
         int cRight = book.canvasRight();
@@ -671,7 +672,7 @@ final class BookRewards {
         // The frame's own edges: the paths the handles are grabbed against are the ones that were drawn,
         // and they are already built -- this loop used to rebuild every route a second time per frame.
         for (BookCanvas.FrameEdge frameEdge : edges) {
-            boolean dragging = frameEdge.matches(book.bendDragFrom, book.bendDragTo);
+            boolean dragging = frameEdge.matches(book.bookState.bendDragFrom, book.bookState.bendDragTo);
             if (gesture && !dragging) {
                 continue;
             }
@@ -685,8 +686,8 @@ final class BookRewards {
             if (!dragging && !showsHandles(edge, arms, mouseX, mouseY)) {
                 continue;
             }
-            boolean fromDragged = dragging && HANDLE_FROM.equals(book.bendDragKind);
-            boolean toDragged = dragging && HANDLE_TO.equals(book.bendDragKind);
+            boolean fromDragged = dragging && HANDLE_FROM.equals(book.bookState.bendDragKind);
+            boolean toDragged = dragging && HANDLE_TO.equals(book.bookState.bendDragKind);
             // Drawn where they are grabbed, from the same path the ink came from: circles at the ends,
             // the diamond at the middle of a curve.
             circleDot(r, handleDot(path, true), fromDragged);
@@ -699,15 +700,15 @@ final class BookRewards {
                     leash(r, arms.get(1));
                     leash(r, arms.get(2));
                     diamondDot(r, arms.get(1).get(arms.get(1).size() - 1),
-                            dragging && HANDLE_FROM_HANDLE.equals(book.bendDragKind));
+                            dragging && HANDLE_FROM_HANDLE.equals(book.bookState.bendDragKind));
                     diamondDot(r, arms.get(2).get(arms.get(2).size() - 1),
-                            dragging && HANDLE_TO_HANDLE.equals(book.bendDragKind));
+                            dragging && HANDLE_TO_HANDLE.equals(book.bookState.bendDragKind));
                 }
             }
             else if (bows(style)) {
                 LineArt.Point middle = LineArt.pointAt(path,
                         LineArt.length(path) / 2);
-                diamondDot(r, middle, dragging && HANDLE_BEND.equals(book.bendDragKind));
+                diamondDot(r, middle, dragging && HANDLE_BEND.equals(book.bookState.bendDragKind));
             }
         }
     }
@@ -996,19 +997,19 @@ final class BookRewards {
      */
     boolean pressSettingsPage(double mouseX, double mouseY) {
         JsonObject quest = book.replicaQuest();
-        if (book.settingsLayout == null || quest == null || book.editTarget() == null) {
+        if (book.bookState.settingsLayout == null || quest == null || book.editTarget() == null) {
             return false;
         }
-        for (dev.ellipog.tenet.client.dev.QuestSettingsLayout.Row row : book.settingsRows) {
-            Slot slot = book.settingsLayout.slot(row.key());
+        for (dev.ellipog.tenet.client.dev.QuestSettingsLayout.Row row : book.bookState.settingsRows) {
+            Slot slot = book.bookState.settingsLayout.slot(row.key());
             if (slot == null) {
                 continue;
             }
-            Slot onScreen = InspectLayout.onScreen(book.settingsView.viewport(), slot);
+            Slot onScreen = InspectLayout.onScreen(book.bookState.settingsView.viewport(), slot);
             if (!onScreen.contains(mouseX, mouseY)) {
                 continue;
             }
-            Slot strip = InspectLayout.onScreen(book.settingsView.viewport(),
+            Slot strip = InspectLayout.onScreen(book.bookState.settingsView.viewport(),
                     dev.ellipog.tenet.client.dev.QuestSettingsLayout.strip(row, slot));
             // **A row claimed the press only if its own control did.** A press inside a row's bounds but
             // off its control — the air beside a short switch track, the gap between two cells — is not the
@@ -1034,7 +1035,7 @@ final class BookRewards {
                     else {
                         // The track: the knob jumps to the pointer and follows it until the release,
                         // which is one commit rather than one per frame.
-                        book.draggingSlider = row.key();
+                        book.bookState.draggingSlider = row.key();
                         dragSliderTo(mouseX);
                         acted = true;
                     }
@@ -1190,7 +1191,7 @@ final class BookRewards {
         if (target == null) {
             return;
         }
-        book.settingsDraft.shape(target, shape, revision());
+        book.bookState.settingsDraft.shape(target, shape, revision());
         book.sendField(target, "shape",
                 new JsonPrimitive(shape.name().toLowerCase(java.util.Locale.ROOT)));
     }
@@ -1208,28 +1209,28 @@ final class BookRewards {
         if (key.equals("rotation")) {
             // Fifteen degrees an arrow: fine enough to phase a gear off the grid, coarse enough to
             // reach an angle without a drag. The track is there for anything finer.
-            int current = book.settingsDraft.rotation(target, intField(quest, key, 0));
+            int current = book.bookState.settingsDraft.rotation(target, intField(quest, key, 0));
             int next = Math.floorMod(current + step * 15, 360);
-            book.settingsDraft.rotation(target, next, revision());
+            book.bookState.settingsDraft.rotation(target, next, revision());
             book.sendField(target, key, new JsonPrimitive((long) next));
             return;
         }
         if (key.equals("iconScale")) {
-            double current = book.settingsDraft.iconScale(target, doubleField(quest, key, 0.75));
+            double current = book.bookState.settingsDraft.iconScale(target, doubleField(quest, key, 0.75));
             double next = Math.max(QuestShape.MIN_ICON_SCALE,
                     Math.min(QuestShape.MAX_ICON_SCALE, Math.round((current + step * 0.05) * 100) / 100.0));
-            book.settingsDraft.iconScale(target, next, revision());
+            book.bookState.settingsDraft.iconScale(target, next, revision());
             book.sendField(target, key, new JsonPrimitive(next));
             return;
         }
-        int current = (int) book.settingsDraft.size(target, key.equals("size") ? intField(quest, key, 48)
+        int current = (int) book.bookState.settingsDraft.size(target, key.equals("size") ? intField(quest, key, 48)
                 : intField(quest, key, 0));
         int delta = key.equals("x") || key.equals("y") ? 8 : 1;
         int next = current + step * delta;
         if (key.equals("size")) {
             next = Math.max(dev.ellipog.tenet.client.dev.QuestSettingsLayout.MIN_SIZE,
                     Math.min(dev.ellipog.tenet.client.dev.QuestSettingsLayout.MAX_SIZE, next));
-            book.settingsDraft.size(target, next, revision());
+            book.bookState.settingsDraft.size(target, next, revision());
         }
         if (key.equals("minRequired")) {
             // Bounded by the list above it: "3 of 2" is not a rule, and a validator that refuses it is
@@ -1290,16 +1291,16 @@ final class BookRewards {
         if (chapter == null || target == null) {
             return;
         }
-        QuestBookScreen.fieldDraft.set(chapter, target, path, new JsonPrimitive(value),
+        BookScreenState.fieldDraft.set(chapter, target, path, new JsonPrimitive(value),
                 ClientQuestCache.treeRevision(), net.minecraft.util.Util.getMillis());
     }
 
     /** A slider drag: the value under the pointer, remembered for the preview and not yet sent. */
     void dragSliderTo(double mouseX) {
-        if (book.draggingSlider == null || book.settingsLayout == null) {
+        if (book.bookState.draggingSlider == null || book.bookState.settingsLayout == null) {
             return;
         }
-        Slot slot = book.settingsLayout.slot(book.draggingSlider);
+        Slot slot = book.bookState.settingsLayout.slot(book.bookState.draggingSlider);
         if (slot == null) {
             return;
         }
@@ -1307,13 +1308,13 @@ final class BookRewards {
         // read the layout's own slot until a report came back that a slider "drags to max and stays
         // there": every press in the column was far right of the track it thought it was on, so the
         // value clamped to the maximum on the first pixel. The drawing had been mapped; this had not.
-        dev.ellipog.armature.client.ui.kit.Viewport column = book.settingsView.viewport();
-        if (book.draggingSlider.equals("size")) {
+        dev.ellipog.armature.client.ui.kit.Viewport column = book.bookState.settingsView.viewport();
+        if (book.bookState.draggingSlider.equals("size")) {
             draggingValue = dev.ellipog.tenet.client.dev.QuestSettingsLayout.valueAtScreen(slot,
                     column, mouseX, dev.ellipog.tenet.client.dev.QuestSettingsLayout.MIN_SIZE,
                     dev.ellipog.tenet.client.dev.QuestSettingsLayout.MAX_SIZE, true);
         }
-        else if (book.draggingSlider.equals("rotation")) {
+        else if (book.bookState.draggingSlider.equals("rotation")) {
             draggingValue = dev.ellipog.tenet.client.dev.QuestSettingsLayout.valueAtScreen(slot,
                     column, mouseX, dev.ellipog.tenet.client.dev.QuestSettingsLayout.MIN_ROTATION,
                     dev.ellipog.tenet.client.dev.QuestSettingsLayout.MAX_ROTATION, false);
@@ -1334,7 +1335,7 @@ final class BookRewards {
      * value, would otherwise look like it committed a value the author never saw.
      */
     void stampDragging(long revision) {
-        if (book.draggingSlider == null) {
+        if (book.bookState.draggingSlider == null) {
             return;
         }
         // The quest the drag belongs to, read here rather than remembered when the drag began: the page
@@ -1344,14 +1345,14 @@ final class BookRewards {
         if (target == null) {
             return;
         }
-        if (book.draggingSlider.equals("size")) {
-            book.settingsDraft.size(target, (int) Math.round(draggingValue), revision);
+        if (book.bookState.draggingSlider.equals("size")) {
+            book.bookState.settingsDraft.size(target, (int) Math.round(draggingValue), revision);
         }
-        else if (book.draggingSlider.equals("rotation")) {
-            book.settingsDraft.rotation(target, (int) Math.round(draggingValue), revision);
+        else if (book.bookState.draggingSlider.equals("rotation")) {
+            book.bookState.settingsDraft.rotation(target, (int) Math.round(draggingValue), revision);
         }
         else {
-            book.settingsDraft.iconScale(target, draggingValue, revision);
+            book.bookState.settingsDraft.iconScale(target, draggingValue, revision);
         }
     }
 
@@ -1364,13 +1365,13 @@ final class BookRewards {
      * and the old number went to the file. See {@link #stampDragging}.
      */
     void releaseSlider() {
-        if (book.draggingSlider == null || book.editTarget() == null) {
-            book.draggingSlider = null;
+        if (book.bookState.draggingSlider == null || book.editTarget() == null) {
+            book.bookState.draggingSlider = null;
             return;
         }
-        String key = book.draggingSlider;
+        String key = book.bookState.draggingSlider;
         double value = draggingValue;
-        book.draggingSlider = null;
+        book.bookState.draggingSlider = null;
         if (key.equals("rotation") || key.equals("size")) {
             book.sendField(book.editTarget(), key, new JsonPrimitive((long) Math.round(value)));
         }
@@ -1412,17 +1413,17 @@ final class BookRewards {
      * puts that page back.
      */
     void leaveCardPage() {
-        if (book.pickingEntryType != null || book.pickingConditionFor != null) {
-            book.pickingEntryType = null;
-            book.pickingConditionFor = null;
+        if (book.bookState.pickingEntryType != null || book.bookState.pickingConditionFor != null) {
+            book.bookState.pickingEntryType = null;
+            book.bookState.pickingConditionFor = null;
         }
-        else if (book.pickingItemPath != null) {
+        else if (book.bookState.pickingItemPath != null) {
             book.itemPicker.closeItemPicker();
         }
-        else if (book.settingsOpen) {
-            book.settingsOpen = false;
-            book.draggingSlider = null;
-            book.settingsDraft.clear();
+        else if (book.bookState.settingsOpen) {
+            book.bookState.settingsOpen = false;
+            book.bookState.draggingSlider = null;
+            book.bookState.settingsDraft.clear();
         }
         book.rebuildWidgets();
     }
@@ -1436,15 +1437,15 @@ final class BookRewards {
      * number the file does not have.
      */
     void toggleSettings() {
-        book.settingsOpen = !book.settingsOpen;
-        book.draggingSlider = null;
-        if (book.settingsOpen) {
-            book.pickingEntryType = null;
-            book.pickingConditionFor = null;
-            book.pickingItemPath = null;
+        book.bookState.settingsOpen = !book.bookState.settingsOpen;
+        book.bookState.draggingSlider = null;
+        if (book.bookState.settingsOpen) {
+            book.bookState.pickingEntryType = null;
+            book.bookState.pickingConditionFor = null;
+            book.bookState.pickingItemPath = null;
         }
         else {
-            book.settingsDraft.clear();
+            book.bookState.settingsDraft.clear();
         }
         book.rebuildWidgets();
     }
@@ -1476,13 +1477,13 @@ final class BookRewards {
         // gesture the reader repeats while browsing — while a newly shown one is stamped there. So a swap
         // is instant, and only an arrival is animated, with no stamp at this call site.
         book.applyColumns(PanelStack.afterNodeClick(book.columns()));
-        book.overlayQuest = questId;
-        book.overlayView.scrollTo(0);
+        book.bookState.overlayQuest = questId;
+        book.bookState.overlayView.scrollTo(0);
         // The row keys mean something else now -- "task:0" was the last quest's first task -- so a
         // hover carried over would light up a row nobody is pointing at for a fifth of a second. The
         // folds go with them: an entry folded here is not the entry at that index in the next quest.
-        book.rowHover.clear();
-        book.entryFolded.clear();
+        book.bookState.rowHover.clear();
+        book.bookState.entryFolded.clear();
         // A swap keeps whatever the reveal was doing (a click inside the slide does not restart it) and leaves
         // a settled rail settled: `panelRevealStarts` drops an entry only when its slide finishes or its rail
         // leaves the arrangement, so this neither stalls a slide nor starts one. And the entry is per kind, so
@@ -1516,7 +1517,7 @@ final class BookRewards {
         // by marking that done -- so panning first would leave a chapter nobody ever centred. It cannot
         // happen through a press (the frames in between have already centred it), which is exactly why it
         // would be a fault nobody could reproduce.
-        if (entry == null || chapter == null || !chapter.equals(QuestBookScreen.pannedChapter)
+        if (entry == null || chapter == null || !chapter.equals(BookScreenState.pannedChapter)
                 || PanelStack.presented(book.columns(), book.panelFolded()).isEmpty()) {
             return;
         }
@@ -1528,8 +1529,8 @@ final class BookRewards {
         }
         Viewport view = book.viewport();
         view.setOffset(view.offsetX() - dx, view.offsetY());
-        QuestBookScreen.pannedChapter = chapter;
-        QuestBookScreen.centred = true;
+        BookScreenState.pannedChapter = chapter;
+        BookScreenState.centred = true;
     }
 
     /**
@@ -1551,7 +1552,7 @@ final class BookRewards {
      */
     void startPanelReveal(PanelKind kind) {
         if (kind != null && kind != PanelKind.NONE) {
-            book.panelRevealStarts.put(kind, net.minecraft.util.Util.getMillis());
+            book.bookState.panelRevealStarts.put(kind, net.minecraft.util.Util.getMillis());
         }
     }
 
@@ -1610,7 +1611,7 @@ final class BookRewards {
      * recording: a control drawn in one place and hit in another.
      */
     private BookGeometry.Rect tableBody() {
-        return dev.ellipog.tenet.client.dev.TableEditorLayout.body(book.surfaceCard(book.surfaceKind));
+        return dev.ellipog.tenet.client.dev.TableEditorLayout.body(book.surfaceCard(book.bookState.surfaceKind));
     }
 
     /**
@@ -1621,10 +1622,12 @@ final class BookRewards {
      * been built yet has nothing to scroll, so the answer is no rather than a rectangle of zeroes.
      */
     boolean overTableList(double mouseX, double mouseY) {
-        if (book.overlay == PanelKind.TABLE_BROWSER) {
-            return book.tableBrowserFrame != null && book.tableBrowserFrame.list().contains(mouseX, mouseY);
+        if (book.bookState.overlay == PanelKind.TABLE_BROWSER) {
+            return book.bookState.tableBrowserFrame != null && book.bookState.tableBrowserFrame.list().contains(mouseX,
+                    mouseY);
         }
-        return book.tableEditorFrame != null && book.tableEditorFrame.rows().contains(mouseX, mouseY);
+        return book.bookState.tableEditorFrame != null && book.bookState.tableEditorFrame.rows().contains(mouseX,
+                mouseY);
     }
 
     /**
@@ -1642,7 +1645,7 @@ final class BookRewards {
      */
     private void drawModalCardChrome(GuiRenderer r, String title, int mouseX, int mouseY,
                                      QuestBookScreen.EditAction closeAction) {
-        drawModalCardChrome(r, title, mouseX, mouseY, closeAction, book.editTargets);
+        drawModalCardChrome(r, title, mouseX, mouseY, closeAction, book.bookState.editTargets);
     }
 
     /**
@@ -1669,7 +1672,7 @@ final class BookRewards {
         // table's name is a pack's string and the fold control sits at the header's right end, so a title
         // that ran on would be drawn through the button that pages the column away.
         r.text(Measure.truncate(title,
-                        Math.max(0, book.headerTextRoom(book.surfaceCard(book.surfaceKind)) - (left + 14)),
+                        Math.max(0, book.headerTextRoom(book.surfaceCard(book.bookState.surfaceKind)) - (left + 14)),
                         Measure.of(r::textWidth, r.lineHeight())),
                 left + 14, top + (TABLE_HEADER - 8) / 2, ArmatureTheme.title());
         String cross = "×";
@@ -1711,7 +1714,7 @@ final class BookRewards {
         // all, so the footer said "Done" over it and closed the whole panel -- two steps from where the
         // author was, which is what the general report was about.
         var exit = dev.ellipog.tenet.client.dev.TableEditorLayout
-                .exit(browser, tablePage(), !book.tableStack.isEmpty());
+                .exit(browser, tablePage(), !book.bookState.tableStack.isEmpty());
         String out = switch (exit) {
             case LEAVE_BROWSER, TABLE_UP -> Labels.of("tenet.screen.back");
             // "Back" as well, and for the same reason the nested case says it: the press leaves a page
@@ -1753,10 +1756,10 @@ final class BookRewards {
      * a page that nothing names is a page whose way out nobody wrote.
      */
     private dev.ellipog.tenet.client.dev.TableEditorLayout.TablePage tablePage() {
-        if (book.pickingEntryType != null) {
+        if (book.bookState.pickingEntryType != null) {
             return dev.ellipog.tenet.client.dev.TableEditorLayout.TablePage.PICKER;
         }
-        if (book.tableShowRoll) {
+        if (book.bookState.tableShowRoll) {
             return dev.ellipog.tenet.client.dev.TableEditorLayout.TablePage.ROLL;
         }
         return dev.ellipog.tenet.client.dev.TableEditorLayout.TablePage.LIST;
@@ -1939,16 +1942,17 @@ final class BookRewards {
         if (book.editTarget() == null || target.path() == null) {
             return;
         }
-        book.tableReturn = book.overlay == PanelKind.QUEST || book.overlay == PanelKind.ASSETS ? book.overlay
+        book.bookState.tableReturn = book.bookState.overlay == PanelKind.QUEST
+                || book.bookState.overlay == PanelKind.ASSETS ? book.bookState.overlay
                 : PanelKind.NONE;
         tableOwner = new dev.ellipog.tenet.editor.TableAddress.Owner.InQuest(QuestBookScreen.effectiveChapter(),
                 book.editTarget());
         tableOwningPath = owningPathOf(target.path());
         tableQuery = "";
-        book.tableSelected = -1;
-        book.tableBrowserBody.setScrollY(0);
+        book.bookState.tableSelected = -1;
+        book.bookState.tableBrowserBody.setScrollY(0);
         tableSearch = null;
-        book.tableConfirmReplace = false;
+        book.bookState.tableConfirmReplace = false;
         book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.TABLE_BROWSER));
         book.rebuildWidgets();
     }
@@ -2013,12 +2017,12 @@ final class BookRewards {
         // Destroying a hand-built inline table is one press away from a mis-click, so it asks first --
         // the confirm-in-place idiom the quest delete uses. Clearing a *reference* does not: the table
         // itself stays, and pointing the reward at it again is one press.
-        if (!badge.inlineUid().isEmpty() && !book.tableConfirmReplace) {
-            book.tableConfirmReplace = true;
+        if (!badge.inlineUid().isEmpty() && !book.bookState.tableConfirmReplace) {
+            book.bookState.tableConfirmReplace = true;
             book.status("Press again to remove this reward's inline table", true);
             return;
         }
-        book.tableConfirmReplace = false;
+        book.bookState.tableConfirmReplace = false;
         tableOwner = new dev.ellipog.tenet.editor.TableAddress.Owner.InQuest(QuestBookScreen.effectiveChapter(),
                 book.editTarget());
         tableOwningPath = owningPathOf(target.path());
@@ -2032,22 +2036,23 @@ final class BookRewards {
         // Where to go back to, decided once, when the panel is opened. A panel opened *from* another
         // table panel keeps the overlay it already had, so walking into a nested table and pressing Done
         // twice still ends at the card.
-        if (book.overlay != PanelKind.TABLE_EDITOR && book.overlay != PanelKind.TABLE_BROWSER) {
-            book.tableReturn = book.overlay == PanelKind.QUEST || book.overlay == PanelKind.ASSETS
-                    ? book.overlay : PanelKind.NONE;
+        if (book.bookState.overlay != PanelKind.TABLE_EDITOR && book.bookState.overlay != PanelKind.TABLE_BROWSER) {
+            book.bookState.tableReturn = book.bookState.overlay == PanelKind.QUEST
+                    || book.bookState.overlay == PanelKind.ASSETS
+                    ? book.bookState.overlay : PanelKind.NONE;
         }
-        book.tableAddress = address;
-        book.tableStack.clear();
-        book.tableApplied = 0;
-        book.tableUndone = 0;
-        book.tableFolded.clear();
-        book.tableShowRoll = false;
-        book.tableImportOpen = false;
-        book.tableConfirmReplace = false;
-        book.tableEditorBody.setScrollY(0);
-        book.rollBody.setScrollY(0);
+        book.bookState.tableAddress = address;
+        book.bookState.tableStack.clear();
+        book.bookState.tableApplied = 0;
+        book.bookState.tableUndone = 0;
+        book.bookState.tableFolded.clear();
+        book.bookState.tableShowRoll = false;
+        book.bookState.tableImportOpen = false;
+        book.bookState.tableConfirmReplace = false;
+        book.bookState.tableEditorBody.setScrollY(0);
+        book.bookState.rollBody.setScrollY(0);
         tableTitleField = null;
-        book.tablePreview = preview;
+        book.bookState.tablePreview = preview;
         book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.TABLE_EDITOR));
         book.rebuildWidgets();
     }
@@ -2060,12 +2065,13 @@ final class BookRewards {
      * in the middle of closing.
      */
     void closeTablePanel() {
-        boolean open = book.overlay == PanelKind.TABLE_BROWSER || book.overlay == PanelKind.TABLE_EDITOR;
-        PanelKind back = book.tableReturn;
-        book.tableReturn = PanelKind.NONE;
+        boolean open = book.bookState.overlay == PanelKind.TABLE_BROWSER
+                || book.bookState.overlay == PanelKind.TABLE_EDITOR;
+        PanelKind back = book.bookState.tableReturn;
+        book.bookState.tableReturn = PanelKind.NONE;
         // Read before the address is cleared: the drafts are keyed by it, and a panel that closed
         // leaving its pending values behind would have them answer for the next table opened.
-        String draftedOwner = book.tableAddress == null ? null : tableOwnerKey();
+        String draftedOwner = book.bookState.tableAddress == null ? null : tableOwnerKey();
         // The drafts and the roll go now rather than with the exit: they are model state, not drawn
         // state, and the surface sinking out reads the committed copy either way. The UI nullings below
         // are what the exit draws from, so only they wait out the slide.
@@ -2079,23 +2085,23 @@ final class BookRewards {
             book.applyColumns(PanelStack.asRoot(book.columns(), back));
         }
         book.deferForLastDeparted(() -> {
-            book.tableAddress = null;
-            book.tableStack.clear();
+            book.bookState.tableAddress = null;
+            book.bookState.tableStack.clear();
             tableOwner = null;
             tableOwningPath = null;
             tableSearch = null;
             tableTitleField = null;
-            book.tableFolded.clear();
-            book.tableShowRoll = false;
-            book.tableImportOpen = false;
-            book.tableConfirmReplace = false;
+            book.bookState.tableFolded.clear();
+            book.bookState.tableShowRoll = false;
+            book.bookState.tableImportOpen = false;
+            book.bookState.tableConfirmReplace = false;
             // And the state that names something outside the panel: a delete armed for a table the next open
             // would not be showing, the popover's anchor and its drawn box, and the table field an open inline
             // editor was writing to -- a box that outlived its panel would commit to whatever table came next.
             tableConfirmDelete = null;
             tableImportAnchor = null;
-            book.tableImportBox = null;
-            book.tableEdit = null;
+            book.bookState.tableImportBox = null;
+            book.bookState.tableEdit = null;
         }, PanelKind.TABLE_BROWSER, PanelKind.TABLE_EDITOR);
         // Every picker the panel could have left armed, from the one place that knows them all. Without
         // this the type picker page survived the panel: the card behind it drew the list of reward types
@@ -2105,15 +2111,15 @@ final class BookRewards {
 
     /** Escape and `Done`: one table back, or the panel closed when there is nothing behind it. */
     void popTableEditor() {
-        if (!book.tableStack.isEmpty()) {
-            book.tableAddress = book.tableStack.pop();
+        if (!book.bookState.tableStack.isEmpty()) {
+            book.bookState.tableAddress = book.bookState.tableStack.pop();
             // Back to the table that was left, with its own budget: the steps taken inside the nested
             // table are not this one's to undo.
-            book.tableApplied = 0;
-            book.tableUndone = 0;
-            book.tableFolded.clear();
-            book.tableShowRoll = false;
-            book.tableImportOpen = false;
+            book.bookState.tableApplied = 0;
+            book.bookState.tableUndone = 0;
+            book.bookState.tableFolded.clear();
+            book.bookState.tableShowRoll = false;
+            book.bookState.tableImportOpen = false;
             tableTitleField = null;
             book.rebuildWidgets();
             return;
@@ -2124,17 +2130,17 @@ final class BookRewards {
 
     /** Opens a table an entry points at, remembering the one being left. */
     void pushTableEditor(dev.ellipog.tenet.editor.TableAddress address) {
-        if (book.tableAddress != null) {
-            book.tableStack.push(book.tableAddress);
+        if (book.bookState.tableAddress != null) {
+            book.bookState.tableStack.push(book.bookState.tableAddress);
         }
-        book.tableAddress = address;
+        book.bookState.tableAddress = address;
         // The budget is the frame's: walking into a nested table starts a new one, so Ctrl+Z there
         // cannot reach back into the table that was left -- which is the whole point of the floor.
-        book.tableApplied = 0;
-        book.tableUndone = 0;
-        book.tableFolded.clear();
-        book.tableShowRoll = false;
-        book.tableImportOpen = false;
+        book.bookState.tableApplied = 0;
+        book.bookState.tableUndone = 0;
+        book.bookState.tableFolded.clear();
+        book.bookState.tableShowRoll = false;
+        book.bookState.tableImportOpen = false;
         tableTitleField = null;
         book.rebuildWidgets();
     }
@@ -2242,20 +2248,20 @@ final class BookRewards {
      * file the server actually has.
      */
     void sendTableValue(String path, com.google.gson.JsonElement value) {
-        if (book.tableAddress == null) {
+        if (book.bookState.tableAddress == null) {
             return;
         }
         tableDraft.set(QuestBookScreen.effectiveChapter(), tableOwnerKey(), path, value, tableCopyRevision(),
                 net.minecraft.util.Util.getMillis());
-        sendTableOp(new dev.ellipog.tenet.editor.TableOp.Set(book.tableAddress, path, value));
+        sendTableOp(new dev.ellipog.tenet.editor.TableOp.Set(book.bookState.tableAddress, path, value));
     }
 
     /** The revision of the copy the editor is drawing: the table's file, or the chapter's for an inline. */
     private long tableCopyRevision() {
-        if (book.tableAddress == null) {
+        if (book.bookState.tableAddress == null) {
             return 0L;
         }
-        return switch (book.tableAddress.owner()) {
+        return switch (book.bookState.tableAddress.owner()) {
             case dev.ellipog.tenet.editor.TableAddress.Owner.Named named -> {
                 var copy = dev.ellipog.tenet.client.ClientTableReplica.of(named.id());
                 yield copy == null ? 0L : copy.revision();
@@ -2274,7 +2280,7 @@ final class BookRewards {
      * chapter's for an inline one. {@code FieldDraft} carries the rule.
      */
     private void reconcileTableDrafts() {
-        if (book.tableAddress == null) {
+        if (book.bookState.tableAddress == null) {
             return;
         }
         tableDraft.reconcileOwner(QuestBookScreen.effectiveChapter(), tableOwnerKey(), tableCopyRevision(),
@@ -2296,10 +2302,10 @@ final class BookRewards {
 
     /** The lookup itself: the memo above is what the panel calls. */
     private JsonObject tableRootRaw() {
-        if (book.tableAddress == null) {
+        if (book.bookState.tableAddress == null) {
             return null;
         }
-        return switch (book.tableAddress.owner()) {
+        return switch (book.bookState.tableAddress.owner()) {
             case dev.ellipog.tenet.editor.TableAddress.Owner.Named named -> {
                 dev.ellipog.tenet.client.ClientTableReplica.Copy copy =
                         dev.ellipog.tenet.client.ClientTableReplica.of(named.id());
@@ -2319,12 +2325,12 @@ final class BookRewards {
      * revision moves on every reload, so an edit anywhere — this client's or another's — re-fetches.
      */
     private void claimTableData() {
-        if (book.tableAddress == null) {
+        if (book.bookState.tableAddress == null) {
             return;
         }
         long revision = ClientQuestCache.treeRevision();
         long now = net.minecraft.util.Util.getMillis();
-        switch (book.tableAddress.owner()) {
+        switch (book.bookState.tableAddress.owner()) {
             case dev.ellipog.tenet.editor.TableAddress.Owner.Named named -> {
                 if (dev.ellipog.tenet.client.ClientTableReplica.claim(named.id(), revision, now)) {
                     // A sentinel, because a replica request can be refused and the refusal arrives as
@@ -2337,7 +2343,7 @@ final class BookRewards {
                     // claim is left standing, so the next frame asks again rather than the panel going
                     // permanently empty. See `ClientEditReplies.noteSent`.
                     if (ClientEditReplies.noteSent(QuestBookScreen.REPLICA_SENTINEL) != null) {
-                        book.replicaAskedFor = named.id();
+                        book.bookState.replicaAskedFor = named.id();
                         ArmatureNetwork.sendToServer(
                                 new dev.ellipog.tenet.net.TableReplicaRequestPayload(named.id()));
                     }
@@ -2356,10 +2362,10 @@ final class BookRewards {
     /** What to call the table on screen, for a header. */
     String tableTitle() {
         var model = tableModel();
-        if (book.tableAddress == null) {
+        if (book.bookState.tableAddress == null) {
             return "";
         }
-        return switch (book.tableAddress.owner()) {
+        return switch (book.bookState.tableAddress.owner()) {
             case dev.ellipog.tenet.editor.TableAddress.Owner.Named named ->
                     model.map(table -> table.displayTitle(named.id())).orElse(named.id());
             case dev.ellipog.tenet.editor.TableAddress.Owner.InQuest quest ->
@@ -2369,7 +2375,7 @@ final class BookRewards {
 
     /** What to call a table in a sentence: its id, or where an inline one lives. */
     private String tableDescribe() {
-        return book.tableAddress == null ? "" : book.tableAddress.describe();
+        return book.bookState.tableAddress == null ? "" : book.bookState.tableAddress.describe();
     }
 
     /**
@@ -2389,8 +2395,8 @@ final class BookRewards {
     // ------------------------------------------------------------------
 
     void buildTableBrowserWidgets() {
-        book.tableBrowserFrame = dev.ellipog.tenet.client.dev.TableBrowserLayout.Frame.of(tableBody());
-        BookGeometry.Rect search = book.tableBrowserFrame.search();
+        book.bookState.tableBrowserFrame = dev.ellipog.tenet.client.dev.TableBrowserLayout.Frame.of(tableBody());
+        BookGeometry.Rect search = book.bookState.tableBrowserFrame.search();
         String kept = tableSearch == null ? tableQuery : tableSearch.value();
         tableSearch = new ArmatureTextField(search.x(), search.y(), search.width(), search.height(), kept);
         tableSearch.onSubmit(text -> { });
@@ -2404,7 +2410,7 @@ final class BookRewards {
         // for the other end of the same window: this closure outlives the field it draws for by however long
         // it takes the next rebuild to arrive, and closing the panel nulls the field.
         BookGeometry.Rect clipTo = tableBody();
-        book.panelOverlays.add(r -> {
+        book.bookState.panelOverlays.add(r -> {
             if (tableSearch == null || !tableSearch.value().isEmpty()) {
                 return;
             }
@@ -2428,7 +2434,7 @@ final class BookRewards {
     void drawTableBrowser(GuiRenderer r, int mouseX, int mouseY) {
         drawModalCardChrome(r, "Reward tables", mouseX, mouseY, QuestBookScreen.EditAction.TABLE_BACK);
         drawTableFooter(r, mouseX, mouseY, true);
-        if (book.tableBrowserFrame == null) {
+        if (book.bookState.tableBrowserFrame == null) {
             return;
         }
         BookGeometry.Rect body = tableBody();
@@ -2440,27 +2446,29 @@ final class BookRewards {
         String typed = tableSearch == null ? tableQuery : tableSearch.value();
         if (!typed.equals(tableQuery)) {
             tableQuery = typed;
-            book.tableSelected = -1;
-            book.tableBrowserBody.setScrollY(0);
+            book.bookState.tableSelected = -1;
+            book.bookState.tableBrowserBody.setScrollY(0);
         }
         tableRows = dev.ellipog.tenet.client.dev.TableBrowserLayout.rows(summaryRows(), tableQuery);
         // The bounds, the range, the clamp and the bar in one call: the list's own height is what the
         // viewport needs, and the clamp it applies here is the one the drawing and the bar both read.
         // There used to be a `Math.max(0, Math.min(...))` against `maxScroll` at this line and the same
         // expression again in the wheel's branch, which is two places for one range to be wrong.
-        QuestBookScreen.bindList(book.tableBrowserBody, book.tableBrowserBar, book.tableBrowserFrame.list(),
-                book.tableBrowserFrame.scrollbar(),
+        QuestBookScreen.bindList(book.bookState.tableBrowserBody, book.bookState.tableBrowserBar,
+                book.bookState.tableBrowserFrame.list(),
+                book.bookState.tableBrowserFrame.scrollbar(),
                 dev.ellipog.tenet.client.dev.TableBrowserLayout.contentHeight(tableRows),
                 dev.ellipog.tenet.client.dev.TableBrowserLayout.ROW_HEIGHT);
-        int tableScroll = book.tableBrowserBody.scrollY();
+        int tableScroll = book.bookState.tableBrowserBody.scrollY();
 
-        try (GuiRenderer.Scoped clip = r.clip(book.tableBrowserFrame.list().x(), book.tableBrowserFrame.list().y(),
-                book.tableBrowserFrame.list().right(), book.tableBrowserFrame.list().bottom())) {
+        try (GuiRenderer.Scoped clip = r.clip(book.bookState.tableBrowserFrame.list().x(),
+                book.bookState.tableBrowserFrame.list().y(),
+                book.bookState.tableBrowserFrame.list().right(), book.bookState.tableBrowserFrame.list().bottom())) {
             for (int i = 0; i < tableRows.size(); i++) {
                 BookGeometry.Rect rect = dev.ellipog.tenet.client.dev.TableBrowserLayout
-                        .rowRect(tableRows, book.tableBrowserFrame, tableScroll, i);
-                if (rect.bottom() < book.tableBrowserFrame.list().y()
-                        || rect.y() > book.tableBrowserFrame.list().bottom()) {
+                        .rowRect(tableRows, book.bookState.tableBrowserFrame, tableScroll, i);
+                if (rect.bottom() < book.bookState.tableBrowserFrame.list().y()
+                        || rect.y() > book.bookState.tableBrowserFrame.list().bottom()) {
                     continue;
                 }
                 drawTableBrowserRow(r, i, rect, mouseX, mouseY);
@@ -2468,13 +2476,13 @@ final class BookRewards {
         }
         // Outside the clip, like every bar here: the strip is not part of the list's content, and a bar
         // clipped to the band would lose the ends of its own groove on the frame it was needed most.
-        QuestBookScreen.drawBar(r, book.tableBrowserBar, mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.tableBrowserBar, mouseX, mouseY);
         if (tableRows.size() <= 1) {
             String empty = tableQuery.isBlank()
                     ? "No reward tables yet - New table makes one."
                     : "Nothing matches that.";
             r.text(Measure.truncate(empty, body.width(), book.textMeasure(r)), body.x() + 4,
-                    book.tableBrowserFrame.list().y() + 6, ArmatureTheme.faint());
+                    book.bookState.tableBrowserFrame.list().y() + 6, ArmatureTheme.faint());
         }
     }
 
@@ -2489,26 +2497,28 @@ final class BookRewards {
         if (tableRows.isEmpty()) {
             return;
         }
-        int at = book.tableSelected < 0
+        int at = book.bookState.tableSelected < 0
                 ? (by > 0 ? 0 : tableRows.size() - 1)
-                : book.tableSelected + by;
-        book.tableSelected = Math.max(0, Math.min(tableRows.size() - 1, at));
-        if (book.tableBrowserFrame == null) {
+                : book.bookState.tableSelected + by;
+        book.bookState.tableSelected = Math.max(0, Math.min(tableRows.size() - 1, at));
+        if (book.bookState.tableBrowserFrame == null) {
             return;
         }
         int pitch = dev.ellipog.tenet.client.dev.TableBrowserLayout.ROW_HEIGHT;
         // The range first, so the two writes below are clamped against this list's own end rather than
         // against whatever the last frame left behind -- this runs from a key press, which is not
         // ordered against the drawing pass.
-        book.tableBrowserBody.setContentSize(book.tableBrowserFrame.list().width(),
+        book.bookState.tableBrowserBody.setContentSize(book.bookState.tableBrowserFrame.list().width(),
                 dev.ellipog.tenet.client.dev.TableBrowserLayout.contentHeight(tableRows));
         BookGeometry.Rect rect = dev.ellipog.tenet.client.dev.TableBrowserLayout
-                .rowRect(tableRows, book.tableBrowserFrame, book.tableBrowserBody.scrollY(), book.tableSelected);
-        if (rect.y() < book.tableBrowserFrame.list().y()) {
-            book.tableBrowserBody.setScrollY(book.tableSelected * pitch);
+                .rowRect(tableRows, book.bookState.tableBrowserFrame,
+                        book.bookState.tableBrowserBody.scrollY(), book.bookState.tableSelected);
+        if (rect.y() < book.bookState.tableBrowserFrame.list().y()) {
+            book.bookState.tableBrowserBody.setScrollY(book.bookState.tableSelected * pitch);
         }
-        else if (rect.bottom() > book.tableBrowserFrame.list().bottom()) {
-            book.tableBrowserBody.setScrollY((book.tableSelected + 1) * pitch - book.tableBrowserFrame.list().height());
+        else if (rect.bottom() > book.bookState.tableBrowserFrame.list().bottom()) {
+            book.bookState.tableBrowserBody.setScrollY((book.bookState.tableSelected
+                    + 1) * pitch - book.bookState.tableBrowserFrame.list().height());
         }
     }
 
@@ -2517,7 +2527,7 @@ final class BookRewards {
         var layout = dev.ellipog.tenet.client.dev.TableBrowserLayout.class;
         var row = tableRows.get(index);
         boolean hot = rect.contains(mouseX, mouseY);
-        boolean selected = index == book.tableSelected;
+        boolean selected = index == book.bookState.tableSelected;
         if (hot || selected) {
             r.fill(rect.x(), rect.y(), rect.right(), rect.bottom(),
                     selected ? ArmatureTheme.hoverRing() : ArmatureTheme.raised());
@@ -2525,7 +2535,8 @@ final class BookRewards {
         if (row.kind() == dev.ellipog.tenet.client.dev.TableBrowserLayout.Kind.NONE) {
             r.text("None - this reward rolls no table", rect.x() + 4, rect.y() + (rect.height() - 8) / 2,
                     ArmatureTheme.body());
-            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROW, "", rect, rect.x(), rect.y(), "", null, index);
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROW, "", rect, rect.x(),
+                    rect.y(), "", null, index);
             return;
         }
         // The stack the tree sent, component patch and all -- not the bare id resolved again here, which
@@ -2592,7 +2603,7 @@ final class BookRewards {
             return "";
         }
         if (tableOwner instanceof dev.ellipog.tenet.editor.TableAddress.Owner.InQuest quest) {
-            owner = QuestBookScreen.fieldDraft.overlaid(quest.chapter(), quest.quest(), owner);
+            owner = BookScreenState.fieldDraft.overlaid(quest.chapter(), quest.quest(), owner);
         }
         return QuestBookScreen.rawValue(owner, tableOwningPath + ".table");
     }
@@ -2615,10 +2626,10 @@ final class BookRewards {
         }
         long revision = tableCopyRevision();
         long now = net.minecraft.util.Util.getMillis();
-        QuestBookScreen.fieldDraft.set(quest.chapter(), quest.quest(), tableOwningPath + ".table",
+        BookScreenState.fieldDraft.set(quest.chapter(), quest.quest(), tableOwningPath + ".table",
                 tableId == null || tableId.isBlank() ? null : new com.google.gson.JsonPrimitive(tableId),
                 revision, now);
-        QuestBookScreen.fieldDraft.set(quest.chapter(), quest.quest(), tableOwningPath + ".inline", null,
+        BookScreenState.fieldDraft.set(quest.chapter(), quest.quest(), tableOwningPath + ".inline", null,
                 revision, now);
     }
 
@@ -2643,7 +2654,7 @@ final class BookRewards {
 
     private void drawTableButton(GuiRenderer r, BookGeometry.Rect box, String label, int mouseX,
                                  int mouseY, QuestBookScreen.EditAction action, int index) {
-        drawTableButton(r, box, label, mouseX, mouseY, action, index, book.editTargets);
+        drawTableButton(r, box, label, mouseX, mouseY, action, index, book.bookState.editTargets);
     }
 
     private void drawTableButton(GuiRenderer r, BookGeometry.Rect box, String label, int mouseX,
@@ -2662,18 +2673,18 @@ final class BookRewards {
     }
 
     void pressTableBrowser(double mouseX, double mouseY) {
-        if (book.tableBrowserFrame == null) {
+        if (book.bookState.tableBrowserFrame == null) {
             return;
         }
         // The keyboard's row: the arrows move it, Enter takes it. Read here rather than in `keyPressed`
         // because the row list is rebuilt every frame, and this is the frame the press belongs to.
-        for (QuestBookScreen.EditTarget target : book.editTargets) {
+        for (QuestBookScreen.EditTarget target : book.bookState.editTargets) {
             if (!target.box().contains(mouseX, mouseY)) {
                 continue;
             }
             switch (target.action()) {
                 case TABLE_ROW -> {
-                    book.tableSelected = target.index();
+                    book.bookState.tableSelected = target.index();
                     pressTableBrowserRow(target.index());
                 }
                 case TABLE_ROW_EDIT -> {
@@ -2714,9 +2725,9 @@ final class BookRewards {
             return;
         }
         if (row.kind() == dev.ellipog.tenet.client.dev.TableBrowserLayout.Kind.NONE) {
-            if (book.tableConfirmReplace && inlinePresent()) {
+            if (book.bookState.tableConfirmReplace && inlinePresent()) {
                 // The author has now said it twice: the inline table goes.
-                book.tableConfirmReplace = false;
+                book.bookState.tableConfirmReplace = false;
                 draftSelection("");
                 sendTableOp(new dev.ellipog.tenet.editor.TableOp.Select(tableOwner, tableOwningPath, ""));
                 closeTablePanel();
@@ -2724,7 +2735,7 @@ final class BookRewards {
                 return;
             }
             if (inlinePresent()) {
-                book.tableConfirmReplace = true;
+                book.bookState.tableConfirmReplace = true;
                 book.status("Press again to remove this reward's inline table", true);
                 return;
             }
@@ -2736,13 +2747,13 @@ final class BookRewards {
         }
         // Choosing a table for a reward that holds an inline one would throw the inline away, so it
         // asks first: one press must not destroy a table somebody built.
-        if (inlinePresent() && !book.tableConfirmReplace) {
-            book.tableConfirmReplace = true;
-            book.tableSelected = index;
+        if (inlinePresent() && !book.bookState.tableConfirmReplace) {
+            book.bookState.tableConfirmReplace = true;
+            book.bookState.tableSelected = index;
             book.status("This reward has an inline table - press again to replace it", true);
             return;
         }
-        book.tableConfirmReplace = false;
+        book.bookState.tableConfirmReplace = false;
         draftSelection(row.id());
         sendTableOp(new dev.ellipog.tenet.editor.TableOp.Select(tableOwner, tableOwningPath, row.id()));
         closeTablePanel();
@@ -2816,7 +2827,7 @@ final class BookRewards {
     // ------------------------------------------------------------------
 
     void buildTableEditorWidgets() {
-        book.tableEditorFrame = dev.ellipog.tenet.client.dev.TableEditorLayout.Frame.of(tableBody());
+        book.bookState.tableEditorFrame = dev.ellipog.tenet.client.dev.TableEditorLayout.Frame.of(tableBody());
         // The footer is drawn, not built -- see `drawTableFooter` for why the way out of this panel is
         // a target rather than a widget. No conversion in the submit slot: `Make inline` and
         // `Save as preset` are gone with inline tables themselves. A table is a file, and the reward
@@ -2851,7 +2862,7 @@ final class BookRewards {
      * no title box at all, and the focus pointer stayed on the previous rebuild's field.
      */
     private void buildTableTitleField() {
-        BookGeometry.Rect header = book.tableEditorFrame.header();
+        BookGeometry.Rect header = book.bookState.tableEditorFrame.header();
         // The title field sits on the header's first line, right of the icon box.
         BookGeometry.Rect title = BookGeometry.Rect.at(header.x() + 22, header.y() + 1,
                 Math.max(40, header.width() / 2), 12);
@@ -2860,7 +2871,7 @@ final class BookRewards {
         String kept = tableTitleField == null ? tableTitle() : tableTitleField.value();
         tableTitleField = new ArmatureTextField(title.x(), title.y(), title.width(), title.height(), kept);
         tableTitleField.onSubmit(text -> {
-            if (book.tableAddress == null) {
+            if (book.bookState.tableAddress == null) {
                 return;
             }
             // Only a real change. A press anywhere away from the box blurs it, and a blur submits -- so
@@ -2874,7 +2885,7 @@ final class BookRewards {
             if (typed.equals(tableTitle()) || (typed.isBlank() && !tableTitled())) {
                 return;
             }
-            sendTableOp(new dev.ellipog.tenet.editor.TableOp.Set(book.tableAddress, "title",
+            sendTableOp(new dev.ellipog.tenet.editor.TableOp.Set(book.bookState.tableAddress, "title",
                     new com.google.gson.JsonPrimitive(typed)));
         });
         tableTitleField.colours(ArmatureTheme.title(), ArmatureTheme.recessed(), ArmatureTheme.panelEdge());
@@ -2882,7 +2893,7 @@ final class BookRewards {
         // The placeholder after the pass, clipped to the panel's body -- the box itself is the pass's, for
         // the reason the browser's search note gives.
         BookGeometry.Rect clipTo = tableBody();
-        book.panelOverlays.add(r -> {
+        book.bookState.panelOverlays.add(r -> {
             if (tableTitleField == null || !tableTitleField.value().isEmpty()) {
                 return;
             }
@@ -2909,14 +2920,14 @@ final class BookRewards {
      * from the change rather than from fifteen call sites remembering to.
      */
     private String tablePageKey() {
-        String address = book.tableAddress == null ? "none" : book.tableAddress.toString();
-        if (book.tableShowRoll) {
+        String address = book.bookState.tableAddress == null ? "none" : book.bookState.tableAddress.toString();
+        if (book.bookState.tableShowRoll) {
             return address + "|roll";
         }
-        if (book.pickingEntryType != null) {
-            return address + "|type:" + book.pickingEntryType;
+        if (book.bookState.pickingEntryType != null) {
+            return address + "|type:" + book.bookState.pickingEntryType;
         }
-        if (book.pickingConditionFor != null) {
+        if (book.bookState.pickingConditionFor != null) {
             return address + "|cond";
         }
         return address + "|entries";
@@ -2956,24 +2967,24 @@ final class BookRewards {
         // not: it said "Edit table" over the entry list, over the roll report and over the page of types
         // alike, so the one place a card says what it is said the same thing for three different pages.
         // The item picker is the reference here -- its strip says "Add an item to the table".
-        String pageTitle = book.pickingEntryType != null
-                ? ("tasks".equals(book.pickingEntryType) ? "Add a task" : "Add a reward")
-                : book.tableShowRoll ? "Test roll" : "Edit table";
+        String pageTitle = book.bookState.pickingEntryType != null
+                ? ("tasks".equals(book.bookState.pickingEntryType) ? "Add a task" : "Add a reward")
+                : book.bookState.tableShowRoll ? "Test roll" : "Edit table";
         drawModalCardChrome(r, pageTitle, mouseX, mouseY, QuestBookScreen.EditAction.TABLE_DONE);
         // Drawn before the frame check: the footer is the way out, and a frame that has not been built
         // yet is exactly when a panel most needs one.
         drawTableFooter(r, mouseX, mouseY, false);
-        if (book.tableEditorFrame == null) {
+        if (book.bookState.tableEditorFrame == null) {
             return;
         }
-        BookGeometry.Rect header = book.tableEditorFrame.header();
+        BookGeometry.Rect header = book.bookState.tableEditorFrame.header();
         var model = tableModel();
         JsonObject root = tableRoot();
         JsonObject drafted = tableDraftedRoot();
 
         // The table's own name: the file's, or the quest it is written inside. Declared here rather than
         // beside its first use because the band above the header needs it too — see the referrers line.
-        String id = switch (book.tableAddress.owner()) {
+        String id = switch (book.bookState.tableAddress.owner()) {
             case dev.ellipog.tenet.editor.TableAddress.Owner.Named named -> named.id();
             case dev.ellipog.tenet.editor.TableAddress.Owner.InQuest quest ->
                     "(inline in " + quest.quest() + ")";
@@ -2988,30 +2999,30 @@ final class BookRewards {
         // header, it is empty for a table at the root of the walk, and the breadcrumb is short enough that
         // the two ends never meet.
         String uses = "";
-        if (book.tableAddress.owner() instanceof dev.ellipog.tenet.editor.TableAddress.Owner.Named) {
+        if (book.bookState.tableAddress.owner() instanceof dev.ellipog.tenet.editor.TableAddress.Owner.Named) {
             List<String> referrers = dev.ellipog.tenet.client.ClientTableReplica.usedBy(id);
             uses = referrers.isEmpty() ? "nothing uses this table yet"
                     : "used by " + String.join(", ", referrers);
         }
         int usesRoom = uses.isEmpty() ? 0
                 : Math.min(header.width() / 2, book.textMeasure(r).width(uses) + 4);
-        if (!book.tableStack.isEmpty()) {
+        if (!book.bookState.tableStack.isEmpty()) {
             StringBuilder crumb = new StringBuilder();
-            for (dev.ellipog.tenet.editor.TableAddress above : book.tableStack) {
+            for (dev.ellipog.tenet.editor.TableAddress above : book.bookState.tableStack) {
                 crumb.append(tableNameOf(above)).append(" > ");
             }
             crumb.append(tableTitle());
             r.text(Measure.truncate(crumb.toString(), Math.max(0, header.width() - usesRoom),
                             book.textMeasure(r)), header.x(),
-                    book.tableEditorFrame.crumb().y(), ArmatureTheme.faint());
+                    book.bookState.tableEditorFrame.crumb().y(), ArmatureTheme.faint());
         }
         if (!uses.isEmpty()) {
             String shown = Measure.truncate(uses, usesRoom, book.textMeasure(r));
-            r.text(shown, header.right() - r.textWidth(shown), book.tableEditorFrame.crumb().y(),
+            r.text(shown, header.right() - r.textWidth(shown), book.bookState.tableEditorFrame.crumb().y(),
                     ArmatureTheme.faint());
-            if (book.tableEditorFrame.crumb().contains(mouseX, mouseY)) {
+            if (book.bookState.tableEditorFrame.crumb().contains(mouseX, mouseY)) {
                 // The whole sentence, however long: the band holds what fits and the hover holds the rest.
-                book.pendingLabels.add(new QuestBookScreen.PendingLabel(book.tableEditorFrame.crumb(), uses));
+                book.bookState.pendingLabels.add(new QuestBookScreen.PendingLabel(book.bookState.tableEditorFrame.crumb(), uses));
             }
         }
 
@@ -3026,7 +3037,7 @@ final class BookRewards {
                 if (iconBox.contains(mouseX, mouseY)) {
                     // The one control in this header with nothing said about it anywhere: a small stack
                     // sprite that is also a button is not a thing a person guesses.
-                    book.pendingLabels.add(new QuestBookScreen.PendingLabel(iconBox,
+                    book.bookState.pendingLabels.add(new QuestBookScreen.PendingLabel(iconBox,
                             "the icon this table draws in the browser and on a reward's badge"));
                 }
             }
@@ -3048,7 +3059,7 @@ final class BookRewards {
             // The box says what the table already is, so a blank one reads as a table with no name rather
             // than as a field asking for one. Said here: the name is the browser row's heading, and the id
             // at the right is the file's name.
-            book.pendingLabels.add(new QuestBookScreen.PendingLabel(tableTitleBox,
+            book.bookState.pendingLabels.add(new QuestBookScreen.PendingLabel(tableTitleBox,
                     "what this table is called - the id at the right is its file name"));
         }
 
@@ -3066,16 +3077,18 @@ final class BookRewards {
                     titleChip.contains(mouseX, mouseY));
             book.questEditor.drawChip(r, tipChip, "Tip" + (hideTooltip ? ":off" : ":on"),
                     tipChip.contains(mouseX, mouseY));
-            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_USE_TITLE, "", titleChip, titleChip.x(), titleChip.y(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_USE_TITLE, "", titleChip,
+                    titleChip.x(), titleChip.y(),
                     "", null, -1);
-            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_HIDE_TOOLTIP, "", tipChip, tipChip.x(), tipChip.y(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_HIDE_TOOLTIP, "", tipChip,
+                    tipChip.x(), tipChip.y(),
                     "", null, -1);
             if (titleChip.contains(mouseX, mouseY)) {
-                book.pendingLabels.add(new QuestBookScreen.PendingLabel(titleChip,
+                book.bookState.pendingLabels.add(new QuestBookScreen.PendingLabel(titleChip,
                         "a reward row draws this table's title rather than the generic roll sentence"));
             }
             if (tipChip.contains(mouseX, mouseY)) {
-                book.pendingLabels.add(new QuestBookScreen.PendingLabel(tipChip,
+                book.bookState.pendingLabels.add(new QuestBookScreen.PendingLabel(tipChip,
                         "a reward row draws no item tooltip for this table"));
             }
         }
@@ -3101,7 +3114,7 @@ final class BookRewards {
         // Once for the frame, not once per row: `odds` totals every weight and builds a Chance per
         // entry, and the row method asked for it again for every row it drew.
         tableOdds = table.odds(dev.ellipog.tenet.client.dev.TableEditorLayout
-                .includesEmpty(book.tablePreview));
+                .includesEmpty(book.bookState.tablePreview));
         // The same once-per-frame rule for the weight column's hover: the row's own hint says what its
         // weight is out of, and walking the entries per row would be O(rows x entries) a frame.
         tableWeightTotal = totalWeight(drafted);
@@ -3113,7 +3126,7 @@ final class BookRewards {
         // never look at `lootSize`, so a live control here changed a number the file honours in two of
         // its four readings and ignores in the other two -- with nothing on screen saying which.
         var rolls = dev.ellipog.tenet.client.dev.TableEditorLayout.stepper(header.x(), header.y() + 22);
-        boolean diced = dev.ellipog.tenet.client.dev.TableEditorLayout.rolls(book.tablePreview);
+        boolean diced = dev.ellipog.tenet.client.dev.TableEditorLayout.rolls(book.bookState.tablePreview);
         // And each chip is blocked at the end of its range, where its press is clamped: a control that
         // looks live and does nothing is what the Undo button already refuses to be.
         boolean rollsDown = diced
@@ -3136,17 +3149,19 @@ final class BookRewards {
         r.text(count, rolls.value().x() + (rolls.value().width() - r.textWidth(count)) / 2,
                 rolls.value().y() + 2, diced ? ArmatureTheme.body() : ArmatureTheme.blocked());
         if (rollsDown) {
-            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROLLS_DOWN, "", rolls.minus(), rolls.minus().x(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROLLS_DOWN, "", rolls.minus(),
+                    rolls.minus().x(),
                     rolls.minus().y(), "", null, -1);
         }
         if (rollsUp) {
-            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROLLS_UP, "", rolls.plus(), rolls.plus().x(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROLLS_UP, "", rolls.plus(),
+                    rolls.plus().x(),
                     rolls.plus().y(),
                     "", null, -1);
         }
         if (!diced && (rolls.minus().contains(mouseX, mouseY) || rolls.plus().contains(mouseX, mouseY)
                 || rolls.value().contains(mouseX, mouseY))) {
-            tableHint = dev.ellipog.tenet.client.dev.TableEditorLayout.unusedByMode(book.tablePreview);
+            tableHint = dev.ellipog.tenet.client.dev.TableEditorLayout.unusedByMode(book.bookState.tablePreview);
         }
         // The drafted root, not the replica's: the rows below draw pending weights, and a total that
         // counted only what the file holds would contradict the column it sits above. And in a reading
@@ -3162,13 +3177,14 @@ final class BookRewards {
                 numbersX, header.y() + 24, diced ? ArmatureTheme.body() : ArmatureTheme.faint());
 
         BookGeometry.Rect mode = BookGeometry.Rect.at(header.right() - 96, header.y() + 22, 94, 14);
-        book.questEditor.drawValue(r, mode, dev.ellipog.tenet.client.dev.TableEditorLayout.modeLabel(book.tablePreview), "",
+        book.questEditor.drawValue(r, mode,
+                dev.ellipog.tenet.client.dev.TableEditorLayout.modeLabel(book.bookState.tablePreview), "",
                 false, false, mouseX, mouseY);
         if (mode.contains(mouseX, mouseY)) {
             // The sentence used to float under this chip, which is the toolbar band -- the screenshot
             // that started this round showed it covering "Import chest", "Test roll" and "Undo". It
             // goes to the panel's hint line instead, where it covers nothing.
-            tableHint = dev.ellipog.tenet.client.dev.TableEditorLayout.modeHint(book.tablePreview)
+            tableHint = dev.ellipog.tenet.client.dev.TableEditorLayout.modeHint(book.bookState.tablePreview)
                     + "  (press to cycle - this is how the numbers are read, not a property of the file)";
         }
         book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_PREVIEW, "", mode, mode.x() + 2, mode.y() + 3,
@@ -3214,14 +3230,14 @@ final class BookRewards {
     private void drawTableEditorBody(GuiRenderer r,
                                      dev.ellipog.tenet.quest.loot.RewardTable table, int mouseX,
                                      int mouseY) {
-        if (book.tableShowRoll) {
+        if (book.bookState.tableShowRoll) {
             drawTableRollPane(r, mouseX, mouseY);
             drawTableHint(r, tableHint);
             return;
         }
 
         // --- the entries ---
-        BookGeometry.Rect list = book.tableEditorFrame.list();
+        BookGeometry.Rect list = book.bookState.tableEditorFrame.list();
         int entries = table.entryCount();
         // The folds are reconciled against the list before anything is measured against them: an undo, a
         // remote edit or a removal moves the list under a set of position keys, and a fold left pointing
@@ -3231,20 +3247,21 @@ final class BookRewards {
         // The entries' band, not the list's: the headings do not scroll, so the range, the clamp and the
         // bar all describe the rows under them. Bound from the same `rows()` rectangle the drawing and
         // the hit test read, which is what keeps the grip's travel and the list's end one answer.
-        QuestBookScreen.bindList(book.tableEditorBody, book.tableEditorBar, book.tableEditorFrame.rows(),
-                book.tableEditorFrame.scrollbar(),
+        QuestBookScreen.bindList(book.bookState.tableEditorBody, book.bookState.tableEditorBar,
+                book.bookState.tableEditorFrame.rows(),
+                book.bookState.tableEditorFrame.scrollbar(),
                 dev.ellipog.tenet.client.dev.TableEditorLayout.contentHeight(entries, folds),
                 dev.ellipog.tenet.client.dev.TableEditorLayout.ROW_HEIGHT);
-        int tableScroll = book.tableEditorBody.scrollY();
+        int tableScroll = book.bookState.tableEditorBody.scrollY();
         drawTableHeadings(r, list);
         // Clipped to the rows' band rather than the list's: the headings are the list's first strip,
         // and a row scrolled up must disappear under them rather than over.
-        BookGeometry.Rect rowsBand = book.tableEditorFrame.rows();
+        BookGeometry.Rect rowsBand = book.bookState.tableEditorFrame.rows();
         try (GuiRenderer.Scoped clip = r.clip(rowsBand.x(), rowsBand.y(), rowsBand.right(),
                 rowsBand.bottom())) {
             for (int i = 0; i < entries; i++) {
                 BookGeometry.Rect rect = dev.ellipog.tenet.client.dev.TableEditorLayout
-                        .rowRect(entries, book.tableEditorFrame, tableScroll, i, folds);
+                        .rowRect(entries, book.bookState.tableEditorFrame, tableScroll, i, folds);
                 if (rect.bottom() < rowsBand.y() || rect.y() > rowsBand.bottom()) {
                     continue;
                 }
@@ -3253,35 +3270,35 @@ final class BookRewards {
         }
         if (entries == 0) {
             r.text("No entries yet - Add item, or drag one in from the recipe viewer.", list.x() + 4,
-                    book.tableEditorFrame.rowsTop() + 4, ArmatureTheme.faint());
+                    book.bookState.tableEditorFrame.rowsTop() + 4, ArmatureTheme.faint());
         }
         // The entries' bar, on the band the entries are in rather than on the whole list: the headings
         // above it do not scroll, and a groove that claimed them would put the grip's ends in the wrong
         // place by the height of a line.
-        QuestBookScreen.drawBar(r, book.tableEditorBar, mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.tableEditorBar, mouseX, mouseY);
         // The Import popover, last of everything: it is the innermost thing on screen while it is open,
         // so it is drawn on top of the list. Its *presses* are asked first rather than last -- see
         // `pressTableEditor` -- because the press scan takes the first target that contains the point,
         // and "drawn on top" and "registered first" cannot both be true of one list.
-        if (book.tableImportOpen && tableImportAnchor != null) {
+        if (book.bookState.tableImportOpen && tableImportAnchor != null) {
             // The real pointer, because the popover is one of the overlays that owns it: the rows under it
             // were drawn with a pointer over nothing, and these two are the ones still aimed at. See
             // `overlayOwnsPointer`.
-            drawTableImportPopover(r, tableImportAnchor, book.renderMouseX, book.renderMouseY);
+            drawTableImportPopover(r, tableImportAnchor, book.bookState.renderMouseX, book.bookState.renderMouseY);
         }
         else {
-            book.tableImportBox = null;
+            book.bookState.tableImportBox = null;
         }
         drawTableHint(r, tableHint);
     }
 
     private void drawTableEditorToolbar(GuiRenderer r, int mouseX, int mouseY, boolean live) {
-        BookGeometry.Rect bar = book.tableEditorFrame.toolbar();
+        BookGeometry.Rect bar = book.bookState.tableEditorFrame.toolbar();
         int x = bar.x();
         // While the roll is showing, the adders are stood down and the roll button is the way back: the
         // page is about what the table did, and a button that said "Test roll x10" over it would both
         // re-roll (fine) and hide the only visible way out of the page (not fine).
-        if (book.tableShowRoll) {
+        if (book.bookState.tableShowRoll) {
             tableToolbarButton(r, x, bar, "Back to table", mouseX, mouseY, QuestBookScreen.EditAction.TABLE_ROLL, true);
             // Set here, drawn by the caller at the end of its own frame: this method is one part of the
             // panel's drawing, and a band drawn from inside it lands before the rows have had their say
@@ -3325,7 +3342,8 @@ final class BookRewards {
             tableHint = canUndo ? "Undo the last edit to this table" : "Nothing to undo yet";
         }
         if (canUndo) {
-            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_UNDO, "", undo, undo.x() + 5, undo.y(), "", null, -1);
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_UNDO, "", undo, undo.x() + 5,
+                    undo.y(), "", null, -1);
         }
     }
 
@@ -3390,7 +3408,7 @@ final class BookRewards {
         // The rectangle it just drew, for the press: one derivation, so a press inside the popover is a
         // press on what is on screen rather than on the arithmetic a second time. Shifted for the rail's
         // slide like every other registered box — see `shiftHit`.
-        book.tableImportBox = book.shiftHit(BookGeometry.Rect.at(x, y, width, height));
+        book.bookState.tableImportBox = book.shiftHit(BookGeometry.Rect.at(x, y, width, height));
         drawTableImportRow(r, x, y, width, "From inventory", QuestBookScreen.EditAction.TABLE_IMPORT,
                 mouseX, mouseY);
         drawTableImportRow(r, x, y + BookItemPicker.MENU_ROW_HEIGHT, width, "From target chest",
@@ -3418,7 +3436,7 @@ final class BookRewards {
      * lying rather than the key.
      */
     private boolean tableCanUndo() {
-        return book.tableApplied > 0;
+        return book.bookState.tableApplied > 0;
     }
 
     /** One entry: its badge, its weight with the chance that weight means, and its own fields folded. */
@@ -3461,7 +3479,7 @@ final class BookRewards {
         if (text == null || text.isEmpty()) {
             return;
         }
-        BookGeometry.Rect card = book.surfaceCard(book.surfaceKind);
+        BookGeometry.Rect card = book.surfaceCard(book.bookState.surfaceKind);
         // The free strip at the top of the footer band, above the row the controls sit in -- so the
         // sentence cannot land under a button whatever the window is, and no control's x has to be
         // guessed at. This used to be drawn at `body.bottom() + 8`, which is past the body and on the
@@ -3480,7 +3498,7 @@ final class BookRewards {
                                    BookGeometry.Rect rect, int mouseX, int mouseY) {
         var row = dev.ellipog.tenet.client.dev.TableEditorLayout.row(rect);
         var entry = table.entries().get(index);
-        boolean folded = book.tableFolded.contains(index);
+        boolean folded = book.bookState.tableFolded.contains(index);
 
         ItemStack icon = entry.reward() instanceof dev.ellipog.tenet.quest.reward.ItemReward item
                 ? item.item().toStack()
@@ -3509,9 +3527,9 @@ final class BookRewards {
         // The chance, from the table's own arithmetic -- computed once for the frame, in the caller.
         var odds = tableOdds;
         String chance = dev.ellipog.tenet.client.dev.TableEditorLayout
-                .chance(odds.each().get(index), book.tablePreview, table.lootSize());
+                .chance(odds.each().get(index), book.bookState.tablePreview, table.lootSize());
         String again = dev.ellipog.tenet.client.dev.TableEditorLayout
-                .atLeastOnce(odds.each().get(index), book.tablePreview, table.lootSize());
+                .atLeastOnce(odds.each().get(index), book.bookState.tablePreview, table.lootSize());
         BookGeometry.Rect oddsBox = dev.ellipog.tenet.client.dev.TableEditorLayout.odds(rect);
         r.text(chance, oddsBox.right() - r.textWidth(chance), oddsBox.y() + (line - 8) / 2,
                 odds.each().get(index).always() ? ArmatureTheme.title() : ArmatureTheme.faint());
@@ -3525,7 +3543,7 @@ final class BookRewards {
 
         // The weight, and its stepper. Blocked in the readings that throw no dice, for the header's own
         // reason: a weight is not a quantity in a mode that grants everything.
-        boolean weighed = dev.ellipog.tenet.client.dev.TableEditorLayout.rolls(book.tablePreview);
+        boolean weighed = dev.ellipog.tenet.client.dev.TableEditorLayout.rolls(book.bookState.tablePreview);
         // And the `-` is blocked at zero, where it cannot act: the press was clamped and the control
         // swallowed it, which is the one thing this panel's Undo already refuses to do.
         boolean canDown = weighed && entry.weight() > 0;
@@ -3549,21 +3567,23 @@ final class BookRewards {
         if (row.minus().contains(mouseX, mouseY) || row.plus().contains(mouseX, mouseY)
                 || row.value().contains(mouseX, mouseY)) {
             tableHint = !weighed
-                    ? dev.ellipog.tenet.client.dev.TableEditorLayout.unusedByMode(book.tablePreview)
+                    ? dev.ellipog.tenet.client.dev.TableEditorLayout.unusedByMode(book.bookState.tablePreview)
                     : !canDown
                             ? "Already at zero - zero means always granted"
                             : "Weight " + weight + " of " + BookAssets.trimNumber(tableWeightTotal)
                                     + " - zero means always granted";
         }
         if (canDown) {
-            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT_DOWN, "", row.minus(), row.minus().x(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT_DOWN, "", row.minus(),
+                    row.minus().x(),
                     row.minus().y(), "", null, index);
         }
         if (weighed) {
             book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT_UP, "", row.plus(), row.plus().x(),
                     row.plus().y(), "",
                     null, index);
-            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT, "", row.value(), row.value().x() + 2,
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT, "", row.value(),
+                    row.value().x() + 2,
                     row.value().y(), "", null, index);
         }
 
@@ -3656,7 +3676,7 @@ final class BookRewards {
         int baseline = box.y() + (box.height() - 8) / 2;
         // The field this control commits to is the field the editor would be standing in for.
         boolean replaced = dev.ellipog.tenet.client.dev.InlineEdit
-                .replaces(BookAssets.tableEntryPath(index, control.field()), book.editingPath);
+                .replaces(BookAssets.tableEntryPath(index, control.field()), book.bookState.editingPath);
 
         switch (control.kind()) {
             case FLAG -> {
@@ -3667,7 +3687,8 @@ final class BookRewards {
                 String label = Measure.truncate(control.label(), Math.max(0, box.width() - 16),
                         book.textMeasure(r));
                 r.text(label, box.x() + 15, baseline, on ? ArmatureTheme.title() : ArmatureTheme.faint());
-                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_FLAG, control.field(), box, box.x(),
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_FLAG, control.field(),
+                        box, box.x(),
                         box.y(), value,
                         null, index);
             }
@@ -3678,7 +3699,8 @@ final class BookRewards {
                 book.questEditor.drawValue(r, box, dev.ellipog.tenet.client.dev.TableRowFields.choiceText(value), "",
                         value.isEmpty(), replaced, mouseX, mouseY);
                 book.questEditor.drawOptionsMark(r, box);
-                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_CHOICE, control.field(), box, box.x() + 4,
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_CHOICE, control.field(),
+                        box, box.x() + 4,
                         box.y() + 3, value, null, index);
             }
             case INT, DECIMAL -> {
@@ -3698,26 +3720,32 @@ final class BookRewards {
                                     Math.max(0, number.value().width() - 4), book.textMeasure(r)),
                             number.value().x() + 2, baseline, ArmatureTheme.body());
                 }
-                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_STEP_DOWN, control.field(), number.minus(),
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_STEP_DOWN,
+                        control.field(), number.minus(),
                         number.minus().x(), number.minus().y(), value, null, index);
-                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_STEP_UP, control.field(), number.plus(),
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_STEP_UP,
+                        control.field(), number.plus(),
                         number.plus().x(), number.plus().y(), value, null, index);
-                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_TEXT, control.field(), number.value(),
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_TEXT, control.field(),
+                        number.value(),
                         number.value().x() + 2, number.value().y(), value, null, index);
             }
             case ITEM -> {
                 int textX = book.questEditor.drawItemValue(r, box, value, replaced, mouseX, mouseY);
-                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ENTRY_ITEM, control.field(), box, textX,
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ENTRY_ITEM, control.field(),
+                        box, textX,
                         box.y() + 3, value, null, index);
             }
             case TABLE_OPEN -> {
                 book.questEditor.drawValue(r, box, "Edit this table", "", false, false, mouseX, mouseY);
-                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_OPEN_CHILD, control.field(), box, box.x() + 4,
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_OPEN_CHILD, control.field(),
+                        box, box.x() + 4,
                         box.y() + 3, value, null, index);
             }
             case RAW -> {
                 book.questEditor.drawValue(r, box, "edit JSON", "", true, false, mouseX, mouseY);
-                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_RAW, control.field(), box, box.x() + 4,
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_RAW, control.field(),
+                        box, box.x() + 4,
                         box.y() + 3, value, null, index);
             }
             default -> {
@@ -3726,7 +3754,8 @@ final class BookRewards {
                 // editor's own field stands in for the value while it is open: see `replaced` above.
                 String shown = value.isEmpty() ? control.label() : value;
                 book.questEditor.drawValue(r, box, shown, "", value.isEmpty() && !replaced, replaced, mouseX, mouseY);
-                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_TEXT, control.field(), box, box.x() + 4,
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_TEXT, control.field(),
+                        box, box.x() + 4,
                         box.y() + 3, value, null, index);
             }
         }
@@ -3735,7 +3764,7 @@ final class BookRewards {
             // (the mode's meaning, the roll's summary), and a form of twenty controls all explaining
             // themselves one at a time in one shared line is a line that changes faster than it can be
             // read. The card's fields have used this surface all along.
-            book.pendingLabels.add(new QuestBookScreen.PendingLabel(box, control.hint()));
+            book.bookState.pendingLabels.add(new QuestBookScreen.PendingLabel(box, control.hint()));
         }
     }
 
@@ -3752,7 +3781,7 @@ final class BookRewards {
      * entry came up and what share of the rolls that is.
      */
     private void drawTableRollPane(GuiRenderer r, int mouseX, int mouseY) {
-        BookGeometry.Rect list = book.tableEditorFrame.list();
+        BookGeometry.Rect list = book.bookState.tableEditorFrame.list();
         r.fill(list.x(), list.y(), list.right(), list.bottom(), ArmatureTheme.recessed());
         var held = dev.ellipog.tenet.client.ClientTableRoll.of(tableDescribe());
         if (held == null) {
@@ -3767,15 +3796,16 @@ final class BookRewards {
         r.text(Measure.truncate(summary, Math.max(0, list.width() - 66), book.textMeasure(r)),
                 list.x() + 58, list.y() + 2, ArmatureTheme.faint());
 
-        BookGeometry.Rect band = book.tableEditorFrame.rows();
+        BookGeometry.Rect band = book.bookState.tableEditorFrame.rows();
         // The page's own range and clamp, from the same line count its drawing walks: `maxRollScroll` was
         // the clamp here and the drawing's `y` was computed from the same pitch, which is the pair this
         // replaces with one object. A report is a list like any other and it gets a bar like any other --
         // it is lines of text about a roll, and "there is more below" is exactly what it has to say.
-        QuestBookScreen.bindList(book.rollBody, book.rollBar, band, book.tableEditorFrame.scrollbar(),
+        QuestBookScreen.bindList(book.bookState.rollBody, book.bookState.rollBar, band,
+                book.bookState.tableEditorFrame.scrollbar(),
                 rollLines(held) * QuestBookScreen.ROLL_PITCH,
                 QuestBookScreen.ROLL_PITCH);
-        int rollScroll = book.rollBody.scrollY();
+        int rollScroll = book.bookState.rollBody.scrollY();
         try (GuiRenderer.Scoped clip = r.clip(band.x(), band.y(), band.right(), band.bottom())) {
             int y = band.y() - rollScroll;
             for (var row : held.rows()) {
@@ -3801,7 +3831,7 @@ final class BookRewards {
         }
         // The report's own bar, beside the lines rather than over them: the strip is the one the editor's
         // entries use, so the two views of this panel put their grip in the same column.
-        QuestBookScreen.drawBar(r, book.rollBar, mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.rollBar, mouseX, mouseY);
     }
 
     /** How many lines the roll report has: every entry, the empty band's, and the notes'. */
@@ -3853,7 +3883,7 @@ final class BookRewards {
      */
     private void reconcileFolds() {
         int entries = tableModel().map(dev.ellipog.tenet.quest.loot.RewardTable::entryCount).orElse(0);
-        book.tableFolded.removeIf(at -> at < 0 || at >= entries);
+        book.bookState.tableFolded.removeIf(at -> at < 0 || at >= entries);
     }
 
     /** The weight the table's entries add up to, for the header. */
@@ -3908,13 +3938,13 @@ final class BookRewards {
     void openRewardsOverlay() {
         book.closeOverlay();
         book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.REWARDS));
-        book.rewardsRevision = ClientQuestCache.progressRevision();
+        book.bookState.rewardsRevision = ClientQuestCache.progressRevision();
         // The marks are **not** cleared here, and that is the fix rather than an omission: a press whose
         // answer is still in flight has to survive the card being closed over it, or reopening would show
         // a row the player had already claimed as ready again. A mark nobody ever answers now expires on
         // its own and says so -- see PendingClaims.
-        book.rewardMarksRevision = book.pendingClaims.revision();
-        book.rewardView.scrollTo(0);
+        book.bookState.rewardMarksRevision = book.bookState.pendingClaims.revision();
+        book.bookState.rewardView.scrollTo(0);
         book.rebuildWidgets();
     }
 
@@ -4018,9 +4048,9 @@ final class BookRewards {
         rewardCard = book.framed(PanelKind.REWARDS);
         Viewport body = rewardBody();
 
-        book.rewardView.clear();
-        book.rewardView.whole(true);
-        book.rewardView.viewport().bounds(body.originX(), body.originY(), body.viewWidth(),
+        book.bookState.rewardView.clear();
+        book.bookState.rewardView.whole(true);
+        book.bookState.rewardView.viewport().bounds(body.originX(), body.originY(), body.viewWidth(),
                 body.viewHeight());
         for (RewardInboxLayout.Row row : rewardRows) {
             ArmatureButton button = book.control(0, 0, 0, 0, buttonLabel(row), rowPress(row));
@@ -4032,10 +4062,10 @@ final class BookRewards {
                 button.active = false;
             }
             button.tooltip(buttonTooltip(row));
-            book.rewardView.put(row.key(), button, RewardInboxLayout::strip);
+            book.bookState.rewardView.put(row.key(), button, RewardInboxLayout::strip);
             built.add(button);
         }
-        book.rewardView.apply(rewardLayout, body.viewWidth());
+        book.bookState.rewardView.apply(rewardLayout, body.viewWidth());
 
         built.addAll(buildRewardStateChips());
 
@@ -4104,8 +4134,8 @@ final class BookRewards {
             // The build is deferred to the tick that settles the slide, so the marks are consumed here:
             // the deferred build will place controls that already know about them. Without this the tick
             // would see the same change on every frame of the slide and rebuild for each one.
-            book.panelBuildPending = true;
-            book.rewardMarksRevision = book.pendingClaims.revision();
+            book.bookState.panelBuildPending = true;
+            book.bookState.rewardMarksRevision = book.bookState.pendingClaims.revision();
             return;
         }
         // Filed under REWARDS if the bucket is missing it — see slideList for the crash this
@@ -4114,24 +4144,24 @@ final class BookRewards {
         // the book open is the reliable way — found no REWARDS entry and died removing from
         // List.of(). Filing here changes nothing when the entry exists, and when it does not
         // the removals below still run their cleanup.
-        java.util.List<AbstractWidget> slid = QuestBookScreen.slideList(book.slideWidgets, PanelKind.REWARDS);
-        for (ArmatureButton control : book.rewardControls) {
+        java.util.List<AbstractWidget> slid = QuestBookScreen.slideList(book.bookState.slideWidgets, PanelKind.REWARDS);
+        for (ArmatureButton control : book.bookState.rewardControls) {
             book.removeBookWidget(control);
-            book.buttons.remove(control);
+            book.bookState.buttons.remove(control);
             slid.remove(control);
-            book.slideBaseX.remove(control);
+            book.bookState.slideBaseX.remove(control);
         }
         // Filed under the rail like the first build was, so a refresh keeps travelling with a slide that
         // is still in flight rather than landing its replacements early.
-        PanelKind outer = book.slideBucket;
-        book.slideBucket = PanelKind.REWARDS;
+        PanelKind outer = book.bookState.slideBucket;
+        book.bookState.slideBucket = PanelKind.REWARDS;
         try {
-            book.rewardControls = buildRewardWidgets();
+            book.bookState.rewardControls = buildRewardWidgets();
         }
         finally {
-            book.slideBucket = outer;
+            book.bookState.slideBucket = outer;
         }
-        book.rewardMarksRevision = book.pendingClaims.revision();
+        book.bookState.rewardMarksRevision = book.bookState.pendingClaims.revision();
         book.refreshOverlayMute();
     }
 
@@ -4248,7 +4278,7 @@ final class BookRewards {
      * collected ones and nothing else.
      */
     private RewardInboxLayout.Status containerStatus(String key, List<RewardInboxLayout.Row> leaves) {
-        if (book.pendingClaims.isMarked(key)) {
+        if (book.bookState.pendingClaims.isMarked(key)) {
             return RewardInboxLayout.Status.PENDING;
         }
         for (RewardInboxLayout.Row leaf : leaves) {
@@ -4316,7 +4346,7 @@ final class BookRewards {
      */
     private Viewport rewardBody() {
         BookGeometry.Rect card = rewardCard;
-        return book.rewardView.viewport().bounds(
+        return book.bookState.rewardView.viewport().bounds(
                 card.x() + BookGeometry.MODAL_INSET,
                 card.y() + REWARDS_BODY_TOP,
                 rewardBodyWidth(card.width()),
@@ -4384,7 +4414,7 @@ final class BookRewards {
             return;
         }
         rewardState = state;
-        book.rewardView.scrollTo(0);
+        book.bookState.rewardView.scrollTo(0);
         refreshRewardCard();
     }
 
@@ -4492,12 +4522,12 @@ final class BookRewards {
      */
     private void claimChapterFromInbox(String chapterId) {
         long now = net.minecraft.util.Util.getMillis();
-        if (!book.pendingClaims.mark(PendingClaims.chapterKey(chapterId), now)) {
+        if (!book.bookState.pendingClaims.mark(PendingClaims.chapterKey(chapterId), now)) {
             // The banner is already in flight: a second press would be a second packet for one decision.
             return;
         }
         for (ClientQuestCache.Entry entry : book.questsIn(chapterId)) {
-            book.pendingClaims.mark(PendingClaims.questKey(entry.id()), now);
+            book.bookState.pendingClaims.mark(PendingClaims.questKey(entry.id()), now);
             for (int index = 0; index < entry.rewards().size(); index++) {
                 markPending(entry.id(), index, now);
             }
@@ -4544,9 +4574,9 @@ final class BookRewards {
      * what the id lookup would cost at that rate.
      */
     private RewardInboxLayout.Status statusOf(UUID self, ClientQuestCache.Entry entry, int index) {
-        if (book.pendingClaims.isMarked(PendingClaims.rewardKey(entry.id(), index))
-                || book.pendingClaims.isMarked(PendingClaims.questKey(entry.id()))
-                || book.pendingClaims.isMarked(PendingClaims.chapterKey(entry.chapterId()))) {
+        if (book.bookState.pendingClaims.isMarked(PendingClaims.rewardKey(entry.id(), index))
+                || book.bookState.pendingClaims.isMarked(PendingClaims.questKey(entry.id()))
+                || book.bookState.pendingClaims.isMarked(PendingClaims.chapterKey(entry.chapterId()))) {
             // A whole-quest or whole-chapter press marks every reward inside it, so its children read
             // collected with it: a banner that read collected above rows still offering their own buttons
             // would be the card disagreeing with itself about one press.
@@ -4608,7 +4638,7 @@ final class BookRewards {
      * choices. See {@link #markPending} for why a choice is not marked.
      */
     void claimReward(String questId, int rewardIndex) {
-        if (book.pendingClaims.isMarked(PendingClaims.rewardKey(questId, rewardIndex))) {
+        if (book.bookState.pendingClaims.isMarked(PendingClaims.rewardKey(questId, rewardIndex))) {
             return;
         }
         markPending(questId, rewardIndex, net.minecraft.util.Util.getMillis());
@@ -4643,7 +4673,7 @@ final class BookRewards {
         if (isChoiceType(entry.rewards().get(rewardIndex).type())) {
             return false;
         }
-        return book.pendingClaims.mark(PendingClaims.rewardKey(questId, rewardIndex), nowMillis);
+        return book.bookState.pendingClaims.mark(PendingClaims.rewardKey(questId, rewardIndex), nowMillis);
     }
 
     /**
@@ -4671,7 +4701,7 @@ final class BookRewards {
      */
     boolean markQuest(String questId, long nowMillis) {
         ClientQuestCache.Entry entry = ClientQuestCache.entry(questId);
-        if (!book.pendingClaims.mark(PendingClaims.questKey(questId), nowMillis)) {
+        if (!book.bookState.pendingClaims.mark(PendingClaims.questKey(questId), nowMillis)) {
             return false;
         }
         if (entry != null) {
@@ -4705,11 +4735,11 @@ final class BookRewards {
         // Built on first need: a chapter's canonical answer walks the pack, and most ticks have no
         // chapter mark to ask about.
         Map<String, Integer> chaptersOutstanding = null;
-        for (String key : book.pendingClaims.keys()) {
+        for (String key : book.bookState.pendingClaims.keys()) {
             PendingClaims.Subject subject = PendingClaims.subjectOf(key);
             if (subject == null) {
                 // A key this build cannot read: forget it rather than believe it forever.
-                book.pendingClaims.resolve(key);
+                book.bookState.pendingClaims.resolve(key);
                 continue;
             }
             ClientQuestCache.Entry entry = ClientQuestCache.entry(subject.owner());
@@ -4732,10 +4762,10 @@ final class BookRewards {
                 }
             };
             if (done) {
-                book.pendingClaims.resolve(key);
+                book.bookState.pendingClaims.resolve(key);
             }
         }
-        for (String key : book.pendingClaims.expired(nowMillis)) {
+        for (String key : book.bookState.pendingClaims.expired(nowMillis)) {
             report("The server did not answer " + markDescription(key) + ", so it was put back");
         }
     }
@@ -4766,7 +4796,7 @@ final class BookRewards {
      * it is touched.
      */
     boolean toggleRewardRow(double mouseX, double mouseY) {
-        if (rewardLayout == null || !book.rewardView.viewport().containsScreen(mouseX, mouseY)) {
+        if (rewardLayout == null || !book.bookState.rewardView.viewport().containsScreen(mouseX, mouseY)) {
             // Outside the list's own rectangle: a row scrolled under the card's header or footer is
             // clipped away, and a press there is the card's, not a hidden row's.
             return false;
@@ -4779,7 +4809,7 @@ final class BookRewards {
             if (slot == null) {
                 continue;
             }
-            Slot onScreen = InspectLayout.onScreen(book.rewardView.viewport(), RewardInboxLayout.body(slot));
+            Slot onScreen = InspectLayout.onScreen(book.bookState.rewardView.viewport(), RewardInboxLayout.body(slot));
             if (!onScreen.contains(mouseX, mouseY)) {
                 continue;
             }
@@ -4819,7 +4849,7 @@ final class BookRewards {
      * a press that reaches here is a press on the row and not on its button.
      */
     boolean pressRewardRow(double mouseX, double mouseY) {
-        if (rewardLayout == null || !book.rewardView.viewport().containsScreen(mouseX, mouseY)) {
+        if (rewardLayout == null || !book.bookState.rewardView.viewport().containsScreen(mouseX, mouseY)) {
             // Outside the list's own rectangle: the same culling as the fold, so a row scrolled
             // under the card's header or footer is not claimable from where it is not drawn.
             return false;
@@ -4832,7 +4862,7 @@ final class BookRewards {
             if (slot == null) {
                 continue;
             }
-            Slot onScreen = InspectLayout.onScreen(book.rewardView.viewport(), RewardInboxLayout.body(slot));
+            Slot onScreen = InspectLayout.onScreen(book.bookState.rewardView.viewport(), RewardInboxLayout.body(slot));
             if (!onScreen.contains(mouseX, mouseY)) {
                 continue;
             }
@@ -4880,7 +4910,7 @@ final class BookRewards {
             return;
         }
         Viewport body = rewardBody();
-        book.rewardView.apply(rewardLayout, body.viewWidth());
+        book.bookState.rewardView.apply(rewardLayout, body.viewWidth());
         if (rewardRows.isEmpty()) {
             // Nothing to show is a sentence rather than an empty card, and it says what would put
             // something here. Which sentence depends on the view, because "finish a quest" is the wrong
@@ -4899,7 +4929,7 @@ final class BookRewards {
         else {
             drawRewardInboxRows(r, body, mouseX, mouseY);
         }
-        QuestBookScreen.drawBar(r, book.rewardView.bar(), mouseX, mouseY);
+        QuestBookScreen.drawBar(r, book.bookState.rewardView.bar(), mouseX, mouseY);
     }
 
     /** What an empty view says, in the words the active view is using. */
@@ -4939,7 +4969,7 @@ final class BookRewards {
      */
     private void drawRewardInboxRows(GuiRenderer r, Viewport body, int mouseX, int mouseY) {
         long now = Util.getMillis();
-        Viewport view = book.rewardView.viewport();
+        Viewport view = book.bookState.rewardView.viewport();
         try (GuiRenderer.Scoped clip = r.clip(body.originX(), body.originY(),
                 body.originX() + body.viewWidth(), body.originY() + body.viewHeight())) {
             for (int i = 0; i < rewardRows.size(); i++) {
@@ -4953,8 +4983,8 @@ final class BookRewards {
                         || onScreen.y() >= body.originY() + body.viewHeight()) {
                     continue;
                 }
-                book.rowHover.update(row.key(), now);
-                float hover = book.rowHover.amount(row.key(), now);
+                book.bookState.rowHover.update(row.key(), now);
+                float hover = book.bookState.rowHover.amount(row.key(), now);
                 switch (row.kind()) {
                     case CHAPTER -> drawRewardChapterRow(r, row, onScreen, hover, mouseX, mouseY);
                     case QUEST -> drawRewardQuestRow(r, row, onScreen, hover, mouseX, mouseY);
@@ -5050,7 +5080,7 @@ final class BookRewards {
                     ? "tenet.screen.rewards.collapse_hint"
                     : "tenet.screen.rewards.expand_hint").getString());
             lines.add(countLine(row));
-            book.rowTooltips.add(new QuestBookScreen.RowTooltip(slot, lines));
+            book.bookState.rowTooltips.add(new QuestBookScreen.RowTooltip(slot, lines));
         }
     }
 
@@ -5119,7 +5149,7 @@ final class BookRewards {
                 iconY);
 
         if (slot.contains(mouseX, mouseY)) {
-            book.rowTooltips.add(new QuestBookScreen.RowTooltip(slot, List.of(
+            book.bookState.rowTooltips.add(new QuestBookScreen.RowTooltip(slot, List.of(
                     Component.translatable(expanded
                             ? "tenet.screen.rewards.collapse_hint"
                             : "tenet.screen.rewards.expand_hint").getString(),
@@ -5327,7 +5357,7 @@ final class BookRewards {
             // quest is giving it.
             lines.add(entry.titleText());
             lines.addAll(rewardTooltipLines(row.questId(), row.rewardIndex()));
-            book.rowTooltips.add(new QuestBookScreen.RowTooltip(slot, lines));
+            book.bookState.rowTooltips.add(new QuestBookScreen.RowTooltip(slot, lines));
         }
     }
 
@@ -5382,7 +5412,7 @@ final class BookRewards {
         }
 
         if (slot.contains(mouseX, mouseY)) {
-            book.rowTooltips.add(new QuestBookScreen.RowTooltip(slot, rewardTooltipLines(row.questId(),
+            book.bookState.rowTooltips.add(new QuestBookScreen.RowTooltip(slot, rewardTooltipLines(row.questId(),
                     row.rewardIndex())));
         }
     }
