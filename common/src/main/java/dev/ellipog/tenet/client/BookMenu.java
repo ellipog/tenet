@@ -103,8 +103,8 @@ final class BookMenu {
         }
         float arrived =
                 PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.menuOpenedAt,
-                        QuestBookScreen.MENU_RISE_MILLIS);
-        return Math.round(QuestBookScreen.MENU_RISE_PX * (1F - arrived));
+                        BookItemPicker.MENU_RISE_MILLIS);
+        return Math.round(BookItemPicker.MENU_RISE_PX * (1F - arrived));
     }
 
     // ------------------------------------------------------------------
@@ -367,7 +367,7 @@ final class BookMenu {
             items.add(MenuFlyout.text(Labels.of("tenet.dev.menu.move_to", entry.titleText()),
                     () -> book.send(new EditorOp.MoveChapter(id, entry.id(), Integer.MAX_VALUE))));
         }
-        int room = Math.max(0, (book.panelRect().height() - 16) / QuestBookScreen.MENU_ROW_HEIGHT - 2);
+        int room = Math.max(0, (book.bookFrame.panelRect().height() - 16) / BookItemPicker.MENU_ROW_HEIGHT - 2);
         if (items.size() > room && room >= 2) {
             List<MenuFlyout.Row> cut = new ArrayList<>(items.subList(0, room - 1));
             cut.add(MenuFlyout.text("\u2026", null));
@@ -399,8 +399,8 @@ final class BookMenu {
         int x = menuLeft();
         int y = menuTop() + menuRise();
         for (int i = 0; i < book.menu.size(); i++) {
-            rects.add(BookGeometry.Rect.at(x, y + i * QuestBookScreen.MENU_ROW_HEIGHT, MENU_WIDTH,
-                    QuestBookScreen.MENU_ROW_HEIGHT));
+            rects.add(BookGeometry.Rect.at(x, y + i * BookItemPicker.MENU_ROW_HEIGHT, MENU_WIDTH,
+                    BookItemPicker.MENU_ROW_HEIGHT));
         }
         return rects;
     }
@@ -422,8 +422,8 @@ final class BookMenu {
         int width = MenuFlyout.width(rows);
         int height = MenuFlyout.height(rows);
         int x = MenuPlacement.submenuX(menuPlacement(), width, 4);
-        int top = Math.max(book.panelRect().y() + 4, book.geometry().chapterListTop() + 4);
-        int y = Math.max(top, Math.min(main.y(), book.panelRect().bottom() - 4 - height));
+        int top = Math.max(book.bookFrame.panelRect().y() + 4, book.geometry().chapterListTop() + 4);
+        int y = Math.max(top, Math.min(main.y(), book.bookFrame.panelRect().bottom() - 4 - height));
         return MenuFlyout.place(x, y, rows);
     }
 
@@ -435,10 +435,10 @@ final class BookMenu {
      * right edge and so put every canvas menu beside the sidebar whatever the click was near.
      */
     private MenuPlacement.Placed menuPlacement() {
-        BookGeometry.Rect window = book.panelRect();
+        BookGeometry.Rect window = book.bookFrame.panelRect();
         int flyoutWidth = book.submenuRow >= 0 ? MenuFlyout.width(childrenOf(book.submenuRow)) : MENU_WIDTH;
         return MenuPlacement.place(book.menuX, book.menuY, MENU_WIDTH,
-                book.menu.size() * QuestBookScreen.MENU_ROW_HEIGHT + 6,
+                book.menu.size() * BookItemPicker.MENU_ROW_HEIGHT + 6,
                 flyoutWidth, window.x() + 4, window.y() + 4, window.right() - 4, window.bottom() - 4, 8);
     }
 
@@ -520,7 +520,7 @@ final class BookMenu {
             return 1F;
         }
         return PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.menuOpenedAt,
-                QuestBookScreen.MENU_RISE_MILLIS);
+                BookItemPicker.MENU_RISE_MILLIS);
     }
 
     void drawMenu(GuiRenderer r, int mouseX, int mouseY) {
@@ -564,8 +564,8 @@ final class BookMenu {
         int colour = item.submenu() ? ArmatureTheme.body()
                 : item.action() == null ? ArmatureTheme.faint()
                 : item.danger() ? ArmatureTheme.blocked() : ArmatureTheme.body();
-        r.text(QuestBookScreen.fitLabel(r, item.label()), rect.x() + 4,
-                rect.y() + (QuestBookScreen.MENU_ROW_HEIGHT - 8) / 2,
+        r.text(BookItemPicker.fitLabel(r, item.label()), rect.x() + 4,
+                rect.y() + (BookItemPicker.MENU_ROW_HEIGHT - 8) / 2,
                 Colour.alphaOf(colour, fade));
     }
 
@@ -590,7 +590,7 @@ final class BookMenu {
             return false;
         }
         List<ClientQuestCache.Entry> quests = book.questsIn(chapter);
-        ClientQuestCache.Entry node = book.nodeAt(mouseX, mouseY, quests);
+        ClientQuestCache.Entry node = book.bookCanvas.nodeAt(mouseX, mouseY, quests);
         if (!book.mayEditNow()) {
             if (node == null) {
                 return false;
@@ -613,7 +613,7 @@ final class BookMenu {
         if (node != null) {
             // A right-click on a node outside the selection makes it the subject: acting on a set the
             // pointer is not on would be the menu editing something the author was not pointing at.
-            if (!QuestBookScreen.isSelected(node.id())) {
+            if (!BookCanvas.isSelected(node.id())) {
                 QuestBookScreen.selectedQuest = node.id();
                 QuestBookScreen.multiSelection.clear();
             }
@@ -631,7 +631,7 @@ final class BookMenu {
                 // And then an element, before the empty canvas: an element is drawn over the canvas, so a
                 // right-click that lands on one is a right-click on it -- the same priority the press and the
                 // hover use, and the reason a decoration can be duplicated or removed from where it sits.
-                String element = book.elementAt(mouseX, mouseY);
+                String element = book.bookCanvas.elementAt(mouseX, mouseY);
                 if (element != null) {
                     QuestBookScreen.selectedElement = element;
                     QuestBookScreen.selectedQuest = null;
@@ -659,8 +659,8 @@ final class BookMenu {
         List<MenuItem> items = new ArrayList<>();
         items.add(MenuItem.of("Open", () -> book.bookRewards.openOverlay(id)));
         items.addAll(pinItems(targets, many));
-        items.add(MenuItem.of("Duplicate" + many, () -> book.duplicateSelection(targets)));
-        items.add(MenuItem.of("Copy" + many, book::copySelection));
+        items.add(MenuItem.of("Duplicate" + many, () -> book.bookInput.duplicateSelection(targets)));
+        items.add(MenuItem.of("Copy" + many, book.bookInput::copySelection));
         // Playtesting, not editing: clearing progress so reveals and states can be checked again,
         // without leaving the book for a command. One press, like the command it sends — progress
         // is replayable, so unlike Delete this is not the row whose mistake cannot be undone.
@@ -684,10 +684,10 @@ final class BookMenu {
         }
         boolean armed = menuDeleteArmed;
         items.add(MenuItem.destructive(
-                armed ? "Really delete?" + QuestBookScreen.questDeleteNote(targets) : "Delete" + many,
+                armed ? "Really delete?" + BookPins.questDeleteNote(targets) : "Delete" + many,
                 armed
                         ? () -> {
-                            book.deleteSelection(targets);
+                            book.bookInput.deleteSelection(targets);
                             QuestBookScreen.selectedQuest = null;
                             QuestBookScreen.multiSelection.clear();
                         }
@@ -770,9 +770,9 @@ final class BookMenu {
     /** What the empty canvas offers: make one here, paste here, take the chapter. */
     private List<MenuItem> emptyCanvasItems(double mouseX, double mouseY) {
         double x = BookGeometry.snap(book.viewport().contentX(mouseX), BookGeometry.SNAP_GRID,
-                QuestBookScreen.snappingNow());
+                BookInput.snappingNow());
         double y = BookGeometry.snap(book.viewport().contentY(mouseY), BookGeometry.SNAP_GRID,
-                QuestBookScreen.snappingNow());
+                BookInput.snappingNow());
         List<MenuItem> items = new ArrayList<>();
         items.add(MenuItem.of("New quest here",
                 () -> book.send(new EditorOp.Create(Math.round(x), Math.round(y)))));
@@ -784,9 +784,9 @@ final class BookMenu {
             items.add(MenuItem.of("Add " + kind[1] + " here", () -> addElement(kind[0], x, y)));
         }
         if (!ClientEditorClipboard.isEmpty()) {
-            items.add(MenuItem.of("Paste here", () -> book.pasteAt(x, y)));
+            items.add(MenuItem.of("Paste here", () -> book.bookInput.pasteAt(x, y)));
         }
-        items.add(MenuItem.of("Select all in chapter", book::selectAllInChapter));
+        items.add(MenuItem.of("Select all in chapter", book.bookInput::selectAllInChapter));
         return items;
     }
 
@@ -817,8 +817,8 @@ final class BookMenu {
         if (tree == null) {
             return;
         }
-        int index = book.elementInsertIndex();
-        CanvasElement made = book.placeElement(tree.deepCopy());
+        int index = book.bookPins.elementInsertIndex();
+        CanvasElement made = book.bookPins.placeElement(tree.deepCopy());
         if (made == null) {
             return;
         }
@@ -828,7 +828,7 @@ final class BookMenu {
 
     /** What a canvas element offers: a copy of it, and its removal. */
     private List<MenuItem> elementMenuItems(String id) {
-        QuestBookScreen.ElementSlot slot = book.elementSlot(id);
+        BookCanvas.ElementSlot slot = book.bookCanvas.elementSlot(id);
         List<MenuItem> items = new ArrayList<>();
         if (slot != null) {
             items.add(MenuItem.of("Duplicate \"" + elementLabel(slot.element()) + "\"",
@@ -838,7 +838,7 @@ final class BookMenu {
         items.add(MenuItem.destructive(
                 armed ? "Really delete?" : "Delete element",
                 armed
-                        ? () -> book.deleteElement(id)
+                        ? () -> book.bookPins.deleteElement(id)
                         : () -> {
                             // The two-press arm every destructive control in this editor has, and here it
                             // carries the weight it does everywhere else: an element owns no file, so the
@@ -862,8 +862,8 @@ final class BookMenu {
     /** A copy of one element, under a fresh id this client chooses so the copy appears at once. */
     private void duplicateElement(CanvasElement element) {
         com.google.gson.JsonObject tree = CanvasElement.asJson(element);
-        int index = book.elementInsertIndex();
-        CanvasElement made = book.placeElement(tree);
+        int index = book.bookPins.elementInsertIndex();
+        CanvasElement made = book.bookPins.placeElement(tree);
         if (made == null) {
             return;
         }
@@ -882,7 +882,7 @@ final class BookMenu {
      */
     private List<MenuItem> lineMenuItems(String from, String to) {
         ClientQuestCache.Entry dependent = book.entryFor(to);
-        DependencyStyle now = dependent == null ? DependencyStyle.UNSET : QuestBookScreen.lineStyle(dependent, from);
+        DependencyStyle now = dependent == null ? DependencyStyle.UNSET : BookCanvas.lineStyle(dependent, from);
         String suffix = " \u2192 " + to;
         List<MenuItem> items = new ArrayList<>();
         // The four style flyouts are Advanced's, and they are the plainest case of the cut in the whole
@@ -922,7 +922,7 @@ final class BookMenu {
         List<MenuFlyout.Row> rows = new ArrayList<>();
         rows.add(new MenuFlyout.Row.Cells(Labels.of("tenet.dev.line.form"), cells,
                     reset(from, to, "form"), true));
-        if (QuestBookScreen.isSplit(now)) {
+        if (BookCanvas.isSplit(now)) {
             rows.add(MenuFlyout.text(Labels.of("tenet.dev.line.join_handles"),
                     () -> book.bookRewards.joinHandles(from, to)));
         }

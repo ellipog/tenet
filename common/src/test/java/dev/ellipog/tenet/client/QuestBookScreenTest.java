@@ -25,9 +25,9 @@ class QuestBookScreenTest {
     @Test
     @DisplayName("edit mode and the permission edit, and the preview pauses them")
     void previewPausesEditing() {
-        assertTrue(QuestBookScreen.editEffective(true, true, false),
+        assertTrue(BookCanvas.editEffective(true, true, false),
                 "edit mode on, operator, no preview: editing");
-        assertFalse(QuestBookScreen.editEffective(true, true, true),
+        assertFalse(BookCanvas.editEffective(true, true, true),
                 "the same with the preview lit: paused, not editing");
     }
 
@@ -35,11 +35,11 @@ class QuestBookScreenTest {
     @DisplayName("every other row answers false however the preview is set")
     void everythingElseIsFalse() {
         for (boolean preview : new boolean[] {false, true}) {
-            assertFalse(QuestBookScreen.editEffective(false, false, preview),
+            assertFalse(BookCanvas.editEffective(false, false, preview),
                     "no mode, no permission: a reader either way");
-            assertFalse(QuestBookScreen.editEffective(false, true, preview),
+            assertFalse(BookCanvas.editEffective(false, true, preview),
                     "no mode: an operator with edit mode off is already seeing the player's book");
-            assertFalse(QuestBookScreen.editEffective(true, false, preview),
+            assertFalse(BookCanvas.editEffective(true, false, preview),
                     "no permission: edit mode without the level the server checks is a reader");
         }
     }
@@ -89,10 +89,10 @@ class QuestBookScreenTest {
             // full-height grip would say there is more), so reserving its room leaves dead
             // space the selected row makes visible — 8 pixels the toolbar above does not have.
             int oneRow = SidebarLayout.pitch() - BookGeometry.SIDEBAR_ROW_GAP;
-            assertFalse(QuestBookScreen.sidebarReservesScrollbar(0, 200), "no rows, no gutter");
-            assertFalse(QuestBookScreen.sidebarReservesScrollbar(1, oneRow),
+            assertFalse(BookCanvas.sidebarReservesScrollbar(0, 200), "no rows, no gutter");
+            assertFalse(BookCanvas.sidebarReservesScrollbar(1, oneRow),
                     "exactly fitting is not scrolling");
-            assertFalse(QuestBookScreen.sidebarReservesScrollbar(1, oneRow + 1),
+            assertFalse(BookCanvas.sidebarReservesScrollbar(1, oneRow + 1),
                     "and room to spare is not scrolling either");
         }
 
@@ -100,9 +100,9 @@ class QuestBookScreenTest {
         @DisplayName("a list that overflows keeps the gutter the bar draws in")
         void overflowingListsKeepTheGutter() {
             int oneRow = SidebarLayout.pitch() - BookGeometry.SIDEBAR_ROW_GAP;
-            assertTrue(QuestBookScreen.sidebarReservesScrollbar(1, oneRow - 1),
+            assertTrue(BookCanvas.sidebarReservesScrollbar(1, oneRow - 1),
                     "one pixel over is scrolling");
-            assertTrue(QuestBookScreen.sidebarReservesScrollbar(40, 200),
+            assertTrue(BookCanvas.sidebarReservesScrollbar(40, 200),
                     "and so is a questline no sidebar holds");
         }
     }

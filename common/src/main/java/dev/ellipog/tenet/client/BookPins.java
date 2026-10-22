@@ -24,6 +24,8 @@ import net.minecraft.world.item.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * The quest book's pins: pinning a quest to the HUD from the book, and the pinned list.
@@ -98,9 +100,9 @@ final class BookPins {
         }
         if (book.bookCanvas.elementHandle == null) {
             int x = (int) Math.round(BookGeometry.snap(book.viewport().contentX(mouseX) - book.dragGrabX,
-                    BookGeometry.SNAP_GRID, QuestBookScreen.snappingNow()));
+                    BookGeometry.SNAP_GRID, BookInput.snappingNow()));
             int y = (int) Math.round(BookGeometry.snap(book.viewport().contentY(mouseY) - book.dragGrabY,
-                    BookGeometry.SNAP_GRID, QuestBookScreen.snappingNow()));
+                    BookGeometry.SNAP_GRID, BookInput.snappingNow()));
             return book.bookCanvas.elementDragBase.translated(x - CanvasElementArt.originX(book.bookCanvas.elementDragBase),
                     y - CanvasElementArt.originY(book.bookCanvas.elementDragBase));
         }
@@ -164,12 +166,12 @@ final class BookPins {
         List<EditorOp> writes = new ArrayList<>(2);
         if (from.x() != to.x()) {
             JsonElement x = new JsonPrimitive((long) to.x());
-            book.draftLinkField(id, "x", x);
+            draftLinkField(id, "x", x);
             writes.add(new EditorOp.SetLink(id, "x", x));
         }
         if (from.y() != to.y()) {
             JsonElement y = new JsonPrimitive((long) to.y());
-            book.draftLinkField(id, "y", y);
+            draftLinkField(id, "y", y);
             writes.add(new EditorOp.SetLink(id, "y", y));
         }
         if (writes.isEmpty()) {
@@ -283,7 +285,7 @@ final class BookPins {
                             box.x(), box.y() + (box.height() - r.lineHeight()) / 2,
                             ArmatureTheme.title());
                     case VALUE -> {
-                        if (QuestBookScreen.PINNED_EMPTY.equals(row.key())) {
+                        if (PINNED_EMPTY.equals(row.key())) {
                             r.text(Measure.truncate(row.value(), box.width(), measure),
                                     box.x(), box.y() + (box.height() - r.lineHeight()) / 2,
                                     ArmatureTheme.faint());
@@ -698,4 +700,186 @@ final class BookPins {
         book.filePopoverArrival();
         book.refreshOverlayMute();
     }
+
+    // ------------------------------------------------------------------
+    // Pinning to the HUD
+    // ------------------------------------------------------------------
+
+    /** "(3 quests, 1 dependent)", counted the same way the sidebar's delete note is. */
+    static String questDeleteNote(List<String> targets) {
+        Set<String> ids = new HashSet<>(targets);
+        int dependents = 0;
+        for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
+            if (ids.contains(entry.id())) {
+                continue;
+            }
+            for (String dependency : QuestBookScreen.dependenciesOf(entry)) {
+                if (ids.contains(dependency)) {
+                    dependents++;
+                    break;
+                }
+            }
+        }
+        return BookMenu.note(targets.size(), "quest", dependents, "dependent");
+    }
+
+    /**
+     * Makes a tree's id unique against what this chapter has, and reads it back as an element.
+     *
+     * <p>Null when the tree does not decode, which is the honest refusal: an element this build cannot read
+     * is not one it can draw optimistically, so it goes to the server and appears when the tree does.
+     */
+    CanvasElement placeElement(com.google.gson.JsonObject tree) {
+        java.util.Set<String> taken = new java.util.HashSet<>();
+        for (CanvasElement element : elementsNow()) {
+            taken.add(element.id());
+        }
+        String wanted = tree.has("id") && tree.get("id").isJsonPrimitive()
+                ? tree.get("id").getAsString() : "element";
+        tree.addProperty("id", dev.ellipog.tenet.client.dev.ElementDefaults.uniqueId(wanted, taken));
+        return CanvasElement.fromJson(tree).orElse(null);
+    }
+
+    /**
+     * Where a new element goes in the chapter's list: the end.
+     *
+     * <p>The end rather than the front, because the list is drawn in the order it is written when two elements
+     * share an {@code order} — so a decoration added last draws over one added first, which is what "I have
+     * just put this here" means. An author who wants it underneath writes an {@code order}.
+     *
+     * <p>Counted through {@link #elementsNow}, so two elements added in a row get successive positions rather
+     * than both landing on the tree's length — which is the same reason the whole feature reads that view.
+     */
+    int elementInsertIndex() {
+        return elementsNow().size();
+    }
+
+    /**
+     * The chapter's canvas elements as this client currently believes them to be, in draw order.
+     *
+     * <h2>The one read the whole feature goes through</h2>
+     *
+     * <p>Three layers, in this order: the <b>tree</b> — what the server last sent; the <b>shape draft</b>,
+     * which adds an element that has been asked for and drops one that has been asked away; and the
+     * <b>field draft</b>, which amends each element's own JSON with the values the author has given it. The
+     * result is sorted by the model's own {@link CanvasElement#inDrawOrder}, so the preview and the real list
+     * cannot disagree about what is on top.
+     *
+     * <p><b>Everything reads this and nothing reads the tree directly:</b> the stamp, the boxes, the gates,
+     * the grips, the hit tests and the panel's rows. That is what makes an edit appear in the frame it is
+     * made — and it is the whole of "no rubberband", because there is no second path that could still be
+     * showing the old value.
+     */
+    List<CanvasElement> elementsNow() {
+        String chapter = QuestBookScreen.effectiveChapter();
+        if (chapter == null) {
+            return List.of();
+        }
+        List<CanvasElement> shaped = QuestBookScreen.elementDraft.apply(chapter, ClientQuestCache.elements(chapter),
+                Util.getMillis());
+        List<CanvasElement> out = new ArrayList<>(shaped.size());
+        for (CanvasElement element : shaped) {
+            out.add(BookPins.overlaidElement(chapter, element));
+        }
+        return CanvasElement.inDrawOrder(out);
+    }
+
+    /**
+     * The chapter's links as this client believes them to be: the tree, the shape draft, and the
+     * pending field values, in that order.
+     *
+     * <p><b>Everything reads this and nothing reads the tree directly:</b> the stamp, the boxes, the
+     * hit tests and the panel's rows. That is what makes an edit appear in the frame it is made --
+     * and it is the whole of "no rubberband", because there is no second path that could still be
+     * showing the old value. The element form's own note says the same for decorations, and for the
+     * same reason.
+     */
+    List<QuestLink> linksNow() {
+        String chapter = QuestBookScreen.effectiveChapter();
+        if (chapter == null) {
+            return List.of();
+        }
+        List<QuestLink> shaped = QuestBookScreen.linkDraft.apply(chapter, ClientQuestCache.links(chapter),
+                Util.getMillis());
+        List<QuestLink> out = new ArrayList<>(shaped.size());
+        for (QuestLink link : shaped) {
+            out.add(BookPins.overlaidLink(chapter, link));
+        }
+        return List.copyOf(out);
+    }
+
+    /**
+     * The link with this id as this client believes it to be, or null.
+     *
+     * <p>Not the cached slot's link: that one carries a gesture's live preview, so a gesture that started
+     * from it would compound its own last frame. This is the settled belief — the tree plus the drafts — which
+     * is what a new gesture takes hold of and what a commit is diffed against.
+     */
+    QuestLink linkNow(String id) {
+        if (id == null) {
+            return null;
+        }
+        for (QuestLink link : linksNow()) {
+            if (link.id().equals(id)) {
+                return link;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Removes one element from the chapter's file.
+     *
+     * <p>And lets go of it, because a selection that outlives its subject is a ring around nothing — the same
+     * reason a deleted quest clears {@code selectedQuest}.
+     *
+     * <p>The removal is <b>drafted</b> before it is sent, so the element and its ring leave the canvas on the
+     * press rather than a round trip later, and its pending field values are forgotten with it: a value for an
+     * element that no longer exists would be applied to whatever the next element with that id turns out to be.
+     */
+    void deleteElement(String id) {
+        QuestBookScreen.elementDraft.remove(QuestBookScreen.effectiveChapter(), id, Util.getMillis());
+        QuestBookScreen.fieldDraft.forgetOwner(QuestBookScreen.effectiveChapter(), QuestBookScreen.ELEMENT_OWNER_PREFIX + id);
+        book.send(new EditorOp.RemoveElement(id));
+        if (id.equals(QuestBookScreen.selectedElement)) {
+            QuestBookScreen.selectedElement = null;
+        }
+    }
+
+    /**
+     * Writes one pending value for a link, which is what makes the edit visible before the tree arrives.
+     *
+     * <p>Before the send, not after, and unconditional: the draft is the <i>preview</i>, so a value the author
+     * asked for shows even if the request could not go out — and the backstop in {@code FieldDraft} is what
+     * stops a value the server never accepted from being believed forever. See {@code draftElementField} for
+     * the same argument on a decoration.
+     */
+    void draftLinkField(String link, String field, JsonElement value) {
+        QuestBookScreen.fieldDraft.set(QuestBookScreen.effectiveChapter(), QuestBookScreen.LINK_OWNER_PREFIX + link, field, value,
+                ClientQuestCache.treeRevision(), Util.getMillis());
+    }
+
+    /**
+     * Opens the panel for one element — what a click on the canvas does.
+     *
+     * <p>Nothing happens for an id this client cannot see, which is the honest answer for a press that
+     * arrived about an element the tree has since dropped: a panel about nothing would draw its heading and
+     * no fields, and every press in it would go nowhere.
+     */
+    void openElementPanel(String id) {
+        if (id == null || book.elementNow(id) == null) {
+            return;
+        }
+        book.bookCanvas.elementPanelId = id;
+        QuestBookScreen.selectedElement = id;
+        book.applyColumns(PanelStack.afterOpen(book.columns(), PanelKind.ELEMENT));
+        book.rebuildWidgets();
+    }
+
+    // ------------------------------------------------------------------
+    // The pinned list
+    // ------------------------------------------------------------------
+
+    /** The empty list's one row. */
+    static final String PINNED_EMPTY = "pinned:empty";
 }

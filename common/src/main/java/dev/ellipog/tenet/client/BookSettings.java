@@ -382,7 +382,7 @@ final class BookSettings {
 
         // --- header ---
 
-        QuestState state = QuestBookScreen.shownState(entry);
+        QuestState state = shownState(entry);
         // The header icon is drawn to its own box, and the text starts after that box, so the two are
         // the same layout decision. The title used to start at a hardcoded left+38 with a 16px icon at
         // left+14, which is 8px of gap -- close enough to look intentional and not derived from
@@ -437,7 +437,7 @@ final class BookSettings {
         int titleAdvance = r.textWidth(QuestBookScreen.titleOf(entry));
         if (!InlineEdit.replaces("title", book.editingPath)) {
             titleAdvance = RichText.draw(r,
-                    RichText.cut(QuestBookScreen.titleOfRaw(entry), Integer.MAX_VALUE, book.textMeasure(r), cutEpoch),
+                    RichText.cut(BookQuestEditor.titleOfRaw(entry), Integer.MAX_VALUE, book.textMeasure(r), cutEpoch),
                     textX, top + 12, InlineEdit.ink("title"));
         }
         r.text(cardStateLabel(state), textX + titleAdvance + 10, top + 12,
@@ -534,7 +534,7 @@ final class BookSettings {
         // What the reader may see, from the same rules the canvas hides quests with. The editor never
         // comes through here -- it builds its own stack with everything in it -- because an author
         // looking at a card must see every field they can edit.
-        QuestState state = QuestBookScreen.shownState(entry);
+        QuestState state = shownState(entry);
         boolean text = dev.ellipog.tenet.client.dev.QuestVisibility
                 .showsText(entry.hideTextUntilComplete(), state);
         boolean details = dev.ellipog.tenet.client.dev.QuestVisibility
@@ -550,8 +550,8 @@ final class BookSettings {
         // font and the player's text scale, the same pair that invalidates a measured width.
         ReaderCardKey key = new ReaderCardKey(entry.id(), ClientQuestCache.treeRevision(),
                 ClientQuestCache.progressRevision(), body.viewWidth(), TextEpoch.now());
-        if (book.readerCard != null && key.equals(readerCardKey)) {
-            return book.readerCard;
+        if (readerCard != null && key.equals(readerCardKey)) {
+            return readerCard;
         }
 
         Layout built = OverlayLayout.stack(
@@ -560,7 +560,7 @@ final class BookSettings {
                                 QuestBookScreen.dependenciesOf(entry).size(), false,
                         new OverlayLayout.Reveal(text, details))
                 .build(body.viewWidth(), book.textMeasure(r));
-        book.readerCard = built;
+        readerCard = built;
         readerCardKey = key;
         return built;
     }
@@ -689,7 +689,7 @@ final class BookSettings {
         }
         book.linkRects.clear();
         for (int i = 0; i < book.readerProse.size(); i++) {
-            Slot slot = QuestBookScreen.placed(layout, body, OverlayLayout.proseKey(i));
+            Slot slot = placed(layout, body, OverlayLayout.proseKey(i));
             if (slot == null) {
                 continue;
             }
@@ -789,16 +789,16 @@ final class BookSettings {
 
     private void drawTasks(GuiRenderer r, ClientQuestCache.Entry entry, Layout layout, Viewport body,
                            int mouseX, int mouseY, long now) {
-        book.drawHeading(r, QuestBookScreen.placed(layout, body, OverlayLayout.TASKS_HEADING), "TASKS");
+        drawHeading(r, placed(layout, body, OverlayLayout.TASKS_HEADING), "TASKS");
 
         if (entry.tasks().isEmpty()) {
-            BookEditorControls.drawEmptyState(r, QuestBookScreen.placed(layout, body, OverlayLayout.NO_TASKS),
+            BookEditorControls.drawEmptyState(r, placed(layout, body, OverlayLayout.NO_TASKS),
                     "Nothing required");
             return;
         }
         for (int i = 0; i < entry.tasks().size(); i++) {
             String key = OverlayLayout.taskKey(i);
-            Slot slot = QuestBookScreen.placed(layout, body, key);
+            Slot slot = placed(layout, body, key);
             if (slot != null) {
                 book.bookQuestRows.drawTaskRow(r, entry, i, slot, book.rowHover.amount(key, now), mouseX,
                         mouseY, book.bookQuestRows.rowStamp());
@@ -867,7 +867,7 @@ final class BookSettings {
     private static String rowAt(Layout layout, Viewport body, List<String> keys,
                                 double mouseX, double mouseY) {
         for (String key : keys) {
-            Slot slot = QuestBookScreen.placed(layout, body, key);
+            Slot slot = placed(layout, body, key);
             if (slot != null && rowBox(slot).contains(mouseX, mouseY)) {
                 return key;
             }
@@ -903,7 +903,7 @@ final class BookSettings {
     boolean pressCheckmarkRow(double mouseX, double mouseY) {
         for (QuestBookScreen.CheckmarkRow row : book.checkmarkRows) {
             if (row.box().contains(mouseX, mouseY)) {
-                book.submit(row.questId(), row.taskIndex());
+                book.bookAssets.submit(row.questId(), row.taskIndex());
                 return true;
             }
         }
@@ -1098,16 +1098,16 @@ final class BookSettings {
 
     private void drawRewards(GuiRenderer r, ClientQuestCache.Entry entry, Layout layout, Viewport body,
                              int mouseX, int mouseY, long now) {
-        book.drawHeading(r, QuestBookScreen.placed(layout, body, OverlayLayout.REWARDS_HEADING), "REWARDS");
+        drawHeading(r, placed(layout, body, OverlayLayout.REWARDS_HEADING), "REWARDS");
 
         if (entry.rewards().isEmpty()) {
-            BookEditorControls.drawEmptyState(r, QuestBookScreen.placed(layout, body,
+            BookEditorControls.drawEmptyState(r, placed(layout, body,
                     OverlayLayout.NO_REWARDS), "Nothing");
             return;
         }
         for (int i = 0; i < entry.rewards().size(); i++) {
             String key = OverlayLayout.rewardKey(i);
-            Slot slot = QuestBookScreen.placed(layout, body, key);
+            Slot slot = placed(layout, body, key);
             if (slot != null) {
                 book.bookQuestRows.drawRewardRow(r, entry, i, slot, book.rowHover.amount(key, now), mouseX,
                         mouseY, book.bookQuestRows.rowStamp());
@@ -1125,15 +1125,15 @@ final class BookSettings {
         // The heading carries the count when the rule is more interesting than "all of them": "2 of 3
         // met" is the whole of what a player needs to know about a quest that is not unlocking, and it
         // is a question the old heading could not answer at all.
-        dev.ellipog.tenet.client.dev.DependencyProgress progress = QuestBookScreen.dependencyProgressOf(entry);
+        dev.ellipog.tenet.client.dev.DependencyProgress progress = dependencyProgressOf(entry);
         int satisfied = progress.satisfied(ClientQuestCache::stateOf);
         String heading = satisfied >= progress.required()
                 ? "REQUIRES"
                 : "REQUIRES · " + satisfied + " of " + progress.required() + " met";
-        book.drawHeading(r, QuestBookScreen.placed(layout, body, OverlayLayout.REQUIRES_HEADING), heading);
+        drawHeading(r, placed(layout, body, OverlayLayout.REQUIRES_HEADING), heading);
 
         for (int i = 0; i < QuestBookScreen.dependenciesOf(entry).size(); i++) {
-            Slot slot = QuestBookScreen.placed(layout, body, OverlayLayout.dependencyKey(i));
+            Slot slot = placed(layout, body, OverlayLayout.dependencyKey(i));
             if (slot == null) {
                 continue;
             }
@@ -1172,7 +1172,7 @@ final class BookSettings {
             r.text(Measure.truncate(line, Math.max(24, locate.x() - slot.x() - 8), book.textMeasure(r)),
                     slot.x(), slot.y() + (slot.height() - 8) / 2,
                     met ? ArmatureTheme.complete() : ArmatureTheme.blocked());
-            QuestBookScreen.drawLocateIcon(r, locate.x() + locate.width() / 2, locate.y() + locate.height() / 2,
+            drawLocateIcon(r, locate.x() + locate.width() / 2, locate.y() + locate.height() / 2,
                     locate.contains(mouseX, mouseY) ? ArmatureTheme.body() : ArmatureTheme.faint());
             dependencyTargets.add(new DependencyTarget(bar, locate, dependency));
         }
@@ -1336,5 +1336,94 @@ final class BookSettings {
             return ClientQuestCache.lockMessage();
         }
         return QuestBookScreen.stateLabel(state);
+    }
+
+    // ------------------------------------------------------------------
+    // The settings card
+    // ------------------------------------------------------------------
+
+    /** The reader's card, as it was last built, and the key it was built from. */
+    Layout readerCard;
+
+    /**
+     * The locate icon: a small diamond ring with a dot in it — "show me where this is".
+     *
+     * <p>Drawn from pixels rather than written as a character, for the same reason the tick and the
+     * cross are chosen carefully: the font carries no crosshair, and a missing glyph is a box.
+     */
+    static void drawLocateIcon(GuiRenderer r, int cx, int cy, int colour) {
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                int distance = Math.abs(dx) + Math.abs(dy);
+                if (distance == 2 || distance == 0) {
+                    r.fill(cx + dx, cy + dy, cx + dx + 1, cy + dy + 1, colour);
+                }
+            }
+        }
+    }
+
+    /**
+     * The rule a quest's prerequisites are judged by, from the replica's own fields.
+     *
+     * <p>One helper for the canvas and the card, because two expressions for "is this prerequisite
+     * satisfied" is how the two would come to disagree -- and they did: both asked about completion,
+     * which is the wrong question for half the modes.
+     */
+    static dev.ellipog.tenet.client.dev.DependencyProgress dependencyProgressOf(
+            ClientQuestCache.Entry entry) {
+        return new dev.ellipog.tenet.client.dev.DependencyProgress(entry.effectivePrerequisiteMode(),
+                entry.minRequired(), QuestBookScreen.dependenciesOf(entry));
+    }
+
+    /**
+     * The state one quest's chrome draws as: gated visuals for a flexible quest whose rule is
+     * unmet, the engine's own state everywhere else.
+     *
+     * <p>One helper for the node, its label, its padlock and the card's state word, because four
+     * spellings of "gated" is how three of them would come to disagree. Playability never reads
+     * this — submit buttons, accumulation and completion keep judging engine states — and neither
+     * does the narrator, whose "worth opening" is true of a measurable quest.
+     */
+    static QuestState shownState(ClientQuestCache.Entry entry) {
+        return dev.ellipog.tenet.client.dev.QuestVisibility.displayState(
+                ClientQuestCache.stateOf(entry.id()), entry.flexible(),
+                dependencyProgressOf(entry).met(ClientQuestCache::stateOf));
+    }
+
+    /** A section label and its rule, at the slot the layout reserved for it. */
+    void drawHeading(GuiRenderer r, Slot slot, String label) {
+        if (slot == null) {
+            return;
+        }
+        r.text(label, slot.x(), slot.y(), ArmatureTheme.heading());
+        r.fill(slot.x(), slot.y() + OverlayLayout.SECTION_LEAD, slot.x() + r.textWidth(label),
+                slot.y() + OverlayLayout.SECTION_LEAD + 1, ArmatureTheme.panelEdge());
+    }
+
+    /**
+     * A key's slot, moved onto the screen, or null if it was not placed or is scrolled out of view.
+     *
+     * <p>Null for two different reasons, and a caller treats them the same: an element this layout did
+     * not place at all — a REQUIRES heading on a quest with no prerequisites — and one that is off the
+     * screen right now. Both mean "do not draw it here".
+     *
+     * <p>This is the whole of the culling, and it is why the drawing can be written against keys: the
+     * dispatch is on what an element <i>is</i>, so a row that moves when a metric changes takes its
+     * drawing with it. Matching on coordinates is the version of this that leaves a working test naming
+     * the wrong row.
+     */
+    static Slot placed(Layout layout, Viewport body, Object key) {
+        Slot slot = layout.slot(key);
+        if (slot == null) {
+            return null;
+        }
+        // Wholly off screen: above the top of the view or below its bottom. A slot that is only partly
+        // on screen is drawn and cut off by the clip, which is what the clip is for.
+        if (slot.bottom() <= body.visibleTop() || slot.y() >= body.visibleBottom()) {
+            return null;
+        }
+        // Moved by the viewport's own mapping, so the placement and the culling cannot disagree about
+        // where a row is. The overlay's viewport is fixed-scale, so a slot's width is its screen width.
+        return slot.moved(body.screenX(slot.x()) - slot.x(), body.screenY(slot.y()) - slot.y());
     }
 }

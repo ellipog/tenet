@@ -20,6 +20,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import dev.ellipog.armature.api.net.ArmatureNetwork;
+import dev.ellipog.tenet.client.ClientEditReplies;
+import dev.ellipog.tenet.Constants;
+import dev.ellipog.tenet.net.ClaimRewardPayload;
+import dev.ellipog.tenet.net.SubmitTaskPayload;
+import net.minecraft.resources.Identifier;
 
 /**
  * The quest book's Assets panel: the pack listed, a folded entry's own fields, and an item dropped in
@@ -142,8 +148,8 @@ final class BookAssets {
 
     /** Shows a section and remembers it. The scroll goes with the content it was measured against. */
     private void showAssets(dev.ellipog.tenet.client.dev.AssetsLayout.Section section) {
-        if (book.assetsSection != section) {
-            book.assetsSection = section;
+        if (assetsSection != section) {
+            assetsSection = section;
             assetsBody.setScrollY(0);
             ClientWorking.rememberSection(section.name().toLowerCase(java.util.Locale.ROOT));
         }
@@ -151,7 +157,7 @@ final class BookAssets {
 
     /** The page's lines, from whichever section is showing. */
     private List<AssetLine> assetsLines() {
-        return switch (book.assetsSection) {
+        return switch (assetsSection) {
             case TABLES -> assetsTableLines();
             case QUESTS -> assetsQuestLines();
             case TEMPLATES -> assetsTemplateLines();
@@ -247,13 +253,13 @@ final class BookAssets {
 
     /** One template as a row: its name, its sentence, and whether this build can apply it. */
     private AssetLine templateLine(dev.ellipog.tenet.client.dev.ComponentTemplate.Template template) {
-        boolean known = QuestBookScreen.knownTemplateType(template);
+        boolean known = knownTemplateType(template);
         String detail = known
                 ? dev.ellipog.tenet.client.dev.ComponentTemplate.blurb(template.kind(),
                         template.typeId(), template.payload())
                 : "Needs " + template.typeId();
         return AssetLine.template(template.name(), detail, template.id(), known, !template.builtIn(),
-                QuestBookScreen.templateIcon(template));
+                templateIcon(template));
     }
 
     /** One line of the page: its icon where it has one, its label, and its detail at the right. */
@@ -287,12 +293,12 @@ final class BookAssets {
         // both the label's room and the detail's place are computed from — the first version reserved the
         // chips but not the gap, and the detail came out touching the word "Copy".
         boolean chipped = line.pressable()
-                && book.assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TABLES
+                && assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TABLES
                 && line.action() == QuestBookScreen.EditAction.ASSETS_ROW;
         // A saved template's pencil and cross: rename, then delete, the destructive one last at
         // the edge -- the same harmless-first order the entry rows follow. Even a blocked row keeps
         // both: a template for a removed addon must still be renamable and removable.
-        boolean cullable = book.assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES
+        boolean cullable = assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES
                 && line.kind() == dev.ellipog.tenet.client.dev.AssetsLayout.Kind.ROW
                 && line.hasRemove();
         int reserved = chipped
@@ -340,15 +346,15 @@ final class BookAssets {
                         copyHot ? ArmatureTheme.title() : ArmatureTheme.faint());
                 r.text("\u00d7", removeBox.x() + (removeBox.width() - r.textWidth("\u00d7")) / 2, baseline,
                         removeHot ? ArmatureTheme.title() : ArmatureTheme.faint());
-                book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_COPY,
+                assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_COPY,
                         line.id(), copyBox, copyBox.x(),
-                        copyBox.y(), line.label(), null, book.assetsTargets.size()));
-                book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_REMOVE,
+                        copyBox.y(), line.label(), null, assetsTargets.size()));
+                assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_REMOVE,
                         line.id(), removeBox,
-                        removeBox.x(), removeBox.y(), line.label(), null, book.assetsTargets.size()));
+                        removeBox.x(), removeBox.y(), line.label(), null, assetsTargets.size()));
             }
             if (hot) {
-                assetsHint = book.assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES
+                assetsHint = assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES
                         ? applyHint(line)
                         : "Open " + line.label();
             }
@@ -371,12 +377,12 @@ final class BookAssets {
                     removeHot ? ArmatureTheme.title() : ArmatureTheme.faint());
             // The rename target carries the name's origin for the editor's box, while its own box
             // stays the chip: a press on the pencil renames, and a press on the name still applies.
-            book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_RENAME,
+            assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_RENAME,
                     QuestBookScreen.TEMPLATE_ROW_PREFIX + line.id(),
-                    renameBox, box.x() + inset, baseline, line.label(), null, book.assetsTargets.size()));
-            book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_TEMPLATE_DELETE,
+                    renameBox, box.x() + inset, baseline, line.label(), null, assetsTargets.size()));
+            assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_TEMPLATE_DELETE,
                     line.id(), removeBox,
-                    removeBox.x(), removeBox.y(), line.label(), null, book.assetsTargets.size()));
+                    removeBox.x(), removeBox.y(), line.label(), null, assetsTargets.size()));
             if (renameHot) {
                 assetsHint = "Rename \"" + line.label() + "\"";
             }
@@ -420,28 +426,28 @@ final class BookAssets {
     /** The panel's own pressable list, and its registration: one shape, so the two cannot drift. */
     private void registerAssetTarget(QuestBookScreen.EditAction action, BookGeometry.Rect box, AssetLine line) {
         BookGeometry.Rect hit = book.shiftHit(box);
-        book.assetsTargets.add(new QuestBookScreen.EditTarget(action, line.id(), hit, hit.x() + 2,
+        assetsTargets.add(new QuestBookScreen.EditTarget(action, line.id(), hit, hit.x() + 2,
                 hit.y() + 3, line.label(),
-                null, book.assetsTargets.size()));
+                null, assetsTargets.size()));
     }
 
     /** Draws the panel: the chrome, the sections, the page, the bar and the footer. */
     void drawAssets(GuiRenderer r, int mouseX, int mouseY) {
         assetsHint = null;
-        book.assetsTargets.clear();
+        assetsTargets.clear();
         // The surface it is on: a docked panel draws this listing in its column, and `AssetsLayout`'s own
         // rows and hit tests are derived from this one rectangle.
         BookGeometry.Rect card = book.surfaceCard(PanelKind.ASSETS);
-        book.assetsFrame = dev.ellipog.tenet.client.dev.AssetsLayout.Frame.of(card);
+        assetsFrame = dev.ellipog.tenet.client.dev.AssetsLayout.Frame.of(card);
         book.bookRewards.drawModalCardChrome(r, "Assets", mouseX, mouseY,
-                QuestBookScreen.EditAction.ASSETS_CLOSE, book.assetsTargets);
+                QuestBookScreen.EditAction.ASSETS_CLOSE, assetsTargets);
 
         List<AssetLine> lines = assetsLines();
         // The layout measures lines; a page carries them. One list seen two ways, so what is measured and
         // what is drawn cannot disagree about how tall the page is.
         var kinds = lines.stream().map(AssetLine::kind).toList();
-        BookGeometry.Rect band = book.assetsFrame.rows();
-        QuestBookScreen.bindList(assetsBody, assetsBar, band, book.assetsFrame.scrollbar(),
+        BookGeometry.Rect band = assetsFrame.rows();
+        QuestBookScreen.bindList(assetsBody, assetsBar, band, assetsFrame.scrollbar(),
                 dev.ellipog.tenet.client.dev.AssetsLayout.contentHeight(kinds),
                 dev.ellipog.tenet.client.dev.AssetsLayout.ROW_HEIGHT);
         int assetsScroll = assetsBody.scrollY();
@@ -451,8 +457,8 @@ final class BookAssets {
         // pointer, and the depth is what decides it. See `AssetsLayout.shown`.
         var sections = dev.ellipog.tenet.client.dev.AssetsLayout.shown();
         for (int i = 0; i < sections.length; i++) {
-            BookGeometry.Rect box = book.assetsFrame.tab(i);
-            boolean chosen = sections[i] == book.assetsSection;
+            BookGeometry.Rect box = assetsFrame.tab(i);
+            boolean chosen = sections[i] == assetsSection;
             // Drawn like the texture picker's own tabs: the open one wears the recessed wash, a
             // hovered one the affordance frame, and the labels sit centred in their third of the
             // strip rather than against its left edge. Two tab strips that read as one family.
@@ -472,14 +478,14 @@ final class BookAssets {
             // before `pressAssets` ever runs. The section itself is resolved from the layout there,
             // so this registration carries the name for the gate and nothing else.
             BookGeometry.Rect hit = book.shiftHit(box);
-            book.assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_SECTION,
+            assetsTargets.add(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ASSETS_SECTION,
                     sections[i].name().toLowerCase(java.util.Locale.ROOT), hit, hit.x() + 2,
-                    hit.y() + 3, sectionName(sections[i]), null, book.assetsTargets.size()));
+                    hit.y() + 3, sectionName(sections[i]), null, assetsTargets.size()));
         }
         // The rule under the strip, like the texture picker's: the tabs are controls above a list,
         // and the line is what says so.
-        r.fill(book.assetsFrame.tabs().x() + 1, book.assetsFrame.tabs().bottom(),
-                book.assetsFrame.tabs().right() - 1, book.assetsFrame.tabs().bottom() + 1,
+        r.fill(assetsFrame.tabs().x() + 1, assetsFrame.tabs().bottom(),
+                assetsFrame.tabs().right() - 1, assetsFrame.tabs().bottom() + 1,
                 ArmatureTheme.panelEdge());
 
         try (GuiRenderer.Scoped clip = r.clip(band.x(), band.y(), band.right(), band.bottom())) {
@@ -505,20 +511,20 @@ final class BookAssets {
         // `assetsTargets`, and a control registered in `editTargets` is one no press here can reach --
         // which is exactly how New table, Done and the header's cross came to do nothing at all.
         dev.ellipog.tenet.client.dev.AssetsLayout.Footer footer =
-                dev.ellipog.tenet.client.dev.AssetsLayout.Footer.of(book.assetsFrame);
-        if (book.assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TABLES) {
+                dev.ellipog.tenet.client.dev.AssetsLayout.Footer.of(assetsFrame);
+        if (assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TABLES) {
             book.bookRewards.drawTableButton(r, footer.newTable(), "New table", mouseX, mouseY,
                     QuestBookScreen.EditAction.ASSETS_NEW,
-                    book.assetsTargets);
+                    assetsTargets);
         }
-        else if (book.assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES) {
+        else if (assetsSection == dev.ellipog.tenet.client.dev.AssetsLayout.Section.TEMPLATES) {
             // The shelf's order, as the footer's own action: one press cycles Recent, Name, Type,
             // and the page re-lists under both headings at once.
             book.bookRewards.drawTableButton(r, footer.newTable(), sortLabel(), mouseX, mouseY,
-                    QuestBookScreen.EditAction.ASSETS_TEMPLATE_SORT, book.assetsTargets);
+                    QuestBookScreen.EditAction.ASSETS_TEMPLATE_SORT, assetsTargets);
         }
         book.bookRewards.drawTableButton(r, footer.done(), Labels.of("tenet.screen.done"), mouseX, mouseY,
-                QuestBookScreen.EditAction.ASSETS_CLOSE, book.assetsTargets);
+                QuestBookScreen.EditAction.ASSETS_CLOSE, assetsTargets);
 
         book.bookRewards.drawTableHint(r, assetsHint);
 
@@ -545,10 +551,10 @@ final class BookAssets {
      * that only walks target lists; the resolution here is what names the section.
      */
     void pressAssets(double mouseX, double mouseY) {
-        if (book.assetsFrame == null) {
+        if (assetsFrame == null) {
             return;
         }
-        var section = dev.ellipog.tenet.client.dev.AssetsLayout.sectionAt(book.assetsFrame, (int) mouseX,
+        var section = dev.ellipog.tenet.client.dev.AssetsLayout.sectionAt(assetsFrame, (int) mouseX,
                 (int) mouseY);
         if (section != null) {
             showAssets(section);
@@ -558,8 +564,8 @@ final class BookAssets {
         // the row first and the chip behind it never fires -- which is exactly how a template's ×
         // (and a table's Copy and × beside it) came to do nothing at all. The drawing paints chips
         // over rows, and the press reads the stack in the same order.
-        for (int i = book.assetsTargets.size() - 1; i >= 0; i--) {
-            QuestBookScreen.EditTarget target = book.assetsTargets.get(i);
+        for (int i = assetsTargets.size() - 1; i >= 0; i--) {
+            QuestBookScreen.EditTarget target = assetsTargets.get(i);
             if (target.box().contains(mouseX, mouseY)) {
                 pressAssetTarget(target, mouseX, mouseY);
                 return;
@@ -627,7 +633,7 @@ final class BookAssets {
             // moves while its words do.
             case ASSETS_RENAME -> book.editorControls.openInlineEditor(target, mouseX, mouseY);
             case ASSETS_ROW -> {
-                switch (book.assetsSection) {
+                switch (assetsSection) {
                     case TABLES -> openTableEditorOn(target.path());
                     case QUESTS -> {
                         // The canvas, not the card: `locateOnCanvas` closes whatever is open, switches
@@ -666,7 +672,7 @@ final class BookAssets {
         if (template == null) {
             return;
         }
-        if (!QuestBookScreen.knownTemplateType(template)) {
+        if (!knownTemplateType(template)) {
             book.status("tenet.status.template_unknown_type", true);
             return;
         }
@@ -776,7 +782,7 @@ final class BookAssets {
             if (!target.box().contains(mouseX, mouseY)) {
                 continue;
             }
-            book.pressTableEditorTarget(target, mouseX, mouseY);
+            pressTableEditorTarget(target, mouseX, mouseY);
             return;
         }
         // A press that hit nothing dismisses an open Import popover: the popover is closed by the press
@@ -804,13 +810,13 @@ final class BookAssets {
 
     /** One field of one entry as text, for seeding a box: the drafted value, or empty. */
     String tableFieldText(int index, String field) {
-        JsonObject entry = book.draftedEntry(index);
+        JsonObject entry = draftedEntry(index);
         return entry == null ? "" : QuestBookScreen.rawValue(entry, "reward." + field);
     }
 
     /** One entry's whole reward as compact JSON, for the raw row. */
     String entryRewardText(int index) {
-        JsonObject entry = book.draftedEntry(index);
+        JsonObject entry = draftedEntry(index);
         JsonObject reward = entry == null ? null : BookRewards.rawObject(entry, "reward");
         return reward == null ? "{}" : reward.toString();
     }
@@ -828,7 +834,7 @@ final class BookAssets {
         if (book.tableAddress == null) {
             return;
         }
-        String path = QuestBookScreen.tableEntryPath(index, field);
+        String path = tableEntryPath(index, field);
         // The commit goes to the TABLE: the inline editor's own commit path writes a quest field, and a
         // path like `entries.1.reward.amount` written into a quest file is a stray member in the wrong
         // file. `tableEdit` is what says which file this box belongs to.
@@ -843,9 +849,9 @@ final class BookAssets {
         if (book.tableAddress == null || field.isEmpty()) {
             return;
         }
-        JsonObject entry = book.draftedEntry(index);
+        JsonObject entry = draftedEntry(index);
         boolean on = entry != null && QuestBookScreen.flagOn(entry, "reward." + field);
-        book.bookRewards.sendTableValue(QuestBookScreen.tableEntryPath(index, field),
+        book.bookRewards.sendTableValue(tableEntryPath(index, field),
                 new com.google.gson.JsonPrimitive(!on));
     }
 
@@ -861,14 +867,14 @@ final class BookAssets {
         if (book.tableAddress == null || field.isEmpty()) {
             return;
         }
-        JsonObject entry = book.draftedEntry(index);
+        JsonObject entry = draftedEntry(index);
         String current = entry == null ? "" : QuestBookScreen.rawValue(entry, "reward." + field);
         var ring = dev.ellipog.tenet.client.dev.TableRowFields.AUTO_VALUES;
-        String next = QuestBookScreen.nextOption(ring, current);
+        String next = nextOption(ring, current);
         if (next.equals(current)) {
             return;
         }
-        book.bookRewards.sendTableValue(QuestBookScreen.tableEntryPath(index, field),
+        book.bookRewards.sendTableValue(tableEntryPath(index, field),
                 new com.google.gson.JsonPrimitive(next));
     }
 
@@ -877,7 +883,7 @@ final class BookAssets {
         if (book.tableAddress == null || field.isEmpty()) {
             return;
         }
-        JsonObject entry = book.draftedEntry(index);
+        JsonObject entry = draftedEntry(index);
         String current = entry == null ? "" : QuestBookScreen.rawValue(entry, "reward." + field);
         int value;
         try {
@@ -893,7 +899,7 @@ final class BookAssets {
         // permission level of zero is how the format spells "no permission". What it is not is a second
         // clamp of its own per field -- that would be a rule about the format living in a press handler.
         int next = Math.max(0, value + direction * step);
-        book.bookRewards.sendTableValue(QuestBookScreen.tableEntryPath(index, field),
+        book.bookRewards.sendTableValue(tableEntryPath(index, field),
                 new com.google.gson.JsonPrimitive(next));
     }
 
@@ -950,7 +956,7 @@ final class BookAssets {
         // here, and a page of a panel that is not on screen is a page nobody can see.
         book.tablePickPath = path == null ? "" : path;
         book.tablePickReturn = true;
-        book.forgetPickSubject();
+        forgetPickSubject();
         book.pickTarget = QuestBookScreen.PickTarget.QUEST;
         book.pickTitle = title;
         // The subject line names the table, and the icon shows what is being replaced — the table's own
@@ -958,7 +964,7 @@ final class BookAssets {
         // written; this page said neither, so it was a list of the whole item registry with no statement
         // of which table or which field it was for.
         book.pickName = book.bookRewards.tableTitle();
-        book.pickIcon = book.tablePickSubjectFor(book.tablePickPath, entryIndex);
+        book.pickIcon = tablePickSubjectFor(book.tablePickPath, entryIndex);
         book.pickingItemPath = path == null || path.isEmpty() ? "entries.new" : path;
         book.pickingItemCurrent = "";
         // Only the picture override may be cleared: it is optional, so removing the whole object
@@ -1045,5 +1051,500 @@ final class BookAssets {
     boolean submitOfferedWithMarks(String questId, int taskIndex) {
         return !book.pendingClaims.isMarked(PendingClaims.taskKey(questId, taskIndex))
                 && ClientQuestCache.submitOffered(questId, taskIndex);
+    }
+
+    // ------------------------------------------------------------------
+    // The Assets panel: the pack, listed
+    // ------------------------------------------------------------------
+
+    /** Which section the panel is showing. Seeded from the file, written back when it changes. */
+    dev.ellipog.tenet.client.dev.AssetsLayout.Section assetsSection =
+            dev.ellipog.tenet.client.dev.AssetsLayout.shownOrFirst(
+                    dev.ellipog.tenet.client.dev.AssetsLayout.Section.TABLES);
+
+    /** The panel's frame, from the card, once a frame. */
+    dev.ellipog.tenet.client.dev.AssetsLayout.Frame assetsFrame;
+
+    /** The panel's pressable pieces, from the last frame's drawing -- the house rule, one list. */
+    final List<QuestBookScreen.EditTarget> assetsTargets = new ArrayList<>();
+
+    /** Opens the pack's panel, on the section the author was last reading. */
+    void openAssets() {
+        book.bookMenu.closeMenu();
+        // The remembered section, coerced to one this depth shows: a page it does not show would draw its
+        // list under no selected section and offer that section's own footer action. The coercion is for
+        // the view only -- `ClientWorking` keeps what the author chose, so Advanced finds "tables" again.
+        assetsSection = dev.ellipog.tenet.client.dev.AssetsLayout.shownOrFirst(
+                BookAssets.sectionNamed(ClientWorking.section()));
+        book.bookAssets.assetsBody.setScrollY(0);
+        book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.ASSETS));
+        book.rebuildWidgets();
+    }
+
+    /** Whether this build can apply a template: its type is registered, under a parseable id. */
+    static boolean knownTemplateType(
+            dev.ellipog.tenet.client.dev.ComponentTemplate.Template template) {
+        net.minecraft.resources.Identifier id =
+                net.minecraft.resources.Identifier.tryParse(template.typeId());
+        if (id == null) {
+            return false;
+        }
+        return switch (template.kind()) {
+            case TASK -> dev.ellipog.tenet.quest.task.TaskTypes.ids().contains(id);
+            case REWARD -> dev.ellipog.tenet.quest.reward.RewardTypes.ids().contains(id);
+            case CONDITION -> dev.ellipog.tenet.quest.condition.ConditionTypes.ids().contains(id);
+        };
+    }
+
+    /**
+     * A template row's picture: the item the setup is about where it names one, else the type's
+     * own badge.
+     *
+     * <p>The subject first, because a row of ten chest icons says nothing while a row of the
+     * actual items says what each template hands over or asks for. An item reward wearing an
+     * override still reads as its payout — the icon override is presentation, and the row is
+     * about content.
+     */
+    static ItemStack templateIcon(
+            dev.ellipog.tenet.client.dev.ComponentTemplate.Template template) {
+        com.google.gson.JsonObject payload = template.payload();
+        if (payload != null && payload.has("item")) {
+            com.google.gson.JsonElement item = payload.get("item");
+            if (item.isJsonPrimitive() && !item.getAsString().isBlank()) {
+                ItemStack stack = QuestBookScreen.itemStack(item.getAsString());
+                if (!stack.isEmpty()) {
+                    return stack;
+                }
+            }
+            if (item.isJsonObject() && item.getAsJsonObject().has("item")) {
+                try {
+                    ItemStack stack = QuestBookScreen.itemStack(item.getAsJsonObject().get("item").getAsString());
+                    if (!stack.isEmpty()) {
+                        return stack;
+                    }
+                }
+                catch (RuntimeException ignored) {
+                    // A hand-edited template with an item object of an unexpected shape still gets
+                    // its type's badge below rather than an empty row.
+                }
+            }
+        }
+        if (template.kind()
+                == dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION) {
+            net.minecraft.resources.Identifier id =
+                    net.minecraft.resources.Identifier.tryParse(template.typeId());
+            return id == null ? ItemStack.EMPTY
+                    : dev.ellipog.tenet.quest.condition.ConditionTypes.iconOf(id).toStack();
+        }
+        return BookEditorControls.typeIcon(template.kind()
+                == dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.REWARD ? "rewards" : "tasks",
+                template.typeId());
+    }
+
+    void pressTableEditorTarget(QuestBookScreen.EditTarget target, double mouseX, double mouseY) {
+        int index = target.index();
+        switch (target.action()) {
+            // The footer's way out, answered on press like everything else in this panel. One table up
+            // while a nested table is on the stack, out of the panel at the root -- the same thing the
+            // button's own label says, because both read `tableStack`.
+            case TABLE_DONE -> book.bookRewards.popTableEditor();
+            case TABLE_PAGE_BACK -> {
+                // One step back from whatever the list has over it: the page of types, or the roll report.
+                // The panel stays open, which is what the button now says. The rebuild is the field
+                // question: the title box is built either way, but the picker's widget host has to be torn
+                // down.
+                book.pickingEntryType = null;
+                book.tableShowRoll = false;
+                book.rebuildWidgets();
+            }
+            case TABLE_IMPORT_MENU -> {
+                if (!book.tableImportOpen) {
+                    // Stamped on the way in, like every menu: the popover climbs into place below.
+                    book.tableImportOpenedAt = net.minecraft.util.Util.getMillis();
+                }
+                book.tableImportOpen = !book.tableImportOpen;
+            }
+            case TABLE_PREVIEW -> {
+                book.tablePreview = dev.ellipog.tenet.client.dev.TableEditorLayout
+                        .nextPreview(book.tablePreview);
+            }
+            // How a reward row draws this table: each press flips the drafted value, so a burst of
+            // presses accumulates like the rolls stepper above rather than fighting the replica.
+            case TABLE_USE_TITLE, TABLE_HIDE_TOOLTIP -> {
+                var model = book.bookRewards.tableModel();
+                if (model.isPresent()) {
+                    boolean next = target.action() == QuestBookScreen.EditAction.TABLE_USE_TITLE
+                            ? !model.get().useTitle()
+                            : !model.get().hideTooltip();
+                    book.bookRewards.sendTableValue(target.action() == QuestBookScreen.EditAction.TABLE_USE_TITLE
+                            ? "useTitle" : "hideTooltip",
+                            new com.google.gson.JsonPrimitive(next));
+                }
+            }
+            case TABLE_ROLLS_UP, TABLE_ROLLS_DOWN -> {
+                // Read from the drafted model, so a burst of presses accumulates: the second press sees
+                // the first press's value rather than the replica the server has not answered about yet.
+                var model = book.bookRewards.tableModel();
+                // The bounds are the codec's, read from the table rather than restated here: a stepper
+                // that could reach one past the end would send a value the loader refuses, and the author
+                // would watch the number spring back with nothing said about why.
+                if (model.isPresent()) {
+                    int next = Math.max(dev.ellipog.tenet.quest.loot.RewardTable.LOOT_SIZE_MIN,
+                            Math.min(dev.ellipog.tenet.quest.loot.RewardTable.LOOT_SIZE_MAX,
+                                    model.get().lootSize()
+                                            + (target.action() == QuestBookScreen.EditAction.TABLE_ROLLS_UP ? 1 : -1)));
+                    book.bookRewards.sendTableValue("lootSize", new com.google.gson.JsonPrimitive(next));
+                }
+            }
+            case TABLE_WEIGHT_UP, TABLE_WEIGHT_DOWN -> {
+                var model = book.bookRewards.tableModel();
+                if (model.isPresent() && index >= 0 && index < model.get().entryCount()) {
+                    double step = BookEditorControls.shiftDown() ? 10 : 1;
+                    double next = Math.max(0, model.get().entries().get(index).weight()
+                            + (target.action() == QuestBookScreen.EditAction.TABLE_WEIGHT_UP ? step : -step));
+                    book.bookRewards.sendTableValue("entries." + index + ".weight", new com.google.gson.JsonPrimitive(next));
+                }
+            }
+            case TABLE_WEIGHT -> {
+                // The field edits the value it was drawn from, which is the drafted one -- so typing a
+                // weight and pressing Enter commits what the author read, not what the file last said.
+                var model = book.bookRewards.tableModel();
+                String shown = model.isPresent() && index >= 0 && index < model.get().entryCount()
+                        ? trimNumber(model.get().entries().get(index).weight())
+                        : target.value();
+                // And the commit goes to the TABLE, with the kind that says what the text becomes: the
+                // inline editor's own commit path writes a quest field, which for a path like
+                // `entries.1.weight` is a stray member in the quest file -- a weight box that corrupted
+                // the file it was opened from.
+                book.bookAssets.openTableFieldEditor(index, "weight",
+                        dev.ellipog.tenet.client.dev.TableRowFields.Kind.DECIMAL, shown,
+                        target.box(), target.textX(), target.textY(), mouseX, mouseY);
+            }
+            case TABLE_FOLD -> {
+                if (!book.tableFolded.remove(index)) {
+                    book.tableFolded.add(index);
+                }
+            }
+            case TABLE_FOLD_FLAG -> book.bookAssets.toggleTableFlag(index, target.path());
+            case TABLE_FOLD_CHOICE -> book.bookAssets.cycleTableChoice(index, target.path());
+            case TABLE_FOLD_STEP_UP -> book.bookAssets.nudgeTableNumber(index, target.path(), 1);
+            case TABLE_FOLD_STEP_DOWN -> book.bookAssets.nudgeTableNumber(index, target.path(), -1);
+            case TABLE_FOLD_TEXT -> {
+                // The value in the box is the drafted one, so what is typed over is what was read.
+                book.bookAssets.openTableFieldEditor(index, target.path(),
+                        dev.ellipog.tenet.client.dev.TableRowFields.Kind.TEXT,
+                        book.bookAssets.tableFieldText(index, target.path()), target.box(), target.textX(),
+                        target.textY(), mouseX, mouseY);
+            }
+            case TABLE_FOLD_RAW -> book.bookAssets.openTableFieldEditor(index, "",
+                    dev.ellipog.tenet.client.dev.TableRowFields.Kind.RAW,
+                    book.bookAssets.entryRewardText(index), target.box(), target.textX(), target.textY(), mouseX,
+                    mouseY);
+            case TABLE_REMOVE -> {
+                // One press, and the entry is gone -- so it asks first, the same confirm-in-place the
+                // inline table's removal uses. A cross is the narrowest control on the row and the row
+                // below it is another cross, so a mis-click here costs an entry and a second mis-click
+                // costs another.
+                if (!book.tableConfirmReplace) {
+                    book.tableConfirmReplace = true;
+                    book.status("Press again to remove this entry", true);
+                    return;
+                }
+                book.tableConfirmReplace = false;
+                // A list position that moved is no longer about the entry the author touched: the same
+                // rule the card follows when a task is removed. See FieldDraft#forgetList.
+                BookRewards.tableDraft.forgetList(QuestBookScreen.effectiveChapter(), book.bookRewards.tableOwnerKey(), "entries");
+                // And the folds move with it: they are keyed by position, so every open fold above the
+                // hole has to shift down with the row it belongs to -- otherwise entry 3's fields are
+                // drawn under entry 2's name, and the next press on that fold edits the wrong entry.
+                book.bookAssets.forgetFoldAfterRemove(index);
+                book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Remove(book.tableAddress, index));
+            }
+            case TABLE_ADD_ITEM -> book.bookAssets.openTableItemPick("", -1, "Add an item to the table");
+            case TABLE_ENTRY_ITEM -> book.bookAssets.openTableItemPick(
+                    tableEntryPath(index, target.path().isEmpty() ? "item" : target.path()), index,
+                    "Choose the item");
+            case TABLE_ICON -> book.bookAssets.openTableItemPick("icon.item", -1, "Choose this table's icon");
+            case TABLE_IMPORT -> {
+                // The popover's choice is the press: it closes with the row it ran.
+                book.tableImportOpen = false;
+                // A sentinel: a refused import answers with the editor's own reply payload, and without
+                // one it would consume the next edit's -- misattributing every reply after it.
+                // An import is answered by an edit reply whatever happens -- `handleTableImport` replies
+                // on success and on refusal -- so its marker is consumed by the reply loop, like an op's.
+                if (ClientEditReplies.noteSent(QuestBookScreen.REPLICA_SENTINEL) != null) {
+                    ArmatureNetwork.sendToServer(
+                            new dev.ellipog.tenet.net.TableImportRequestPayload(book.tableAddress, false));
+                }
+            }
+            case TABLE_IMPORT_CHEST -> {
+                book.tableImportOpen = false;
+                if (ClientEditReplies.noteSent(QuestBookScreen.REPLICA_SENTINEL) != null) {
+                    ArmatureNetwork.sendToServer(
+                            new dev.ellipog.tenet.net.TableImportRequestPayload(book.tableAddress, true));
+                }
+            }
+            case TABLE_ROLL -> {
+                // One button, two meanings, and the label says which: over the entries it rolls, over the
+                // roll it goes back. The roll's own state is what decides, so the two can never disagree.
+                if (book.tableShowRoll) {
+                    book.tableShowRoll = false;
+                    book.tableImportOpen = false;
+                    book.rollBody.setScrollY(0);
+                    return;
+                }
+                book.rollBody.setScrollY(0);
+                // The panel only flips to the roll when the request can actually be sent: showing a roll
+                // nobody asked for would be a panel describing a question that was never put.
+                if (ClientEditReplies.noteSent(QuestBookScreen.REPLICA_SENTINEL) == null) {
+                    return;
+                }
+                book.tableShowRoll = true;
+                // The reading the author has selected travels as it stands. It used to travel as a
+                // derived `includeEmpty` flag, which the server turned back into one of two modes --
+                // so "All once" and "Choice" came back as weighted rolls of a table whose own panel
+                // said every entry is granted. See TableRollRequestPayload.
+                ArmatureNetwork.sendToServer(new dev.ellipog.tenet.net.TableRollRequestPayload(
+                        book.tableAddress, QuestBookScreen.TABLE_ROLL_COUNT, book.tablePreview));
+            }
+            case TABLE_UNDO -> tableUndo();
+            case TABLE_OPEN_CHILD -> {
+                var model = book.bookRewards.tableModel();
+                if (model.isPresent() && index >= 0 && index < model.get().entryCount()
+                        && model.get().entries().get(index).reward()
+                                instanceof dev.ellipog.tenet.quest.reward.TableReward nested
+                        && nested.tableId().isPresent()) {
+                    book.bookRewards.pushTableEditor(dev.ellipog.tenet.editor.TableAddress.of(nested.tableId().get()));
+                }
+            }
+            case TABLE_ADD_REWARD -> book.questEditor.openTableTypePick("rewards", "Add a reward to the table");
+            default -> {
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // A folded entry's own fields
+    // ------------------------------------------------------------------
+
+    /** The file path of one field of one entry's reward: {@code entries.2.reward.amount}. */
+    static String tableEntryPath(int index, String field) {
+        String prefix = "entries." + index + ".reward";
+        return field == null || field.isEmpty() ? prefix : prefix + "." + field;
+    }
+
+    /**
+     * One entry's reward as JSON, with this panel's pending values applied.
+     *
+     * <p>Through the draft, like every other read in this panel: the fold's controls show what the author
+     * has just set, and a box drawn from the replica while the box beside it drew from the draft is two
+     * answers about one entry — which is what the fold did before this, for the item id and its count.
+     */
+    JsonObject draftedEntry(int index) {
+        return BookAssets.entryAt(book.bookRewards.tableDraftedRoot(), index);
+    }
+
+    /**
+     * The next word in a cycling control's ring, or the same word back when the ring does not hold it.
+     *
+     * <p>{@code indexOf} answers -1 for an absent value <i>and</i> for one this build does not know, and
+     * wrapping both to {@code ring[0]} meant a press rewrote the file: a reward carrying {@code no_toast}
+     * -- which a shipped example does -- became {@code default} on one stray click, and an addon's word
+     * became the first option of a field it had nothing to do with. Absence is the one case that means
+     * "unset", so it is the one case that advances.
+     */
+    static String nextOption(List<String> ring, String current) {
+        int at = ring.indexOf(current);
+        if (at < 0) {
+            return current == null || current.isEmpty() ? ring.get(0) : current;
+        }
+        return ring.get((at + 1) % ring.size());
+    }
+
+    /**
+     * The folds as they stand, with each open entry's line count read from its own type.
+     *
+     * <p>Built once per frame beside the odds and the weight total, because it walks the entries: the
+     * drawing, the wheel and the drop all ask for the same value, and three walks of one list is three
+     * answers waiting to disagree.
+     */
+    dev.ellipog.tenet.client.dev.TableEditorLayout.Folds tableFolds() {
+        return dev.ellipog.tenet.client.dev.TableEditorLayout.Folds.of(book.tableFolded,
+                book.bookAssets::tableFoldLines);
+    }
+
+    /**
+     * The icon a table pick's card shows: the table's own, or the entry's item.
+     *
+     * <h2>What the header's icon means, since it is one derivation for four buttons</h2>
+     *
+     * <p>It is the pick's <b>subject</b>: the icon row shows the icon that will be replaced, an entry's
+     * item field shows the item that will be replaced, and a pick that <i>adds</i> an entry — `+ Item` and
+     * `+ Reward` alike — shows the table it is being added to, because that is the subject there is. It
+     * used to answer {@code EMPTY} for a new entry, so `+ Item` had no icon while `+ Reward` had one, and
+     * the first fix for that took the icon off the reward instead of putting it on the item: two reports
+     * for one line. The fallback below is the half that makes them agree.
+     */
+    ItemStack tablePickSubjectFor(String path, int entryIndex) {
+        var model = book.bookRewards.tableModel();
+        if (model.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        if (path != null && path.startsWith("icon")) {
+            return model.get().displayIcon().toStack();
+        }
+        if (entryIndex >= 0 && entryIndex < model.get().entryCount()
+                && model.get().entries().get(entryIndex).reward()
+                        instanceof dev.ellipog.tenet.quest.reward.ItemReward item) {
+            return item.item().toStack();
+        }
+        // A new entry: the table, which is what the pick is for.
+        return model.get().displayIcon().toStack();
+    }
+
+    /** Leaves the picker a table opened: back to the editor, with the pick forgotten. */
+    void closeTablePick() {
+        book.tablePickPath = null;
+        book.itemPicker.closeItemPicker();
+        if (book.tableAddress != null) {
+            book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.TABLE_EDITOR));
+        }
+        book.rebuildWidgets();
+    }
+
+    /** Ctrl+Z in the editor: the frame's own history, and never past the table it opened on. */
+    void tableUndo() {
+        if (book.tableAddress == null || book.tableApplied <= 0) {
+            book.status("Nothing to undo in this table", true);
+            return;
+        }
+        // The drafts go first: the server is about to put the file back, and a pending value still
+        // holding what was undone would keep drawing it -- a Ctrl+Z that looks like it did nothing.
+        BookRewards.tableDraft.forgetOwner(QuestBookScreen.effectiveChapter(), book.bookRewards.tableOwnerKey());
+        book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Undo(book.tableAddress));
+    }
+
+    void tableRedo() {
+        if (book.tableAddress == null || book.tableUndone <= 0) {
+            book.status("Nothing to redo in this table", true);
+            return;
+        }
+        BookRewards.tableDraft.forgetOwner(QuestBookScreen.effectiveChapter(), book.bookRewards.tableOwnerKey());
+        book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.Redo(book.tableAddress));
+    }
+
+    // ------------------------------------------------------------------
+    // Dropping an item in from a recipe viewer
+    // ------------------------------------------------------------------
+
+    /** A number without a trailing {@code .0}, for a panel. */
+    static String trimNumber(double value) {
+        return value == Math.floor(value) && !Double.isInfinite(value)
+                ? String.valueOf((long) value) : String.valueOf(value);
+    }
+
+    /**
+     * Forgets every picker that could be armed.
+     *
+     * <h2>One place, because the rule was enforced in one of two</h2>
+     *
+     * <p>{@code closeOverlay} cleared the type and condition pickers; {@code closeTablePanel} cleared
+     * neither. So pressing Done — or Escape — on the table editor's type picker closed the panel and left
+     * the picker armed, and the quest card that appeared behind it drew a list of reward types over
+     * itself. The card's own comment already stated the rule ("a picker left armed would greet the next
+     * quest with a list of types"); it was simply written where only one of the two exits could see it.
+     *
+     * <p>Adding a picker kind means adding it here, and this is the only place that has to know.
+     */
+    /**
+     * Forgets what the picker card is about: its target, its title, its icon and its subject line.
+     *
+     * <p>The four are one thing — what the card says it is for — and three callers each set them, which
+     * is how a stale one gets drawn: a table pick set no target of its own, fell back to the target's own
+     * sentence, and told the author it was choosing a chapter's icon. One reset, called by every picker
+     * that arms, so the next field added to the subject cannot be forgotten by two of the three.
+     */
+    void forgetPickSubject() {
+        book.pickTarget = null;
+        book.pickTitle = "";
+        book.pickIcon = ItemStack.EMPTY;
+        book.pickTexture = "";
+        book.pickSprite = "";
+        book.pickName = "";
+    }
+
+    void clearPickers() {
+        book.pickingEntryType = null;
+        book.pickingConditionFor = null;
+        book.tablePickPath = null;
+        // Cleared before the item picker closes, because that is what tells it *not* to hand the overlay
+        // back to the table editor: this is a exit, not a return.
+        book.tablePickReturn = false;
+        // And the type page's own return flag with it, for the same reason: a stale one would have the
+        // next page of a quest card leaving itself back into a table that is not on screen.
+        book.typePickReturn = false;
+        book.itemPicker.closeItemPicker();
+    }
+
+    /** The first task a player hands over by hand <b>and still has to</b>, or -1. */
+    int firstManualTask(ClientQuestCache.Entry quest) {
+        // The rule lives in the cache, which holds all three of its inputs -- the task's own kind, what
+        // is recorded and what the server would accept a press on. See ClientQuestCache.firstSubmitTask
+        // for why a checkmark and a task that takes are offered their button at opposite moments.
+        for (int index = 0; index < quest.tasks().size(); index++) {
+            if (book.bookAssets.submitOfferedWithMarks(quest.id(), index)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Hands one task over, and marks it handed in until the server answers.
+     *
+     * <h2>What changed here, and what the old note got right</h2>
+     *
+     * <p>This made no local change, and its reason was that the server may refuse: <i>"showing the outcome
+     * before it arrives would mean showing something the server may refuse"</i>. That is still true, and it
+     * is why the mark is <b>not</b> a claim that it happened — it is a claim that it was <i>asked for</i>,
+     * it is drawn as pending rather than as a settled count, and it goes when the answer arrives, when the
+     * task's subject leaves the tree, or at the backstop. See {@code PendingClaims}.
+     *
+     * <p>What the old note missed is the shape of a refusal here: the submit handler sends <b>nothing</b>
+     * when nothing changed, so a refused hand-in produced no message at all — the row went on reading
+     * "hand in" and the only trace was an action-bar line, which is not drawn behind this screen. So the
+     * press looked like it had not registered, which is the one reading a player never recovers from.
+     *
+     * <p>The button is offered only when the server has already said a press would be accepted
+     * ({@code ClientQuestCache.submitOffered}), so a refusal is the narrow window between that answer and
+     * the press — a stale inventory, or a stage granted in the last second.
+     */
+    void submit(String questId, int taskIndex) {
+        if (!book.pendingClaims.mark(PendingClaims.taskKey(questId, taskIndex),
+                net.minecraft.util.Util.getMillis())) {
+            // Already in flight: a second press for one task is not a second packet.
+            return;
+        }
+        ArmatureNetwork.sendToServer(new SubmitTaskPayload(questId, taskIndex));
+        Constants.LOG.debug("asked the server to submit task {} of {}", taskIndex, questId);
+    }
+
+    /**
+     * Asks the server to hand over a finished quest's rewards, and marks them collected until it answers.
+     *
+     * <p>The reader card's Claim button and the rewards menu's quest header are the same press asked from
+     * two places, and they now mark the same keys — the header used to be optimistic and the card was not,
+     * which is how the menu could read a quest collected while the card behind it still offered to claim it.
+     *
+     * <p>Whether anything is owed is still the server's decision, and it is the one that has the stored
+     * progress; a stale client showing a Claim button for a quest it collected a minute ago still gets its
+     * refusal, and the refusal still puts the mark back — because a claim always answers.
+     */
+    void claim(String questId) {
+        if (!book.bookRewards.markQuest(questId, net.minecraft.util.Util.getMillis())) {
+            return;
+        }
+        ArmatureNetwork.sendToServer(new ClaimRewardPayload(questId));
+        Constants.LOG.debug("asked the server to hand over the rewards for {}", questId);
     }
 }

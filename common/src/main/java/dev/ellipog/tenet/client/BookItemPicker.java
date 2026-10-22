@@ -71,11 +71,11 @@ final class BookItemPicker {
      *                    the list has to be gathered from the same reading the press was dispatched on
      */
     void openSearchPicker(QuestBookScreen.EditTarget target, EditorField field, String observeType) {
-        book.closeInlineEditor();
+        book.editorControls.closeInlineEditor();
         book.pickingEntryType = null;
         book.settingsOpen = false;
         book.pickerFromSettings = false;
-        book.forgetPickSubject();
+        book.bookAssets.forgetPickSubject();
         book.pickTarget = QuestBookScreen.PickTarget.QUEST;
         book.draggingSlider = null;
         book.settingsDraft.clear();
@@ -145,10 +145,10 @@ final class BookItemPicker {
      */
     void closePickerOverlay() {
         if (book.typePageOpen()) {
-            book.leaveTypePage();
+            book.questEditor.leaveTypePage();
             return;
         }
-        book.closeItemPicker();
+        closeItemPicker();
         book.rebuildWidgets();
     }
 
@@ -230,7 +230,7 @@ final class BookItemPicker {
         String quest = book.editTarget();
         String path = book.pickingItemPath;
         String clearPath = book.pickingItemClearPath;
-        book.closeItemPicker();
+        closeItemPicker();
         if (!book.mayEditNow() || quest == null || path == null) {
             book.rebuildWidgets();
             return;
@@ -276,7 +276,7 @@ final class BookItemPicker {
     private void commitDockIcon(JsonObject icon) {
         String word = icon == null ? "" : describeIcon(icon);
         if (book.pickTarget == QuestBookScreen.PickTarget.BOOK) {
-            book.closeItemPicker();
+            closeItemPicker();
             if (!book.mayEditNow()) {
                 book.rebuildWidgets();
                 return;
@@ -287,7 +287,7 @@ final class BookItemPicker {
             return;
         }
         boolean group = book.pickTarget == QuestBookScreen.PickTarget.GROUP;
-        book.closeItemPicker();
+        closeItemPicker();
         if (!book.mayEditNow()) {
             book.rebuildWidgets();
             return;
@@ -368,7 +368,7 @@ final class BookItemPicker {
         if (row.kind() == ItemPickerLayout.Kind.MISSING && row.id().equals(book.pickingItemCurrent)) {
             // The field's own missing value, pressed: it is already what the field says, so this is
             // "keep it" -- the picker closes and no edit is spent saying nothing.
-            book.closeItemPicker();
+            closeItemPicker();
             book.rebuildWidgets();
             return;
         }
@@ -460,7 +460,7 @@ final class BookItemPicker {
         String path = book.pickingItemPath;
         String clearPath = book.pickingItemClearPath;
         String data = id == null ? "" : pickedDataOf(id);
-        book.closeItemPicker();
+        closeItemPicker();
         if (!book.mayEditNow() || quest == null || path == null) {
             book.rebuildWidgets();
             return;
@@ -559,7 +559,7 @@ final class BookItemPicker {
         if (book.pickTarget == QuestBookScreen.PickTarget.BOOK) {
             // The book's icon is a plain id, not an item reference: there is no components member to
             // carry, so the id is the whole value and null clears it.
-            book.closeItemPicker();
+            closeItemPicker();
             if (!book.mayEditNow()) {
                 book.rebuildWidgets();
                 return;
@@ -571,7 +571,7 @@ final class BookItemPicker {
         }
         boolean group = book.pickTarget == QuestBookScreen.PickTarget.GROUP;
         String data = id == null ? "" : pickedDataOf(id);
-        book.closeItemPicker();
+        closeItemPicker();
         if (!book.mayEditNow()) {
             book.rebuildWidgets();
             return;
@@ -1037,7 +1037,7 @@ final class BookItemPicker {
                 boolean mine = target.action() == QuestBookScreen.EditAction.TABLE_IMPORT
                         || target.action() == QuestBookScreen.EditAction.TABLE_IMPORT_CHEST;
                 if (mine && target.box().contains(mouseX, mouseY)) {
-                    book.pressTableEditorTarget(target, mouseX, mouseY);
+                    book.bookAssets.pressTableEditorTarget(target, mouseX, mouseY);
                     onRow = true;
                     break;
                 }
@@ -1128,6 +1128,134 @@ final class BookItemPicker {
             book.bookRewards.sendTableOp(new dev.ellipog.tenet.editor.TableOp.SetFields(book.tableAddress, fields));
             book.status("Set to " + id, false);
         }
-        book.closeTablePick();
+        book.bookAssets.closeTablePick();
+    }
+
+    // ------------------------------------------------------------------
+    // The item picker
+    // ------------------------------------------------------------------
+
+    void openItemPicker(QuestBookScreen.EditTarget target, boolean returnToSettings) {
+        book.editorControls.closeInlineEditor();
+        book.pickingEntryType = null;
+        book.settingsOpen = false;
+        book.pickerFromSettings = returnToSettings;
+        // The card's picker, named as such: the dock's two icons are the other targets, and a stale one
+        // left set would route this pick to a chapter's or a group's file. The reset comes first, so the
+        // title can never be a sentence the last pick left behind.
+        book.bookAssets.forgetPickSubject();
+        book.pickTarget = QuestBookScreen.PickTarget.QUEST;
+        book.draggingSlider = null;
+        book.settingsDraft.clear();
+        book.pickingItemPath = target.path();
+        JsonObject quest = book.replicaQuest();
+        JsonElement current = quest == null ? null : QuestPanelLayout.get(quest, target.path());
+        book.pickingItemCurrent = current != null && current.isJsonPrimitive() ? current.getAsString() : "";
+        book.pickingItemClearPath = ItemPicker.clearPath(target.path());
+        // The item catalogue, and this pick is items: a search left set from the last one would list
+        // biomes for a field that wants an item.
+        book.pickerSource = null;
+        book.pickerObserveType = "";
+        book.pickerEntries = BookItemPicker.catalogue();
+        book.pickerInventory = BookItemPicker.carried();
+        book.pickerMatches = List.of();
+        book.pickerRows = List.of();
+        book.pickerFrame = null;
+        book.pickerQuery = "";
+        // An empty box, for the same reason the search picker gets one: the last field's query must not
+        // filter this field's list.
+        book.itemSearch = null;
+        book.pickerSelected = -1;
+        book.pickerBody.setScrollY(0);
+        // Items first, every time: the tabs greet an icon pick on the arm every icon picker before
+        // this one chose, and a file tab left over would list textures for an item field.
+        book.pickerKind = QuestBookScreen.PickerKind.ITEM;
+        book.itemPicker.placeArmedPick();
+        book.rebuildWidgets();
+    }
+
+    /** Closes it without committing, and forgets its list: the next open gathers a fresh one. */
+    void closeItemPicker() {
+        // **Its own column goes first, when it had one.** Four callers arrive here -- the Back control,
+        // Escape, a committed pick and a panel leaving -- and the column a picker occupied is part of the
+        // arrangement, so the arrangement is what has to lose it. It used to be nobody's job: this method
+        // reset the picker's own fields, `closePanelColumn` returned early for a picker, and the second
+        // column stayed on screen through every way out of it. `overlay` is deliberately untouched by the
+        // peel, because the two tests below are about which overlay owns the picker.
+        //
+        // The path goes now rather than with the exit below: `buildItemSearch` reads it to decide whether
+        // the quest card owns a search box, and a rebuild between the close and the settle would resurrect
+        // the box — and its placeholder — from the retained path, then watch the settle null the field out
+        // from under the placeholder. That draw is the crash, not a glitch. Everything the sinking surface
+        // itself reads stays for the slide; the path is the one thing a build also reads.
+        book.pickingItemPath = null;
+        if (book.overlay2 == PanelKind.PICKER) {
+            book.applyColumns(PanelStack.afterClose(book.columns(), true));
+        }
+        // Back to the page it was opened from, before anything else looks at the state: the picker is
+        // closed either way, and an author who pressed Change… on the settings page belongs there
+        // afterwards rather than in the card's editor.
+        if (book.pickerFromSettings) {
+            book.pickerFromSettings = false;
+            book.settingsOpen = true;
+        }
+        // The dock's picker has no card behind it to return to: its overlay *is* the picker, so closing
+        // it puts the book back. Read before the target is cleared, because only a dock pick owns the
+        // overlay -- a pick from the card closes back into the card.
+        boolean ownOverlay = book.pickTarget != null && book.pickTarget != QuestBookScreen.PickTarget.QUEST && book.overlay == PanelKind.PICKER;
+        // A pick made from the table editor closes back into the editor rather than into the card: the
+        // picker is a page of *that* panel while it is open, and the panel is where the author was.
+        if (book.tablePickReturn && book.overlay == PanelKind.PICKER) {
+            book.tablePickReturn = false;
+            book.applyColumns(PanelStack.asRoot(book.columns(), PanelKind.TABLE_EDITOR));
+        }
+        if (ownOverlay) {
+            // The dock picker's own overlay goes with it: arranged before the teardown is scheduled, so
+            // the exit below is keyed under the rail that actually left rather than a stale set.
+            book.applyColumns(PanelStack.afterClose(book.columns(), false));
+        }
+        // The picker's own state is what its exit draws from — the rows, the frame, the box — so it is
+        // owed to the slide rather than nulled under it. Runs at settle, or early on reopen.
+        book.deferForLastDeparted(() -> {
+            book.bookAssets.forgetPickSubject();
+            book.pickingItemClearPath = null;
+            book.pickerKind = QuestBookScreen.PickerKind.ITEM;
+            book.pickerEntries = List.of();
+            book.pickerInventory = List.of();
+            book.pickerMatches = List.of();
+            book.pickerRows = List.of();
+            book.pickerFrame = null;
+            book.pickerQuery = "";
+            book.pickerSelected = -1;
+            book.pickerBody.setScrollY(0);
+            book.itemSearch = null;
+        });
+    }
+
+    static final int MENU_ROW_HEIGHT = 16;
+
+    /** How far below its rest a menu opens before climbing into place. A nudge, not a travel. */
+    static final int MENU_RISE_PX = 3;
+
+    /** How long the climb takes: felt as a settle rather than watched as a transition. */
+    static final int MENU_RISE_MILLIS = 90;
+
+    /**
+     * A label cut to the panel's width.
+     *
+     * <p>The menu is a fixed-width panel and a group title is an author's string, so a long one used to
+     * be drawn straight past the panel and over the canvas — which reads as a rendering fault rather
+     * than as a long name. Same rule as a control's label, on the same terms.
+     */
+    static String fitLabel(GuiRenderer r, String label) {
+        int room = BookMenu.MENU_WIDTH - 8;
+        if (r.textWidth(label) <= room) {
+            return label;
+        }
+        String cut = label;
+        while (cut.length() > 1 && r.textWidth(cut + "\u2026") > room) {
+            cut = cut.substring(0, cut.length() - 1);
+        }
+        return cut + "\u2026";
     }
 }

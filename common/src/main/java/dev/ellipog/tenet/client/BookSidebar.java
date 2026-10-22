@@ -86,7 +86,7 @@ final class BookSidebar {
             QuestBookScreen.sidebar = buildSidebar();
             QuestBookScreen.sidebarRevision = ClientQuestCache.treeRevision();
             QuestBookScreen.sidebarProgress = ClientQuestCache.progressRevision();
-            sidebarEditing = QuestBookScreen.editingView;
+            sidebarEditing = BookCanvas.editingView;
             QuestBookScreen.sidebarText = ClientQuestCache.textRevision();
         }
         return QuestBookScreen.sidebar;
@@ -119,7 +119,7 @@ final class BookSidebar {
     static boolean sidebarStale() {
         if (QuestBookScreen.sidebar == null
                 || QuestBookScreen.sidebarRevision != ClientQuestCache.treeRevision()
-                || sidebarEditing != QuestBookScreen.editingView
+                || sidebarEditing != BookCanvas.editingView
                 || QuestBookScreen.sidebarText != ClientQuestCache.textRevision()) {
             return true;
         }
@@ -128,7 +128,7 @@ final class BookSidebar {
             return false;
         }
         for (SidebarLayout.ChapterRow row : QuestBookScreen.sidebarChapters) {
-            if (row.locked() != chapterLocked(row.id()) || row.hidden() != QuestBookScreen.chapterHidden(row.id())) {
+            if (row.locked() != chapterLocked(row.id()) || row.hidden() != BookContent.chapterHidden(row.id())) {
                 return true;
             }
         }
@@ -169,12 +169,12 @@ final class BookSidebar {
         for (ClientQuestCache.ChapterEntry chapter : ClientQuestCache.chapters()) {
             chapters.putIfAbsent(chapter.id(), new SidebarLayout.ChapterRow(
                     chapter.id(), chapter.titleText(), chapter.groupId(),
-                    chapterLocked(chapter.id()), QuestBookScreen.chapterHidden(chapter.id())));
+                    chapterLocked(chapter.id()), BookContent.chapterHidden(chapter.id())));
         }
         for (ClientQuestCache.Entry entry : ClientQuestCache.entries()) {
             chapters.putIfAbsent(entry.chapterId(), new SidebarLayout.ChapterRow(
                     entry.chapterId(), entry.chapterTitleText(), entry.chapterGroupId(),
-                    chapterLocked(entry.chapterId()), QuestBookScreen.chapterHidden(entry.chapterId())));
+                    chapterLocked(entry.chapterId()), BookContent.chapterHidden(entry.chapterId())));
         }
 
         QuestBookScreen.sidebarChapters = List.copyOf(chapters.values());
@@ -306,7 +306,7 @@ final class BookSidebar {
      * and {@link QuestBookScreen#editTarget} prefers it over the selection.
      */
     void selectChapter(String id) {
-        if (QuestBookScreen.chapterHidden(id)) {
+        if (BookContent.chapterHidden(id)) {
             // The sidebar has no row for a withheld chapter, so this is reached only by the paths that
             // name a chapter directly -- a dependency row's jump, the reward inbox, a rename landing. Each
             // of those is a way for a reader to arrive somewhere the book does not show, and the refusal
@@ -384,7 +384,7 @@ final class BookSidebar {
      * like a chapter with no gate.
      */
     private static Component chapterGateLine(String chapterId) {
-        ClientQuestCache.ChapterEntry chapter = QuestBookScreen.chapterEntryFor(chapterId);
+        ClientQuestCache.ChapterEntry chapter = BookContent.chapterEntryFor(chapterId);
         if (chapter == null || !chapter.waits()) {
             return null;
         }
@@ -395,7 +395,7 @@ final class BookSidebar {
             if (ClientQuestCache.chapterStateOf(dependency).isAtLeast(bar)) {
                 met++;
             }
-            ClientQuestCache.ChapterEntry target = QuestBookScreen.chapterEntryFor(dependency);
+            ClientQuestCache.ChapterEntry target = BookContent.chapterEntryFor(dependency);
             names.add(target == null ? dependency : target.titleText());
         }
         return Component.translatable("tenet.screen.chapter_needs",
@@ -754,7 +754,7 @@ final class BookSidebar {
      * player's. The count comes from one walk per revision (see {@link QuestBookScreen#rewardCounts}), and the
      * badge's own art and anchoring are {@link RewardBadge}'s.
      */
-    void drawRewardBadges(GuiRenderer r, List<QuestBookScreen.FrameNode> nodes, int dx, int dy,
+    void drawRewardBadges(GuiRenderer r, List<BookCanvas.FrameNode> nodes, int dx, int dy,
                                   CanvasDetail detail) {
         Map<String, Integer> waiting = book.rewardCounts().byQuest();
         if (waiting.isEmpty()) {
@@ -769,7 +769,7 @@ final class BookSidebar {
         int cTop = book.canvasTop();
         int cRight = book.canvasRight();
         int cBottom = book.canvasBottom();
-        for (QuestBookScreen.FrameNode node : nodes) {
+        for (BookCanvas.FrameNode node : nodes) {
             Integer count = waiting.get(node.id());
             if (count == null) {
                 continue;
@@ -797,7 +797,7 @@ final class BookSidebar {
      * is the node's own — locked, rings tier, pack and quest flags — read here rather than carried,
      * so the pass and the node cannot disagree about which nodes wear one.
      */
-    void drawLockMarks(GuiRenderer r, List<QuestBookScreen.FrameNode> nodes, int dx, int dy,
+    void drawLockMarks(GuiRenderer r, List<BookCanvas.FrameNode> nodes, int dx, int dy,
                                CanvasDetail detail) {
         if (!detail.rings()) {
             return;
@@ -807,7 +807,7 @@ final class BookSidebar {
         int cRight = book.canvasRight();
         int cBottom = book.canvasBottom();
         boolean showLockIcons = ClientQuestCache.showLockIcons();
-        for (QuestBookScreen.FrameNode node : nodes) {
+        for (BookCanvas.FrameNode node : nodes) {
             if (node.state() != QuestState.LOCKED) {
                 continue;
             }
@@ -1240,7 +1240,7 @@ final class BookSidebar {
             }
             return "";
         }
-        return QuestBookScreen.chapters().getOrDefault(id, "");
+        return BookContent.chapters().getOrDefault(id, "");
     }
 
     /**
@@ -1276,7 +1276,7 @@ final class BookSidebar {
             }
         }
         else {
-            taken.addAll(QuestBookScreen.chapters().keySet());
+            taken.addAll(BookContent.chapters().keySet());
         }
         if (mode == QuestBookScreen.NamingMode.RENAME) {
             taken.remove(targetId);

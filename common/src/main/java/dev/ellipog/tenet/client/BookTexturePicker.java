@@ -92,7 +92,7 @@ final class BookTexturePicker {
      * ago. Null is the canvas's own background, which is what every existing caller means.
      */
     void openTexturePickerFor(String elementId) {
-        book.texturePickElement = elementId;
+        book.bookCanvas.texturePickElement = elementId;
         textureSearch = null;
         textureQuery = "";
         book.textureSelected = -1;
@@ -123,10 +123,10 @@ final class BookTexturePicker {
 
     /** The file the picker's target is drawn from, or empty when it names none. */
     private String pickerCurrentTexture() {
-        if (book.texturePickElement == null) {
+        if (book.bookCanvas.texturePickElement == null) {
             return book.editedBackground().image().texture();
         }
-        CanvasElement element = book.elementNow(book.texturePickElement);
+        CanvasElement element = book.elementNow(book.bookCanvas.texturePickElement);
         if (!(element instanceof CanvasElement.Image image)
                 || !(image.image() instanceof dev.ellipog.tenet.quest.ImageSource.Texture texture)) {
             return "";
@@ -339,7 +339,7 @@ final class BookTexturePicker {
             closeTexturePicker();
             return;
         }
-        if (book.commitCanvasTexture(row.id())) {
+        if (book.questEditor.commitCanvasTexture(row.id())) {
             closeTexturePicker();
         }
     }
@@ -353,7 +353,7 @@ final class BookTexturePicker {
         String query = textureSearch == null ? "" : textureSearch.value();
         String exact = ItemPicker.exactId(query, book.textureMatches);
         if (exact != null) {
-            if (book.commitCanvasTexture(exact)) {
+            if (book.questEditor.commitCanvasTexture(exact)) {
                 closeTexturePicker();
             }
             return;

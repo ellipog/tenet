@@ -72,6 +72,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import dev.ellipog.tenet.QuestAuthority;
 
 /**
  * The quest book's quest panel edits: what changing a quest's fields, tasks, rewards, conditions and
@@ -344,16 +345,16 @@ final class BookQuestEditor {
      * one has no pill, and its way out is the command again).
      */
     private void pressPreviewPill() {
-        book.previewAsPlayer = !book.previewAsPlayer;
+        book.bookCanvas.previewAsPlayer = !book.bookCanvas.previewAsPlayer;
         // The pill is its own way out, so a preview entered here always shows it — and a
         // command-entered one keeps hiding it until the command (or closing the book) ends it.
-        book.previewFromCommand = false;
-        if (book.previewAsPlayer) {
+        book.bookCanvas.previewFromCommand = false;
+        if (book.bookCanvas.previewAsPlayer) {
             book.bookMenu.closeMenu();
             book.closeColourPopover();
             book.applyColumns(PanelStack.afterClose(book.columns(), false));
         }
-        book.bookInput.authorReport(book.previewAsPlayer ? "Previewing as a player" : "Back to editing");
+        book.bookInput.authorReport(book.bookCanvas.previewAsPlayer ? "Previewing as a player" : "Back to editing");
         book.rebuildWidgets();
     }
 
@@ -1196,7 +1197,7 @@ final class BookQuestEditor {
                     // one spelling the renderer resolves.
                     ArmatureTextField field = new ArmatureTextField(0, 0, 0, 0,
                             book.editedBackground().image().texture());
-                    field.onSubmit(book::commitCanvasTexture);
+                    field.onSubmit(this::commitCanvasTexture);
                     field.colours(ArmatureTheme.title(), ArmatureTheme.recessed(),
                             ArmatureTheme.panelEdge());
                     book.toolsView.put(row.key(), field, slot -> ToolsLayout.textureField(slot));
@@ -1363,7 +1364,7 @@ final class BookQuestEditor {
      * arm dimension to get wrong: a link is one shape with three numbers.
      */
     private dev.ellipog.tenet.client.dev.ScrubField linkScrub(String link, String field) {
-        QuestLink now = book.linkNow(link);
+        QuestLink now = book.bookPins.linkNow(link);
         dev.ellipog.tenet.client.dev.LinkPanelLayout.Range range =
                 dev.ellipog.tenet.client.dev.LinkPanelLayout.rangeOf(field);
         double start = now == null
@@ -1378,10 +1379,10 @@ final class BookQuestEditor {
         }
         return new dev.ellipog.tenet.client.dev.ScrubField(start, range.min(), range.max(), range.step(),
                 range.unit())
-                .onPreview(next -> book.draftLinkField(link, field, new JsonPrimitive((long) Math.round(next))))
+                .onPreview(next -> book.bookPins.draftLinkField(link, field, new JsonPrimitive((long) Math.round(next))))
                 .onCommit(next -> {
                     JsonElement written = new JsonPrimitive((long) Math.round(next));
-                    book.draftLinkField(link, field, written);
+                    book.bookPins.draftLinkField(link, field, written);
                     book.send(new EditorOp.SetLink(link, field, written));
                     book.rebuildWidgets();
                 });
@@ -1509,7 +1510,7 @@ final class BookQuestEditor {
             // reads. **The effective value**, because an absent shape is the codec's default -- a marker
             // whose file never set one draws `rounded`, and a box showing nothing for it offered no way
             // to tell an unset field from a broken one.
-            QuestLink now = book.linkNow(link[0]);
+            QuestLink now = book.bookPins.linkNow(link[0]);
             String held = now == null ? ""
                     : dev.ellipog.tenet.client.dev.LinkPanelLayout.effectiveValueOf(
                             QuestLink.asJson(now), link[1]);
@@ -2575,11 +2576,11 @@ final class BookQuestEditor {
         // it: the card's own widget pass re-reads the subject from the tree while this overlay is open, and
         // a `pickTarget` left as a chapter's from the last pick would put that chapter's title and icon on
         // the header of a list of the table's rewards.
-        book.forgetPickSubject();
+        book.bookAssets.forgetPickSubject();
         book.pickTarget = QuestBookScreen.PickTarget.QUEST;
         book.pickTitle = title;
         book.pickName = book.bookRewards.tableTitle();
-        book.pickIcon = book.tablePickSubjectFor("", -1);
+        book.pickIcon = book.bookAssets.tablePickSubjectFor("", -1);
         book.pickingEntryType = member;
         book.pickingConditionFor = null;
         // A fresh box and a fresh list per open, on the item picker's terms: the last page's query must
@@ -2681,7 +2682,7 @@ final class BookQuestEditor {
         if (template == null) {
             return;
         }
-        if (!QuestBookScreen.knownTemplateType(template) || template.kind()
+        if (!BookAssets.knownTemplateType(template) || template.kind()
                 != dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION) {
             book.status("tenet.status.template_unknown_type", true);
             return;
@@ -2845,7 +2846,7 @@ final class BookQuestEditor {
         if (template == null) {
             return;
         }
-        if (!QuestBookScreen.knownTemplateType(template)) {
+        if (!BookAssets.knownTemplateType(template)) {
             book.status("tenet.status.template_unknown_type", true);
             return;
         }
@@ -4026,7 +4027,7 @@ final class BookQuestEditor {
         // The inline session's rows are in the count: two lines more can be what starts the scroll.
         List<SidebarLayout.Row> rows = book.inlineEdit == null ? layout.rows()
                 : book.bookSidebar.withInlineRows(layout, layout.rows());
-        book.sidebarReserveScrollbar = QuestBookScreen.sidebarReservesScrollbar(rows.size(),
+        book.sidebarReserveScrollbar = BookCanvas.sidebarReservesScrollbar(rows.size(),
                 book.geometry().sidebarViewport(book.mayEditNow()).height());
         book.sidebarViewport();
         SidebarState effective = book.geometry().sidebarState();
@@ -4172,7 +4173,7 @@ final class BookQuestEditor {
         previewExitButton = null;
         // The pill is the pill-entered preview's way out; a command-entered one draws none, so
         // the canvas reads exactly as a player's. See `previewFromCommand`.
-        if (book.previewing() && !book.previewFromCommand) {
+        if (book.bookCanvas.previewing() && !book.bookCanvas.previewFromCommand) {
             BookGeometry.Rect canvas = book.geometry().canvas();
             int pillWidth = BookGeometry.PREVIEW_WIDTH;
             previewExitButton = book.control(
@@ -4338,7 +4339,7 @@ final class BookQuestEditor {
         editButton = null;
         advancedButton = null;
         previewButton = null;
-        if (book.mayEdit() && !book.previewing()) {
+        if (mayEdit() && !book.bookCanvas.previewing()) {
             // The dock, which used to be what edit mode drew rather than a control of its own. See
             // `pressAuthorPill` for why the Edit button had to stop meaning two things, and for the one
             // transition that opens and closes this rail.
@@ -4355,7 +4356,7 @@ final class BookQuestEditor {
             // Beside it, and for the same reader: the pack's own files, which no quest has to be open to
             // reach. Not a latch -- it opens a panel, and the panel's own way out closes it.
             assetsButton = book.control(controls.get("assets"),
-                    Component.translatable("tenet.screen.assets"), book::openAssets);
+                    Component.translatable("tenet.screen.assets"), book.bookAssets::openAssets);
             chrome(assetsButton);
             if (assetsButton != null) {
                 assetsButton.ink(ArmatureButton.Ink.BODY)
@@ -4454,8 +4455,8 @@ final class BookQuestEditor {
         if (!on) {
             // The preview goes with the mode: it is only built while the mode is on, and a latch kept
             // past it would greet the mode's return already lit — a preview nobody asked to resume.
-            book.previewAsPlayer = false;
-            book.previewFromCommand = false;
+            book.bookCanvas.previewAsPlayer = false;
+            book.bookCanvas.previewFromCommand = false;
             // **And turning edit mode off puts the arrangement away.** Not because a child could outlive its
             // parent -- `overlay`/`overlay2` make that impossible by themselves now that the dock is not the
             // fallback occupant -- but because the panels are the mode's surfaces: leaving the mode with a
@@ -4499,7 +4500,7 @@ final class BookQuestEditor {
         editorCardKey = null;
         // A page that only exists at one depth: the Assets panel remembers the section the author was
         // reading, and a section this depth does not show would draw a list with nothing selected over it.
-        book.assetsSection = dev.ellipog.tenet.client.dev.AssetsLayout.shownOrFirst(book.assetsSection);
+        book.bookAssets.assetsSection = dev.ellipog.tenet.client.dev.AssetsLayout.shownOrFirst(book.bookAssets.assetsSection);
         book.bookInput.authorReport(on ? "Advanced mode on" : "Advanced mode off");
         book.rebuildWidgets();
     }
@@ -4652,7 +4653,7 @@ final class BookQuestEditor {
                 book.pickName = book.bookTitle().getString();
                 book.pickingItemCurrent = ClientQuestCache.bookIconId();
             }
-            book.buildPickerWidgets();
+            buildPickerWidgets();
             // One control, because the card has no other: Escape and a press outside also leave, and a
             // picker whose only way out is a key nobody was told about reads as a trap. The reader's
             // Back is drawn on the rectangle the panel's other footers use, so the panels line up.
@@ -4734,7 +4735,7 @@ final class BookQuestEditor {
         // over, which means the quest is unfinished, and Claim needs the quest to be finished. So it is
         // one rectangle with two possible meanings rather than two controls fighting over one corner --
         // which is precisely the collision BookGeometry exists to prevent.
-        int taskIndex = book.firstManualTask(entry);
+        int taskIndex = book.bookAssets.firstManualTask(entry);
         // Per player: a teammate having collected their copy must not hide this player's button.
         java.util.UUID self = book.minecraft().player == null ? null : book.minecraft().player.getUUID();
         boolean claimable = self != null && book.claimableWithMarks(self, entry);
@@ -4748,7 +4749,7 @@ final class BookQuestEditor {
             // before handing anything over -- so a client that shows this wrongly gets a refusal.
             ArmatureButton claim = book.control(controls.get("submit"),
                     Component.translatable("tenet.screen.quest_book.claim"),
-                    () -> book.claim(entry.id()));
+                    () -> book.bookAssets.claim(entry.id()));
             if (claim != null) {
                 claim.accent(true)
                         .tooltip(BookRewards.claimTooltip(entry.id()));
@@ -4765,7 +4766,7 @@ final class BookQuestEditor {
             final int index = taskIndex;
             ArmatureButton submit = book.control(controls.get("submit"),
                     Component.translatable("tenet.screen.quest_book.submit"),
-                    () -> book.submit(questId, index));
+                    () -> book.bookAssets.submit(questId, index));
             if (submit != null) {
                 submit.accent(true)
                         .icon(entry.tasks().get(index).icon())
@@ -4948,7 +4949,7 @@ final class BookQuestEditor {
             done.ink(ArmatureButton.Ink.BODY).tooltip(Component.translatable("tenet.screen.escape_also_closes_this"));
         }
 
-        book.buildPickerWidgets();
+        buildPickerWidgets();
 
         // The type page hosts no widgets of its own: its rows are drawn by `drawTypePicker` from the
         // catalogue, the way the item picker's are, and its only control is the search box
@@ -5138,7 +5139,7 @@ final class BookQuestEditor {
         // prose without touching the key.
         book.readerProse.clear();
         book.linkRects.clear();
-        book.readerCard = null;
+        book.bookSettings.readerCard = null;
         // The header is the reader's, already drawn above this call -- text, state tag, chapter line
         // and all. This adds only the marks and the targets: drawing the title again here is how the
         // subtitle line came out garbled, two texts on top of each other.
@@ -5215,37 +5216,37 @@ final class BookQuestEditor {
             // completely, its easier"*). The box is still the press's answer to "where is the
             // description" and the field's answer to where it goes -- it is only never painted.
             BookGeometry.Rect prose = book.editorControls.descriptionBox(description.size(), layout, body);
-            book.registerTarget(QuestBookScreen.EditAction.FIELD, "description", prose,
+            registerTarget(QuestBookScreen.EditAction.FIELD, "description", prose,
                     prose.x() + OverlayLayout.PROSE_PAD, prose.y() + OverlayLayout.PROSE_PAD,
                     BookEditorControls.join(description), null, -1);
 
-            book.drawHeading(r, QuestBookScreen.placed(layout, body, OverlayLayout.TASKS_HEADING), "TASKS");
+            book.bookSettings.drawHeading(r, BookSettings.placed(layout, body, OverlayLayout.TASKS_HEADING), "TASKS");
             if (taskLines.isEmpty()) {
                 // The row the layout reserves either way ("a row either way, so an empty list and a
                 // one-item list take the same space") -- which the editor left *blank*, so an empty
                 // section was a heading, a hole, and then the add row. The reader's own words go in it.
-                BookEditorControls.drawEmptyState(r, QuestBookScreen.placed(layout, body,
+                BookEditorControls.drawEmptyState(r, BookSettings.placed(layout, body,
                         OverlayLayout.NO_TASKS), "Nothing required");
             }
             for (int i = 0; i < taskLines.size(); i++) {
-                drawEntryRow(r, QuestBookScreen.placed(layout, body, OverlayLayout.taskKey(i)),
+                drawEntryRow(r, BookSettings.placed(layout, body, OverlayLayout.taskKey(i)),
                         BookEditorControls.memberEntry(quest, "tasks", i),
                         "tasks", i, mouseX, mouseY);
             }
-            book.editorControls.drawAddRow(r, QuestBookScreen.placed(layout, body, OverlayLayout.TASKS_ADD),
+            book.editorControls.drawAddRow(r, BookSettings.placed(layout, body, OverlayLayout.TASKS_ADD),
                     "+ Add task",
                     QuestBookScreen.EditAction.ADD_TASK, mouseX, mouseY);
 
-            book.drawHeading(r, QuestBookScreen.placed(layout, body, OverlayLayout.REWARDS_HEADING), "REWARDS");
+            book.bookSettings.drawHeading(r, BookSettings.placed(layout, body, OverlayLayout.REWARDS_HEADING), "REWARDS");
             if (rewardLines.isEmpty()) {
-                BookEditorControls.drawEmptyState(r, QuestBookScreen.placed(layout, body,
+                BookEditorControls.drawEmptyState(r, BookSettings.placed(layout, body,
                         OverlayLayout.NO_REWARDS), "Nothing");
             }
             for (int i = 0; i < rewardLines.size(); i++) {
-                drawEntryRow(r, QuestBookScreen.placed(layout, body, OverlayLayout.rewardKey(i)),
+                drawEntryRow(r, BookSettings.placed(layout, body, OverlayLayout.rewardKey(i)),
                         BookEditorControls.memberEntry(quest, "rewards", i), "rewards", i, mouseX, mouseY);
             }
-            book.editorControls.drawAddRow(r, QuestBookScreen.placed(layout, body, OverlayLayout.REWARDS_ADD),
+            book.editorControls.drawAddRow(r, BookSettings.placed(layout, body, OverlayLayout.REWARDS_ADD),
                     "+ Add reward",
                     QuestBookScreen.EditAction.ADD_REWARD, mouseX, mouseY);
 
@@ -5256,13 +5257,13 @@ final class BookQuestEditor {
                         book.dragRowPointerY, BookRewards.onScreenBand(body));
             }
 
-            book.drawHeading(r, QuestBookScreen.placed(layout, body, OverlayLayout.REQUIRES_HEADING), "REQUIRES");
+            book.bookSettings.drawHeading(r, BookSettings.placed(layout, body, OverlayLayout.REQUIRES_HEADING), "REQUIRES");
             for (int i = 0; i < dependencies.size(); i++) {
-                book.editorControls.drawDependencyRow(r, QuestBookScreen.placed(layout, body,
+                book.editorControls.drawDependencyRow(r, BookSettings.placed(layout, body,
                         OverlayLayout.dependencyKey(i)),
                         dependencies.get(i), mouseX, mouseY);
             }
-            book.editorControls.drawDependencyAddRow(r, QuestBookScreen.placed(layout, body,
+            book.editorControls.drawDependencyAddRow(r, BookSettings.placed(layout, body,
                     OverlayLayout.REQUIRES_ADD), mouseX, mouseY);
         }
         QuestBookScreen.drawBar(r, book.overlayView.bar(), mouseX, mouseY);
@@ -5319,7 +5320,7 @@ final class BookQuestEditor {
      */
     private void target(GuiRenderer r, QuestBookScreen.EditAction action, String path, BookGeometry.Rect box, int textX,
                         int textY, String value, String member, int index, int mouseX, int mouseY) {
-        if (book.registerTarget(action, path, box, textX, textY, value, member, index)) {
+        if (registerTarget(action, path, box, textX, textY, value, member, index)) {
             QuestBookScreen.drawEditAffordance(r, box, box.contains(mouseX, mouseY));
         }
     }
@@ -5410,7 +5411,7 @@ final class BookQuestEditor {
             }
             r.text(labels[i], box.x() + (box.width() - r.textWidth(labels[i])) / 2,
                     box.y() + (box.height() - 8) / 2, hot ? ArmatureTheme.title() : ArmatureTheme.body());
-            book.registerInto(book.editTargets, actions[i], null, box, box.x(),
+            registerInto(book.editTargets, actions[i], null, box, box.x(),
                     box.y() + (box.height() - 8) / 2, "", member, index);
             if (hot && !words[i].isEmpty()) {
                 book.pendingLabels.add(new QuestBookScreen.PendingLabel(box, words[i]));
@@ -5432,7 +5433,7 @@ final class BookQuestEditor {
             String word = folded ? "Expand" : "Collapse";
             book.pendingLabels.add(new QuestBookScreen.PendingLabel(fold, word));
         }
-        book.registerInto(book.editTargets, QuestBookScreen.EditAction.TOGGLE_ENTRY, null, fold, fold.x(),
+        registerInto(book.editTargets, QuestBookScreen.EditAction.TOGGLE_ENTRY, null, fold, fold.x(),
                 fold.y() + (fold.height() - 8) / 2, "", member, index);
 
         // The row's leading strip is the drag's grip -- the type's icon and the gutter beside it, which no
@@ -5449,7 +5450,7 @@ final class BookQuestEditor {
         if (grip.contains(mouseX, mouseY)) {
             r.fill(grip.x() + 1, grip.y() + 2, grip.x() + 3, grip.bottom() - 2, ArmatureTheme.hoverRing());
         }
-        book.registerTarget(QuestBookScreen.EditAction.DRAG_ENTRY, null, grip, grip.x() + 4,
+        registerTarget(QuestBookScreen.EditAction.DRAG_ENTRY, null, grip, grip.x() + 4,
                 grip.y() + (grip.height() - 8) / 2, "", member, index);
     }
 
@@ -5493,7 +5494,7 @@ final class BookQuestEditor {
         r.text(star, save.x() + (save.width() - r.textWidth(star)) / 2,
                 save.y() + (save.height() - 8) / 2,
                 saveHot ? ArmatureTheme.title() : ArmatureTheme.body());
-        book.registerInto(book.editTargets, QuestBookScreen.EditAction.SAVE_CONDITION, pathPrefix, save, save.x(),
+        registerInto(book.editTargets, QuestBookScreen.EditAction.SAVE_CONDITION, pathPrefix, save, save.x(),
                 save.y() + (save.height() - 8) / 2, "", member, index);
         if (saveHot) {
             book.pendingLabels.add(new QuestBookScreen.PendingLabel(save, "Save as template"));
@@ -5508,7 +5509,7 @@ final class BookQuestEditor {
         r.text(cross, remove.x() + (remove.width() - r.textWidth(cross)) / 2,
                 remove.y() + (remove.height() - 8) / 2,
                 removeHot ? ArmatureTheme.title() : ArmatureTheme.body());
-        book.registerInto(book.editTargets, QuestBookScreen.EditAction.CONDITION_REMOVE, pathPrefix, remove, remove.x(),
+        registerInto(book.editTargets, QuestBookScreen.EditAction.CONDITION_REMOVE, pathPrefix, remove, remove.x(),
                 remove.y() + (remove.height() - 8) / 2, "", member, index);
 
         if (QuestPanelLayout.conditionEditorFor(condition).isEmpty()) {
@@ -5519,7 +5520,7 @@ final class BookQuestEditor {
                 r.text("edit JSON", raw.x() + 4, raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2,
                         ArmatureTheme.faint());
             }
-            book.registerInto(book.editTargets, QuestBookScreen.EditAction.RAW, pathPrefix, raw, raw.x() + 4,
+            registerInto(book.editTargets, QuestBookScreen.EditAction.RAW, pathPrefix, raw, raw.x() + 4,
                     raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2, "", member, index);
             return;
         }
@@ -5545,7 +5546,7 @@ final class BookQuestEditor {
         String label = "+ Condition";
         r.text(Measure.truncate(label, chip.width() - 6, book.textMeasure(r)), chip.x() + 3,
                 chip.y() + (chip.height() - 8) / 2, hot ? ArmatureTheme.title() : ArmatureTheme.body());
-        book.registerTarget(QuestBookScreen.EditAction.CONDITION_ADD, member + "." + index, chip, chip.x() + 3,
+        registerTarget(QuestBookScreen.EditAction.CONDITION_ADD, member + "." + index, chip, chip.x() + 3,
                 chip.y() + (chip.height() - 8) / 2, "", member, index);
     }
 
@@ -5713,40 +5714,40 @@ final class BookQuestEditor {
             case FLAG -> {
                 // A switch: a chip that lights. The press is the chip and its label together, without the
                 // hover frame -- a control that is a chip does not need a box drawn around it as well.
-                book.drawSwitch(r, cell.value(), on);
+                drawSwitch(r, cell.value(), on);
                 BookGeometry.Rect whole = BookGeometry.Rect.at(cell.label().x(), cell.label().y(),
                         Math.max(0, cell.value().right() - cell.label().x()), EntryFormLayout.LINE_HEIGHT);
-                book.registerTarget(QuestBookScreen.EditAction.FLAG, path, whole, whole.x() + 2,
+                registerTarget(QuestBookScreen.EditAction.FLAG, path, whole, whole.x() + 2,
                         whole.y() + 3, value, member,
                         index);
             }
             case NUMBER -> {
-                book.drawChip(r, cell.minus(), "-", cell.minus().contains(mouseX, mouseY));
-                book.drawChip(r, cell.plus(), "+", cell.plus().contains(mouseX, mouseY));
+                drawChip(r, cell.minus(), "-", cell.minus().contains(mouseX, mouseY));
+                drawChip(r, cell.plus(), "+", cell.plus().contains(mouseX, mouseY));
                 drawNumber(r, cell.value(), value, field.unit(), "", replaced, mouseX, mouseY);
                 // The boxes a number is nudged with, and the box it is typed in. Three presses rather
                 // than one: a count is almost always a nudge, and the buttons say which direction.
-                book.registerTarget(QuestBookScreen.EditAction.STEP_DOWN, path, cell.minus(), cell.minus().x() + 3,
+                registerTarget(QuestBookScreen.EditAction.STEP_DOWN, path, cell.minus(), cell.minus().x() + 3,
                         cell.minus().y() + 3, value, member, index);
-                book.registerTarget(QuestBookScreen.EditAction.STEP_UP, path, cell.plus(), cell.plus().x() + 3,
+                registerTarget(QuestBookScreen.EditAction.STEP_UP, path, cell.plus(), cell.plus().x() + 3,
                         cell.plus().y() + 3, value, member, index);
                 target(r, QuestBookScreen.EditAction.FIELD, path, cell.value(), cell.value().x() + 4,
                         cell.value().y() + 3, value, member, index, mouseX, mouseY);
             }
             case CHOICE -> {
                 String shown = value.isEmpty() ? "" : EditorSpecs.label(value);
-                book.drawValue(r, cell.value(), shown, "", false, replaced, mouseX, mouseY);
-                book.drawOptionsMark(r, cell.value());
+                drawValue(r, cell.value(), shown, "", false, replaced, mouseX, mouseY);
+                drawOptionsMark(r, cell.value());
                 if (cell.value().contains(mouseX, mouseY)) {
                     // What the press will do, said before it is pressed: a cycle through values is a
                     // control nobody can aim without knowing the ring.
                     book.pendingLabels.add(new QuestBookScreen.PendingLabel(cell.value(), optionsHint(field)));
                 }
-                book.registerTarget(QuestBookScreen.EditAction.CYCLE_CHOICE, path, cell.value(), cell.value().x() + 4,
+                registerTarget(QuestBookScreen.EditAction.CYCLE_CHOICE, path, cell.value(), cell.value().x() + 4,
                         cell.value().y() + 3, value, member, index);
             }
             case ITEM, ICON -> {
-                int textX = book.drawItemValue(r, cell.value(), value, replaced, mouseX, mouseY);
+                int textX = drawItemValue(r, cell.value(), value, replaced, mouseX, mouseY);
                 target(r, QuestBookScreen.EditAction.ITEM, path, cell.value(), textX, cell.value().y() + 3,
                         value, member,
                         index, mouseX, mouseY);
@@ -5766,7 +5767,7 @@ final class BookQuestEditor {
                     String label = "My position";
                     r.text(Measure.truncate(label, cell.action().width() - 6, measure),
                             cell.action().x() + 3, cell.action().y() + 3, ArmatureTheme.body());
-                    book.registerTarget(QuestBookScreen.EditAction.USE_POSITION, path, cell.action(),
+                    registerTarget(QuestBookScreen.EditAction.USE_POSITION, path, cell.action(),
                             cell.action().x() + 3,
                             cell.action().y() + 3, value, member, index);
                 }
@@ -5775,7 +5776,7 @@ final class BookQuestEditor {
                 // Text, and the ids a search lists. A text box carries its hint when it is empty, which
                 // is the difference between a box that explains itself and one that does not.
                 String shown = value.isEmpty() ? field.hint() : value;
-                book.drawValue(r, cell.value(), shown, "", value.isEmpty(), replaced, mouseX, mouseY);
+                drawValue(r, cell.value(), shown, "", value.isEmpty(), replaced, mouseX, mouseY);
                 if (cell.value().contains(mouseX, mouseY) && !field.hint().isEmpty() && !value.isEmpty()) {
                     book.pendingLabels.add(new QuestBookScreen.PendingLabel(cell.value(), field.hint()));
                 }
@@ -5787,7 +5788,7 @@ final class BookQuestEditor {
                 // the press. The raw id becomes the hover label, because the form has room for one word
                 // and the spelling a file and an error message use is the other one.
                 String shown = value.isEmpty() ? "search\u2026" : friendlyId(value);
-                book.drawValue(r, cell.value(), shown, "", value.isEmpty(), replaced, mouseX, mouseY);
+                drawValue(r, cell.value(), shown, "", value.isEmpty(), replaced, mouseX, mouseY);
                 if (cell.value().contains(mouseX, mouseY) && !value.isEmpty()) {
                     book.pendingLabels.add(new QuestBookScreen.PendingLabel(cell.value(), value));
                 }
@@ -5812,7 +5813,7 @@ final class BookQuestEditor {
             r.text("edit JSON", raw.x() + 4, raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2,
                     ArmatureTheme.faint());
         }
-        book.registerInto(book.editTargets, QuestBookScreen.EditAction.RAW, path, raw, raw.x() + 4,
+        registerInto(book.editTargets, QuestBookScreen.EditAction.RAW, path, raw, raw.x() + 4,
                 raw.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2, "", member, index);
     }
 
@@ -6047,13 +6048,13 @@ final class BookQuestEditor {
         // From the drafted view rather than the replica, and that is what makes a second edit compose with
         // the first: the replica still holds what the server last sent, so typing a target and then a size
         // would build the second write on a tree without the first.
-        QuestLink now = book.linkNow(link);
+        QuestLink now = book.bookPins.linkNow(link);
         if (now == null) {
             return;
         }
         String typed = text == null ? "" : text.trim();
         if (typed.isEmpty()) {
-            book.draftLinkField(link, field, null);
+            book.bookPins.draftLinkField(link, field, null);
             book.send(new EditorOp.SetLink(link, field, null));
             book.rebuildWidgets();
             return;
@@ -6064,7 +6065,7 @@ final class BookQuestEditor {
             book.rebuildWidgets();
             return;
         }
-        book.draftLinkField(link, field, value);
+        book.bookPins.draftLinkField(link, field, value);
         book.send(new EditorOp.SetLink(link, field, value));
         book.rebuildWidgets();
     }
@@ -6160,7 +6161,7 @@ final class BookQuestEditor {
      * so a tab press and a canvas press open the same card in the same chapter.
      */
     private void jumpToLink(String id) {
-        QuestLink link = book.linkNow(id);
+        QuestLink link = book.bookPins.linkNow(id);
         if (link == null) {
             return;
         }
@@ -6179,7 +6180,7 @@ final class BookQuestEditor {
      * twice. Armed per link, so a Delete left asking its question about one marker must not fire on another.
      */
     private void pressDeleteLink(String id) {
-        if (!book.mayEditNow() || book.linkNow(id) == null) {
+        if (!book.mayEditNow() || book.bookPins.linkNow(id) == null) {
             return;
         }
         if (id.equals(book.bookCanvas.linkConfirmingDelete)) {
@@ -6217,7 +6218,7 @@ final class BookQuestEditor {
         // the draft's backstop covers it -- the same arrangement placing an element already has.
         String id = "link";
         int n = 2;
-        while (book.linkNow(id) != null && n < 1000) {
+        while (book.bookPins.linkNow(id) != null && n < 1000) {
             id = "link_" + n;
             n++;
         }
@@ -6240,7 +6241,7 @@ final class BookQuestEditor {
      * rather than a list.
      */
     private void armLinkPick(String id) {
-        if (!book.mayEditNow() || book.linkNow(id) == null || QuestBookScreen.effectiveChapter() == null) {
+        if (!book.mayEditNow() || book.bookPins.linkNow(id) == null || QuestBookScreen.effectiveChapter() == null) {
             return;
         }
         book.pickingDependency = false;
@@ -6469,7 +6470,7 @@ final class BookQuestEditor {
         }
         if (id.equals(book.bookCanvas.elementConfirmingDelete)) {
             book.bookCanvas.elementConfirmingDelete = null;
-            book.deleteElement(id);
+            book.bookPins.deleteElement(id);
             book.closeOverlay();
             return;
         }
@@ -6493,14 +6494,14 @@ final class BookQuestEditor {
             return;
         }
         com.google.gson.JsonObject tree = CanvasElement.asJson(element);
-        int index = book.elementInsertIndex();
-        CanvasElement made = book.placeElement(tree);
+        int index = book.bookPins.elementInsertIndex();
+        CanvasElement made = book.bookPins.placeElement(tree);
         if (made == null) {
             return;
         }
         QuestBookScreen.elementDraft.insert(QuestBookScreen.effectiveChapter(), made, index, Util.getMillis());
         book.send(new EditorOp.InsertElement(index, tree));
-        book.openElementPanel(made.id());
+        book.bookPins.openElementPanel(made.id());
     }
 
     /** The list's own heading row. Static, like the problems heading: a fold would hide the list itself. */
@@ -6525,7 +6526,7 @@ final class BookQuestEditor {
         rows.add(ToolsLayout.Action.heading(PINNED_HEADING, "tenet.screen.pinned.title"));
         List<String> ids = dev.ellipog.tenet.client.hud.PinnedQuests.pinned();
         if (ids.isEmpty()) {
-            rows.add(ToolsLayout.Action.value(QuestBookScreen.PINNED_EMPTY, "",
+            rows.add(ToolsLayout.Action.value(BookPins.PINNED_EMPTY, "",
                     Labels.of("tenet.hud.pinned_sample")));
         }
         book.pinnedIcons.clear();
@@ -6802,7 +6803,7 @@ final class BookQuestEditor {
         }
 
         for (int i = 0; i < description.size(); i++) {
-            Slot slot = QuestBookScreen.placed(layout, body, OverlayLayout.proseKey(i));
+            Slot slot = BookSettings.placed(layout, body, OverlayLayout.proseKey(i));
             if (slot == null) {
                 continue;
             }
@@ -6830,5 +6831,320 @@ final class BookQuestEditor {
             back.ink(ArmatureButton.Ink.BODY)
                     .tooltip(Component.translatable("tenet.screen.escape_also_closes_this"));
         }
+    }
+
+    // ------------------------------------------------------------------
+    // The quest panel's edits
+    // ------------------------------------------------------------------
+
+    /**
+     * A quest's title with its legacy tokens still in it, for the surfaces that wear colours.
+     *
+     * <p>The same rename-winning read as {@link QuestBookScreen#titleOf} — the same words, agreed by construction —
+     * and only the ink differs. Measuring still takes the stripped reading, because colours are
+     * widthless and the two must agree about how wide the words are.
+     */
+    static String titleOfRaw(ClientQuestCache.Entry entry) {
+        return QuestBookScreen.fieldDraft.text(entry.chapterId(), entry.id(), "title", entry.titleTextRaw());
+    }
+
+    /**
+     * Leaves whichever page is over the card: the table's type pick closes back into the editor, and the
+     * card's own pages are left by {@link BookRewards#leaveCardPage}.
+     *
+     * <p>One method for the three ways out of a page -- Escape, the footer's Back and a press outside --
+     * so the page cannot be left one way by the key and another by the button.
+     */
+    void leaveTypePage() {
+        if (book.typePickReturn) {
+            book.questEditor.closeTypePick();
+        }
+        else {
+            book.bookRewards.leaveCardPage();
+        }
+    }
+
+
+    /**
+     * Adds one dependency, by the id typed into the Add row.
+     *
+     * <p>The two refusals the server would make anyway are made here first, because a refusal that
+     * arrives after a round trip reads as a delay rather than as an answer: a duplicate is already in
+     * the list, and a quest cannot depend on itself. Everything else -- a mistyped id, a cycle, a quest
+     * in another chapter -- is the loader's validator, and its message is the one the reply carries.
+     */
+    /**
+     * Opens a description's link in the platform's browser -- <b>http and https only</b>.
+     *
+     * <p>A description is content somebody else may have written -- a published questline -- so the scheme
+     * is checked here rather than trusted: a {@code file:} target or a made-up scheme is refused with a word
+     * in the status line, never opened and never silently ignored.
+     */
+    void openLink(String url) {
+        java.net.URI uri;
+        try {
+            uri = java.net.URI.create(url);
+        }
+        catch (IllegalArgumentException malformed) {
+            book.status("tenet.status.that_link_is_not_a_valid_address", true);
+            return;
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(java.util.Locale.ROOT);
+        if (!scheme.equals("http") && !scheme.equals("https")) {
+            book.status("tenet.status.only_http_and_https_links_open", true);
+            return;
+        }
+        // The opener moved with the platform code: `Util.OS` is an enum again, and links open
+        // through Blaze3D.
+        com.mojang.blaze3d.Blaze3D.openUri(uri);
+    }
+
+    /**
+     * The texture row's commit: the id canonicalised and looked up before anything is written.
+     *
+     * <h2>Why the file is checked here, and why the check can only be a courtesy</h2>
+     *
+     * <p>An id that resolves to nothing draws nothing -- the painter returns on an unresolvable
+     * texture -- so writing one would be an edit whose only visible effect is a canvas that quietly
+     * stopped being tiled. The resource manager is the client's own copy of the pack, so the check is
+     * exactly as current as the pack the author is looking at, and a path that passes it may still be
+     * absent on another player's client. What it catches is the typo, which is the common case; what it
+     * cannot catch is a pack that disagrees with itself.
+     *
+     * <p>The status names the <b>resolved</b> path rather than what was typed, because the two differ
+     * whenever the input was lowercase-folded, namespace-defaulted or carried a leading
+     * {@code textures/} -- and the author needs to see the id the file will actually carry.
+     *
+     * <p>The boolean answer exists for the picker: the field's own submit ignores it and shows the
+     * status line instead, while a pressed row has to know whether it may close -- a press that failed
+     * the file check keeps the list open with the refusal beside it, rather than closing over the
+     * reason.
+     *
+     * @return true when the texture was written, false when the id did not resolve to a file
+     */
+    boolean commitCanvasTexture(String typed) {
+        String raw = typed == null ? "" : typed.trim();
+        String canonical = CanvasBackground.canonicalTexture(raw);
+        if (canonical.isEmpty()) {
+            book.status("\"" + raw + "\" is not a texture id - try mymod:textures/gui/bg.png", true);
+            return false;
+        }
+        Identifier id = Identifier.tryParse(canonical);
+        if (id == null || book.minecraft() == null || book.minecraft().getResourceManager() == null
+                || book.minecraft().getResourceManager().getResource(id).isEmpty()) {
+            book.status("No texture at " + canonical, true);
+            return false;
+        }
+        if (book.bookCanvas.texturePickElement != null) {
+            // An element's picture: the whole image object, because the two arms are exclusive and choosing a
+            // file is what clears the sprite. Drafted first, like every other element edit, so the canvas shows
+            // the new file at once rather than a round trip later.
+            JsonObject source = new JsonObject();
+            source.addProperty("texture", canonical);
+            book.questEditor.draftElementField(book.bookCanvas.texturePickElement, "image", source);
+            book.send(new EditorOp.SetElement(book.bookCanvas.texturePickElement, "image", source));
+            book.status("Picture file " + canonical, false);
+            book.rebuildWidgets();
+            return true;
+        }
+        CanvasBackground current = book.editedBackground();
+        book.questEditor.writeThemeBackground(new CanvasBackground(current.kind(), current.space(), current.spacing(),
+                current.tuning(),
+                new CanvasBackground.Image(canonical, current.image().fit(),
+                        current.image().tileSize())));
+        book.status("Canvas texture " + canonical, false);
+        book.rebuildWidgets();
+        return true;
+    }
+
+    /**
+     * Whether this player may edit the questline.
+     *
+     * <p>Permission level two: the level `/tenet reload` declares, read here through the player rather
+     * than through a command source. The two cannot drift because there is one number and this comment
+     * names it -- and the day the rule changes, the command is where it should change.
+     */
+    boolean mayEdit() {
+        if (book.frameActive) {
+            return book.frameMayEdit;
+        }
+        return dev.ellipog.tenet.QuestAuthority.mayEditClient(book.minecraft());
+    }
+
+    /**
+     * The item picker's search box: the one widget it has, because every row is drawn and hit-tested by
+     * the same derivation the list class owns.
+     *
+     * <h2>One method, two ways in</h2>
+     *
+     * <p>The picker opens as a page of the quest card and, since the Chapter tab's icon became pickable,
+     * as an overlay of its own -- see {@link PanelKind#PICKER}. Both need this box built identically, and
+     * the alternative to extracting it was a second copy of the placeholder, the clip and the redraw
+     * ordering below, each of which is a thing that only looks right when it is the same in both.
+     *
+     * <p>Rebuilt with the value it already held: a tick rebuild (a replica arriving mid-search) must not
+     * clear what is being typed.
+     */
+    /**
+     * The pickers' search boxes: the item picker's while it is over the card, and the type page's.
+     *
+     * <p>They are the same control in the same place of the same shape of page, so they are built by one
+     * method — and rebuilt with the text they already held, because a tick rebuild (a replica arriving
+     * mid-search) must not clear what is being typed.
+     */
+    void buildPickerWidgets() {
+        book.questEditor.buildItemSearch();
+        book.questEditor.buildTypeSearch();
+    }
+
+    /**
+     * The same, without the mark: for a piece whose mark is drawn somewhere the press is not -- the
+     * description's frame, which is drawn outside the content's clip. Returns whether anything was
+     * registered, so a caller drawing the mark can skip a box with no size.
+     */
+    boolean registerTarget(QuestBookScreen.EditAction action, String path, BookGeometry.Rect box, int textX,
+                                   int textY, String value, String member, int index) {
+        return registerInto(book.editTargets, action, path, box, textX, textY, value, member, index);
+    }
+
+    /**
+     * The same, into the list the caller names.
+     *
+     * <p>The list is a parameter because a panel has its own: the Assets panel draws its chrome and its
+     * footer with the helpers below, presses from {@link BookAssets#assetsTargets}, and never reads
+     * {@link QuestBookScreen#editTargets} while it is open. A helper that decides the destination for its caller made
+     * New table, Done and the card's cross unreachable -- drawn as controls, registered in a list the
+     * panel that presses them does not walk. See {@code drawAssets} for the other half.
+     *
+     * <p>The box and its text origin arrive shifted for the slide: a press must meet rows where they
+     * are drawn rather than where their layout says, for the tenth of a second a rail is travelling.
+     * See {@link QuestBookScreen#shiftHit}.
+     */
+    boolean registerInto(List<QuestBookScreen.EditTarget> into, QuestBookScreen.EditAction action, String path,
+                                 BookGeometry.Rect box, int textX, int textY, String value,
+                                 String member, int index) {
+        if (box.width() <= 0 || box.height() <= 0) {
+            return false;
+        }
+        BookGeometry.Rect hit = book.shiftHit(box);
+        into.add(new QuestBookScreen.EditTarget(action, path, hit, textX + hit.x() - box.x(), textY, value, member,
+                index));
+        return true;
+    }
+
+    /**
+     * A value box: a faint frame, its text, and a right-aligned tail for a unit or a mark.
+     *
+     * <p>{@code replaced} is the inline editor's contract: the field drawing over this box draws the value,
+     * and two drawings of one value is the fault that contract exists to prevent. The frame stays -- an
+     * empty box where a value was reads as the row having lost it.
+     */
+    void drawValue(GuiRenderer r, BookGeometry.Rect box, String text, String tail, boolean faint,
+                           boolean replaced, int mouseX, int mouseY) {
+        QuestBookScreen.drawEditAffordance(r, box, box.contains(mouseX, mouseY));
+        int baseline = box.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2;
+        int room = box.width() - 8 - (tail.isEmpty() ? 0 : r.textWidth(tail) + 4);
+        if (!text.isEmpty() && !replaced) {
+            r.text(Measure.truncate(text, Math.max(0, room), book.textMeasure(r)), box.x() + 4, baseline,
+                    faint ? ArmatureTheme.faint() : ArmatureTheme.body());
+        }
+        if (!tail.isEmpty()) {
+            r.text(tail, box.right() - 4 - r.textWidth(tail), baseline, ArmatureTheme.faint());
+        }
+    }
+
+    /** The chip a stepper's `-` and `+` are drawn as. */
+    void drawChip(GuiRenderer r, BookGeometry.Rect box, String glyph, boolean hot) {
+        QuestBookScreen.drawEditAffordance(r, box, hot);
+        r.text(glyph, box.x() + (box.width() - r.textWidth(glyph)) / 2,
+                box.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2,
+                hot ? ArmatureTheme.title() : ArmatureTheme.body());
+    }
+
+    /** The switch a flag is drawn as: filled when on, empty when off. */
+    void drawSwitch(GuiRenderer r, BookGeometry.Rect cell, boolean on) {
+        int size = EntryFormLayout.BUTTON;
+        BookGeometry.Rect chip = BookGeometry.Rect.at(cell.x(), cell.y() + (EntryFormLayout.LINE_HEIGHT - size) / 2,
+                size, size);
+        int edge = on ? ArmatureTheme.title() : ArmatureTheme.faint();
+        r.fill(chip.x(), chip.y(), chip.right(), chip.y() + 1, edge);
+        r.fill(chip.x(), chip.bottom() - 1, chip.right(), chip.bottom(), edge);
+        r.fill(chip.x(), chip.y() + 1, chip.x() + 1, chip.bottom() - 1, edge);
+        r.fill(chip.right() - 1, chip.y() + 1, chip.right(), chip.bottom() - 1, edge);
+        if (on) {
+            // A filled middle rather than a tick: the dot matrix has no check mark -- see the glyph list
+            // `BookGeometry.TOOLS_PILL_WIDTH` records, where `\u2713` is absent.
+            r.fill(chip.x() + 3, chip.y() + 3, chip.right() - 3, chip.bottom() - 3, ArmatureTheme.title());
+        }
+    }
+
+    /** The mark that says a box cycles when pressed. `\u25bc` is a glyph the default font carries. */
+    void drawOptionsMark(GuiRenderer r, BookGeometry.Rect box) {
+        String mark = "\u25bc";
+        r.text(mark, box.right() - 4 - r.textWidth(mark),
+                box.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2, ArmatureTheme.faint());
+    }
+
+    /**
+     * An item field's box: the icon, the item's own name, and -- on hover -- the id a file spells.
+     *
+     * <p>The name rather than the id, which is what the fields beside it do: a search field shows "Plains"
+     * and a tag shows "Ores", so an item field showing {@code minecraft:cobblestone} made one form speak
+     * two vocabularies. The id is a hover away, which is where it belongs -- and it is what a missing item
+     * still shows, because there is no name to show for one.
+     */
+    int drawItemValue(GuiRenderer r, BookGeometry.Rect box, String value, boolean replaced,
+                              int mouseX, int mouseY) {
+        int boxSize = Math.max(8, box.height() - 2);
+        ItemStack stack = QuestBookScreen.itemStack(value);
+        boolean missing = !value.isEmpty() && stack.isEmpty();
+        if (missing) {
+            QuestBookScreen.drawItemPlaceholder(r, box.x() + 1, box.y() + 1, boxSize);
+        }
+        else {
+            r.icon(stack, box.x() + 1, box.y() + 1, boxSize);
+        }
+        int baseline = box.y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2;
+        int textX = box.x() + box.height() + 2;
+        int room = Math.max(0, box.right() - 4 - textX - (missing ? r.textWidth("missing") + 4 : 0));
+        if (replaced) {
+            // The open field draws the words; the icon stays, because a blank where the item was would
+            // read as the row having lost it.
+            return textX;
+        }
+        if (missing) {
+            r.text(Measure.truncate(value, room, book.textMeasure(r)), textX, baseline, ArmatureTheme.blocked());
+            r.text("missing", box.right() - 4 - r.textWidth("missing"), baseline, ArmatureTheme.blocked());
+            if (box.contains(mouseX, mouseY)) {
+                book.pendingLabels.add(new QuestBookScreen.PendingLabel(box,
+                        "missing - the mod is not installed; the id is kept"));
+            }
+            return textX;
+        }
+        String shown = stack.isEmpty() ? "pick an item" : stack.getHoverName().getString();
+        r.text(Measure.truncate(shown, room, book.textMeasure(r)), textX, baseline,
+                stack.isEmpty() ? ArmatureTheme.faint() : ArmatureTheme.body());
+        // The id, on hover: the badge says "Item" and the box says "Cobblestone", and the spelling a file
+        // and an error message use is the one thing neither of them says.
+        if (!value.isEmpty() && box.contains(mouseX, mouseY)) {
+            book.pendingLabels.add(new QuestBookScreen.PendingLabel(box, value));
+        }
+        return textX;
+    }
+
+    /** A reward row's sentence; the task row's rule, one member over. */
+    static String rowText(String member, ClientQuestCache.RewardEntry reward) {
+        // A table that asks for its title names the row: the legacy `use_title`. The reward's own
+        // sentence is the generic roll ("Roll the X table"); the table's title is what the author
+        // wants read instead. Only for a named table whose summary says so — an inline table has no
+        // summary, and a table that says nothing keeps the generic sentence a version-16 client drew.
+        ClientQuestCache.TableSummary table = BookQuestEditor.tableOf(reward);
+        if (table != null && table.useTitle()) {
+            return table.titleText();
+        }
+        String arg = reward.labelArg();
+        return arg.isEmpty()
+                ? reward.text().getString()
+                : reward.text(BookQuestEditor.prettyArg(member, reward.type(), arg)).getString();
     }
 }

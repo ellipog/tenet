@@ -103,7 +103,7 @@ final class BookEditorControls {
         if (field == null || field.options().isEmpty()) {
             return;
         }
-        String next = QuestBookScreen.nextOption(field.options(), target.value());
+        String next = BookAssets.nextOption(field.options(), target.value());
         if (next.equals(target.value())) {
             return;
         }
@@ -211,15 +211,15 @@ final class BookEditorControls {
             // The intro's anchor for its task rung: filed where the row is measured, because this
             // box is the measured one — the registered target below is the same rectangle, so the
             // spotlight and the press cannot disagree about where "+ Add task" is.
-            book.introTaskBox = box;
+            book.bookCanvas.introTaskBox = box;
         }
         else if (action == QuestBookScreen.EditAction.ADD_REWARD) {
-            book.introRewardBox = box;
+            book.bookCanvas.introRewardBox = box;
         }
         QuestBookScreen.drawEditAffordance(r, box, box.contains(mouseX, mouseY));
         r.text(label, box.x() + 6, box.y() + (box.height() - 8) / 2,
                 ArmatureTheme.faint());
-        book.registerInto(book.editTargets, action, null, box, box.x() + 6,
+        book.questEditor.registerInto(book.editTargets, action, null, box, box.x() + 6,
                 box.y() + (box.height() - 8) / 2, "", null, -1);
     }
 
@@ -242,19 +242,19 @@ final class BookEditorControls {
         }
         r.text(Measure.truncate(name, nameBox.width() - 8, book.textMeasure(r)), nameBox.x() + 2,
                 y + (height - 8) / 2, ArmatureTheme.body());
-        book.registerInto(book.editTargets, QuestBookScreen.EditAction.NAVIGATE_DEP, name, nameBox, nameBox.x() + 2,
+        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.NAVIGATE_DEP, name, nameBox, nameBox.x() + 2,
                 y + (height - 8) / 2, "", null, -1);
 
-        QuestBookScreen.drawLocateIcon(r, locate.x() + locate.width() / 2, y + height / 2,
+        BookSettings.drawLocateIcon(r, locate.x() + locate.width() / 2, y + height / 2,
                 locate.contains(mouseX, mouseY) ? ArmatureTheme.body() : ArmatureTheme.faint());
-        book.registerInto(book.editTargets, QuestBookScreen.EditAction.LOCATE_DEP, name, locate, locate.x(), locate.y(),
+        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.LOCATE_DEP, name, locate, locate.x(), locate.y(),
                 "", null, -1);
 
         BookGeometry.Rect remove = BookGeometry.Rect.at(slot.right() - 30, y, 26, height);
         QuestBookScreen.drawEditAffordance(r, remove, remove.contains(mouseX, mouseY));
         r.text("\u00d7", remove.x() + (remove.width() - r.textWidth("\u00d7")) / 2,
                 y + (height - 8) / 2, ArmatureTheme.body());
-        book.registerInto(book.editTargets, QuestBookScreen.EditAction.REMOVE_DEP, name, remove, remove.x(),
+        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.REMOVE_DEP, name, remove, remove.x(),
                 y + (height - 8) / 2, "", null, -1);
     }
 
@@ -275,14 +275,14 @@ final class BookEditorControls {
             r.text("+ Add by id", type.x() + 6, type.y() + (type.height() - 8) / 2,
                     ArmatureTheme.faint());
         }
-        book.registerInto(book.editTargets, QuestBookScreen.EditAction.ADD_DEP, null, type, type.x() + 6,
+        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.ADD_DEP, null, type, type.x() + 6,
                 type.y() + (type.height() - 8) / 2, "", null, -1);
 
         BookGeometry.Rect pick = BookGeometry.Rect.at(type.right() + 4, y, 60, height);
         QuestBookScreen.drawEditAffordance(r, pick, pick.contains(mouseX, mouseY));
         r.text("Pick", pick.x() + 6, pick.y() + (pick.height() - 8) / 2,
                 ArmatureTheme.faint());
-        book.registerInto(book.editTargets, QuestBookScreen.EditAction.PICK_DEP, null, pick, pick.x() + 6,
+        book.questEditor.registerInto(book.editTargets, QuestBookScreen.EditAction.PICK_DEP, null, pick, pick.x() + 6,
                 pick.y() + (pick.height() - 8) / 2, "", null, -1);
     }
 
@@ -396,7 +396,7 @@ final class BookEditorControls {
     private int widestRight(int paragraphs, Layout layout, Viewport body) {
         int right = 0;
         for (int i = 0; i < paragraphs; i++) {
-            Slot slot = QuestBookScreen.placed(layout, body, OverlayLayout.proseKey(i));
+            Slot slot = BookSettings.placed(layout, body, OverlayLayout.proseKey(i));
             if (slot != null) {
                 right = Math.max(right, slot.right());
             }
@@ -546,7 +546,7 @@ final class BookEditorControls {
                 continue;
             }
             String note = "";
-            if (!QuestBookScreen.knownTemplateType(template)) {
+            if (!BookAssets.knownTemplateType(template)) {
                 note = "Needs " + template.typeId();
             }
             else if (kind == dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.REWARD) {
@@ -690,7 +690,7 @@ final class BookEditorControls {
         if (typeId.startsWith(QuestBookScreen.TEMPLATE_ROW_PREFIX)) {
             var template = dev.ellipog.tenet.client.dev.ComponentTemplates.byId(
                     typeId.substring(QuestBookScreen.TEMPLATE_ROW_PREFIX.length())).orElse(null);
-            return template == null ? ItemStack.EMPTY : QuestBookScreen.templateIcon(template);
+            return template == null ? ItemStack.EMPTY : BookAssets.templateIcon(template);
         }
         net.minecraft.resources.Identifier id =
                 net.minecraft.resources.Identifier.tryParse(typeId);
@@ -756,7 +756,7 @@ final class BookEditorControls {
             // box, and a whole id in it commits), but it is no longer the whole of how a field is set.
             // (An icon override's cell registers this same action; the picker's commit writes the
             // whole object for a path ending in ".icon".)
-            case ITEM -> book.openItemPicker(target, false);
+            case ITEM -> book.itemPicker.openItemPicker(target, false);
             // The table control's three presses: the card opens the browser, the chip opens the editor,
             // and the cross clears the reference. All three are the card's, so they act on the reward
             // the open quest has at that path.
@@ -843,7 +843,7 @@ final class BookEditorControls {
      * widget it just made -- see the end of this method.
      */
     void openInlineEditor(QuestBookScreen.EditTarget target, double mouseX, double mouseY) {
-        book.closeInlineEditor();
+        closeInlineEditor();
         book.editingPath = target.path();
         boolean area = "description".equals(target.path()) || target.action() == QuestBookScreen.EditAction.RAW;
         BookGeometry.Rect box = inlineBox(target, area);
@@ -1088,8 +1088,8 @@ final class BookEditorControls {
         }
         // A saved template's name belongs to the Assets page's own list: the field is drawn over
         // the row and clipped to the band the rows are drawn in, scrolled rows and all.
-        if (path != null && path.startsWith(QuestBookScreen.TEMPLATE_ROW_PREFIX) && book.assetsFrame != null) {
-            BookGeometry.Rect band = book.assetsFrame.rows();
+        if (path != null && path.startsWith(QuestBookScreen.TEMPLATE_ROW_PREFIX) && book.bookAssets.assetsFrame != null) {
+            BookGeometry.Rect band = book.bookAssets.assetsFrame.rows();
             return BookGeometry.Rect.at(band.x(), band.y(), band.right(), band.bottom());
         }
         // A table editor's field belongs to its row, and that is the region it is clipped to: the field's
@@ -1130,7 +1130,7 @@ final class BookEditorControls {
             return null;
         }
         return dev.ellipog.tenet.client.dev.TableEditorLayout.rowRect(entries, book.tableEditorFrame,
-                book.tableEditorBody.scrollY(), index, book.tableFolds());
+                book.tableEditorBody.scrollY(), index, book.bookAssets.tableFolds());
     }
 
     /**
@@ -1191,7 +1191,7 @@ final class BookEditorControls {
         // blind the frame after it opened, standing down while its row is still on screen.
         QuestBookScreen.EditTarget target = inlineTarget(book.editTargets);
         if (target == null) {
-            target = inlineTarget(book.assetsTargets);
+            target = inlineTarget(book.bookAssets.assetsTargets);
         }
         if (target == null) {
             if (book.inlineArea != null) {
@@ -1341,7 +1341,7 @@ final class BookEditorControls {
         if (book.tableEdit != null && book.tableEdit.path().equals(path)) {
             QuestBookScreen.TableEdit edit = book.tableEdit;
             book.tableEdit = null;
-            book.closeInlineEditor();
+            closeInlineEditor();
             commitTableText(edit, text);
             book.rebuildWidgets();
             return;
@@ -1352,7 +1352,7 @@ final class BookEditorControls {
         if (path != null && path.startsWith(QuestBookScreen.TEMPLATE_ROW_PREFIX)) {
             String id = path.substring(QuestBookScreen.TEMPLATE_ROW_PREFIX.length());
             String name = text == null ? "" : text.trim();
-            book.closeInlineEditor();
+            closeInlineEditor();
             if (name.isEmpty()) {
                 book.status("A template needs a name — keeping the old one", true);
                 return;
@@ -1363,7 +1363,7 @@ final class BookEditorControls {
             return;
         }
         String target = book.editTarget();
-        book.closeInlineEditor();
+        closeInlineEditor();
         if (!book.mayEditNow() || target == null) {
             return;
         }
@@ -1498,5 +1498,26 @@ final class BookEditorControls {
         var saved = dev.ellipog.tenet.client.dev.ComponentTemplates.saveNew(
                 dev.ellipog.tenet.client.dev.ComponentTemplate.Kind.CONDITION, type, tree, name);
         book.status("Saved \"" + saved.name() + "\" — find it in Assets, under Templates", false);
+    }
+
+    // ------------------------------------------------------------------
+    // The editor's presses
+    // ------------------------------------------------------------------
+
+    void closeInlineEditor() {
+        // References first: removing a focused widget blurs it, and a blur submits -- the field's own
+        // re-entrancy guard catches that, but the state should not outlive the widget for a moment
+        // longer than it has to either.
+        ArmatureTextField field = book.inlineField;
+        ArmatureTextArea area = book.inlineArea;
+        book.inlineField = null;
+        book.inlineArea = null;
+        book.editingPath = null;
+        if (field != null) {
+            book.removeBookWidget(field);
+        }
+        if (area != null) {
+            book.removeBookWidget(area);
+        }
     }
 }

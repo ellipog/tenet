@@ -272,8 +272,8 @@ final class BookIntro {
             }
             case QUEST -> book.geometry().canvas();
             // The card's own add rows once it is open, else the canvas they will be made on.
-            case TASK -> book.introTaskBox != null ? book.introTaskBox : book.geometry().canvas();
-            case REWARD -> book.introRewardBox != null ? book.introRewardBox : book.geometry().canvas();
+            case TASK -> book.bookCanvas.introTaskBox != null ? book.bookCanvas.introTaskBox : book.geometry().canvas();
+            case REWARD -> book.bookCanvas.introRewardBox != null ? book.bookCanvas.introRewardBox : book.geometry().canvas();
             case DONE -> null;
         };
     }

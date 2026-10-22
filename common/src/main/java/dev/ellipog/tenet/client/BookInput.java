@@ -121,7 +121,7 @@ final class BookInput {
      * on one of those.
      */
     boolean onAssetsTarget(double mouseX, double mouseY) {
-        for (QuestBookScreen.EditTarget target : book.assetsTargets) {
+        for (QuestBookScreen.EditTarget target : book.bookAssets.assetsTargets) {
             if (target.box().contains(mouseX, mouseY)) {
                 return true;
             }
@@ -226,10 +226,10 @@ final class BookInput {
             // the redo half here as well, which is the pair every editor has.
             if (book.overlay == PanelKind.TABLE_EDITOR) {
                 if (event.hasShiftDown()) {
-                    book.tableRedo();
+                    book.bookAssets.tableRedo();
                 }
                 else {
-                    book.tableUndo();
+                    book.bookAssets.tableUndo();
                 }
                 return true;
             }
@@ -243,7 +243,7 @@ final class BookInput {
         }
         if (ctrl && keyCode == InputConstants.KEY_Y) {
             if (book.overlay == PanelKind.TABLE_EDITOR) {
-                book.tableRedo();
+                book.bookAssets.tableRedo();
                 return true;
             }
             redoEdit();
@@ -264,11 +264,11 @@ final class BookInput {
             return true;
         }
         if (ctrl && keyCode == InputConstants.KEY_A && book.mayEditNow()) {
-            book.selectAllInChapter();
+            selectAllInChapter();
             return true;
         }
         if (ctrl && keyCode == InputConstants.KEY_C) {
-            book.copySelection();
+            copySelection();
             return true;
         }
         if (ctrl && keyCode == InputConstants.KEY_V && !ClientEditorClipboard.isEmpty()) {
@@ -278,7 +278,7 @@ final class BookInput {
         if (ctrl && keyCode == InputConstants.KEY_D && QuestBookScreen.selectedQuest != null) {
             // The whole selection duplicates, as one edit per chapter it spans: seventy quests are one
             // gesture, one history step and one save, and one Ctrl+Z takes them all back. See `sendBulk`.
-            book.duplicateSelection(QuestBookScreen.selection());
+            duplicateSelection(QuestBookScreen.selection());
             return true;
         }
         if ((keyCode == InputConstants.KEY_DELETE || keyCode == InputConstants.KEY_BACKSPACE)
@@ -291,8 +291,8 @@ final class BookInput {
             List<String> targets = QuestBookScreen.selection();
             switch (book.armedDelete.press(QuestBookScreen.effectiveChapter(), targets, Util.getMillis())) {
                 case ArmedDelete.Armed ignored -> authorReport("Press Delete again to remove"
-                        + QuestBookScreen.questDeleteNote(targets) + " - Ctrl+Z takes it back");
-                case ArmedDelete.Confirmed confirmed -> book.deleteSelection(confirmed.ids());
+                        + BookPins.questDeleteNote(targets) + " - Ctrl+Z takes it back");
+                case ArmedDelete.Confirmed confirmed -> deleteSelection(confirmed.ids());
                 case ArmedDelete.Nothing ignored -> {
                 }
             }
@@ -387,7 +387,7 @@ final class BookInput {
         float y = book.viewport().contentY(book.canvasTop() + (book.canvasBottom() - book.canvasTop()) / 2.0);
         // A new quest lands on the grid like a moved one: a position an author would have typed, by
         // the same rule, from the same switch — and free under Alt, like everywhere else.
-        boolean on = QuestBookScreen.snappingNow();
+        boolean on = snappingNow();
         book.send(new EditorOp.Create(Math.round(BookGeometry.snap(x, BookGeometry.SNAP_GRID, on)),
                 Math.round(BookGeometry.snap(y, BookGeometry.SNAP_GRID, on))));
     }
@@ -649,7 +649,7 @@ final class BookInput {
         if (QuestBookScreen.selectedQuest == null) {
             QuestBookScreen.selectedQuest = id;
         }
-        else if (!QuestBookScreen.isSelected(id)) {
+        else if (!BookCanvas.isSelected(id)) {
             QuestBookScreen.multiSelection.add(id);
         }
     }
@@ -705,9 +705,9 @@ final class BookInput {
             return;
         }
         for (ClientQuestCache.Entry entry : book.questsIn(QuestBookScreen.effectiveChapter())) {
-            int x = book.nodeScreenX(entry);
-            int y = book.nodeScreenY(entry);
-            int size = book.nodeSize(entry);
+            int x = book.bookCanvas.nodeScreenX(entry);
+            int y = book.bookCanvas.nodeScreenY(entry);
+            int size = book.bookCanvas.nodeSize(entry);
             if (x + size > left && x < right && y + size > top && y < bottom) {
                 addToSelection(entry.id());
             }
@@ -723,7 +723,7 @@ final class BookInput {
      * instead of one quest written over another.
      */
     private void pasteClipboard() {
-        book.pasteAt(book.viewport().contentX(book.canvasLeft()
+        pasteAt(book.viewport().contentX(book.canvasLeft()
                 + (book.visibleCanvasRight() - book.canvasLeft()) / 2.0),
                 book.viewport().contentY(book.canvasTop() + (book.canvasBottom() - book.canvasTop()) / 2.0));
     }
@@ -751,7 +751,7 @@ final class BookInput {
      * choice's verdict, and the optimistic-mark backstop are all things the player did.
      */
     void authorToast(String message, boolean error) {
-        if (book.mayEdit()) {
+        if (book.questEditor.mayEdit()) {
             book.toast(message, error);
         }
     }
@@ -1951,7 +1951,7 @@ final class BookInput {
 
             String chapter = QuestBookScreen.effectiveChapter();
             ClientQuestCache.Entry under = chapter == null ? null
-                    : book.nodeAt(mouseX, mouseY, book.questsIn(chapter));
+                    : book.bookCanvas.nodeAt(mouseX, mouseY, book.questsIn(chapter));
             book.pressedNode = under == null ? null : under.id();
             // And the link under the pointer, when no node is: a node is drawn over a marker, so a press
             // that lands on both belongs to the node. A link claims the press the way a node does, and
@@ -1960,7 +1960,7 @@ final class BookInput {
             book.bookCanvas.pressedQuestLink = under == null ? book.bookCanvas.linkAtId(mouseX, mouseY) : null;
             // And the element under the pointer, when neither is: a marker is drawn over a decoration,
             // so a press that lands on both belongs to the marker, for the same reason as above.
-            pressedElement = under == null && book.bookCanvas.pressedQuestLink == null ? book.elementAt(mouseX, mouseY) : null;
+            pressedElement = under == null && book.bookCanvas.pressedQuestLink == null ? book.bookCanvas.elementAt(mouseX, mouseY) : null;
 
             // A left press on a curve's handle is the handle's: claimed before the node and the pan, so
             // bending a line cannot also pick a node up or start a marquee.
@@ -1981,10 +1981,10 @@ final class BookInput {
                                 book.bookRewards.nodeCentreY(grabFrom));
                         LineArt.Point toCentre = new LineArt.Point(book.bookRewards.nodeCentreX(grabTo),
                                 book.bookRewards.nodeCentreY(grabTo));
-                        DependencyStyle style = book.styleFor(grabTo, bend[0]);
+                        DependencyStyle style = book.bookCanvas.styleFor(grabTo, bend[0]);
                         if (BookRewards.HANDLE_BEND.equals(bend[2])) {
                             bendDragGrab = LineArt.bendAt(fromCentre, toCentre, mouseX, mouseY)
-                                    - style.bendOr(QuestBookScreen.DEFAULT_BEND);
+                                    - style.bendOr(BookCanvas.DEFAULT_BEND);
                         }
                         else if (BookRewards.HANDLE_FROM_HANDLE.equals(bend[2])
                                 || BookRewards.HANDLE_TO_HANDLE.equals(bend[2])) {
@@ -2007,7 +2007,7 @@ final class BookInput {
                         }
                         else {
                             LineArt.Point centre = BookRewards.HANDLE_FROM.equals(bend[2]) ? fromCentre : toCentre;
-                            LineArt.Point[] ends = book.lineEnds(grabFrom, grabTo, style);
+                            LineArt.Point[] ends = book.bookCanvas.lineEnds(grabFrom, grabTo, style);
                             LineArt.Point end = BookRewards.HANDLE_FROM.equals(bend[2]) ? ends[0] : ends[1];
                             anchorDragGrab = LineArt.anchorAngle(centre, mouseX, mouseY)
                                     - LineArt.anchorAngle(centre, end.x(), end.y());
@@ -2072,8 +2072,8 @@ final class BookInput {
                 // carrying, so claiming first would have read the *last* drag's leftover position --
                 // zero at startup, which is where every early commit landed. The override exists for
                 // the drawing during a drag; the press needs the truth.
-                book.dragNodeX = book.nodeX(under);
-                book.dragNodeY = book.nodeY(under);
+                book.dragNodeX = book.bookCanvas.nodeX(under);
+                book.dragNodeY = book.bookCanvas.nodeY(under);
                 book.draggedNode = under.id();
                 nodeDragLive = false;
                 // Where inside the node the pointer took hold, so the node does not jump to put its
@@ -2092,7 +2092,7 @@ final class BookInput {
             // Only the selected element's grips are live, so an invisible grip on an unselected element cannot
             // be grabbed by accident.
             if (button == InputConstants.MOUSE_BUTTON_LEFT && book.mayEditNow() && QuestBookScreen.selectedElement != null) {
-                QuestBookScreen.ElementSlot slot = book.elementSlot(QuestBookScreen.selectedElement);
+                BookCanvas.ElementSlot slot = book.bookCanvas.elementSlot(QuestBookScreen.selectedElement);
                 CanvasElementArt.Handle handle = slot == null ? null
                         : CanvasElementArt.handleAt(slot.element(), slot.box(), mouseX, mouseY);
                 if (handle != null && slot != null) {
@@ -2141,7 +2141,7 @@ final class BookInput {
             // marker that could be dragged by a player would be a shortcut that moved under them. A link
             // has no grips, so the body is the whole of it and the gesture is always a move.
             if (button == InputConstants.MOUSE_BUTTON_LEFT && book.mayEditNow() && book.bookCanvas.pressedQuestLink != null) {
-                QuestLink held = book.linkNow(book.bookCanvas.pressedQuestLink);
+                QuestLink held = book.bookPins.linkNow(book.bookCanvas.pressedQuestLink);
                 if (held != null) {
                     book.bookCanvas.linkDragging = book.bookCanvas.pressedQuestLink;
                     book.bookCanvas.linkDragLive = false;
@@ -2423,9 +2423,9 @@ final class BookInput {
             // it can be pressed mid-drag. Committed on release rather than here: a gesture is one edit.
             QuestLink base = book.bookCanvas.linkDragBase;
             int x = base == null ? 0 : (int) Math.round(BookGeometry.snap(
-                    book.viewport().contentX(mouseX) - book.dragGrabX, BookGeometry.SNAP_GRID, QuestBookScreen.snappingNow()));
+                    book.viewport().contentX(mouseX) - book.dragGrabX, BookGeometry.SNAP_GRID, snappingNow()));
             int y = base == null ? 0 : (int) Math.round(BookGeometry.snap(
-                    book.viewport().contentY(mouseY) - book.dragGrabY, BookGeometry.SNAP_GRID, QuestBookScreen.snappingNow()));
+                    book.viewport().contentY(mouseY) - book.dragGrabY, BookGeometry.SNAP_GRID, snappingNow()));
             book.bookCanvas.linkPreview = base == null ? null : base.translated(x - base.x(), y - base.y());
             return true;
         }
@@ -2447,11 +2447,11 @@ final class BookInput {
                 dragStarts.clear();
                 dragStartX = book.dragNodeX;
                 dragStartY = book.dragNodeY;
-                if (QuestBookScreen.isSelected(book.draggedNode)) {
+                if (BookCanvas.isSelected(book.draggedNode)) {
                     for (String id : QuestBookScreen.selection()) {
                         ClientQuestCache.Entry entry = book.entryFor(id);
                         if (entry != null && !id.equals(book.draggedNode)) {
-                            dragStarts.put(id, new float[] {book.nodeX(entry), book.nodeY(entry)});
+                            dragStarts.put(id, new float[] {book.bookCanvas.nodeX(entry), book.bookCanvas.nodeY(entry)});
                         }
                     }
                 }
@@ -2463,9 +2463,9 @@ final class BookInput {
             // write per mouse move. What is committed is what was last drawn — release takes these
             // fields — so the file never disagrees with the screen about where the node was dropped.
             book.dragNodeX = (float) BookGeometry.snap(book.viewport().contentX(mouseX) - book.dragGrabX,
-                    BookGeometry.SNAP_GRID, QuestBookScreen.snappingNow());
+                    BookGeometry.SNAP_GRID, snappingNow());
             book.dragNodeY = (float) BookGeometry.snap(book.viewport().contentY(mouseY) - book.dragGrabY,
-                    BookGeometry.SNAP_GRID, QuestBookScreen.snappingNow());
+                    BookGeometry.SNAP_GRID, snappingNow());
             // The rest of the selection moves by the same content delta, through the same pending
             // positions the canvas already reads -- so the lines and the labels move with them, and
             // release commits exactly what was drawn.
@@ -2607,7 +2607,7 @@ final class BookInput {
         if (button == InputConstants.MOUSE_BUTTON_LEFT && link != null) {
             if (link.box().contains(mouseX, mouseY)) {
                 if (!link.url().isEmpty()) {
-                    book.openLink(link.url());
+                    book.questEditor.openLink(link.url());
                 }
                 else if (!link.quest().isEmpty()) {
                     book.bookCanvas.openQuest(link.quest());
@@ -2675,7 +2675,7 @@ final class BookInput {
                 // empty canvas cancels -- a gesture that half-lands is a gesture that did not happen.
                 String chapter = QuestBookScreen.effectiveChapter();
                 ClientQuestCache.Entry landing = chapter == null ? null
-                        : book.nodeAt(mouseX, mouseY, book.questsIn(chapter));
+                        : book.bookCanvas.nodeAt(mouseX, mouseY, book.questsIn(chapter));
                 if (landing != null && !landing.id().equals(from)) {
                     JsonObject quest = ClientChapterReplica.quest(chapter, landing.id());
                     if (quest != null) {
@@ -2849,13 +2849,13 @@ final class BookInput {
                     // change a decoration at all.
                     //
                     // A press that travelled never reaches this branch, so a drag still opens nothing.
-                    book.openElementPanel(pressedElement);
+                    book.bookPins.openElementPanel(pressedElement);
                     QuestBookScreen.selectedQuest = null;
                     BookCanvas.selectedLink = null;
                     QuestBookScreen.multiSelection.clear();
                 }
                 else {
-                    QuestBookScreen.ElementSlot slot = book.elementSlot(pressedElement);
+                    BookCanvas.ElementSlot slot = book.bookCanvas.elementSlot(pressedElement);
                     if (slot != null) {
                         book.bookCanvas.pressElement(slot.element());
                     }
@@ -3367,8 +3367,8 @@ final class BookInput {
         // being typed into — and never while previewing, where the Assets panel has no button and the
         // chord would open a surface the preview says is not there.
         if (book.overlay == PanelKind.NONE && keyCode == InputConstants.KEY_T && event.hasControlDown()
-                && book.getFocused() == null && book.mayEdit() && !book.previewing()) {
-            book.openAssets();
+                && book.getFocused() == null && book.questEditor.mayEdit() && !book.bookCanvas.previewing()) {
+            book.bookAssets.openAssets();
             return true;
         }
         // (Ctrl+P stood here, and it flipped the presentation: a card or a docked column. There is one
@@ -3414,11 +3414,11 @@ final class BookInput {
         // Escape branches above, not the focused field's.
         if (book.overlay == PanelKind.TABLE_EDITOR && event.hasControlDown()) {
             if (keyCode == InputConstants.KEY_Z) {
-                book.tableUndo();
+                book.bookAssets.tableUndo();
                 return true;
             }
             if (keyCode == InputConstants.KEY_Y) {
-                book.tableRedo();
+                book.bookAssets.tableRedo();
                 return true;
             }
         }
@@ -3464,7 +3464,7 @@ final class BookInput {
         // (`leaveCardPage` is what the footer's Back runs, so the key and the button are one act).
         if (book.typePageOpen()) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
-                book.leaveTypePage();
+                book.questEditor.leaveTypePage();
                 return true;
             }
             if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
@@ -3487,10 +3487,10 @@ final class BookInput {
         if (book.pickingItemPath != null) {
             if (keyCode == InputConstants.KEY_ESCAPE) {
                 if (book.tablePickReturn) {
-                    book.closeTablePick();
+                    book.bookAssets.closeTablePick();
                     return true;
                 }
-                book.closeItemPicker();
+                book.itemPicker.closeItemPicker();
                 book.rebuildWidgets();
                 return true;
             }
@@ -3720,5 +3720,94 @@ final class BookInput {
             return true;
         }
         return handled;
+    }
+
+    // ------------------------------------------------------------------
+    // Input
+    // ------------------------------------------------------------------
+
+    /**
+     * Whether a position lands on the grid right now: the switch says so, and Alt is not held.
+     *
+     * <p>Read per event rather than remembered at press, because Alt is the bypass an author reaches
+     * for mid-drag — hold it the moment the node is where they want it, and the follow stops rounding.
+     * Live keyboard state is the keyboard's own answer (there is no event in half the call sites);
+     * {@link BookGeometry#snap} stays a pure function by taking this one as its {@code on}.
+     */
+    static boolean snappingNow() {
+        return DevMode.snap() && !BookEditorControls.altDown();
+    }
+
+    /** Duplicates the whole selection: one history step per chapter it spans. */
+    void duplicateSelection(List<String> ids) {
+        book.bookInput.sendBulk(ids, EditorOp.Duplicate::new);
+    }
+
+    /** Deletes the whole selection: one history step per chapter it spans. */
+    void deleteSelection(List<String> ids) {
+        book.bookInput.sendBulk(ids, EditorOp.Delete::new);
+    }
+
+    // ------------------------------------------------------------------
+    // The multi-selection's whole-hand gestures
+    // ------------------------------------------------------------------
+
+    /** Copies the selection's own trees to the session clipboard. */
+    void copySelection() {
+        List<String> ids = QuestBookScreen.selection();
+        if (ids.isEmpty()) {
+            return;
+        }
+        String chapter = QuestBookScreen.effectiveChapter();
+        List<JsonObject> trees = new ArrayList<>();
+        for (String id : ids) {
+            JsonObject tree = ClientChapterReplica.quest(chapter, id);
+            if (tree != null) {
+                // What the author sees is what is copied: a pending edit is part of the selection's
+                // value, and the clipboard deep-copies, so a later overlay cannot reach into it.
+                trees.add(QuestBookScreen.fieldDraft.overlaid(chapter, id, tree));
+            }
+        }
+        if (trees.isEmpty()) {
+            book.status("tenet.status.nothing_to_copy_yet_the_chapter_s_copy_has_not_a", true);
+            return;
+        }
+        ClientEditorClipboard.copy(trees);
+        book.status("Copied " + trees.size() + (trees.size() == 1 ? " quest" : " quests"), false);
+    }
+
+    /**
+     * Pastes the clipboard at a content position, snapped like every other placement.
+     *
+     * <p>Two callers, one body: Ctrl+V drops at the middle of what you are looking at, and the canvas
+     * menu's "Paste here" drops where you right-clicked. A second copy would be a second thing to keep
+     * in step about the 48-pixel stagger and the snap.
+     */
+    void pasteAt(double x, double y) {
+        List<JsonObject> trees = ClientEditorClipboard.quests();
+        if (trees.isEmpty()) {
+            return;
+        }
+        boolean on = snappingNow();
+        for (int i = 0; i < trees.size(); i++) {
+            book.send(new EditorOp.Paste(trees.get(i),
+                    BookGeometry.snap(x + i * 48, BookGeometry.SNAP_GRID, on),
+                    BookGeometry.snap(y, BookGeometry.SNAP_GRID, on)));
+        }
+        book.status("Pasting " + trees.size() + (trees.size() == 1 ? " quest" : " quests"), false);
+    }
+
+    /** Selects every quest in the chapter: the primary first, the rest in the chapter's own order. */
+    void selectAllInChapter() {
+        List<ClientQuestCache.Entry> quests = book.questsIn(QuestBookScreen.effectiveChapter());
+        if (quests == null || quests.isEmpty()) {
+            return;
+        }
+        QuestBookScreen.multiSelection.clear();
+        QuestBookScreen.selectedQuest = quests.get(0).id();
+        for (int i = 1; i < quests.size(); i++) {
+            QuestBookScreen.multiSelection.add(quests.get(i).id());
+        }
+        book.status("Selected " + quests.size() + (quests.size() == 1 ? " quest" : " quests"), false);
     }
 }

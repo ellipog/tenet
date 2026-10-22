@@ -320,7 +320,7 @@ final class BookQuestRows {
         return new RowStrings(stamp.tree(), stamp.progress(), stamp.marks(), stamp.text(),
                 stamp.font(),
                 missingItem ? Component.translatable("tenet.screen.missing_item").getString()
-                        : QuestBookScreen.rowText("rewards", reward),
+                        : BookQuestEditor.rowText("rewards", reward),
                 reward.hasItem() && reward.count() > 1 ? "x" + reward.count() : null,
                 missingItem, locked ? RowTag.LOCKED : RowTag.NONE,
                 locked, claimable, 0, false,
@@ -460,7 +460,7 @@ final class BookQuestRows {
             // reads "Any Logs". A player cannot hand in an id -- the label already names the tag, and
             // "Click for recipes" below is how they find out which items are in it. The id is in the
             // picker and in the row's own `tagId` for the recipe viewers, which is where it is data.
-            QuestBookScreen.appendConditionLines(lines, task.conditions(),
+            appendConditionLines(lines, task.conditions(),
                     ClientQuestCache.taskLockOf(entry.id(), index));
             if (!task.filter().isEmpty()) {
                 // What a filter names, in the player's own words: the count is exact, the list
@@ -736,7 +736,7 @@ final class BookQuestRows {
             if (!hideTooltip) {
                 List<String> lines = new ArrayList<>(
                         QuestPanelLayout.playerTooltip("rewards", reward.type(), false, false));
-                QuestBookScreen.appendConditionLines(lines, reward.conditions(),
+                appendConditionLines(lines, reward.conditions(),
                         ClientQuestCache.rewardLockOf(entry.id(), index));
                 if (claimable) {
                     lines.add(Component.translatable("tenet.screen.rewards.claim").getString());
@@ -782,6 +782,31 @@ final class BookQuestRows {
         }
         else if (claimed) {
             r.text("claimed", x + slot.width() - r.textWidth("claimed"), textY, ArmatureTheme.faint());
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Remembered rows
+    // ------------------------------------------------------------------
+
+    /**
+     * Appends a locked row's explanation: the gates it is missing, by the server's own naming.
+     *
+     * <p>Only the unmet ones. The server sends which condition indices failed, and the tree carried what
+     * those conditions say, so a row with three gates and one unmet names the one — and the list is the
+     * same order the author wrote, because the mask indexes into it.
+     */
+    static void appendConditionLines(List<String> lines,
+                                             List<ClientQuestCache.ConditionEntry> conditions,
+                                             List<Integer> unmet) {
+        if (unmet.isEmpty() || conditions.isEmpty()) {
+            return;
+        }
+        lines.add("Locked - needs:");
+        for (int index : unmet) {
+            if (index >= 0 && index < conditions.size()) {
+                lines.add("  " + conditions.get(index).line());
+            }
         }
     }
 }

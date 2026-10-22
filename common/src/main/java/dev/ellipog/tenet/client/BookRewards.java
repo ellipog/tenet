@@ -232,8 +232,8 @@ final class BookRewards {
             return 0;
         }
         float arrived = PanelLayout.revealed(net.minecraft.util.Util.getMillis() - book.tableImportOpenedAt,
-                QuestBookScreen.MENU_RISE_MILLIS);
-        return Math.round(QuestBookScreen.MENU_RISE_PX * (1F - arrived));
+                BookItemPicker.MENU_RISE_MILLIS);
+        return Math.round(BookItemPicker.MENU_RISE_PX * (1F - arrived));
     }
 
     /**
@@ -341,7 +341,7 @@ final class BookRewards {
     void splitHandles(String from, String to, DependencyStyle style) {
         JsonObject lines = lineOverride(from, to);
         JsonObject entry = lines.getAsJsonObject(from);
-        double bend = style.bendOr(QuestBookScreen.DEFAULT_BEND);
+        double bend = style.bendOr(BookCanvas.DEFAULT_BEND);
         entry.add("fromHandle", handleArray(LineArt.equivalentFromHandle(bend)));
         entry.add("toHandle", handleArray(LineArt.equivalentToHandle(bend)));
         book.sendField(to, "dependencyLines", lines);
@@ -513,17 +513,17 @@ final class BookRewards {
     /** The route one line takes, from the style that line is owed. The drawing's own derivation. */
     private List<LineArt.Point> linePath(ClientQuestCache.Entry dependent, String dependencyId,
                                          ClientQuestCache.Entry from, ClientQuestCache.Entry to) {
-        DependencyStyle style = book.styleFor(dependent, dependencyId);
-        LineArt.Point[] ends = book.lineEnds(from, to, style);
-        return QuestBookScreen.stylePath(style, ends[0], ends[1]);
+        DependencyStyle style = book.bookCanvas.styleFor(dependent, dependencyId);
+        LineArt.Point[] ends = book.bookCanvas.lineEnds(from, to, style);
+        return BookCanvas.stylePath(style, ends[0], ends[1]);
     }
 
     int nodeCentreX(ClientQuestCache.Entry entry) {
-        return book.nodeScreenX(entry) + book.nodeSize(entry) / 2;
+        return book.bookCanvas.nodeScreenX(entry) + book.bookCanvas.nodeSize(entry) / 2;
     }
 
     int nodeCentreY(ClientQuestCache.Entry entry) {
-        return book.nodeScreenY(entry) + book.nodeSize(entry) / 2;
+        return book.bookCanvas.nodeScreenY(entry) + book.bookCanvas.nodeSize(entry) / 2;
     }
 
     /**
@@ -572,7 +572,7 @@ final class BookRewards {
             if (dependent == null || dependency == null) {
                 continue;
             }
-            DependencyStyle style = book.styleFor(dependent, edge[0]);
+            DependencyStyle style = book.bookCanvas.styleFor(dependent, edge[0]);
             if (!showsHandles(edge, handleArms(edge, candidate.path(), style), mouseX, mouseY)) {
                 continue;
             }
@@ -588,8 +588,8 @@ final class BookRewards {
                 best = toDistance;
                 found = new String[] { edge[0], edge[1], HANDLE_TO };
             }
-            if (QuestBookScreen.isSplit(style) || bows(style)) {
-                if (QuestBookScreen.isSplit(style)) {
+            if (BookCanvas.isSplit(style) || bows(style)) {
+                if (BookCanvas.isSplit(style)) {
                     LineArt.Point fromControl = splitPointOf(edge, style, true);
                     LineArt.Point toControl = splitPointOf(edge, style, false);
                     double fromHandleDistance = Math.hypot(fromControl.x() - mouseX,
@@ -653,7 +653,7 @@ final class BookRewards {
      * <p><b>And a drag owns the pointer:</b> while a handle is being dragged, or a node, or a marquee,
      * no other line may light up — dragging across a neighbour used to sprout its handles mid-gesture.
      */
-    void drawEdgeHandles(GuiRenderer r, double mouseX, double mouseY, List<QuestBookScreen.FrameEdge> edges,
+    void drawEdgeHandles(GuiRenderer r, double mouseX, double mouseY, List<BookCanvas.FrameEdge> edges,
                                  int dx, int dy) {
         // The same condition `handleAt` tests, and that is the point: the two are one decision -- where a
         // line's handles are grabbable is where they are drawn -- so a handle that answers a press must be
@@ -670,7 +670,7 @@ final class BookRewards {
         int cBottom = book.canvasBottom();
         // The frame's own edges: the paths the handles are grabbed against are the ones that were drawn,
         // and they are already built -- this loop used to rebuild every route a second time per frame.
-        for (QuestBookScreen.FrameEdge frameEdge : edges) {
+        for (BookCanvas.FrameEdge frameEdge : edges) {
             boolean dragging = frameEdge.matches(book.bendDragFrom, book.bendDragTo);
             if (gesture && !dragging) {
                 continue;
@@ -691,7 +691,7 @@ final class BookRewards {
             // the diamond at the middle of a curve.
             circleDot(r, handleDot(path, true), fromDragged);
             circleDot(r, handleDot(path, false), toDragged);
-            if (QuestBookScreen.isSplit(style)) {
+            if (BookCanvas.isSplit(style)) {
                 // Two diamonds at the control points, each with a leash to the end of the curve it
                 // steers -- the outline that says "bend here" rather than "another end". Both come from
                 // `arms`, the same list the hover reaches along, so the two cannot drift apart again.
@@ -784,7 +784,7 @@ final class BookRewards {
                                                  DependencyStyle style) {
         List<List<LineArt.Point>> arms = new ArrayList<>();
         arms.add(path);
-        if (QuestBookScreen.isSplit(style)) {
+        if (BookCanvas.isSplit(style)) {
             LineArt.Point fromControl = splitPointOf(edge, style, true);
             LineArt.Point toControl = splitPointOf(edge, style, false);
             if (fromControl != null && toControl != null) {
@@ -864,7 +864,7 @@ final class BookRewards {
 
     /** One of the two split control points of a line, or null when it is not split. */
     LineArt.Point splitPointOf(String[] edge, DependencyStyle style, boolean fromEnd) {
-        if (!QuestBookScreen.isSplit(style)) {
+        if (!BookCanvas.isSplit(style)) {
             return null;
         }
         ClientQuestCache.Entry dependency = book.entryFor(edge[0]);
@@ -914,17 +914,17 @@ final class BookRewards {
         if (node == null) {
             return;
         }
-        LineArt.Point here = new LineArt.Point((int) book.nodeX(node), (int) book.nodeY(node));
+        LineArt.Point here = new LineArt.Point((int) book.bookCanvas.nodeX(node), (int) book.bookCanvas.nodeY(node));
         List<LineArt.Point> linked = new ArrayList<>();
         for (String dependency : QuestBookScreen.dependenciesOf(node)) {
             ClientQuestCache.Entry parent = book.entryFor(dependency);
             if (parent != null && !parent.id().equals(id)) {
-                linked.add(new LineArt.Point((int) book.nodeX(parent), (int) book.nodeY(parent)));
+                linked.add(new LineArt.Point((int) book.bookCanvas.nodeX(parent), (int) book.bookCanvas.nodeY(parent)));
             }
         }
         for (ClientQuestCache.Entry other : book.questsIn(QuestBookScreen.effectiveChapter())) {
             if (!other.id().equals(id) && QuestBookScreen.dependenciesOf(other).contains(id)) {
-                linked.add(new LineArt.Point((int) book.nodeX(other), (int) book.nodeY(other)));
+                linked.add(new LineArt.Point((int) book.bookCanvas.nodeX(other), (int) book.bookCanvas.nodeY(other)));
             }
         }
         java.util.Optional<LineArt.Point> middle = Alignment.midpointOfTwoNearest(here, linked);
@@ -1054,7 +1054,7 @@ final class BookRewards {
                         // The picker opens on the icon's own field, so the item is chosen with the same
                         // list the panel uses rather than a second one here -- and it hands back to this
                         // page when it closes, because that is where the author was.
-                        book.openItemPicker(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ITEM,
+                        book.itemPicker.openItemPicker(new QuestBookScreen.EditTarget(QuestBookScreen.EditAction.ITEM,
                                 "icon.item", button,
                                 button.x(), button.y(), "", null, -1), true);
                         acted = true;
@@ -1417,7 +1417,7 @@ final class BookRewards {
             book.pickingConditionFor = null;
         }
         else if (book.pickingItemPath != null) {
-            book.closeItemPicker();
+            book.itemPicker.closeItemPicker();
         }
         else if (book.settingsOpen) {
             book.settingsOpen = false;
@@ -1520,8 +1520,8 @@ final class BookRewards {
                 || PanelStack.presented(book.columns(), book.panelFolded()).isEmpty()) {
             return;
         }
-        int size = book.nodeSize(entry);
-        int right = book.nodeScreenX(entry) + size;
+        int size = book.bookCanvas.nodeSize(entry);
+        int right = book.bookCanvas.nodeScreenX(entry) + size;
         int dx = PanelLayout.panToClear(right, book.visibleCanvasRight(), PANEL_PAN_MARGIN);
         if (dx == 0) {
             return;
@@ -1677,7 +1677,7 @@ final class BookRewards {
         boolean hot = close.contains(mouseX, mouseY);
         r.text(cross, close.x() + (close.width() - r.textWidth(cross)) / 2, close.y() + 2,
                 hot ? ArmatureTheme.title() : ArmatureTheme.body());
-        book.registerInto(into, closeAction, "", close, close.x(), close.y(), "", null, -1);
+        book.questEditor.registerInto(into, closeAction, "", close, close.x(), close.y(), "", null, -1);
     }
 
     /**
@@ -1871,7 +1871,7 @@ final class BookRewards {
         // says so in its title, and a press opens the browser -- which is where a real table replaces it.
         BookGeometry.Rect card = BookGeometry.Rect.at(whole.x(), whole.y(),
                 Math.max(0, whole.width() - 2 * (TABLE_CHIP + EntryFormLayout.GAP)), whole.height());
-        book.drawValue(r, card, "", "", false, false, mouseX, mouseY);
+        book.questEditor.drawValue(r, card, "", "", false, false, mouseX, mouseY);
         int textX = card.x() + 4;
         if (badge.hasTable()) {
             if (!badge.icon().isEmpty()) {
@@ -1890,7 +1890,7 @@ final class BookRewards {
                             Math.max(0, card.right() - 2 - textX), book.textMeasure(r)), textX,
                     card.y() + (card.height() - 8) / 2, hot ? ArmatureTheme.title() : ArmatureTheme.faint());
         }
-        book.registerTarget(QuestBookScreen.EditAction.TABLE_OPEN, path, card, textX,
+        book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_OPEN, path, card, textX,
                 card.y() + (card.height() - 8) / 2, "",
                 member, index);
 
@@ -1901,7 +1901,7 @@ final class BookRewards {
         r.text(editLabel, edit.x() + (edit.width() - r.textWidth(editLabel)) / 2,
                 edit.y() + (edit.height() - 8) / 2,
                 edit.contains(mouseX, mouseY) ? ArmatureTheme.title() : ArmatureTheme.body());
-        book.registerTarget(QuestBookScreen.EditAction.TABLE_EDIT, path, edit, edit.x(),
+        book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_EDIT, path, edit, edit.x(),
                 edit.y() + (edit.height() - 8) / 2, "",
                 member, index);
 
@@ -1914,7 +1914,7 @@ final class BookRewards {
             r.text(cross, clear.x() + (clear.width() - r.textWidth(cross)) / 2,
                     clear.y() + (clear.height() - 8) / 2,
                     clearHot ? ArmatureTheme.title() : ArmatureTheme.body());
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_CLEAR, path, clear, clear.x(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_CLEAR, path, clear, clear.x(),
                     clear.y() + (clear.height() - 8) / 2, "", member, index);
         }
     }
@@ -2100,7 +2100,7 @@ final class BookRewards {
         // Every picker the panel could have left armed, from the one place that knows them all. Without
         // this the type picker page survived the panel: the card behind it drew the list of reward types
         // and the author's next press added a reward to the wrong thing.
-        book.clearPickers();
+        book.bookAssets.clearPickers();
     }
 
     /** Escape and `Done`: one table back, or the panel closed when there is nothing behind it. */
@@ -2525,7 +2525,7 @@ final class BookRewards {
         if (row.kind() == dev.ellipog.tenet.client.dev.TableBrowserLayout.Kind.NONE) {
             r.text("None - this reward rolls no table", rect.x() + 4, rect.y() + (rect.height() - 8) / 2,
                     ArmatureTheme.body());
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_ROW, "", rect, rect.x(), rect.y(), "", null, index);
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROW, "", rect, rect.x(), rect.y(), "", null, index);
             return;
         }
         // The stack the tree sent, component patch and all -- not the bare id resolved again here, which
@@ -2559,7 +2559,7 @@ final class BookRewards {
         drawTableButton(r, buttons.copy(), "Copy", mouseX, mouseY, QuestBookScreen.EditAction.TABLE_ROW_COPY, index);
         drawTableButton(r, buttons.delete(), "\u00d7", mouseX, mouseY,
                 QuestBookScreen.EditAction.TABLE_ROW_DELETE, index);
-        book.registerTarget(QuestBookScreen.EditAction.TABLE_ROW, "",
+        book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROW, "",
                 dev.ellipog.tenet.client.dev.TableBrowserLayout.body(rect),
                 nameBox.x(), rect.y(), "", null, index);
     }
@@ -2658,7 +2658,7 @@ final class BookRewards {
         String shown = Measure.truncate(label, Math.max(0, box.width() - 4), book.textMeasure(r));
         r.text(shown, box.x() + (box.width() - r.textWidth(shown)) / 2, box.y() + (box.height() - 8) / 2,
                 hot ? ArmatureTheme.title() : ArmatureTheme.body());
-        book.registerInto(into, action, "", box, box.x(), box.y(), "", null, index);
+        book.questEditor.registerInto(into, action, "", box, box.x(), box.y(), "", null, index);
     }
 
     void pressTableBrowser(double mouseX, double mouseY) {
@@ -2840,7 +2840,7 @@ final class BookRewards {
         // card's own pass built the box and this one did not, so the table editor's page had a list with
         // no box over it -- the page half-wired, which is the shape of every "the control is not there"
         // report this screen has had.
-        book.buildPickerWidgets();
+        book.questEditor.buildPickerWidgets();
     }
 
     /**
@@ -3021,7 +3021,7 @@ final class BookRewards {
             if (!icon.isEmpty()) {
                 r.icon(icon, header.x() + 2, header.y() + 1, 16);
                 BookGeometry.Rect iconBox = BookGeometry.Rect.at(header.x(), header.y(), 20, 14);
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_ICON, "", iconBox, iconBox.x(),
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ICON, "", iconBox, iconBox.x(),
                         iconBox.y(), "", null, -1);
                 if (iconBox.contains(mouseX, mouseY)) {
                     // The one control in this header with nothing said about it anywhere: a small stack
@@ -3062,13 +3062,13 @@ final class BookRewards {
             BookGeometry.Rect tipChip = BookGeometry.Rect.at(titleChip.right() + 4, chipY, 44, 12);
             boolean useTitle = model.get().useTitle();
             boolean hideTooltip = model.get().hideTooltip();
-            book.drawChip(r, titleChip, "Title" + (useTitle ? ":on" : ":off"),
+            book.questEditor.drawChip(r, titleChip, "Title" + (useTitle ? ":on" : ":off"),
                     titleChip.contains(mouseX, mouseY));
-            book.drawChip(r, tipChip, "Tip" + (hideTooltip ? ":off" : ":on"),
+            book.questEditor.drawChip(r, tipChip, "Tip" + (hideTooltip ? ":off" : ":on"),
                     tipChip.contains(mouseX, mouseY));
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_USE_TITLE, "", titleChip, titleChip.x(), titleChip.y(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_USE_TITLE, "", titleChip, titleChip.x(), titleChip.y(),
                     "", null, -1);
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_HIDE_TOOLTIP, "", tipChip, tipChip.x(), tipChip.y(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_HIDE_TOOLTIP, "", tipChip, tipChip.x(), tipChip.y(),
                     "", null, -1);
             if (titleChip.contains(mouseX, mouseY)) {
                 book.pendingLabels.add(new QuestBookScreen.PendingLabel(titleChip,
@@ -3121,13 +3121,13 @@ final class BookRewards {
         boolean rollsUp = diced
                 && table.lootSize() < dev.ellipog.tenet.quest.loot.RewardTable.LOOT_SIZE_MAX;
         if (rollsDown) {
-            book.drawChip(r, rolls.minus(), "-", rolls.minus().contains(mouseX, mouseY));
+            book.questEditor.drawChip(r, rolls.minus(), "-", rolls.minus().contains(mouseX, mouseY));
         }
         else {
             drawChipBlocked(r, rolls.minus(), "-");
         }
         if (rollsUp) {
-            book.drawChip(r, rolls.plus(), "+", rolls.plus().contains(mouseX, mouseY));
+            book.questEditor.drawChip(r, rolls.plus(), "+", rolls.plus().contains(mouseX, mouseY));
         }
         else {
             drawChipBlocked(r, rolls.plus(), "+");
@@ -3136,11 +3136,11 @@ final class BookRewards {
         r.text(count, rolls.value().x() + (rolls.value().width() - r.textWidth(count)) / 2,
                 rolls.value().y() + 2, diced ? ArmatureTheme.body() : ArmatureTheme.blocked());
         if (rollsDown) {
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_ROLLS_DOWN, "", rolls.minus(), rolls.minus().x(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROLLS_DOWN, "", rolls.minus(), rolls.minus().x(),
                     rolls.minus().y(), "", null, -1);
         }
         if (rollsUp) {
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_ROLLS_UP, "", rolls.plus(), rolls.plus().x(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ROLLS_UP, "", rolls.plus(), rolls.plus().x(),
                     rolls.plus().y(),
                     "", null, -1);
         }
@@ -3155,14 +3155,14 @@ final class BookRewards {
         String holds = table.entryCount() + (table.entryCount() == 1 ? " entry" : " entries");
         String numbers = diced
                 ? "roll" + (table.lootSize() == 1 ? "" : "s") + "   " + holds
-                        + "   total weight " + QuestBookScreen.trimNumber(totalWeight(drafted))
+                        + "   total weight " + BookAssets.trimNumber(totalWeight(drafted))
                 : holds + "   (no dice in this reading)";
         int numbersX = rolls.plus().right() + 6;
         r.text(Measure.truncate(numbers, Math.max(0, header.right() - 110 - numbersX), book.textMeasure(r)),
                 numbersX, header.y() + 24, diced ? ArmatureTheme.body() : ArmatureTheme.faint());
 
         BookGeometry.Rect mode = BookGeometry.Rect.at(header.right() - 96, header.y() + 22, 94, 14);
-        book.drawValue(r, mode, dev.ellipog.tenet.client.dev.TableEditorLayout.modeLabel(book.tablePreview), "",
+        book.questEditor.drawValue(r, mode, dev.ellipog.tenet.client.dev.TableEditorLayout.modeLabel(book.tablePreview), "",
                 false, false, mouseX, mouseY);
         if (mode.contains(mouseX, mouseY)) {
             // The sentence used to float under this chip, which is the toolbar band -- the screenshot
@@ -3171,7 +3171,7 @@ final class BookRewards {
             tableHint = dev.ellipog.tenet.client.dev.TableEditorLayout.modeHint(book.tablePreview)
                     + "  (press to cycle - this is how the numbers are read, not a property of the file)";
         }
-        book.registerTarget(QuestBookScreen.EditAction.TABLE_PREVIEW, "", mode, mode.x() + 2, mode.y() + 3,
+        book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_PREVIEW, "", mode, mode.x() + 2, mode.y() + 3,
                 "", null, -1);
 
 
@@ -3227,7 +3227,7 @@ final class BookRewards {
         // remote edit or a removal moves the list under a set of position keys, and a fold left pointing
         // past the end inflates the scroll extent with rows that are drawn nowhere.
         reconcileFolds();
-        var folds = book.tableFolds();
+        var folds = book.bookAssets.tableFolds();
         // The entries' band, not the list's: the headings do not scroll, so the range, the clamp and the
         // bar all describe the rows under them. Bound from the same `rows()` rectangle the drawing and
         // the hit test read, which is what keeps the grip's travel and the list's end one answer.
@@ -3325,7 +3325,7 @@ final class BookRewards {
             tableHint = canUndo ? "Undo the last edit to this table" : "Nothing to undo yet";
         }
         if (canUndo) {
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_UNDO, "", undo, undo.x() + 5, undo.y(), "", null, -1);
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_UNDO, "", undo, undo.x() + 5, undo.y(), "", null, -1);
         }
     }
 
@@ -3356,7 +3356,7 @@ final class BookRewards {
         r.text(label, box.x() + 5, box.y() + (box.height() - 8) / 2,
                 !live ? ArmatureTheme.faint()
                         : primary || hot ? ArmatureTheme.title() : ArmatureTheme.body());
-        book.registerTarget(action, "", box, box.x() + 5, box.y(), "", null, -1);
+        book.questEditor.registerTarget(action, "", box, box.x() + 5, box.y(), "", null, -1);
         return x + width + 4;
     }
 
@@ -3372,7 +3372,7 @@ final class BookRewards {
                                         int mouseY) {
         BookGeometry.Rect body = tableBody();
         int width = Math.max(60, Math.min(150, body.width()));
-        int height = QuestBookScreen.MENU_ROW_HEIGHT * 2 + 4;
+        int height = BookItemPicker.MENU_ROW_HEIGHT * 2 + 4;
         int x = Math.max(body.x(), Math.min(button.x(), body.right() - width));
         // Below the button when it fits, above it when it does not, and clamped into the card either way.
         // The left edge was the only edge clamped before, so on a short window the second row ("From
@@ -3393,21 +3393,21 @@ final class BookRewards {
         book.tableImportBox = book.shiftHit(BookGeometry.Rect.at(x, y, width, height));
         drawTableImportRow(r, x, y, width, "From inventory", QuestBookScreen.EditAction.TABLE_IMPORT,
                 mouseX, mouseY);
-        drawTableImportRow(r, x, y + QuestBookScreen.MENU_ROW_HEIGHT, width, "From target chest",
+        drawTableImportRow(r, x, y + BookItemPicker.MENU_ROW_HEIGHT, width, "From target chest",
                 QuestBookScreen.EditAction.TABLE_IMPORT_CHEST, mouseX, mouseY);
     }
 
     private void drawTableImportRow(GuiRenderer r, int x, int y, int width, String label,
                                     QuestBookScreen.EditAction action, int mouseX, int mouseY) {
-        BookGeometry.Rect row = BookGeometry.Rect.at(x, y, width, QuestBookScreen.MENU_ROW_HEIGHT);
+        BookGeometry.Rect row = BookGeometry.Rect.at(x, y, width, BookItemPicker.MENU_ROW_HEIGHT);
         boolean hot = row.contains(mouseX, mouseY);
         if (hot) {
             r.fill(row.x(), row.y(), row.right(), row.bottom(),
                     Colour.alphaOf(ArmatureTheme.title(), 0.18F));
         }
-        r.text(QuestBookScreen.fitLabel(r, label), row.x() + 4, row.y() + (row.height() - 8) / 2,
+        r.text(BookItemPicker.fitLabel(r, label), row.x() + 4, row.y() + (row.height() - 8) / 2,
                 hot ? ArmatureTheme.title() : ArmatureTheme.body());
-        book.registerTarget(action, "", row, row.x() + 4, row.y(), "", null, -1);
+        book.questEditor.registerTarget(action, "", row, row.x() + 4, row.y(), "", null, -1);
     }
 
     /**
@@ -3531,18 +3531,18 @@ final class BookRewards {
         boolean canDown = weighed && entry.weight() > 0;
         if (weighed) {
             if (canDown) {
-                book.drawChip(r, row.minus(), "-", row.minus().contains(mouseX, mouseY));
+                book.questEditor.drawChip(r, row.minus(), "-", row.minus().contains(mouseX, mouseY));
             }
             else {
                 drawChipBlocked(r, row.minus(), "-");
             }
-            book.drawChip(r, row.plus(), "+", row.plus().contains(mouseX, mouseY));
+            book.questEditor.drawChip(r, row.plus(), "+", row.plus().contains(mouseX, mouseY));
         }
         else {
             drawChipBlocked(r, row.minus(), "-");
             drawChipBlocked(r, row.plus(), "+");
         }
-        String weight = QuestBookScreen.trimNumber(entry.weight());
+        String weight = BookAssets.trimNumber(entry.weight());
         r.text(weight, row.value().x() + (row.value().width() - r.textWidth(weight)) / 2,
                 row.value().y() + (line - 8) / 2,
                 weighed ? ArmatureTheme.body() : ArmatureTheme.blocked());
@@ -3552,18 +3552,18 @@ final class BookRewards {
                     ? dev.ellipog.tenet.client.dev.TableEditorLayout.unusedByMode(book.tablePreview)
                     : !canDown
                             ? "Already at zero - zero means always granted"
-                            : "Weight " + weight + " of " + QuestBookScreen.trimNumber(tableWeightTotal)
+                            : "Weight " + weight + " of " + BookAssets.trimNumber(tableWeightTotal)
                                     + " - zero means always granted";
         }
         if (canDown) {
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT_DOWN, "", row.minus(), row.minus().x(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT_DOWN, "", row.minus(), row.minus().x(),
                     row.minus().y(), "", null, index);
         }
         if (weighed) {
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT_UP, "", row.plus(), row.plus().x(),
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT_UP, "", row.plus(), row.plus().x(),
                     row.plus().y(), "",
                     null, index);
-            book.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT, "", row.value(), row.value().x() + 2,
+            book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_WEIGHT, "", row.value(), row.value().x() + 2,
                     row.value().y(), "", null, index);
         }
 
@@ -3575,7 +3575,7 @@ final class BookRewards {
         if (foldHot) {
             tableHint = folded ? "Fold this entry back to its line" : "Open this entry's own fields";
         }
-        book.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD, "", row.fold(), row.fold().x(),
+        book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD, "", row.fold(), row.fold().x(),
                 row.fold().y(), "", null,
                 index);
 
@@ -3587,7 +3587,7 @@ final class BookRewards {
         if (removeHot) {
             tableHint = "Remove this entry";
         }
-        book.registerTarget(QuestBookScreen.EditAction.TABLE_REMOVE, "", row.remove(), row.remove().x(),
+        book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_REMOVE, "", row.remove(), row.remove().x(),
                 row.remove().y(), "",
                 null, index);
 
@@ -3646,7 +3646,7 @@ final class BookRewards {
                                  dev.ellipog.tenet.client.dev.TableRowFields.Control control, int index,
                                  int mouseX, int mouseY) {
         boolean hot = box.contains(mouseX, mouseY);
-        JsonObject entry = book.draftedEntry(index);
+        JsonObject entry = book.bookAssets.draftedEntry(index);
         // The picture override is an object, not an id: its item lives one level down, and the box
         // must read that rather than the object itself, which would show an empty "Picture" control
         // over a set icon — the card's own entry form reads it the same way.
@@ -3656,18 +3656,18 @@ final class BookRewards {
         int baseline = box.y() + (box.height() - 8) / 2;
         // The field this control commits to is the field the editor would be standing in for.
         boolean replaced = dev.ellipog.tenet.client.dev.InlineEdit
-                .replaces(QuestBookScreen.tableEntryPath(index, control.field()), book.editingPath);
+                .replaces(BookAssets.tableEntryPath(index, control.field()), book.editingPath);
 
         switch (control.kind()) {
             case FLAG -> {
                 boolean on = entry != null && QuestBookScreen.flagOn(entry, "reward." + control.field());
                 // The chip and its label together, without a frame: a control that is a chip does not
                 // need a box drawn around it as well. That is the card's own rule for a switch.
-                book.drawSwitch(r, box, on);
+                book.questEditor.drawSwitch(r, box, on);
                 String label = Measure.truncate(control.label(), Math.max(0, box.width() - 16),
                         book.textMeasure(r));
                 r.text(label, box.x() + 15, baseline, on ? ArmatureTheme.title() : ArmatureTheme.faint());
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_FLAG, control.field(), box, box.x(),
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_FLAG, control.field(), box, box.x(),
                         box.y(), value,
                         null, index);
             }
@@ -3675,10 +3675,10 @@ final class BookRewards {
                 // An absent value is the field's own first word rather than nothing: `auto` unset means
                 // "default", and an empty box with an options mark reads as a control that is broken. The
                 // card's form draws the same empty box, so this is the one place that decides it.
-                book.drawValue(r, box, dev.ellipog.tenet.client.dev.TableRowFields.choiceText(value), "",
+                book.questEditor.drawValue(r, box, dev.ellipog.tenet.client.dev.TableRowFields.choiceText(value), "",
                         value.isEmpty(), replaced, mouseX, mouseY);
-                book.drawOptionsMark(r, box);
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_CHOICE, control.field(), box, box.x() + 4,
+                book.questEditor.drawOptionsMark(r, box);
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_CHOICE, control.field(), box, box.x() + 4,
                         box.y() + 3, value, null, index);
             }
             case INT, DECIMAL -> {
@@ -3687,8 +3687,8 @@ final class BookRewards {
                 // left stepper's label ran across the right one's `-` chip.
                 var number = dev.ellipog.tenet.client.dev.TableEditorLayout
                         .foldNumber(box, control.label().length());
-                book.drawChip(r, number.minus(), "-", number.minus().contains(mouseX, mouseY));
-                book.drawChip(r, number.plus(), "+", number.plus().contains(mouseX, mouseY));
+                book.questEditor.drawChip(r, number.minus(), "-", number.minus().contains(mouseX, mouseY));
+                book.questEditor.drawChip(r, number.plus(), "+", number.plus().contains(mouseX, mouseY));
                 r.text(Measure.truncate(control.label(), number.label().width(), book.textMeasure(r)),
                         number.label().x(), baseline, ArmatureTheme.faint());
                 if (!replaced) {
@@ -3698,26 +3698,26 @@ final class BookRewards {
                                     Math.max(0, number.value().width() - 4), book.textMeasure(r)),
                             number.value().x() + 2, baseline, ArmatureTheme.body());
                 }
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_STEP_DOWN, control.field(), number.minus(),
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_STEP_DOWN, control.field(), number.minus(),
                         number.minus().x(), number.minus().y(), value, null, index);
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_STEP_UP, control.field(), number.plus(),
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_STEP_UP, control.field(), number.plus(),
                         number.plus().x(), number.plus().y(), value, null, index);
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_TEXT, control.field(), number.value(),
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_TEXT, control.field(), number.value(),
                         number.value().x() + 2, number.value().y(), value, null, index);
             }
             case ITEM -> {
-                int textX = book.drawItemValue(r, box, value, replaced, mouseX, mouseY);
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_ENTRY_ITEM, control.field(), box, textX,
+                int textX = book.questEditor.drawItemValue(r, box, value, replaced, mouseX, mouseY);
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_ENTRY_ITEM, control.field(), box, textX,
                         box.y() + 3, value, null, index);
             }
             case TABLE_OPEN -> {
-                book.drawValue(r, box, "Edit this table", "", false, false, mouseX, mouseY);
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_OPEN_CHILD, control.field(), box, box.x() + 4,
+                book.questEditor.drawValue(r, box, "Edit this table", "", false, false, mouseX, mouseY);
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_OPEN_CHILD, control.field(), box, box.x() + 4,
                         box.y() + 3, value, null, index);
             }
             case RAW -> {
-                book.drawValue(r, box, "edit JSON", "", true, false, mouseX, mouseY);
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_RAW, control.field(), box, box.x() + 4,
+                book.questEditor.drawValue(r, box, "edit JSON", "", true, false, mouseX, mouseY);
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_RAW, control.field(), box, box.x() + 4,
                         box.y() + 3, value, null, index);
             }
             default -> {
@@ -3725,8 +3725,8 @@ final class BookRewards {
                 // card's text fields have, which is what tells an author what a blank box wants. And the
                 // editor's own field stands in for the value while it is open: see `replaced` above.
                 String shown = value.isEmpty() ? control.label() : value;
-                book.drawValue(r, box, shown, "", value.isEmpty() && !replaced, replaced, mouseX, mouseY);
-                book.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_TEXT, control.field(), box, box.x() + 4,
+                book.questEditor.drawValue(r, box, shown, "", value.isEmpty() && !replaced, replaced, mouseX, mouseY);
+                book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_FOLD_TEXT, control.field(), box, box.x() + 4,
                         box.y() + 3, value, null, index);
             }
         }
@@ -3961,7 +3961,7 @@ final class BookRewards {
 
         List<RewardInboxLayout.Row> rows = new ArrayList<>();
         int ordinal = 0;
-        for (Map.Entry<String, String> chapter : QuestBookScreen.chapters().entrySet()) {
+        for (Map.Entry<String, String> chapter : BookContent.chapters().entrySet()) {
             ordinal++;
             String chapterId = chapter.getKey();
             List<RewardInboxLayout.Row> inside = new ArrayList<>();
@@ -4531,7 +4531,7 @@ final class BookRewards {
         boolean missingItem = !reward.hasItem() && !reward.itemId().isEmpty();
         String label = missingItem
                 ? Component.translatable("tenet.screen.missing_item").getString()
-                : QuestBookScreen.rowText("rewards", reward);
+                : BookQuestEditor.rowText("rewards", reward);
         int count = reward.hasItem() ? reward.count() : 0;
         return RewardInboxLayout.Row.reward(chapterId, entry.id(), index, label, count, status);
     }
@@ -4658,7 +4658,7 @@ final class BookRewards {
             return;
         }
         refreshRewardCard();
-        book.claim(questId);
+        book.bookAssets.claim(questId);
     }
 
     /**
@@ -5192,7 +5192,7 @@ final class BookRewards {
         if (isChoiceType(reward.type())) {
             return Component.translatable("tenet.screen.rewards.choose").getString();
         }
-        return QuestBookScreen.rowText("rewards", reward);
+        return BookQuestEditor.rowText("rewards", reward);
     }
 
     /** A chapter's icon, from the explicit chapter list, or empty for a chapter the server did not send. */
@@ -5289,7 +5289,7 @@ final class BookRewards {
             payout = RewardText.withCount(reward.item().getHoverName().getString(), row.count());
         }
         else {
-            payout = QuestBookScreen.rowText("rewards", reward);
+            payout = BookQuestEditor.rowText("rewards", reward);
         }
         boolean missingItem = !reward.hasItem() && !reward.itemId().isEmpty();
         boolean shut = !row.pressable();
@@ -5462,10 +5462,10 @@ final class BookRewards {
             }
         }
         else {
-            lines.add(QuestBookScreen.rowText("rewards", reward));
+            lines.add(BookQuestEditor.rowText("rewards", reward));
         }
         lines.addAll(QuestPanelLayout.playerTooltip("rewards", reward.type(), false, false));
-        QuestBookScreen.appendConditionLines(lines, reward.conditions(),
+        BookQuestRows.appendConditionLines(lines, reward.conditions(),
                 ClientQuestCache.rewardLockOf(questId, rewardIndex));
         return lines;
     }
