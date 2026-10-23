@@ -1335,6 +1335,15 @@ public final class QuestBookScreen extends ArmatureScreen
         return geometry().viewControls();
     }
 
+    /**
+     * Where a quest's node is drawn, in GUI pixels, or null when the cache has no such quest. A hook for
+     * the client gametest tour, which presses nodes where a player would rather than by a hardcoded spot.
+     */
+    public int[] nodeOnScreen(String questId) {
+        ClientQuestCache.Entry entry = ClientQuestCache.entry(questId);
+        return entry == null ? null : new int[] {bookCanvas.nodeScreenX(entry), bookCanvas.nodeScreenY(entry)};
+    }
+
     /** The book's title: the pack's own when it declares one, else the translatable default. */
     Component bookTitle() {
         String pack = ClientQuestCache.bookTitle();
@@ -2675,16 +2684,9 @@ public final class QuestBookScreen extends ArmatureScreen
         }
         PanelLayout.Frame frame = PanelLayout.frame(bookState.partyCard, carriesFold(PanelKind.PARTY),
                 BookGeometry.MODAL_FOOTER_HEIGHT);
-        if (carriesFold(PanelKind.PARTY)) {
-            return frame.body();
-        }
-        // No header content: this panel draws no title in the column's 54px header band, so the
-        // body starts below the border instead of below the band. The fold cell only exists when
-        // this column carries it, which a root never does -- the Back control is built on the
-        // child column -- so nothing overlaps up there.
-        BookGeometry.Rect body = frame.body();
-        int top = Math.min(bookState.partyCard.y() + PanelLayout.BODY_INSET, body.bottom());
-        return BookGeometry.Rect.at(body.x(), top, body.width(), Math.max(0, body.bottom() - top));
+        // Below the header band, like every other card: the panel draws its title and status there now,
+        // where it used to start its rows at the border and read as the one card with no header.
+        return frame.body();
     }
 
     /** A content-sized face's height, to hand {@code modalFramed}. */

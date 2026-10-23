@@ -252,8 +252,7 @@ final class BookCanvas {
             if (candidate.id().equals(chapter) && candidate.hasAutofocus()) {
                 for (ClientQuestCache.Entry entry : quests) {
                     if (entry.matches(candidate.autofocus())) {
-                        book.viewport().centreOn(entry.x(), entry.y(),
-                                entry.x() + entry.size(), entry.y() + entry.size());
+                        centreInView(entry.x(), entry.y(), entry.x() + entry.size(), entry.y() + entry.size());
                         BookScreenState.pannedChapter = chapter;
                         BookScreenState.centred = true;
                         return;
@@ -268,9 +267,9 @@ final class BookCanvas {
         float maxY = -Float.MAX_VALUE;
         for (ClientQuestCache.Entry entry : quests) {
             minX = Math.min(minX, entry.x());
-            maxX = Math.max(maxX, entry.x() + 48);
+            maxX = Math.max(maxX, entry.x() + entry.size());
             minY = Math.min(minY, entry.y());
-            maxY = Math.max(maxY, entry.y() + 48);
+            maxY = Math.max(maxY, entry.y() + entry.size());
         }
         if (quests.isEmpty()) {
             minX = maxX = minY = maxY = 0;
@@ -288,9 +287,20 @@ final class BookCanvas {
         // negative-coordinate case above fall out instead of needing the handling it used to get. No
         // clamp is applied, deliberately: this is the call that defines where a canvas starts, so
         // applying one would move content the caller had just positioned.
-        book.viewport().centreOn(minX, minY, maxX, maxY);
+        centreInView(minX, minY, maxX, maxY);
         BookScreenState.pannedChapter = chapter;
         BookScreenState.centred = true;
+    }
+
+    /**
+     * Centres a box in the part of the canvas a reader can see: right of an open floating chapter list,
+     * which sits over the canvas's left corner. Centred in the whole canvas, the middle of a chapter
+     * landed a third of the way across the visible map, and a hub could open cut off at the right edge.
+     */
+    private void centreInView(float minX, float minY, float maxX, float maxY) {
+        book.viewport().centreOn(minX, minY, maxX, maxY);
+        BookGeometry geometry = book.geometry();
+        book.viewport().panBy((geometry.railFloor() - geometry.canvas().x()) / 2, 0);
     }
 
     /**

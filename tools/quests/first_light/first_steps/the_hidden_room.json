@@ -5,7 +5,6 @@
   "subtitle": "invisible, and invisibleUntilTasks",
   "description": [
     "`invisible: true` hides the whole quest until it is completed — the node is not drawn, and nothing points at it. `invisibleUntilTasks: 1` adds the easter-egg case: one task with any progress reveals it early. Here, picking up a single amethyst shard makes the room appear.",
-    "",
     "Without `invisible`, `invisibleUntilTasks` does nothing; the pair is the whole mechanism. A hidden quest still loads and still counts for progress, and the editor always shows it."
   ],
   "icon": {

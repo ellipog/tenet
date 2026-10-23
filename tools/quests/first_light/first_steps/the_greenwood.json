@@ -5,7 +5,6 @@
   "subtitle": "A biome by tag, and a biome by id",
   "description": [
     "Two biome tasks, the two spellings. The first names `#minecraft:is_forest`, a tag, so standing in any forest counts — a `#` in front of a biome means the whole tag. The second names `minecraft:desert` exactly, so only the desert does.",
-    "",
     "The dotted line into this node is `dash: dotted`, the finest of the six patterns."
   ],
   "icon": {

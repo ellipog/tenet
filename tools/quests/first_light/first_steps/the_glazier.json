@@ -5,7 +5,6 @@
   "subtitle": "A dependency written against an alias",
   "description": [
     "The dependency here is written as `the_nameless_stall`, which is not any quest's id — it is the stall's alias. A second name resolves everywhere a first one does, which is what makes a rename safe.",
-    "",
     "`hideDetailsUntilStartable` withholds the task and reward details until the quest can be started. The prerequisites stay: they are what tells the reader how to unlock it."
   ],
   "icon": {

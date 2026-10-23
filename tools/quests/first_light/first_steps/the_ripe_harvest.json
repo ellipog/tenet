@@ -5,7 +5,6 @@
   "subtitle": "A break by block state",
   "description": [
     "`blockState` narrows a break to one state, spelled the way the block-state parser spells it: `minecraft:wheat[age=7]` is a fully grown crop, and breaking a green one does not answer it. It narrows `block` or `blockTag`, or stands alone implying its own block, as it does here.",
-    "",
     "This is the field a lifetime mining statistic could never answer — how much stone you have ever broken says nothing about whether the wheat was ripe — which is why break tasks are counted by the break event rather than polled."
   ],
   "icon": {

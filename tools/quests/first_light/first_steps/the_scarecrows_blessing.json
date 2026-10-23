@@ -5,7 +5,6 @@
   "subtitle": "auto: no_toast and auto: invisible",
   "description": [
     "The chapter's `autoClaim: enabled` pays most rewards with a notification. These two pay more quietly: `no_toast` hands the reward over without the toast, and `invisible` without telling the player at all. Both also suppress the completion notice for the quest, so a chapter of starter quests does not announce itself fifty times.",
-    "",
     "A reward's own `auto` outranks the quest's and the chapter's — the most specific rung of the ladder wins, and these two are the ladder's quietest ends."
   ],
   "icon": {

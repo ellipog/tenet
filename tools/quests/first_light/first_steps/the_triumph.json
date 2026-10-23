@@ -5,7 +5,6 @@
   "subtitle": "An advancement reward",
   "description": [
     "An advancement reward awards the advancement itself, optionally narrowed to one criterion the way the task of the same name is. This one hands over the Nether achievement outright.",
-    "",
     "It is the mirror of the advancement *task* in the hunt arm: one asks whether the player earned it, the other makes sure they have."
   ],
   "icon": {

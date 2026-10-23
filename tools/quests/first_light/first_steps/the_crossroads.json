@@ -5,7 +5,6 @@
   "subtitle": "maxCompletableDependents: 1",
   "description": [
     "`maxCompletableDependents: 1` caps how many of this quest's dependents may ever complete: the first road walked closes the other for good. Where an exclusive group is a pact between siblings, this is a branch point that closes its own roads — the same choice, said from the other end.",
-    "",
     "The two roads below are identical in every other respect, because the cap is the only thing this exhibit is about."
   ],
   "icon": {

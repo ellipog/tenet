@@ -5,7 +5,6 @@
   "subtitle": "requiresStage, and the task that reads it",
   "description": [
     "`requiresStage` is the one gate that is per player rather than per team: this quest is open to a player carrying `first_light:sworn` and locked to one without it, even in the same party. The stage task beside it asks the same question as a task — the read half of the feature whose write half was the calling's reward.",
-    "",
     "Nothing validates that a stage exists, because a stage exists by being granted; a typo shows up as a quest nobody can open rather than as a file that will not load."
   ],
   "icon": {

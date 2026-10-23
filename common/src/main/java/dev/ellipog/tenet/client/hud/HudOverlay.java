@@ -321,7 +321,9 @@ public final class HudOverlay {
                 }
                 // Everything else is one line of text in the ink its kind names. The switch is an expression
                 // so that a sixth kind fails to compile rather than being drawn as nothing.
-                r.shadowedText(row.text(), left, rowTop, wordInk(row.kind()), 1F);
+                int ink = row.kind() == PinnedPanelLayout.Kind.COMPLETE && row.done()
+                        ? ArmatureTheme.available() : wordInk(row.kind());
+                r.shadowedText(row.text(), left, rowTop, ink, 1F);
             }
         }
         // Drop whatever is no longer drawn: an unpinned quest's glide must not linger to greet its return.
@@ -608,6 +610,12 @@ public final class HudOverlay {
                     tasks));
             icons.add(List.copyOf(stacks));
             questIds.add(id);
+        }
+        // The chapter tells pins apart only when they come from more than one: every box saying "The
+        // Orrery" is a column of the same word beside the titles it was meant to sort.
+        if (out.stream().map(PinnedPanelLayout.Pin::chapter).distinct().count() == 1) {
+            out.replaceAll(pin -> new PinnedPanelLayout.Pin(pin.title(), "", pin.complete(), pin.claimable(),
+                    pin.tasks()));
         }
         return new Content(List.copyOf(out), List.copyOf(icons), List.copyOf(questIds));
     }

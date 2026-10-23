@@ -5,7 +5,6 @@
   "subtitle": "The largest node, and the smallest icon",
   "description": [
     "Two hundred and fifty-six pixels across: the top of the size range the canvas draws, and the node that shows what `iconScale` is for. At `0.35` the icon sits small inside a large node — the other end of the range from the speck beside it, which fills its node corner to corner.",
-    "",
     "Its line is an arrow `stream` at `arrowDensity: low`, the sparsest of the three spacings: heads every sixty-four pixels rather than every sixteen."
   ],
   "icon": {

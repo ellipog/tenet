@@ -5,7 +5,6 @@
   "subtitle": "The smallest node, and shape: none",
   "description": [
     "Sixteen pixels, the floor of the size range, and `shape: none`: no panel at all, just the icon, with the whole square still clickable. `iconScale: 1.0` fills that square corner to corner — the opposite end of the scale from the sun, and the pair that shows a reader what the two fields actually do.",
-    "",
     "A speck is still a quest: it counts an amethyst shard and pays experience like any other node."
   ],
   "icon": {

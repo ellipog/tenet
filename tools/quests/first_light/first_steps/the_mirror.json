@@ -5,7 +5,6 @@
   "subtitle": "A curved line, anchored at both rims",
   "description": [
     "The line into this node is the chapter's boldest piece of line art: `form: curved` with `bend: 0.8`, the positive extreme of the axis, so the route bows as far as a curved line can.",
-    "",
     "`fromAnchor` and `toAnchor` are per-line only, and they say which rim the line leaves and meets: two hundred degrees out of the watch hill, twenty degrees into the mirror. Anchors are refused in a chapter's default because which rim a line meets is a fact about that line's two ends, not about a chapter."
   ],
   "icon": {

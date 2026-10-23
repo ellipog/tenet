@@ -5,7 +5,6 @@
   "subtitle": "permissionLevel 4, past a payout block",
   "description": [
     "`permissionLevel: 4` runs the command at the server's own level, for the rewards that must not depend on the player's rights. Level 2 is the default because most commands should be a command block's; this one is the exception.",
-    "",
     "`ignoreRewardBlocking: true` pays even while an operator has held the team's automatic payouts with `/tenet rewards block` — the hold's one sanctioned exception, for the reward that is a debt rather than a gift."
   ],
   "icon": {

@@ -5,7 +5,6 @@
   "subtitle": "A consuming task, said on the task",
   "description": [
     "Sixty-four planks, handed over and gone. The `consumeItems: true` here is written on the task rather than inherited — the explicit form of the chapter default, and the one to copy when a chapter's default is off.",
-    "",
     "The line into this node is `form: chamfered`, the circuit-trace step: the same route as the chapter's orthogonal default with its corners cut at forty-five degrees."
   ],
   "icon": {

@@ -198,10 +198,7 @@ final class BookTexturePicker {
         int w = book.overlayWidth();
         int h = book.overlayHeight();
 
-        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, 45, ArmatureTheme.raised(),
-                Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
-        r.fill(left + 1, top + 46, left + w - 1, top + 47, ArmatureTheme.panelEdge());
+        BookFrame.drawCard(r, left, top, w, h, 46, false);
 
         // Both header lines stop short of the fold control when this column carries one. The second is the
         // one that noticed: the subject line is a texture's path, and a path is longer than any column.

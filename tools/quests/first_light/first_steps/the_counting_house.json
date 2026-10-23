@@ -5,7 +5,6 @@
   "subtitle": "An item tag, and the chapter default taking its due",
   "description": [
     "The counting house does not care which log you bring, only that it is a log: the task names `minecraft:logs`, a tag, so any item in it counts. A tag is written as the tag's own id, without a `#` — `#` is for the biome and structure tasks, where the field is a string that may carry one.",
-    "",
     "This task says nothing about consuming, so it inherits the chapter's `defaultConsumeItems: true` and takes the logs when it completes. Every other item task in the arm follows it; the ones that decline say so for themselves."
   ],
   "icon": {

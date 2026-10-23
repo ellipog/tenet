@@ -308,9 +308,11 @@ public final class PinnedPanelLayout {
                             "", cursor, line, p, -1);
                 }
                 if (pin.complete()) {
-                    cursor = add(rows, Kind.COMPLETE,
-                            pin.claimable() ? words.claimable() : words.complete(), "", cursor, line,
-                            p, -1);
+                    // `done` carries "claimable" on this row: the one line on the HUD that asks the
+                    // player to do something, so it is drawn in the call-to-action ink, not the faint.
+                    rows.add(new Row(Kind.COMPLETE, pin.claimable() ? words.claimable() : words.complete(), "",
+                            cursor, line, 0, p, -1, 0, 0, pin.claimable(), false, -1));
+                    cursor += line + GAP;
                 }
                 raw.add(rows);
             }

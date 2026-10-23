@@ -5,7 +5,6 @@
   "subtitle": "One half of an exclusive pair",
   "description": [
     "Two patrons share an `exclusiveGroup`, which is a pact between siblings: completing one locks the other for good. Take the gold patron's coin and the silver patron's door closes; the pair is a choice of paths, not a checklist.",
-    "",
     "Exclusivity is scoped to the chapter, and the ledger below is written to survive it — its prerequisite mode asks for one completed dependency, so either coin closes the book."
   ],
   "icon": {

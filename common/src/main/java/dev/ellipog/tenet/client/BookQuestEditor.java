@@ -438,8 +438,8 @@ final class BookQuestEditor {
     private void buildPartyNotice() {
         int cardWidth = Math.min(BookGeometry.PARTY_MODAL_WIDTH, book.panelRail(PanelKind.PARTY).width());
         int textWidth = Math.max(0, cardWidth - BookGeometry.MODAL_INSET * 2);
-        PartyPanelLayout.Face face = PartyPanelLayout.notice(
-                QuestBookScreen.partyText("tenet.screen.party.unavailable"),
+        // No heading: the card's band already reads "Not available in this world".
+        PartyPanelLayout.Face face = PartyPanelLayout.notice("",
                 QuestBookScreen.partyText("tenet.screen.party.unavailable.why"),
                 QuestBookScreen.partyText("tenet.screen.party.unavailable.how"),
                 textWidth, BookScreenState.TEXT_MEASURE);
@@ -449,7 +449,7 @@ final class BookQuestEditor {
         book.bookState.partyLeftLayout = face.build(partyBodyWidth(), BookScreenState.TEXT_MEASURE);
         book.bookState.partyLeftView.apply(book.bookState.partyLeftLayout, partyBodyWidth());
         placePartyControls(book.bookState.partyLeftFace);
-        singleFooter("tenet.screen.party.back", book::closeOverlay);
+        singleFooter("tenet.screen.party.done", book::closeOverlay);
     }
 
     /**
@@ -1176,6 +1176,9 @@ final class BookQuestEditor {
                     // `valueField` keeps. The value is the pending edit first, then the tree's own.
                     ArmatureTextField field = new ArmatureTextField(0, 0, 0, 0, book.bookInput.bookTitleValue());
                     field.onSubmit(book.bookInput::commitBookTitle);
+                    // Empty means the default name, which the header is showing: the field says so
+                    // rather than reading as a book with no name.
+                    field.placeholder(book.getTitle().getString());
                     field.colours(ArmatureTheme.title(), ArmatureTheme.recessed(),
                             ArmatureTheme.panelEdge());
                     book.bookState.toolsView.put(row.key(), field,
@@ -4317,7 +4320,7 @@ final class BookQuestEditor {
         chrome(settingsHeaderButton);
         if (settingsHeaderButton != null) {
             settingsHeaderButton.ink(ArmatureButton.Ink.BODY).selected(book.leftKind() == PanelKind.SETTINGS)
-                    .tooltip(Component.translatable("tenet.screen.accessibility_settings"));
+                    .tooltip(Component.translatable("tenet.screen.settings_hint"));
         }
 
         // The pinned quests button, beside Settings for every player: the watchlist next to the card
@@ -5400,7 +5403,8 @@ final class BookQuestEditor {
 
         if (known && !folded) {
             for (EntryFormLayout.Cell cell : form.cells()) {
-                drawField(r, cell, entry, member, index, mouseX, mouseY);
+                drawField(r, cell, entry, member, index, member + "." + index,
+                        EntryFormLayout.sharesLine(cell, form.cells()), mouseX, mouseY);
             }
             for (EntryFormLayout.ConditionRow condition : form.conditions()) {
                 drawConditionRow(r, condition, entry, member, index, mouseX, mouseY);
@@ -5547,7 +5551,8 @@ final class BookQuestEditor {
             // object it is handed, and a task beside it has fields with the same names -- item, count,
             // match -- so handing it the entry is what made a condition's row display the task's
             // numbers, and its inline editor pre-fill from them.
-            drawField(r, cell, condition, member, index, pathPrefix, mouseX, mouseY);
+            drawField(r, cell, condition, member, index, pathPrefix,
+                    EntryFormLayout.sharesLine(cell, row.cells()), mouseX, mouseY);
         }
     }
 
@@ -5688,22 +5693,14 @@ final class BookQuestEditor {
      * <p>The label is outside the box, which is the whole difference from the row this replaced: a box
      * that reads "Count" when it is empty and "8" when it is not is a box an author has to press to
      * identify, and a form whose labels all sit on one x is one an eye can run down.
-     */
-    private void drawField(GuiRenderer r, EntryFormLayout.Cell cell, JsonObject entry, String member,
-                           int index, int mouseX, int mouseY) {
-        drawField(r, cell, entry, member, index, member + "." + index, mouseX, mouseY);
-    }
-
-    /**
-     * The same, with the path the field commits to supplied by the caller.
      *
-     * <p>The one difference a condition makes: its fields live one level deeper, and every press it
+     * <p>The path the field commits to is the caller's. The one difference a condition makes: its fields live one level deeper, and every press it
      * registers must carry the full path — {@code tasks.3.conditions.1.min} — while the form's own
      * arithmetic is unchanged. The member and index still name the entry, which is what the presses that
      * need more than a path resolve their field through.
      */
     private void drawField(GuiRenderer r, EntryFormLayout.Cell cell, JsonObject entry, String member,
-                           int index, String pathPrefix, int mouseX, int mouseY) {
+                           int index, String pathPrefix, boolean shared, int mouseX, int mouseY) {
         EditorField field = cell.field();
         String path = pathPrefix + "." + field.path();
         // The icon override is an object, not an id: its item lives one level down, and the box must
@@ -5718,8 +5715,11 @@ final class BookQuestEditor {
 
         // The label: lit when its switch is on, so a form of flags reads as a set of states rather than a
         // set of words.
-        r.text(Measure.truncate(field.label(), cell.label().width() - 4, measure),
-                cell.label().x() + 2, cell.label().y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2,
+        // A switch sharing its line hugs its own chip; see `EntryFormLayout.sharesLine`.
+        String shownLabel = Measure.truncate(field.label(), cell.label().width() - 4, measure);
+        int labelX = field.kind() == EditorField.Kind.FLAG && shared
+                ? cell.label().right() - 2 - measure.width(shownLabel) : cell.label().x() + 2;
+        r.text(shownLabel, labelX, cell.label().y() + (EntryFormLayout.LINE_HEIGHT - 8) / 2,
                 field.kind() == EditorField.Kind.FLAG && on ? ArmatureTheme.title() : ArmatureTheme.faint());
 
         // And what the field is for, on the label's own hover: the labels are one or two words by
@@ -5753,8 +5753,10 @@ final class BookQuestEditor {
                         cell.value().y() + 3, value, member, index, mouseX, mouseY);
             }
             case CHOICE -> {
-                String shown = value.isEmpty() ? "" : EditorSpecs.label(value);
-                drawValue(r, cell.value(), shown, "", false, replaced, mouseX, mouseY);
+                // Unset reads as the default, faint, rather than as an empty box: an empty choice looked
+                // broken, where it is the most common answer there is.
+                String shown = value.isEmpty() ? "Default" : EditorSpecs.label(value);
+                drawValue(r, cell.value(), shown, "", value.isEmpty(), replaced, mouseX, mouseY);
                 drawOptionsMark(r, cell.value());
                 if (cell.value().contains(mouseX, mouseY)) {
                     // What the press will do, said before it is pressed: a cycle through values is a
@@ -5861,6 +5863,12 @@ final class BookQuestEditor {
             if (!unit.isEmpty()) {
                 r.text(unit, textX + r.textWidth(shown) + 4, baseline, ArmatureTheme.faint());
             }
+        }
+        else if (!replaced && axisLetter.isEmpty()) {
+            // Unset is the default, said so, like an unset choice: an empty box between - and + read as
+            // a number that failed to load.
+            r.text(Measure.truncate("Default", room + tail, book.textMeasure(r)), textX, baseline,
+                    ArmatureTheme.faint());
         }
     }
 
@@ -6523,9 +6531,6 @@ final class BookQuestEditor {
         book.bookPins.openElementPanel(made.id());
     }
 
-    /** The list's own heading row. Static, like the problems heading: a fold would hide the list itself. */
-    private static final String PINNED_HEADING = "pinned:list";
-
     /** One pin's row key. The id follows the first colon, because an id may hold colons of its own. */
     private static String pinnedRowKey(String id) {
         return "pinned:" + id;
@@ -6541,8 +6546,8 @@ final class BookQuestEditor {
      * nothing behind it.
      */
     private void buildPinnedWidgets() {
+        // No heading row: the card's own header already says "Pinned quests", and the list said it twice.
         List<ToolsLayout.Action> rows = new ArrayList<>();
-        rows.add(ToolsLayout.Action.heading(PINNED_HEADING, "tenet.screen.pinned.title"));
         List<String> ids = dev.ellipog.tenet.client.hud.PinnedQuests.pinned();
         if (ids.isEmpty()) {
             rows.add(ToolsLayout.Action.value(BookPins.PINNED_EMPTY, "",
@@ -6650,6 +6655,7 @@ final class BookQuestEditor {
         appearanceEntries = SettingsLayout.entries(ClientAppearance.LOOK.textScale());
         book.bookState.appearanceRows = appearanceEntries.stream()
                 .map(entry -> SettingsLayout.SIDEBAR_KEY.equals(entry.key())
+                        || SettingsLayout.HUD_KEY.equals(entry.key())
                         ? InspectRow.toggle(entry.key(), entry.label().getString())
                         : InspectRow.action(entry.key(), entry.label().getString()))
                 .toList();
@@ -6689,9 +6695,21 @@ final class BookQuestEditor {
         // And the row that opens the HUD editor. An action row rather than a strip, because what it changes
         // is not one number: where things sit wants a place to drag them, and that place is a screen over
         // the world. Opened from here it comes back here, which is what `openFromBook` is for.
-        book.bookState.appearanceView.put(SettingsLayout.HUD_KEY,
-                book.control(0, 0, 0, 0, Component.translatable("tenet.screen.hud_edit.open"),
-                        HudEditScreen::openFromBook));
+        //
+        // Labelled like the switch below it, with a short Edit in the control column: a full-width
+        // button was the one control on the card that ignored the column every other one sits in.
+        ArmatureButton hudEdit = book.control(0, 0, 0, 0, Component.translatable("tenet.screen.edit"),
+                HudEditScreen::openFromBook);
+        if (hudEdit != null) {
+            hudEdit.tooltip(Component.translatable("tenet.screen.hud_edit.open"));
+            book.bookState.appearanceView.put(SettingsLayout.HUD_KEY, hudEdit, slot -> {
+                Slot strip = InspectLayout.strip(slot);
+                int width = Math.min(56, strip.width());
+                int height = Math.min(18, strip.height());
+                return new Slot(slot.key(), controlRight(slot, bodyWidth) - width,
+                        strip.y() + Math.max(0, (strip.height() - height) / 2), width, height);
+            });
+        }
 
         // And the chapter list's placement as a switch in its row's own strip: the row names the
         // placement and the switch shows which way it stands, so the state reads at a glance. The
@@ -6705,7 +6723,7 @@ final class BookQuestEditor {
             Slot strip = InspectLayout.strip(slot);
             int width = Math.min(ArmatureSwitch.WIDTH, strip.width());
             int height = Math.min(ArmatureSwitch.HEIGHT, strip.height());
-            return new Slot(slot.key(), strip.right() - width,
+            return new Slot(slot.key(), controlRight(slot, bodyWidth) - width,
                     strip.y() + Math.max(0, (strip.height() - height) / 2), width, height);
         });
 
@@ -6713,10 +6731,20 @@ final class BookQuestEditor {
 
         ArmatureButton back = book.control(book.geometry().questFooter(book.bookState.appearanceCard,
                 false).get("back"),
-                Component.translatable("tenet.screen.back"), book::closeOverlay);
+                Component.translatable("tenet.screen.done"), book::closeOverlay);
         if (back != null) {
             back.ink(ArmatureButton.Ink.BODY);
         }
+    }
+
+    /**
+     * The right edge every settings control ends on: the slider's, which spans the body.
+     *
+     * <p>The strip's own edge stopped a hundred pixels short of it, so the switch and Edit hung in the
+     * middle of the card under a slider that ran to its border -- two right edges on a three-row card.
+     */
+    private static int controlRight(Slot row, int bodyWidth) {
+        return row.x() + bodyWidth;
     }
 
     /** The slider's message: the setting's name and its value, kept current as the thumb moves. */

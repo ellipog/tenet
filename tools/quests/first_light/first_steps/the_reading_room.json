@@ -5,9 +5,7 @@
   "subtitle": "Observation: a block entity type and an entity type, plus an optional task",
   "description": [
     "`block_entity_type` names the kind of block entity rather than the block — a lectern is `minecraft:lectern` — and `entity_type` names a mob to look at, here a villager for two seconds.",
-    "",
     "The third task is `optional: true`, so it does not have to be done for the quest to complete. An optional task is how a quest says 'and also, if you like'; if every task were optional, any one of them would finish the quest.",
-    "",
     "Its line places its arrowhead `mid`, in the middle of the route rather than at either end."
   ],
   "icon": {

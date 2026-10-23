@@ -852,8 +852,9 @@ public final class TenetCommand {
      */
     private static int complete(CommandContext<CommandSourceStack> context, boolean withDependencies,
                                 ServerPlayer named) throws CommandSyntaxException {
-        ServerPlayer invoker = context.getSource().getPlayerOrException();
-        ServerPlayer target = named != null ? named : invoker;
+        // The invoker is only asked for when no player was named, so a command block or the console can
+        // move a named player's progress -- which is what the optional argument is for.
+        ServerPlayer target = named != null ? named : context.getSource().getPlayerOrException();
         String id = StringArgumentType.getString(context, "quest");
 
         Optional<QuestIndex.QuestEntry> entry = TenetQuests.find(id);
@@ -1006,8 +1007,9 @@ public final class TenetCommand {
      */
     private static int completeAll(CommandContext<CommandSourceStack> context, ServerPlayer named)
             throws CommandSyntaxException {
-        ServerPlayer invoker = context.getSource().getPlayerOrException();
-        ServerPlayer target = named != null ? named : invoker;
+        // The invoker is only asked for when no player was named, so a command block or the console can
+        // move a named player's progress -- which is what the optional argument is for.
+        ServerPlayer target = named != null ? named : context.getSource().getPlayerOrException();
         var server = context.getSource().getServer();
         java.util.UUID owner = ProgressService.progressOwner(server, target);
 

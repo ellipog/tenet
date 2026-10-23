@@ -5,7 +5,6 @@
   "subtitle": "onlyFromCrafting",
   "description": [
     "Paper you made yourself. `onlyFromCrafting: true` counts only items the player crafted, so paper found in a chest is not the apprentice's ink — the field exists for the quest that wants the work rather than the item.",
-    "",
     "Its line runs `dash: dash_dot`, the long-short pattern, so the route to the workshop reads as a different kind of road."
   ],
   "icon": {

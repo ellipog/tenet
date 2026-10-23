@@ -37,6 +37,8 @@ import net.minecraft.client.gui.screens.Screen;
  *   ctrl NAME | shift NAME  the same, with the modifier held
  *   move X Y                put the pointer there (hover)
  *   click X Y [right]       move there and press
+ *   press LABEL [right]     press the widget whose label is exactly LABEL
+ *   node QUEST [right|hover] press (or hover) a quest's node on the canvas
  *   drag X1 Y1 X2 Y2        hold the left button across
  *   scroll N                wheel notches, positive is up
  *   type TEXT               type characters
@@ -143,18 +145,31 @@ public final class TenetUiTour implements FabricClientGameTest {
                 input.setCursorPos(Double.parseDouble(arg[0]) * scale, Double.parseDouble(arg[1]) * scale);
                 context.waitTicks(2);
             }
-            case "click" -> {
-                input.setCursorPos(Double.parseDouble(arg[0]) * scale, Double.parseDouble(arg[1]) * scale);
-                context.waitTick();
-                // Held across ticks like a hand would: Armature's buttons act on the release, and a
-                // press and release inside one tick lands before the book has drawn the press.
-                int button = arg.length > 2 && arg[2].equals("right")
-                        ? InputConstants.MOUSE_BUTTON_RIGHT
-                        : InputConstants.MOUSE_BUTTON_LEFT;
-                input.holdMouse(button);
-                context.waitTicks(3);
-                input.releaseMouse(button);
-                context.waitTicks(2);
+            case "click" -> click(context, Double.parseDouble(arg[0]) * scale, Double.parseDouble(arg[1]) * scale,
+                    arg.length > 2 && arg[2].equals("right"));
+            case "press" -> {
+                boolean right = rest.endsWith(" right");
+                String label = right ? rest.substring(0, rest.length() - " right".length()) : rest;
+                int[] at = context.computeOnClient(client -> widgetCentre(client, label));
+                if (at == null) {
+                    throw new IllegalStateException("no widget labelled '" + label + "'");
+                }
+                click(context, at[0] * (double) scale, at[1] * (double) scale, right);
+            }
+            case "node" -> {
+                int[] at = context.computeOnClient(client -> client.gui.screen() instanceof QuestBookScreen book
+                        ? book.nodeOnScreen(arg[0]) : null);
+                if (at == null) {
+                    throw new IllegalStateException("no node " + arg[0]);
+                }
+                if (arg.length > 1 && arg[1].equals("hover")) {
+                    input.setCursorPos(at[0] * (double) scale, at[1] * (double) scale);
+                    context.waitTicks(10);
+                }
+                else {
+                    click(context, at[0] * (double) scale, at[1] * (double) scale,
+                            arg.length > 1 && arg[1].equals("right"));
+                }
             }
             case "drag" -> {
                 double x1 = Double.parseDouble(arg[0]) * scale;
@@ -204,6 +219,33 @@ public final class TenetUiTour implements FabricClientGameTest {
             case "dump" -> System.out.println("TOUR: " + context.computeOnClient(TenetUiTour::describe));
             default -> System.out.println("TOUR: unknown command " + word[0]);
         }
+    }
+
+    /** Held across ticks like a hand would: Armature's buttons act on the release. */
+    private static void click(ClientGameTestContext context, double x, double y, boolean right) {
+        TestInput input = context.getInput();
+        input.setCursorPos(x, y);
+        context.waitTick();
+        int button = right ? InputConstants.MOUSE_BUTTON_RIGHT : InputConstants.MOUSE_BUTTON_LEFT;
+        input.holdMouse(button);
+        context.waitTicks(3);
+        input.releaseMouse(button);
+        context.waitTicks(2);
+    }
+
+    /** The centre of the first widget whose label is exactly this text, in GUI pixels, or null. */
+    private static int[] widgetCentre(net.minecraft.client.Minecraft client, String label) {
+        Screen screen = client.gui.screen();
+        if (screen == null) {
+            return null;
+        }
+        for (var child : screen.children()) {
+            if (child instanceof AbstractWidget widget && widget.visible
+                    && widget.getMessage().getString().strip().equals(label)) {
+                return new int[] {widget.getX() + widget.getWidth() / 2, widget.getY() + widget.getHeight() / 2};
+            }
+        }
+        return null;
     }
 
     private static String describe(net.minecraft.client.Minecraft client) {

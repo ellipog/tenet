@@ -5,7 +5,6 @@
   "subtitle": "A vanilla statistic",
   "description": [
     "A stat task watches one vanilla statistic and completes when it reaches `value`. This one watches `minecraft:walk_one_cm` and wants fifty thousand of them — five hundred blocks, counted by the game's own ledger rather than by the quest book.",
-    "",
     "Statistics are registry entries, so the validator can check the id; a statistic this build does not have counts as zero rather than failing the load."
   ],
   "icon": {

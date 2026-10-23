@@ -102,10 +102,7 @@ final class BookSettings {
         int w = book.bookState.appearanceCard.width();
         int h = book.bookState.appearanceCard.height();
 
-        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, 45, ArmatureTheme.raised(),
-                Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
-        r.fill(left + 1, top + 46, left + w - 1, top + 47, ArmatureTheme.panelEdge());
+        BookFrame.drawCard(r, left, top, w, h, 46, true);
 
         int textX = left + 14;
         r.text("Settings", textX, top + 12, ArmatureTheme.title());
@@ -171,10 +168,7 @@ final class BookSettings {
         int w = book.overlayWidth();
         int h = book.overlayHeight();
 
-        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, 45, ArmatureTheme.raised(),
-                Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
-        r.fill(left + 1, top + 46, left + w - 1, top + 47, ArmatureTheme.panelEdge());
+        BookFrame.drawCard(r, left, top, w, h, 46, false);
 
         // The subject's icon and name, so the card says what it is about: the row the press came from is
         // behind it, and "Pick an item" alone would not say which chapter's or group's icon is being set.
@@ -363,24 +357,7 @@ final class BookSettings {
         int w = book.overlayWidth();
         int h = book.overlayHeight();
 
-        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-
-        // The overlay's header strip, rounded on its two top corners to match the panel -- see
-        // `drawBook` for why the mask is explicit and why the radius is one tighter than the panel's.
-        // This one spans the overlay's full width, so it is the one surface in this screen whose two top
-        // corners are both its own.
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, 45, ArmatureTheme.raised(),
-                Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
-
-        // And the two rules. Square, deliberately: they are one pixel tall, and a radius applied to a
-        // one-pixel rule would either vanish or produce a dotted line.
-        r.fill(left + 1, top + 46, left + w - 1, top + 47, ArmatureTheme.panelEdge());
-        // The footer band is exactly the region the card's own chrome reserves for the footer -- the
-        // gap above the controls, the controls, and the inset below them -- so the band and the row it
-        // holds come from one arithmetic. It was 38, an eighth number that agreed with none of the
-        // three, and the report was the control sitting three pixels high in its own band.
-        r.fill(left + 1, top + h - BookGeometry.MODAL_FOOTER_HEIGHT, left + w - 1,
-                top + h - BookGeometry.MODAL_FOOTER_HEIGHT + 1, ArmatureTheme.panelEdge());
+        BookFrame.drawCard(r, left, top, w, h, 46, true);
 
         // --- header ---
 
@@ -994,10 +971,7 @@ final class BookSettings {
         int w = book.overlayWidth();
         int h = book.overlayHeight();
 
-        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, 45, ArmatureTheme.raised(),
-                Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
-        r.fill(left + 1, top + 46, left + w - 1, top + 47, ArmatureTheme.panelEdge());
+        BookFrame.drawCard(r, left, top, w, h, 46, false);
 
         var matches = dev.ellipog.tenet.client.FilterMatches.of(book.bookState.filterExpression);
         String heading = matches.total() == 1 ? "1 accepted item" : matches.total() + " accepted items";
@@ -1185,10 +1159,20 @@ final class BookSettings {
             // room the locate icon leaves, so a long title cannot run under it, and centred on the row:
             // the label used to be drawn at the slot's top edge while the icon was centred, which read
             // as text sitting high in the wash.
-            String line = (met ? "\u2714" : "\u00d7") + "  " + label;
-            r.text(Measure.truncate(line, Math.max(24, locate.x() - slot.x() - 8), book.textMeasure(r)),
-                    slot.x(), slot.y() + (slot.height() - 8) / 2,
+            // The mark carries the state and the quest's own icon carries which quest, the way a task or
+            // reward row wears its item: a column of bare titles read as a list of words, not of quests.
+            int textY = slot.y() + (slot.height() - 8) / 2;
+            r.text(met ? "\u2714" : "\u00d7", slot.x(), textY,
                     met ? ArmatureTheme.complete() : ArmatureTheme.blocked());
+            int labelX = slot.x() + 12;
+            ItemStack depIcon = other == null ? ItemStack.EMPTY : other.icon();
+            if (!depIcon.isEmpty()) {
+                int size = Math.min(12, slot.height());
+                r.icon(depIcon, labelX, slot.y() + (slot.height() - size) / 2, size);
+                labelX += size + 4;
+            }
+            r.text(Measure.truncate(label, Math.max(24, locate.x() - labelX - 8), book.textMeasure(r)),
+                    labelX, textY, met ? ArmatureTheme.body() : ArmatureTheme.blocked());
             drawLocateIcon(r, locate.x() + locate.width() / 2, locate.y() + locate.height() / 2,
                     locate.contains(mouseX, mouseY) ? ArmatureTheme.body() : ArmatureTheme.faint());
             dependencyTargets.add(new DependencyTarget(bar, locate, dependency));

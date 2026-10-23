@@ -265,8 +265,10 @@ final class BookPins {
             return;
         }
         book.bookState.pinnedTargets.clear();
-        book.bookRewards.drawModalCardChrome(r, Labels.of("tenet.screen.pinned.title"), mouseX, mouseY,
-                QuestBookScreen.EditAction.PINNED_CLOSE, book.bookState.pinnedTargets);
+        int pins = dev.ellipog.tenet.client.hud.PinnedQuests.pinned().size();
+        book.bookRewards.drawModalCardChrome(r, Labels.of("tenet.screen.pinned.title"),
+                pins == 0 ? "Nothing pinned yet" : pins == 1 ? "1 quest on your HUD" : pins + " quests on your HUD",
+                mouseX, mouseY, QuestBookScreen.EditAction.PINNED_CLOSE, book.bookState.pinnedTargets);
         Measure measure = book.textMeasure(r);
         int starWidth = r.textWidth(PINNED_STAR);
         try (GuiRenderer.Scoped clip = r.clip(book.overlayBodyRect().x(), book.overlayBodyRect().y(),

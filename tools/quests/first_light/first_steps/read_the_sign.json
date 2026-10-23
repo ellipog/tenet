@@ -5,7 +5,6 @@
   "subtitle": "The first button in the book",
   "description": [
     "The sign at the crossroads says the road down was closed in spring, which was true then. Read it anyway.",
-    "",
     "A checkmark task is nothing but the button — the game cannot see you read, so the press is the doing. The `title` field is what the button says, which is the one place a task gets to choose its own label."
   ],
   "icon": {

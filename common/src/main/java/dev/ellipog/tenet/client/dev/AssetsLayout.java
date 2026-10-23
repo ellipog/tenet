@@ -334,14 +334,14 @@ public final class AssetsLayout {
     }
 
     /**
-     * A footer button's height: fourteen, the size this panel's footer has always drawn.
+     * A footer button's height: the book's own control height, which is what the modal footer is sized
+     * for.
      *
-     * <p>Deliberately not {@link BookGeometry#OVERLAY_CONTROL_HEIGHT}: this card's chrome is a modal's,
-     * but its controls are this panel's own size, and growing them to the book's twenty would be a
-     * change to the picture made in the name of an arithmetic tidy-up. If they should be the book's
-     * size, that is a report about the picture and its own round.
+     * <p>It was fourteen, this panel's own size, and that was the picture's report: beside the Rewards
+     * card's twenty-pixel Claim all and Done, this footer's Done read as a smaller, lesser control on a
+     * card with the same chrome.
      */
-    public static final int FOOTER_BUTTON_HEIGHT = 14;
+    public static final int FOOTER_BUTTON_HEIGHT = BookGeometry.OVERLAY_CONTROL_HEIGHT;
 
     /**
      * The page's own action, at the footer's left: "New table" on Tables, the sort order on
@@ -351,10 +351,10 @@ public final class AssetsLayout {
      * card of any normal width. The cap in {@link Footer#of} still binds first on a squeezed
      * card, where truncating is the degradation rather than an overlap.
      */
-    public static final int NEW_TABLE_WIDTH = 84;
+    public static final int NEW_TABLE_WIDTH = 104;
 
-    /** "Done" — the way out, at the footer's right. */
-    public static final int DONE_WIDTH = 64;
+    /** "Done" — the way out, at the footer's right, as wide as every other card's. */
+    public static final int DONE_WIDTH = 88;
 
     /** The least air between the two, when the card is too narrow to give each its full width. */
     public static final int FOOTER_GAP = 6;

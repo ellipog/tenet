@@ -5,7 +5,6 @@
   "subtitle": "A kill by customName",
   "description": [
     "`customName` counts only a mob carrying this name, which is how a quest reaches a named individual rather than a species. A wolf named The Pale Stag is a different hunt from any other wolf, and the task says so in one field.",
-    "",
     "Its line is drawn with `arrowPlace: both`, one head at each end — the placement for a line that is also a warning."
   ],
   "icon": {

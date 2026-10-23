@@ -5,7 +5,6 @@
   "subtitle": "A command that makes a scoreboard objective",
   "description": [
     "A command reward is the escape hatch every pack reaches for, and these two reach for the scoreboard: one creates the `first_light_standing` objective the festival's reward is gated on, and the other sets it to 1. That is the honest way to demonstrate a score condition — the objective has to exist and hold a value before anything can read it, and an objective that exists at zero reads exactly like one that does not exist at all.",
-    "",
     "One command per reward, because a command reward runs what it is given and nothing more. The pair is the gate's input; the festival's own place in the graph is a dependency on the witness list, not on this quest."
   ],
   "icon": {

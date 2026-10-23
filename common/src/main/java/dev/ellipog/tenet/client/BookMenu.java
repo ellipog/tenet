@@ -884,7 +884,6 @@ final class BookMenu {
     private List<MenuItem> lineMenuItems(String from, String to) {
         ClientQuestCache.Entry dependent = book.entryFor(to);
         DependencyStyle now = dependent == null ? DependencyStyle.UNSET : BookCanvas.lineStyle(dependent, from);
-        String suffix = " \u2192 " + to;
         List<MenuItem> items = new ArrayList<>();
         // The four style flyouts are Advanced's, and they are the plainest case of the cut in the whole
         // editor: a route, its arrow heads, its pattern and its weight are four answers to "how exactly
@@ -899,7 +898,9 @@ final class BookMenu {
         }
         boolean armed = menuDeleteArmed;
         items.add(MenuItem.destructive(
-                armed ? "Really delete?" + suffix : "Delete dependency" + suffix,
+                // No "-> quest_id" suffix: the line under the pointer is the subject already, and in a
+                // 150-pixel menu the id only ever arrived as "the_...".
+                armed ? "Really delete?" : "Delete dependency",
                 armed
                         ? () -> book.bookRewards.removeDependency(to, from)
                         : () -> {

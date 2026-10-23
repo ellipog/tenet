@@ -5,9 +5,7 @@
   "subtitle": "sequentialTasks, and all_started",
   "description": [
     "Three checkmarks that must be handed in in order: with `sequentialTasks: true` the second cannot be pressed until the first is, and the third waits on the second. The tasks are the same button three times, which is the point — what changed is the rule joining them.",
-    "",
     "This quest also states `prerequisiteMode: all_started`, so it opens when both its dependencies have been started rather than completed — the loosest of the four modes, and the reason the beacon beside it can be lit in any order.",
-    "",
     "Its line is a `chamfered` route drawn as a `stream` at `medium` density, three of the line axes set on one edge."
   ],
   "icon": {

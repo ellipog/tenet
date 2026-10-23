@@ -384,7 +384,12 @@ class HudOverlayTest {
     @Test
     @DisplayName("chapters share one right edge, whatever their titles' lengths")
     void chaptersAreRightAligned() {
-        accept(A, B);
+        // Two chapters, because one chapter's pins carry no chapter at all -- see the test below.
+        String file = """
+                {"version": 1, "chapterGroups": [{"id": "group", "title": "Group", "chapters": [ %s, %s ]}]}
+                """.formatted(Fixtures.chapter("north", A), Fixtures.chapter("southwest", B));
+        QuestIndex index = Fixtures.indexOf(file);
+        ClientQuestCache.acceptTree(index.questCount(), index.chapterCount(), QuestSync.treeAsJson(index));
         PinnedQuests.pin("a");
         PinnedQuests.pin("b");
 
@@ -394,17 +399,28 @@ class HudOverlayTest {
         RecordingRenderer r = RecordingRenderer.create();
         HudOverlay.render(r, 640, 480, NOW);
 
-        // The fixture chapter is "Chapter" for both pins: two chapter labels, one x.
-        List<RecordingRenderer.Call> notes = r.shadowedTexts().stream()
-                .filter(call -> call.text().equals("Chapter")).toList();
-        assertEquals(2, notes.size(), "one chapter per box: " + drawn(r));
-        assertEquals(notes.get(0).x(), notes.get(1).x(),
-                "different-length titles still line their chapters up: " + drawn(r));
         int right = stack.x() + size.width() - PinnedPanelLayout.PAD;
-        for (RecordingRenderer.Call note : notes) {
-            assertEquals(right - FONT.width("Chapter"), note.x(),
+        for (String chapter : List.of("north", "southwest")) {
+            List<RecordingRenderer.Call> notes = r.shadowedTexts().stream()
+                    .filter(call -> call.text().equals(chapter)).toList();
+            assertEquals(1, notes.size(), "one chapter per box: " + drawn(r));
+            assertEquals(right - FONT.width(chapter), notes.get(0).x(),
                     "the chapter ends on the content's right edge: " + drawn(r));
         }
+    }
+
+    @Test
+    @DisplayName("pins from one chapter do not repeat its name on every box")
+    void oneChapterIsNotRepeated() {
+        accept(A, B);
+        PinnedQuests.pin("a");
+        PinnedQuests.pin("b");
+
+        RecordingRenderer r = RecordingRenderer.create();
+        HudOverlay.render(r, 640, 480, NOW);
+
+        assertTrue(r.shadowedTexts().stream().noneMatch(call -> call.text().equals("Chapter")),
+                "a column of the same word tells no pin apart: " + drawn(r));
     }
 
     @Test

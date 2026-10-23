@@ -614,6 +614,11 @@ final class BookQuestRows {
         if (picture.isEmpty()) {
             return List.of();
         }
+        // A party of one: the reader's own face beside their own count says nothing the count does not.
+        var self = net.minecraft.client.Minecraft.getInstance().player;
+        if (picture.size() == 1 && self != null && picture.containsKey(self.getUUID())) {
+            return List.of();
+        }
 
         List<Contributor> placed = new ArrayList<>();
         int x = right;

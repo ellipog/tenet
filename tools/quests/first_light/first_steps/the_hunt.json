@@ -5,7 +5,6 @@
   "subtitle": "A kill by entity id",
   "description": [
     "The plainest kill task: an entity id and a number. Eight cows, counted by the game's own death event, completing the moment the eighth falls.",
-    "",
     "The three quests beside and below this one are the same field filtered three different ways — by custom name, by an SNBT filter, and by an entity tag — so the family reads as one mechanism with three lenses."
   ],
   "icon": {

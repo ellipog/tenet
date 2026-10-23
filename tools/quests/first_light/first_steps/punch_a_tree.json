@@ -5,9 +5,7 @@
   "subtitle": "Eight logs, and it counts them itself",
   "description": [
     "Everything worth having starts with a tree, and everything worth having ends with you hitting it.",
-    "",
     "An item task that does not consume has no Submit button: the moment eight oak logs are in your inventory the quest completes and the logs stay where they are. The chapter around this one sets `defaultConsumeItems: true`, so the `consumeItems: false` written here is the exception — a default is only a default if something declines it, and this is the task that does.",
-    "",
     "The chapter also turns auto-claim on, and this quest opts back out with `autoClaim: disabled`: its wooden axe waits for the claim button, which is the middle rung of the ladder and the behaviour the engine's playthrough test asserts."
   ],
   "icon": {

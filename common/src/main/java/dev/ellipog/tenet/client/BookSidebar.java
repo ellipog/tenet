@@ -184,6 +184,13 @@ final class BookSidebar {
         // deleted group's key does not accumulate for the life of the session.
         layout.applyExpansion(BookScreenState.sidebarExpansion);
         BookScreenState.sidebarExpansion.keySet().retainAll(layout.groupKeys());
+        // The group holding the open chapter starts open, whatever the author's default: a list whose
+        // current row is folded away does not say where the reader is. A group the player closed
+        // themselves stays closed.
+        String openGroup = SidebarLayout.groupKey(groupOfChapter(QuestBookScreen.effectiveChapter()));
+        if (!BookScreenState.sidebarExpansion.containsKey(openGroup) && layout.groupKeys().contains(openGroup)) {
+            layout.applyExpansion(Map.of(openGroup, true));
+        }
         return layout;
     }
 

@@ -45,6 +45,29 @@ import java.util.UUID;
  */
 final class BookFrame {
 
+    /**
+     * Every card's chrome: the panel, the raised header band, the rule under it, and -- for a card with
+     * a footer -- the rule over that.
+     *
+     * <p>One method because there were seven copies of the first three lines and only some drew the
+     * fourth: the quest card, Pinned and Assets ruled off their footer while Settings, Party and Rewards
+     * set the same Done on bare panel, so two cards with one footer read as two kinds of card. The rules
+     * are square on purpose: a radius on a one-pixel rule would vanish or dot.
+     *
+     * @param header where the band's rule sits, measured from the card's top: 46 for the book's cards
+     * @param footer whether the card has a footer row, which is what the lower rule sits over
+     */
+    static void drawCard(GuiRenderer r, int left, int top, int w, int h, int header, boolean footer) {
+        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
+        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, header - 1, ArmatureTheme.raised(),
+                Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
+        r.fill(left + 1, top + header, left + w - 1, top + header + 1, ArmatureTheme.panelEdge());
+        if (footer) {
+            r.fill(left + 1, top + h - BookGeometry.MODAL_FOOTER_HEIGHT, left + w - 1,
+                    top + h - BookGeometry.MODAL_FOOTER_HEIGHT + 1, ArmatureTheme.panelEdge());
+        }
+    }
+
     private final QuestBookScreen book;
 
     BookFrame(QuestBookScreen book) {
@@ -325,6 +348,12 @@ final class BookFrame {
     private List<Component> partyTooltip() {
         PartyRoster roster = book.partyRoster();
 
+        // Where there can be no party, the tab says so rather than inviting a press that leads to "not
+        // available": the hint to start one was a promise the card then took back.
+        if (!book.partiesAvailable()) {
+            return List.of(Component.translatable("tenet.screen.party.unavailable"),
+                    Component.translatable("tenet.screen.party.unavailable.how"));
+        }
         if (!roster.isReal()) {
             return List.of(Component.translatable("tenet.screen.party.none"),
                     Component.translatable("tenet.screen.party.hint"));

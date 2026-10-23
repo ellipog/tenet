@@ -194,6 +194,14 @@ final class BookRewards {
     private final Set<String> expandedChapters = new HashSet<>();
 
     /**
+     * Whether the player has folded or unfolded a chapter here yet.
+     *
+     * <p>Until they have, a lone chapter opens: "collapsed by default" is for a pack of twenty, and one
+     * folded banner over an empty card read as a panel with nothing in it.
+     */
+    private boolean chapterFoldTouched;
+
+    /**
      * The quests whose reward rows the menu is showing open.
      *
      * <p>The same fold one level down, and a separate set because the two are independent: opening a
@@ -1657,30 +1665,35 @@ final class BookRewards {
      */
     void drawModalCardChrome(GuiRenderer r, String title, int mouseX, int mouseY,
                                      QuestBookScreen.EditAction closeAction, List<QuestBookScreen.EditTarget> into) {
+        drawModalCardChrome(r, title, "", mouseX, mouseY, closeAction, into);
+    }
+
+    /**
+     * The same, with a faint second line under the title: the shape the settings, the rewards and the
+     * quest card's own headers have, so every card in the book opens with the same band.
+     */
+    void drawModalCardChrome(GuiRenderer r, String title, String subtitle, int mouseX, int mouseY,
+                                     QuestBookScreen.EditAction closeAction, List<QuestBookScreen.EditTarget> into) {
         int left = book.overlayLeft();
         int top = book.overlayTop();
         int w = book.overlayWidth();
         int h = book.overlayHeight();
-        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, TABLE_HEADER, ArmatureTheme.raised(),
-                Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
-        r.fill(left + 1, top + TABLE_HEADER, left + w - 1, top + TABLE_HEADER + 2,
-                ArmatureTheme.panelEdge());
-        r.fill(left + 1, top + h - BookGeometry.MODAL_FOOTER_HEIGHT, left + w - 1,
-                top + h - BookGeometry.MODAL_FOOTER_HEIGHT + 1, ArmatureTheme.panelEdge());
+        BookFrame.drawCard(r, left, top, w, h, TABLE_HEADER, true);
         // Truncated to the room the header has, which is `PanelLayout.headerRight`'s one expression: a
         // table's name is a pack's string and the fold control sits at the header's right end, so a title
         // that ran on would be drawn through the button that pages the column away.
-        r.text(Measure.truncate(title,
-                        Math.max(0, book.headerTextRoom(book.surfaceCard(book.bookState.surfaceKind)) - (left + 14)),
-                        Measure.of(r::textWidth, r.lineHeight())),
-                left + 14, top + (TABLE_HEADER - 8) / 2, ArmatureTheme.title());
-        String cross = "×";
-        BookGeometry.Rect close = BookGeometry.Rect.at(left + w - 20, top + 8, 12, 12);
-        boolean hot = close.contains(mouseX, mouseY);
-        r.text(cross, close.x() + (close.width() - r.textWidth(cross)) / 2, close.y() + 2,
-                hot ? ArmatureTheme.title() : ArmatureTheme.body());
-        book.questEditor.registerInto(into, closeAction, "", close, close.x(), close.y(), "", null, -1);
+        //
+        // No close chip in the band. It was here and nowhere else: the settings, the rewards, the party
+        // and the quest card all leave by their footer button, Escape and their tab, and a card that also
+        // wore a cross read as a different kind of thing. The footer carries the same action.
+        Measure measure = Measure.of(r::textWidth, r.lineHeight());
+        int room = Math.max(0, book.headerTextRoom(book.surfaceCard(book.bookState.surfaceKind)) - (left + 14));
+        boolean twoLines = subtitle != null && !subtitle.isEmpty();
+        r.text(Measure.truncate(title, room, measure), left + 14,
+                twoLines ? top + 12 : top + (TABLE_HEADER - 8) / 2, ArmatureTheme.title());
+        if (twoLines) {
+            r.text(Measure.truncate(subtitle, room, measure), left + 14, top + 26, ArmatureTheme.faint());
+        }
     }
 
     /**
@@ -3990,6 +4003,7 @@ final class BookRewards {
         UUID self = selfId();
 
         List<RewardInboxLayout.Row> rows = new ArrayList<>();
+        List<Map.Entry<RewardInboxLayout.Row, List<RewardInboxLayout.Row>>> chapters = new ArrayList<>();
         int ordinal = 0;
         for (Map.Entry<String, String> chapter : BookContent.chapters().entrySet()) {
             ordinal++;
@@ -4031,11 +4045,17 @@ final class BookRewards {
             // with the list under it, and the first version of this did -- it counted every reward the
             // chapter defined, including quests this player cannot reach, beside a completion figure
             // counted over visible quests only.
-            rows.add(RewardInboxLayout.Row.chapter(chapterId,
+            chapters.add(Map.entry(RewardInboxLayout.Row.chapter(chapterId,
                     chapterLabel(ordinal, chapterId, chapter.getValue()), ready,
-                    containerStatus(RewardInboxLayout.chapterKey(chapterId), inside)));
-            if (expandedChapters.contains(chapterId)) {
-                rows.addAll(inside);
+                    containerStatus(RewardInboxLayout.chapterKey(chapterId), inside)), inside));
+        }
+        if (!chapterFoldTouched && chapters.size() == 1) {
+            expandedChapters.add(chapters.get(0).getKey().chapterId());
+        }
+        for (Map.Entry<RewardInboxLayout.Row, List<RewardInboxLayout.Row>> chapter : chapters) {
+            rows.add(chapter.getKey());
+            if (expandedChapters.contains(chapter.getKey().chapterId())) {
+                rows.addAll(chapter.getValue());
             }
         }
         rewardRows = List.copyOf(rows);
@@ -4091,7 +4111,7 @@ final class BookRewards {
             built.add(all);
         }
         ArmatureButton back = book.control(controls.get("back"),
-                Component.translatable("tenet.screen.rewards.back"), book::closeOverlay);
+                Component.translatable("tenet.screen.done"), book::closeOverlay);
         if (back != null) {
             back.ink(ArmatureButton.Ink.BODY);
             built.add(back);
@@ -4432,6 +4452,11 @@ final class BookRewards {
                 ? "tenet.screen.rewards.choose_all" : "tenet.screen.rewards.claim_all");
     }
 
+    /** Whether the inbox is on its Choices tab, where every bulk press is a pick rather than a claim. */
+    private boolean choosing() {
+        return rewardState == RewardInboxLayout.State.CHOICES;
+    }
+
     /** The one type that asks a question instead of handing something over. */
     private static boolean isChoiceType(String type) {
         return "tenet:choice".equals(type);
@@ -4608,8 +4633,12 @@ final class BookRewards {
                     ? "tenet.viewer.locked" : "tenet.viewer.claimed");
         }
         return switch (row.kind()) {
-            case CHAPTER -> Component.translatable("tenet.screen.rewards.claim_chapter", row.count());
-            case QUEST -> Component.translatable("tenet.screen.rewards.claim_quest", row.count());
+            // On the Choices tab a bulk press opens pickers rather than handing anything over, and the
+            // footer already says "Choose all": the banner's button says the same verb.
+            case CHAPTER -> Component.translatable(choosing()
+                    ? "tenet.screen.rewards.choose_chapter" : "tenet.screen.rewards.claim_chapter", row.count());
+            case QUEST -> Component.translatable(choosing()
+                    ? "tenet.screen.rewards.choose_quest" : "tenet.screen.rewards.claim_quest", row.count());
             case SINGLE, REWARD -> Component.translatable(
                     isChoiceReward(row.questId(), row.rewardIndex())
                             ? "tenet.screen.rewards.choose" : "tenet.screen.rewards.claim_row");
@@ -4814,6 +4843,7 @@ final class BookRewards {
                 continue;
             }
             Set<String> open = row.isChapter() ? expandedChapters : expandedQuests;
+            chapterFoldTouched |= row.isChapter();
             String id = row.isChapter() ? row.chapterId() : row.questId();
             if (!open.remove(id)) {
                 open.add(id);
@@ -4888,15 +4918,10 @@ final class BookRewards {
         int w = rewardCard.width();
         int h = rewardCard.height();
 
-        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
         // The band and its rule come off the body's own top edge rather than from numbers written here.
         // They were 45 and 46 while the body began at REWARDS_BODY_TOP, which is three answers to one
         // question -- and the wrong three: the state toggles were drawn straddling the rule.
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, REWARDS_BODY_TOP - 1,
-                ArmatureTheme.raised(), Math.max(0, ArmatureTheme.current().cornerRadius() - 1),
-                ArmatureTheme.CORNERS_TOP);
-        r.fill(left + 1, top + REWARDS_BODY_TOP, left + w - 1, top + REWARDS_BODY_TOP + 1,
-                ArmatureTheme.panelEdge());
+        BookFrame.drawCard(r, left, top, w, h, REWARDS_BODY_TOP, true);
 
         int listed = rewardListed;
         int textX = left + 14;
@@ -4922,7 +4947,9 @@ final class BookRewards {
             // looked deliberate at one line and would have collided with the buttons at two.
             try (GuiRenderer.Scoped clip = r.clip(body.originX(), body.originY(),
                     body.originX() + body.viewWidth(), body.originY() + body.viewHeight())) {
-                r.text(emptyHint().getString(), body.originX() + 4, body.originY() + 1,
+                // Ten pixels of air under the rule, the gap every card's body opens with: at one pixel
+                // the sentence sat on the line like a caption that had slipped.
+                r.text(emptyHint().getString(), body.originX() + 4, body.originY() + 10,
                         ArmatureTheme.faint());
             }
         }
@@ -5021,7 +5048,8 @@ final class BookRewards {
 
         Slot context = RewardInboxLayout.column(slot, RewardInboxLayout.Column.CONTEXT);
 
-        String fullBadge = Component.translatable("tenet.screen.rewards.chapter_ready", row.count())
+        String fullBadge = Component.translatable(choosing()
+                        ? "tenet.screen.rewards.chapter_choices" : "tenet.screen.rewards.chapter_ready", row.count())
                 .getString();
         String compactBadge = String.valueOf(row.count());
 

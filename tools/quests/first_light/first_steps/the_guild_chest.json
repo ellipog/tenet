@@ -5,7 +5,6 @@
   "subtitle": "A team reward",
   "description": [
     "`team: true` makes this a one-claim-for-the-team reward: the first member to claim it claims it for everybody, and nobody else is offered it. Absent, the field falls back to the tree's `defaultTeamReward`.",
-    "",
     "The guild chest is drawn as a heart because it is the arm's one reward that is about the party rather than the player."
   ],
   "icon": {

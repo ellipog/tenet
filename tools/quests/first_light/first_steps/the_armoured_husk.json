@@ -5,7 +5,6 @@
   "subtitle": "A kill by nbtFilter",
   "description": [
     "`nbtFilter` is an SNBT subset match against the mob's saved data — the field for the mobs an id cannot pick out. `{IsBaby:1b}` counts only the small ones, which is a hunt with a different shape from the species.",
-    "",
     "The line into it is `dash: hazard` at `weight: thick`: the hatch-marked run the road signs use, two pixels wide instead of one."
   ],
   "icon": {

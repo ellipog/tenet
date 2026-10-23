@@ -1004,10 +1004,6 @@ public final class BookGeometry {
         // second drag.
         this.sidebarWidth = drawnSidebarWidth(panelWidth, this.sidebarState.width());
 
-        // Docked is today's rectangle at the drawn width; floating is the same rectangle over the
-        // canvas rather than beside it, so sliding between them is one wipe rather than two
-        // surfaces. Collapsed is the sticking-out strip at the panel's left edge, where the tab
-        // the pointer hovers is.
         // Docked is today's rectangle at the drawn width and cannot collapse — the old mode is
         // the old column, whatever the file's other answers say. Floating is a box on the canvas;
         // collapsed is that same box slid left until only its peek sticks out.

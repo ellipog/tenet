@@ -5,7 +5,6 @@
   "subtitle": "An alias, so a rename does not orphan progress",
   "description": [
     "`aliases` lists a quest's former ids. An id appears in player progress files, so a rename without an alias orphans the completions stored under the old one — the player keeps the memory and the quest does not. The alias is the fix, and it resolves everywhere the id does.",
-    "",
     "The glazier beside this quest is the proof: its `dependsOn` names `the_nameless_stall`, the alias, and the dependency resolves."
   ],
   "icon": {

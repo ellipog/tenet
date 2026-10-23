@@ -439,10 +439,16 @@ final class BookAssets {
         // rows and hit tests are derived from this one rectangle.
         BookGeometry.Rect card = book.surfaceCard(PanelKind.ASSETS);
         assetsFrame = dev.ellipog.tenet.client.dev.AssetsLayout.Frame.of(card);
-        book.bookRewards.drawModalCardChrome(r, "Assets", mouseX, mouseY,
+        List<AssetLine> lines = assetsLines();
+        // The subtitle counts what the open tab lists, the way every other panel's header says what it
+        // holds -- a title alone left the band half empty.
+        long rows = lines.stream()
+                .filter(line -> line.kind() == dev.ellipog.tenet.client.dev.AssetsLayout.Kind.ROW).count();
+        String noun = sectionName(assetsSection).toLowerCase(java.util.Locale.ROOT);
+        book.bookRewards.drawModalCardChrome(r, "Assets",
+                rows + " " + (rows == 1 ? noun.substring(0, noun.length() - 1) : noun), mouseX, mouseY,
                 QuestBookScreen.EditAction.ASSETS_CLOSE, assetsTargets);
 
-        List<AssetLine> lines = assetsLines();
         // The layout measures lines; a page carries them. One list seen two ways, so what is measured and
         // what is drawn cannot disagree about how tall the page is.
         var kinds = lines.stream().map(AssetLine::kind).toList();

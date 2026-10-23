@@ -5,9 +5,7 @@
   "subtitle": "Observation: a block, and a block tag",
   "description": [
     "An observation task completes when the player looks at the named thing for `timer` ticks. The first task names one block, `minecraft:lantern`, and looks at it for forty ticks — two seconds, where the default is one.",
-    "",
     "The second names a block *tag*, and a tag here is the tag's own id with no `#`: `minecraft:logs`. Any log answers it.",
-    "",
     "Its line ends in a `dot`, one of the five arrowhead glyphs."
   ],
   "icon": {

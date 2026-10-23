@@ -51,11 +51,15 @@ public final class TableEditorLayout {
      */
     public static final int FOOTER_RESERVE = dev.ellipog.tenet.client.BookGeometry.MODAL_FOOTER_HEIGHT;
 
-    /** The card's own title strip, above the rule that closes it. */
-    public static final int CARD_HEADER = 28;
+    /**
+     * The card's own title strip, above the rule that closes it: the same 46 every other card in the book
+     * uses for its title and subtitle, so a table, the pins and the assets do not wear a shorter header
+     * than the settings and the quest beside them.
+     */
+    public static final int CARD_HEADER = 46;
 
-    /** The rule under the title strip. */
-    public static final int CARD_RULE = 2;
+    /** The rule under the title strip: one pixel, like every other card's. */
+    public static final int CARD_RULE = 1;
 
     /** The air between that rule and the body, so the first line is not touching the strip. */
     public static final int CARD_GAP = 10;

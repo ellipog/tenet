@@ -5,7 +5,6 @@
   "subtitle": "A kill by entity tag",
   "description": [
     "`entityTypeTag` counts any mob in a tag, so twelve of the undead is twelve of whatever the tag holds — zombie, skeleton, drowned, phantom. It is its own field rather than a `#` in `entity`, so a tag where an id is expected is an error here as it is everywhere else.",
-    "",
     "Its line is `form: curved` with a half-strength bend: a broad bow, the route the orrery's outer arms are drawn with."
   ],
   "icon": {

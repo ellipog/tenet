@@ -32,23 +32,37 @@ public final class HudLayout {
     /** The margin between the chrome and the window's edges. */
     public static final int INSET = 4;
 
-    /** The rows panel: wide enough for a label line and, under it, a switch with two buttons. */
+    /** The rows panel: wide enough for a name, its switch and Reset on one line. */
     public static final int CHROME_WIDTH = 190;
 
-    /** One row is a label line and a control line. */
+    /** A name's text line, centred on the control line it shares. */
     public static final int LABEL_LINE = 10;
 
-    /** The same, for the line holding the switch and the two buttons. */
+    /** The line holding a row's name, its switch and its Reset. */
     public static final int CONTROL_LINE = 18;
 
     /** The gap between one element's row and the next. */
     public static final int ROW_GAP = 4;
 
-    /** One element's whole row. */
-    public static final int ROW_HEIGHT = LABEL_LINE + CONTROL_LINE + ROW_GAP;
+    /**
+     * One element's whole row: its name, switch and Reset on one line.
+     *
+     * <p>The name used to have a line of its own above the controls, which read as a word and, under it,
+     * a switch belonging to nobody. Side by side, the switch is plainly that row's.
+     */
+    public static final int ROW_HEIGHT = CONTROL_LINE + ROW_GAP;
+
+    /** The title band at the top of the chrome: the panel says what it is before its rows do. */
+    public static final int HEADER_HEIGHT = 16;
+
+    /**
+     * The caption column of a row's second line -- "Background" beside the slider, "Anchor" beside the
+     * anchor buttons -- so neither control is an unlabelled thing under a row.
+     */
+    public static final int CAPTION_WIDTH = 62;
 
     /** The strip at the foot of the chrome, holding Done. */
-    public static final int FOOT_HEIGHT = 26;
+    public static final int FOOT_HEIGHT = 24;
 
     /** The switch's own size, from {@code ArmatureSwitch}: a compile-time constant, so this stays game-free. */
     public static final int SWITCH_WIDTH = 22;
@@ -83,13 +97,13 @@ public final class HudLayout {
     /**
      * The narrowest the rows can be and still hold their controls.
      *
-     * <p>A switch, one button, the gaps between them and the panel's own margins. Below this the editor
+     * <p>The anchor switch, Under, the gap between them and the panel's own margins: the widest line. Below this the editor
      * cannot be drawn honestly -- a control the player cannot reach is worse than a panel that overlaps
      * something -- so the panel stops shrinking here and overflows instead, which is what a window this small
      * gets. Declared after the parts it is made of, because a constant cannot refer forward.
      */
     public static final int MIN_CHROME_WIDTH =
-            INSET + SWITCH_WIDTH + BUTTON_GAP + BUTTON_WIDTH + BUTTON_GAP + INSET;
+            INSET + ANCHOR_WIDTH + BUTTON_GAP + BUTTON_WIDTH + INSET;
 
     private HudLayout() {
     }
@@ -115,7 +129,7 @@ public final class HudLayout {
         // player said otherwise, and the switch for that lives here rather than in the book because this
         // is the screen that shows what hiding does. Fixed furniture like the foot, so every chrome has
         // room for it the way every chrome has room for Done.
-        int height = INSET * 2 + FOOT_HEIGHT + ROW_HEIGHT;
+        int height = INSET * 2 + HEADER_HEIGHT + FOOT_HEIGHT + ROW_HEIGHT;
         for (HudElement element : elements) {
             height += rowHeight(element);
         }
@@ -136,10 +150,10 @@ public final class HudLayout {
      */
     public static int rowHeight(HudElement element) {
         if (element.kind() == HudElement.Kind.HUD) {
-            return LABEL_LINE + CONTROL_LINE + ROW_GAP + SLIDER_LINE + ROW_GAP;
+            return ROW_HEIGHT + SLIDER_LINE + ROW_GAP;
         }
         if (element == HudElement.INVENTORY_BUTTON) {
-            return LABEL_LINE + CONTROL_LINE + ROW_GAP + CONTROL_LINE + ROW_GAP;
+            return ROW_HEIGHT + CONTROL_LINE + ROW_GAP;
         }
         return ROW_HEIGHT;
     }
@@ -302,11 +316,34 @@ public final class HudLayout {
         return top;
     }
 
-    /** One row's label line. */
+    /** The panel's title, in the band at its top. */
+    public static BookGeometry.Rect title(BookGeometry.Rect chrome) {
+        return BookGeometry.Rect.at(chrome.x() + INSET, chrome.y() + INSET,
+                Math.max(0, chrome.width() - INSET * 2), LABEL_LINE);
+    }
+
+    /** One row's name: left of its switch, centred on the control line they share. */
     public static BookGeometry.Rect label(int index, BookGeometry.Rect chrome,
                                           List<HudElement> elements) {
-        return BookGeometry.Rect.at(chrome.x() + INSET, rowTop(index, chrome, elements),
-                Math.max(0, chrome.width() - INSET * 2), LABEL_LINE);
+        int left = chrome.x() + INSET;
+        int right = toggle(index, chrome, elements).x() - BUTTON_GAP;
+        return BookGeometry.Rect.at(left, controlTop(index, chrome, elements) + (CONTROL_LINE - LABEL_LINE) / 2,
+                Math.max(0, right - left), LABEL_LINE);
+    }
+
+    /**
+     * The caption of a row's second line: "Background" beside the slider, "Anchor" beside the anchor
+     * buttons. Never wider than the room left of the control it names.
+     */
+    public static BookGeometry.Rect caption(int index, BookGeometry.Rect chrome,
+                                            List<HudElement> elements) {
+        boolean drawn = elements.get(index).kind() == HudElement.Kind.HUD;
+        int left = chrome.x() + INSET;
+        int control = drawn ? sliderTrackLeft(slider(index, chrome, elements))
+                : anchorToggle(index, chrome, elements).x();
+        int line = drawn ? SLIDER_LINE : CONTROL_LINE;
+        return BookGeometry.Rect.at(left, anchorTop(index, chrome, elements) + (line - LABEL_LINE) / 2,
+                Math.max(0, Math.min(CAPTION_WIDTH, control - BUTTON_GAP - left)), LABEL_LINE);
     }
 
     /**
@@ -335,28 +372,33 @@ public final class HudLayout {
     /**
      * A drawn element's background-strength slider, on its own line under its controls.
      *
-     * <p>Full inset width, like the label: a slider is aimed along its whole length, and the control line
-     * above is already spoken for. Only meaningful for {@code Kind.HUD} rows -- the screen builds no slider
-     * for a control, so asking this for one is a caller error the same way drawing one would be.
+     * <p>Full inset width: the slider keeps its track on the right half of itself and leaves the left
+     * half for a label, which is where the "Background" caption goes -- so the track ends where Reset
+     * above it does. Only meaningful for {@code Kind.HUD} rows -- the screen builds no slider for a
+     * control, so asking this for one is a caller error the same way drawing one would be.
      */
     public static BookGeometry.Rect slider(int index, BookGeometry.Rect chrome,
                                            List<HudElement> elements) {
-        return BookGeometry.Rect.at(chrome.x() + INSET,
-                controlTop(index, chrome, elements) + CONTROL_LINE + ROW_GAP,
+        return BookGeometry.Rect.at(chrome.x() + INSET, anchorTop(index, chrome, elements),
                 Math.max(0, chrome.width() - INSET * 2), SLIDER_LINE);
+    }
+
+    /** Where a slider of this box starts its track: {@code ArmatureSlider}'s own half-and-minimum rule. */
+    public static int sliderTrackLeft(BookGeometry.Rect slider) {
+        return slider.right() - Math.max(ArmatureSlider.MIN_TRACK, slider.width() / 2);
     }
 
     /**
      * The book's button row's anchor switch, on its own line under its controls.
      *
-     * <p>Left, like the auto-hide switch: it names what the row is measured from rather than acting on
-     * the row, so it sits under the label's start rather than with the actions on the right. Only
-     * meaningful for the button's row.
+     * <p>Right-aligned with the row's actions, behind an "Anchor" caption: alone at the left edge of an
+     * unlabelled line, "Window" read as a button that opened something. Only meaningful for the button's
+     * row.
      */
     public static BookGeometry.Rect anchorToggle(int index, BookGeometry.Rect chrome,
                                                  List<HudElement> elements) {
-        return BookGeometry.Rect.at(chrome.x() + INSET, anchorTop(index, chrome, elements),
-                ANCHOR_WIDTH, CONTROL_LINE);
+        return BookGeometry.Rect.at(anchorUnder(index, chrome, elements).x() - BUTTON_GAP - ANCHOR_WIDTH,
+                anchorTop(index, chrome, elements), ANCHOR_WIDTH, CONTROL_LINE);
     }
 
     /**
@@ -367,7 +409,7 @@ public final class HudLayout {
      */
     public static BookGeometry.Rect anchorUnder(int index, BookGeometry.Rect chrome,
                                                 List<HudElement> elements) {
-        return BookGeometry.Rect.at(chrome.x() + INSET + ANCHOR_WIDTH + BUTTON_GAP,
+        return BookGeometry.Rect.at(chrome.right() - INSET - BUTTON_WIDTH,
                 anchorTop(index, chrome, elements), BUTTON_WIDTH, CONTROL_LINE);
     }
 
@@ -387,13 +429,13 @@ public final class HudLayout {
         return label(elements.size(), chrome, elements);
     }
 
-    /** The auto-hide row's switch, at the left of its control line. */
+    /** The auto-hide row's switch, on the same vertical as every element's. */
     public static BookGeometry.Rect hideToggle(BookGeometry.Rect chrome, List<HudElement> elements) {
         return toggle(elements.size(), chrome, elements);
     }
 
     private static int rowTop(int index, BookGeometry.Rect chrome, List<HudElement> elements) {
-        int top = chrome.y() + INSET;
+        int top = chrome.y() + INSET + HEADER_HEIGHT;
         for (int i = 0; i < index && i < elements.size(); i++) {
             top += rowHeight(elements.get(i));
         }
@@ -402,7 +444,7 @@ public final class HudLayout {
 
     private static int controlTop(int index, BookGeometry.Rect chrome,
                                   List<HudElement> elements) {
-        return rowTop(index, chrome, elements) + LABEL_LINE;
+        return rowTop(index, chrome, elements);
     }
 
     private static int anchorTop(int index, BookGeometry.Rect chrome,

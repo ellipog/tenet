@@ -5,9 +5,7 @@
   "subtitle": "A named table, an inline table, and a nested roll",
   "description": [
     "Two `tenet:random` rewards, the two ways a table can arrive. The first names `dice`, a file under `reward_tables/`; the second carries its table `inline`, for a reward that is its own roll.",
-    "",
     "The inline table's one entry rolls another named table, `dregs` — tables nest, and the manual cuts nesting off at eight levels so a table that accidentally includes itself cannot hang the server. A weight of zero in a table means always granted, which is how `dice` pays its experience even when the fashionable entry misses.",
-    "",
     "Its line ends in a `diamond` arrowhead, the fourth of the five glyphs."
   ],
   "icon": {

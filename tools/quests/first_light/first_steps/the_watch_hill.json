@@ -5,7 +5,6 @@
   "subtitle": "Two location boxes, one that ignores its dimension",
   "description": [
     "A location task is a box: `position` is one corner, `size` how far it reaches, and the task completes while the player is inside. The first box is thirty-two blocks of overworld hillside and says so with `dimension: minecraft:overworld`.",
-    "",
     "The second box is the one worth reading: `ignoreDimension: true` counts it in any dimension, which is the field's honest use — a waystation you can reach from wherever you fell."
   ],
   "icon": {

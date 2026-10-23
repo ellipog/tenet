@@ -159,11 +159,13 @@ public final class HudEditScreen extends ArmatureScreen {
             if (element == HudElement.INVENTORY_BUTTON) {
                 ArmatureButton anchor = new ArmatureButton(0, 0, HudLayout.ANCHOR_WIDTH,
                         HudLayout.CONTROL_LINE, anchorLabel(element), () -> toggleAnchor(element));
+                anchor.tooltip(Component.translatable("tenet.hud.anchor_hint"));
                 addRenderableWidget(anchor);
                 anchors.put(element, anchor);
                 ArmatureButton under = new ArmatureButton(0, 0, HudLayout.BUTTON_WIDTH,
                         HudLayout.CONTROL_LINE, Component.translatable("tenet.hud.anchor_under"),
                         () -> placeUnder(element));
+                under.tooltip(Component.translatable("tenet.hud.anchor_under_hint"));
                 addRenderableWidget(under);
                 unders.put(element, under);
             }
@@ -306,6 +308,14 @@ public final class HudEditScreen extends ArmatureScreen {
         ArmatureTheme.panel(renderer, chrome.x(), chrome.y(), chrome.width(), chrome.height(),
                 ArmatureTheme.raised(), ArmatureTheme.panelEdge());
 
+        // The title heads the panel, over a rule, the way every book panel's does: it used to sit in the
+        // foot beside Done, where the panel only said what it was after its rows had.
+        BookGeometry.Rect title = HudLayout.title(chrome);
+        renderer.text(Measure.truncate(getTitle().getString(), title.width(), measure),
+                title.x(), title.y() + 1, ArmatureTheme.title());
+        int rule = chrome.y() + HudLayout.INSET + HudLayout.HEADER_HEIGHT - 4;
+        renderer.fill(chrome.x() + 1, rule, chrome.right() - 1, rule + 1, ArmatureTheme.panelEdge());
+
         int index = 0;
         List<HudElement> order = List.of(HudElement.values());
         for (HudElement element : order) {
@@ -315,13 +325,17 @@ public final class HudEditScreen extends ArmatureScreen {
             int ink = element == selected ? ArmatureTheme.title() : ArmatureTheme.body();
             renderer.text(Measure.truncate(Component.translatable(element.labelKey()).getString(),
                             label.width(), measure),
-                    label.x(), label.y() + 2, ink);
+                    label.x(), label.y() + 1, ink);
 
             place(switches.get(element), HudLayout.toggle(index, chrome, order));
             place(resets.get(element), HudLayout.reset(index, chrome, order));
             ArmatureSlider dim = dims.get(element);
             if (dim != null) {
                 placeSlider(dim, HudLayout.slider(index, chrome, order));
+                drawCaption(renderer, "tenet.hud.background", HudLayout.caption(index, chrome, order), measure);
+            }
+            if (anchors.containsKey(element)) {
+                drawCaption(renderer, "tenet.hud.anchor", HudLayout.caption(index, chrome, order), measure);
             }
             place(anchors.get(element), HudLayout.anchorToggle(index, chrome, order));
             place(unders.get(element), HudLayout.anchorUnder(index, chrome, order));
@@ -333,14 +347,22 @@ public final class HudEditScreen extends ArmatureScreen {
         BookGeometry.Rect hideLabel = HudLayout.hideLabel(chrome, order);
         renderer.text(Measure.truncate(Component.translatable("tenet.screen.pinned.hide_claimed").getString(),
                         hideLabel.width(), measure),
-                hideLabel.x(), hideLabel.y() + 2, ArmatureTheme.body());
+                hideLabel.x(), hideLabel.y() + 1, ArmatureTheme.body());
         place(hideSwitch, HudLayout.hideToggle(chrome, order));
 
+        // The foot says how the rest of the screen works: the elements out on the window are the other
+        // half of this editor, and nothing else on the panel says they can be picked up.
         BookGeometry.Rect foot = HudLayout.done(chrome);
         place(done, foot);
-        renderer.text(Measure.truncate(getTitle().getString(),
+        renderer.text(Measure.truncate(Component.translatable("tenet.screen.hud_edit.hint").getString(),
                         Math.max(0, foot.x() - chrome.x() - HudLayout.INSET * 2), measure),
-                chrome.x() + HudLayout.INSET, foot.y() + 5, ArmatureTheme.body());
+                chrome.x() + HudLayout.INSET, foot.y() + 5, ArmatureTheme.faint());
+    }
+
+    /** A second line's caption, faint: it names the control beside it rather than an element. */
+    private static void drawCaption(GuiRenderer renderer, String key, BookGeometry.Rect caption, Measure measure) {
+        renderer.text(Measure.truncate(Component.translatable(key).getString(), caption.width(), measure),
+                caption.x(), caption.y() + 1, ArmatureTheme.faint());
     }
 
     private static void place(AbstractWidget widget, BookGeometry.Rect box) {

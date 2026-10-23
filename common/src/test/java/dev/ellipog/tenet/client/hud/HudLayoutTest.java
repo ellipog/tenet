@@ -1,5 +1,6 @@
 package dev.ellipog.tenet.client.hud;
 
+import dev.ellipog.armature.client.ArmatureSlider;
 import dev.ellipog.tenet.client.BookGeometry;
 
 import org.junit.jupiter.api.DisplayName;
@@ -150,7 +151,10 @@ class HudLayoutTest {
                     BookGeometry.Rect slider = HudLayout.slider(index, chrome, shown);
                     assertTrue(inside(slider, chrome), "row " + index + "'s slider is outside " + chrome);
                     assertFalse(overlaps(reset, slider), "the slider runs into Reset on row " + index);
-                    assertEquals(label.width(), slider.width(), "the slider spans the row like the label");
+                    assertEquals(reset.right(), slider.right(), "the slider's track ends where Reset does");
+                    BookGeometry.Rect caption = HudLayout.caption(index, chrome, shown);
+                    assertTrue(caption.right() < HudLayout.sliderTrackLeft(slider), "the Background caption runs into the track");
+                    assertTrue(slider.width() >= ArmatureSlider.MIN_TRACK, "the slider keeps room to aim in");
                 }
                 if (previous != null) {
                     assertFalse(overlaps(previous, label), "row " + index + " starts before row " + (index - 1)
@@ -510,6 +514,9 @@ class HudLayoutTest {
         assertFalse(overlaps(toggle, HudLayout.reset(button, chrome, all)),
                 "clear of the row's own Reset");
         assertFalse(overlaps(under, HudLayout.done(chrome)), "and clear of the foot");
+        assertEquals(HudLayout.reset(button, chrome, all).right(), under.right(),
+                "right-aligned with the row's actions");
+        assertFalse(overlaps(HudLayout.caption(button, chrome, all), toggle), "the Anchor caption stays clear");
         for (int index = 0; index < all.size(); index++) {
             if (index == button) {
                 continue;

@@ -5,7 +5,6 @@
   "subtitle": "match: strict, and the whole stack",
   "description": [
     "A stick with a title carved into it, and `match: strict`: the carried stack must be the stack the task names, component for component. This is the default reading of an item task, written out so the difference from fuzzy is visible side by side.",
-    "",
     "The warrant does not consume — the court keeps its paper — so `consumeItems: false` is here too, one more exception for the default to lean against."
   ],
   "icon": {

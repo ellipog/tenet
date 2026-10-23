@@ -466,8 +466,12 @@ public final class PartyPanelLayout {
     public static Face notice(String title, String why, String how, int width, Measure measure) {
         Objects.requireNonNull(measure, "measure");
         List<Line> lines = new ArrayList<>();
-        lines.add(Line.header("party:notice:title", title));
-        lines.add(Line.spacer("party:notice:gap0"));
+        // An empty title draws none: the card's own header band can already say it, and a heading
+        // repeating the line above it was the same sentence twice in two inks.
+        if (!title.isEmpty()) {
+            lines.add(Line.header("party:notice:title", title));
+            lines.add(Line.spacer("party:notice:gap0"));
+        }
         // One row per wrapped line, so a sentence survives a narrow window instead of being cut off.
         // The heights come from the wrap itself: a long "why" takes two rows and the card is built
         // from the rows, which is why the caller wraps at the width the card will actually have.

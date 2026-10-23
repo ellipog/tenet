@@ -5,7 +5,6 @@
   "subtitle": "The second link of a recursive reveal",
   "description": [
     "The far star's dependent, and the second link of the recursive reveal: this node is hidden until the far star is visible, and the far star is hidden until the hub is. One visible end is enough for the whole chain, one link at a time.",
-    "",
     "A single file cannot show that recursion — it takes a chain, which is why there are two stars."
   ],
   "icon": {

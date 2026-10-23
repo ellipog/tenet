@@ -5,7 +5,6 @@
   "subtitle": "Three conditions on one task",
   "description": [
     "A condition is a gate on acquiring progress: this checkmark cannot be pressed by a player who fails any of its three. The list is an AND — every entry must hold — and each entry is a different one of the six condition types.",
-    "",
     "The item condition asks for paper, the item_tag condition for four coals of any kind, and the stage condition for `first_light:sworn`. Nothing is consumed to satisfy a condition, and a task satisfied while its conditions held stays satisfied if they stop holding: complete is complete."
   ],
   "icon": {

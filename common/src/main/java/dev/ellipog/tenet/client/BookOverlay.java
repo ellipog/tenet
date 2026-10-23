@@ -114,8 +114,16 @@ final class BookOverlay {
         // nothing: every kind paints its own surface, and a column's rectangle is only the rectangle. I
         // removed this when docking the party, on the assumption that the frame drew it -- which is how the
         // party column came to have no background at all.
-        ArmatureTheme.panel(r, card.x(), card.y(), card.width(), card.height(),
-                ArmatureTheme.panel(), ArmatureTheme.panelEdge());
+        // The header every card wears: what the panel is, and one line of where the player stands.
+        BookFrame.drawCard(r, card.x(), card.y(), card.width(), card.height(), 46, true);
+        PartyRoster headerRoster = book.partyRoster();
+        String status = !book.partiesAvailable() ? "Not available in this world"
+                : !headerRoster.isReal() ? "You are not in a party"
+                : headerRoster.memberCount() == 1 ? "Just you"
+                : headerRoster.memberCount() + " members";
+        r.text(Component.translatable("tenet.screen.party.title").getString(), card.x() + 14, card.y() + 12,
+                ArmatureTheme.title());
+        r.text(status, card.x() + 14, card.y() + 26, ArmatureTheme.faint());
 
         drawPartyFace(r, book.bookState.partyLeftFace, book.bookState.partyLeftLayout,
                 book.bookState.partyLeftView, book.partyColumn(true),
@@ -809,19 +817,17 @@ final class BookOverlay {
                             surface.x() + BookGeometry.EDGE,
                             surface.y() + (BookGeometry.SIDEBAR_BOX_HEADER - 9) / 2,
                             ArmatureTheme.title());
-                    // The pin beside the title: the circle glyph itself, with no button around
-                    // it — filled while pinned, a ring while not. Drawn chrome rather than a
+                    // The pin beside the title: a drawn pushpin with no button around it, bright
+                    // while pinned and faint while not. A dot said nothing about what it did; a pin
+                    // is the thing that keeps a sheet where it is. Drawn chrome rather than a
                     // widget, the scrollbar's own arrangement — the settings switch is the
                     // focusable, narrated road to the same choice.
                     BookGeometry.Rect pinZone = BookGeometry.sidebarBoxPinFor(surface);
-                    String pinGlyph = DevMode.isSidebarPinned() ? "●" : "○";
-                    int pinWidth = book.textMeasure(r).width(pinGlyph);
-                    r.shadowedText(pinGlyph, pinZone.x() + (pinZone.width() - pinWidth) / 2,
-                            pinZone.y() + (pinZone.height() - 8) / 2,
+                    drawPushpin(r, pinZone.x() + (pinZone.width() - 7) / 2,
+                            pinZone.y() + (pinZone.height() - 9) / 2,
                             DevMode.isSidebarPinned() ? ArmatureTheme.title()
                                     : pinZone.contains(mouseX, mouseY) ? ArmatureTheme.body()
-                                            : ArmatureTheme.faint(),
-                            1F);
+                                            : ArmatureTheme.faint());
                 }
             }
 
@@ -838,6 +844,14 @@ final class BookOverlay {
                 drawSidebarScrollbar(r, mouseX, mouseY);
             }
         }
+    }
+
+    /** A seven-by-nine pushpin: cap, body, plate and needle, in one colour. */
+    static void drawPushpin(GuiRenderer r, int x, int y, int colour) {
+        r.fill(x + 1, y, x + 6, y + 1, colour);
+        r.fill(x + 2, y + 1, x + 5, y + 4, colour);
+        r.fill(x, y + 4, x + 7, y + 5, colour);
+        r.fill(x + 3, y + 5, x + 4, y + 9, colour);
     }
 
     /**
@@ -1142,10 +1156,7 @@ final class BookOverlay {
         int w = book.overlayWidth();
         int h = book.overlayHeight();
 
-        ArmatureTheme.panel(r, left, top, w, h, ArmatureTheme.panel(), ArmatureTheme.panelEdge());
-        ArmatureTheme.fillSurface(r, left + 1, top + 1, w - 2, 45, ArmatureTheme.raised(),
-                Math.max(0, ArmatureTheme.current().cornerRadius() - 1), ArmatureTheme.CORNERS_TOP);
-        r.fill(left + 1, top + 46, left + w - 1, top + 47, ArmatureTheme.panelEdge());
+        BookFrame.drawCard(r, left, top, w, h, 46, false);
 
         ClientChoiceOffers.Offer offer = ClientChoiceOffers.current();
         ClientQuestCache.Entry quest = offer == null ? null : ClientQuestCache.entry(offer.questId());

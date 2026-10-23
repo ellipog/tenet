@@ -380,6 +380,23 @@ public final class EntryFormLayout {
         return out;
     }
 
+    /**
+     * Whether a cell shares its line with another: a switch there draws its label against its own chip.
+     *
+     * <p>Left-aligned in the label column, a flag's word sat a column's width from its chip and a gap's
+     * width from the previous one's, so "Consume [ ] Optional [ ] Quiet task [ ]" read as each chip
+     * belonging to the word after it. Only the drawing changes: the label keeps its column, and so its
+     * press.
+     */
+    public static boolean sharesLine(Cell cell, List<Cell> cells) {
+        for (Cell other : cells) {
+            if (other != cell && other.label().y() == cell.label().y()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The narrowest a control may be drawn: what the fit test above measures a field by. */
     private static int minControl(EditorField field) {
         return switch (field.kind()) {
