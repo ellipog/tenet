@@ -508,8 +508,16 @@ final class BookPins {
         JsonObject tree = CanvasElement.asJson(element);
         String id = tree.has("id") && tree.get("id").isJsonPrimitive()
                 ? tree.get("id").getAsString() : "";
-        return element.type() + " \u2014 "
-                + ChapterPanelLayout.elementName(tree, id);
+        // The canvas menu's nouns ("Add box here"), not the file's: the header read "rect" and "text" in
+        // lower case, the format's spelling, beside a menu that had called the same things a box and text.
+        String kind = switch (element) {
+            case CanvasElement.Image ignored -> "Image";
+            case CanvasElement.Rect ignored -> "Box";
+            case CanvasElement.Text ignored -> "Text";
+            case CanvasElement.Line ignored -> "Line";
+            case CanvasElement.Unknown ignored -> element.type();
+        };
+        return kind + " \u2014 " + ChapterPanelLayout.elementName(tree, id);
     }
 
     /** The help one of the panel's rows offers, or null for a row that says it itself. */
@@ -552,11 +560,11 @@ final class BookPins {
             }
             case CanvasElement.Text text -> {
                 r.fill(x, y, x + box, y + box, ArmatureTheme.recessed());
-                String words = text.text().value();
-                if (!words.isEmpty()) {
-                    r.text(Measure.truncate(words, box - 4, measure), x + 2,
-                            y + (box - r.lineHeight()) / 2, text.color());
-                }
+                // A sample in the text's own ink rather than its words: the words are the header's, and
+                // in a box this small they came out as "T..." -- a clipped word saying nothing.
+                String sample = "Aa";
+                r.text(sample, x + (box - r.textWidth(sample)) / 2, y + (box - r.lineHeight()) / 2,
+                        text.color());
             }
             case CanvasElement.Line line -> {
                 r.fill(x, y, x + box, y + box, ArmatureTheme.recessed());

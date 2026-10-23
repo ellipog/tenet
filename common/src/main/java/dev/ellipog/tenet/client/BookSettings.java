@@ -220,6 +220,7 @@ final class BookSettings {
                 : book.bookState.pickTarget == QuestBookScreen.PickTarget.CHAPTER ? "Choose the chapter's icon"
                 // A quest field's pick sets no title of its own, and fell through to the chapter's
                 // sentence: "Hand in" opened a card about the chapter's icon.
+                : book.pickerTabsVisible() ? "Choose a picture"
                 : fieldPickHeading(book.bookState.pickerSource)
                 : book.bookState.pickTitle;
         int headerRoom = Math.max(0, book.headerTextRoom(book.surfaceCard(book.bookState.surfaceKind)) - textX);
@@ -266,8 +267,10 @@ final class BookSettings {
      * both. The list below insets past it (see the draw dispatch), so no row hides under a tab.
      */
     private void drawPickerTabs(GuiRenderer r, int mouseX, int mouseY) {
-        int left = book.overlayLeft();
-        int width = book.overlayWidth();
+        // The search box's own columns, not the card's: the strip ran edge to edge under an inset box,
+        // so the two controls of one question started at different x.
+        int left = book.overlayBody().originX();
+        int width = book.overlayBody().viewWidth();
         int y = book.overlayBody().originY() + ItemPickerLayout.SEARCH_HEIGHT + 2;
         pickerTabRects.clear();
         QuestBookScreen.PickerKind[] kinds = QuestBookScreen.PickerKind.values();

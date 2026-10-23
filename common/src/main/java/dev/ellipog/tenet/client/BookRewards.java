@@ -3087,15 +3087,18 @@ final class BookRewards {
         // `hide_tooltip` suppresses it). Beside the title box because that is what the first toggle draws, and drawn
         // from the drafted model so a press reads back on the next frame without waiting for the server.
         if (model.isPresent() && tableTitleBox != null) {
+            // A word and a switch each, the quest editor's flags: they were chips reading "Title:off",
+            // which overflowed their 44 pixels and were the only toggles in the editor drawn as words.
             int chipY = header.y() + 1;
-            BookGeometry.Rect titleChip = BookGeometry.Rect.at(tableTitleBox.right() + 4, chipY, 44, 12);
-            BookGeometry.Rect tipChip = BookGeometry.Rect.at(titleChip.right() + 4, chipY, 44, 12);
+            int box = dev.ellipog.tenet.client.dev.EntryFormLayout.BUTTON;
+            BookGeometry.Rect titleChip = BookGeometry.Rect.at(tableTitleBox.right() + 8, chipY,
+                    r.textWidth("Title") + 4 + box, 12);
+            BookGeometry.Rect tipChip = BookGeometry.Rect.at(titleChip.right() + 10, chipY,
+                    r.textWidth("Tooltip") + 4 + box, 12);
             boolean useTitle = model.get().useTitle();
             boolean hideTooltip = model.get().hideTooltip();
-            book.questEditor.drawChip(r, titleChip, "Title" + (useTitle ? ":on" : ":off"),
-                    titleChip.contains(mouseX, mouseY));
-            book.questEditor.drawChip(r, tipChip, "Tip" + (hideTooltip ? ":off" : ":on"),
-                    tipChip.contains(mouseX, mouseY));
+            drawTableFlag(r, titleChip, "Title", useTitle, titleChip.contains(mouseX, mouseY));
+            drawTableFlag(r, tipChip, "Tooltip", !hideTooltip, tipChip.contains(mouseX, mouseY));
             book.questEditor.registerTarget(QuestBookScreen.EditAction.TABLE_USE_TITLE, "", titleChip,
                     titleChip.x(), titleChip.y(),
                     "", null, -1);
@@ -3467,6 +3470,18 @@ final class BookRewards {
      * row's own arithmetic, so a heading is over the column it names and moving a column moves its
      * heading: one derivation, the rule the rest of these panels follow.
      */
+    /** One of the table header's flags: its word, then its switch at the flag's right end. */
+    private void drawTableFlag(GuiRenderer r, BookGeometry.Rect flag, String word, boolean on, boolean hot) {
+        int box = dev.ellipog.tenet.client.dev.EntryFormLayout.BUTTON;
+        r.text(word, flag.x(), flag.y() + (flag.height() - 8) / 2,
+                hot ? ArmatureTheme.title() : ArmatureTheme.body());
+        // `drawSwitch` centres its square on an entry line, which is taller than this flag: the cell is
+        // lifted by the difference so the square and the word share a middle.
+        int lift = (dev.ellipog.tenet.client.dev.EntryFormLayout.LINE_HEIGHT - flag.height()) / 2;
+        book.questEditor.drawSwitch(r, BookGeometry.Rect.at(flag.right() - box, flag.y() - lift, box,
+                flag.height()), on);
+    }
+
     private void drawTableHeadings(GuiRenderer r, BookGeometry.Rect list) {
         if (list.height() < dev.ellipog.tenet.client.dev.TableEditorLayout.HEADING_HEIGHT) {
             return;

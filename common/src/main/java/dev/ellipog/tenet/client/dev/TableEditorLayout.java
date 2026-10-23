@@ -500,12 +500,17 @@ public final class TableEditorLayout {
                 REMOVE_WIDTH, line);
         BookGeometry.Rect fold = BookGeometry.Rect.at(remove.x() - GAP - FOLD_WIDTH, rect.y(),
                 FOLD_WIDTH, line);
-        BookGeometry.Rect plus = BookGeometry.Rect.at(fold.x() - GAP - STEPPER_BUTTON, rect.y(),
-                STEPPER_BUTTON, line);
+        // The two chips are square and sit on the line's middle, like every other stepper's: at the
+        // line's full height they were tall slats with the glyph at the top, and one row's chips met the
+        // next row's.
+        int chip = Math.min(STEPPER_BUTTON, line);
+        int chipY = rect.y() + (line - chip) / 2;
+        BookGeometry.Rect plus = BookGeometry.Rect.at(fold.x() - GAP - STEPPER_BUTTON, chipY,
+                STEPPER_BUTTON, chip);
         BookGeometry.Rect value = BookGeometry.Rect.at(plus.x() - GAP - STEPPER_VALUE, rect.y(),
                 STEPPER_VALUE, line);
-        BookGeometry.Rect minus = BookGeometry.Rect.at(value.x() - GAP - STEPPER_BUTTON, rect.y(),
-                STEPPER_BUTTON, line);
+        BookGeometry.Rect minus = BookGeometry.Rect.at(value.x() - GAP - STEPPER_BUTTON, chipY,
+                STEPPER_BUTTON, chip);
         BookGeometry.Rect icon = BookGeometry.Rect.at(rect.x() + 2, rect.y() + (line - ICON) / 2,
                 ICON, ICON);
         // The name runs from the icon to the stepper, with room for the odds text under it: the odds
