@@ -1067,6 +1067,10 @@ final class BookSidebar {
         ArmatureTextField field = new ArmatureTextField(0, 0, 0, 0, initial);
         field.onSubmit(text -> {
         });
+        if (!idRow) {
+            // An empty box under the list said nothing about what it was waiting for.
+            field.placeholder("group".equals(book.bookState.inlineEdit.kind()) ? "Group name" : "Chapter name");
+        }
         book.addRenderableWidget(field);
         book.bookState.sidebarView.put(row.key(), field);
         book.bookState.sidebarRowWidgets.add(field);

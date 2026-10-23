@@ -381,9 +381,9 @@ class AdvancedTest {
         List<ToolsLayout.Action> shallow = bookRows();
         DevMode.setAdvanced(true);
 
-        assertEquals(List.of("motion", "snap", "progress"),
+        assertEquals(List.of(ToolsLayout.PREFS_SECTION, "motion", "snap", "progress"),
                 shallow.stream().map(ToolsLayout.Action::key).toList(),
-                "the shallow Book tab is the three switches and nothing else");
+                "the shallow Book tab is the three switches under their heading, and nothing else");
         // And the pack's own name and icon are not gated: they write the questline's `index.json`, which is
         // the book's identity rather than its look, and an author naming their book in Normal mode is the
         // whole point of the shallow view being usable.

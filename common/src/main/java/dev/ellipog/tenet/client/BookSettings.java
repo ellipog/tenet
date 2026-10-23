@@ -162,13 +162,24 @@ final class BookSettings {
      * it. The list and the search box are the picker's own code, unchanged: one picker, one list, two
      * ways in.
      */
+    /** "Choose an item", or what a search field lists: "Choose a biome", "Choose an advancement". */
+    static String fieldPickHeading(dev.ellipog.tenet.quest.EditorField.Source source) {
+        if (source == null) {
+            return "Choose an item";
+        }
+        String noun = source == dev.ellipog.tenet.quest.EditorField.Source.OBSERVATION_TARGET ? "target"
+                : source.name().toLowerCase(java.util.Locale.ROOT).replace('_', ' ');
+        return ("aeiou".indexOf(noun.charAt(0)) >= 0 ? "Choose an " : "Choose a ") + noun;
+    }
+
     void drawPickerOverlay(GuiRenderer r, int mouseX, int mouseY) {
         int left = book.overlayLeft();
         int top = book.overlayTop();
         int w = book.overlayWidth();
         int h = book.overlayHeight();
 
-        BookFrame.drawCard(r, left, top, w, h, 46, false);
+        // A footer, ruled like every other card's: the picker's Back sits in it.
+        BookFrame.drawCard(r, left, top, w, h, 46, true);
 
         // The subject's icon and name, so the card says what it is about: the row the press came from is
         // behind it, and "Pick an item" alone would not say which chapter's or group's icon is being set.
@@ -183,6 +194,8 @@ final class BookSettings {
         net.minecraft.resources.Identifier pickSpriteId =
                 book.bookState.pickSprite.isEmpty() ? null
                         : net.minecraft.resources.Identifier.tryParse(book.bookState.pickSprite);
+        boolean subjectIcon = !book.bookState.pickIcon.isEmpty() || pickTextureId != null
+                || pickSpriteId != null;
         if (!book.bookState.pickIcon.isEmpty()) {
             r.icon(book.bookState.pickIcon, iconX, iconY, iconBox);
         }
@@ -192,7 +205,9 @@ final class BookSettings {
         else if (pickSpriteId != null) {
             r.sprite(pickSpriteId, iconX, iconY, iconBox, iconBox, 0xFFFFFFFF);
         }
-        int textX = iconX + iconBox + 6;
+        // No subject, no icon box: a quest field's pick has nothing to show there, and the heading stood
+        // a blank icon's width in from the card's edge, reading as centred by mistake.
+        int textX = subjectIcon ? iconX + iconBox + 6 : iconX;
         // What the pick is for, in the caller's words; the target's own sentence is the fallback for the
         // three icon picks that have nobody to say it. See `openTableItemPick` for what the old
         // arrangement got wrong: a pick with no target of its own fell through to "a chapter's icon".
@@ -202,12 +217,16 @@ final class BookSettings {
         String heading = book.bookState.pickTitle.isEmpty()
                 ? book.bookState.pickTarget == QuestBookScreen.PickTarget.BOOK ? "Choose the book's icon"
                 : book.bookState.pickTarget == QuestBookScreen.PickTarget.GROUP ? "Choose the group's icon"
-                : "Choose the chapter's icon"
+                : book.bookState.pickTarget == QuestBookScreen.PickTarget.CHAPTER ? "Choose the chapter's icon"
+                // A quest field's pick sets no title of its own, and fell through to the chapter's
+                // sentence: "Hand in" opened a card about the chapter's icon.
+                : fieldPickHeading(book.bookState.pickerSource)
                 : book.bookState.pickTitle;
         int headerRoom = Math.max(0, book.headerTextRoom(book.surfaceCard(book.bookState.surfaceKind)) - textX);
         Measure headerMeasure = Measure.of(r::textWidth, r.lineHeight());
+        // One line sits on the band's middle; two share it.
         r.text(Measure.truncate(heading, headerRoom, headerMeasure),
-                textX, top + 12, ArmatureTheme.title());
+                textX, book.bookState.pickName.isEmpty() ? top + 19 : top + 12, ArmatureTheme.title());
         if (!book.bookState.pickName.isEmpty()) {
             r.text(Measure.truncate(book.bookState.pickName, headerRoom, headerMeasure),
                     textX, top + 26, ArmatureTheme.faint());

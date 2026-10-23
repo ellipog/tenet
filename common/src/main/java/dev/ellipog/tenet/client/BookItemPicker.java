@@ -1,5 +1,6 @@
 package dev.ellipog.tenet.client;
 
+import dev.ellipog.armature.client.ui.kit.TextWrap;
 import dev.ellipog.armature.client.ArmatureTheme;
 import dev.ellipog.armature.client.render.GuiRenderer;
 import dev.ellipog.armature.client.ui.kit.Measure;
@@ -714,12 +715,17 @@ final class BookItemPicker {
                 book.bookState.pickerFrame.list().y(),
                 book.bookState.pickerFrame.list().right(), book.bookState.pickerFrame.list().bottom())) {
             if (book.bookState.pickerRows.isEmpty()) {
-                r.text(book.bookState.pickerSource == null
-                                ? "Type to search every item, or pick something you carry."
-                                : "Type to search what this build has, or an id it does not -- "
-                                        + "pressing the row that appears keeps it.",
-                        book.bookState.pickerFrame.list().x() + 4, book.bookState.pickerFrame.list().y() + 4,
-                                ArmatureTheme.faint());
+                // Wrapped to the list: one line ran off a narrow column and was cut mid-word by the clip.
+                String hint = book.bookState.pickerSource == null
+                        ? "Type to search every item, or pick something you carry."
+                        : "Type to search what this build has, or an id it does not -- "
+                                + "pressing the row that appears keeps it.";
+                int y = book.bookState.pickerFrame.list().y() + 4;
+                for (String line : TextWrap.wrap(hint, Math.max(0, book.bookState.pickerFrame.list().width() - 8),
+                        book.textMeasure(r))) {
+                    r.text(line, book.bookState.pickerFrame.list().x() + 4, y, ArmatureTheme.faint());
+                    y += r.lineHeight() + 1;
+                }
                 return;
             }
             drawPickerRows(r, book.bookState.pickerFrame, book.bookState.pickerRows, pickerScroll,

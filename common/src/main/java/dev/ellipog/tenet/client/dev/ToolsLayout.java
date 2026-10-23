@@ -159,6 +159,12 @@ public final class ToolsLayout {
     public static final String SHAPE_SECTION = "section:shape";
 
     /**
+     * The heading over Motion, Snap and Progress: how this client edits, rather than anything the pack
+     * holds. Without it the three sat under the Book section's last field and read as the book's.
+     */
+    public static final String PREFS_SECTION = "section:prefs";
+
+    /**
      * The radius's row key.
      *
      * <p>It was briefly selectable -- a click put the radius in the band, which then showed one line of
@@ -274,6 +280,7 @@ public final class ToolsLayout {
             Map.entry(PROGRESS, "tenet.dev.tools.help.progress"),
             Map.entry(PALETTE_SECTION, "tenet.dev.tools.help.palette"),
             Map.entry(SHAPE_SECTION, "tenet.dev.tools.help.shape"),
+            Map.entry(PREFS_SECTION, "tenet.dev.tools.help.prefs"),
             Map.entry(RADIUS, "tenet.dev.tools.help.radius"),
             Map.entry(CANVAS_SECTION, "tenet.dev.tools.help.canvas"),
             Map.entry(CANVAS_PATTERN, "tenet.dev.tools.help.canvas_pattern"),
@@ -942,6 +949,7 @@ public final class ToolsLayout {
                                     boolean coloursOpen, List<Palette> palette, boolean paletteOpen,
                                     CanvasBackground background, boolean canvasOpen, String copyLabel) {
         List<Action> rows = new ArrayList<>();
+        rows.add(Action.heading(PREFS_SECTION, "tenet.dev.tools.prefs"));
         rows.add(Action.toggle(MOTION, "tenet.dev.tools.motion", motionOn ? ON : OFF));
         rows.add(Action.toggle(SNAP, "tenet.dev.tools.snap", snapOn ? ON : OFF));
         // The book's own switch, beside the rest: a reading preference like motion rather than an edit.

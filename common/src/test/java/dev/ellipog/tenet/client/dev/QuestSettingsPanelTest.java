@@ -121,12 +121,13 @@ class QuestSettingsPanelTest {
     }
 
     @Test
-    @DisplayName("the caption says what is being previewed and how big it is")
-    void theCaptionNamesTheShapeAndSize() {
+    @DisplayName("the caption says whether the preview is the size the canvas draws")
+    void theCaptionSaysActualSize() {
+        // The controls beside it already name the shape and the size; what only the caption can say is
+        // whether the picture is to scale.
         RecordingRenderer r = draw(view(QuestShape.HEART, null));
-        assertTrue(r.texts().stream().anyMatch(drawn -> drawn.text().contains("heart")
-                        && drawn.text().contains("96")),
-                "the caption does not say what it is showing: " + r.describe());
+        assertTrue(r.wrote("Actual size"),
+                "a node that fits is drawn 1:1, and the caption should say so: " + r.describe());
     }
 
     @Test
@@ -209,14 +210,10 @@ class QuestSettingsPanelTest {
                         QuestShape.GEAR.geometry(), 0),
                 0, 320, 0.5, true, -1, null, "all_completed", false, false);
         QuestSettingsPanel.draw(r, frame, layout, rows, quest(), drafted, columnOf(frame), 0, 0);
-        assertTrue(r.texts().stream().anyMatch(drawn -> drawn.text().contains("gear")
-                        && drawn.text().contains("320")),
+        // A 320-pixel node does not fit the column, so the drafted size is what scales it -- the
+        // server's answer would have drawn it 1:1.
+        assertTrue(r.texts().stream().anyMatch(drawn -> drawn.text().startsWith("Shown at ")),
                 "the caption ignored the draft: " + r.describe());
-        // The caption is truncated to its column, so what is asserted is the part that fits -- and the
-        // scaling itself, from the node's own extent in the pane.
-        assertTrue(r.texts().stream().anyMatch(drawn -> drawn.text().contains("gear")
-                        && drawn.text().contains("320")),
-                "the scaled caption does not name the shape and size: " + r.describe());
     }
 
     @Test

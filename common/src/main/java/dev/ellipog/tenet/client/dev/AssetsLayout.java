@@ -79,8 +79,14 @@ public final class AssetsLayout {
     /** Where a row's text starts when it has an icon: the icon, its gap, and the row's own inset. */
     public static final int ICON_TEXT_INSET = ICON + 4;
 
-    /** One row control's width — the copy chip or the ×. */
+    /** One row control's width — the × or the pencil. */
     public static final int CHIP = 13;
+
+    /**
+     * The copy chip's width: a word rather than a glyph. At {@link #CHIP} the word overflowed its box
+     * into the gap and the cross, and the row read "dice Copy×".
+     */
+    public static final int WORD_CHIP = 28;
 
     /** The air between the row's two controls, so "Copy" and "×" read as two things. */
     public static final int CHIP_GAP = 4;
@@ -93,7 +99,7 @@ public final class AssetsLayout {
      * detail right-aligned under them, which drew "Copy" over "dice" — one number, two owners, and the fault
      * that follows from that every time.
      */
-    public static final int CHIPS = CHIP * 2 + CHIP_GAP;
+    public static final int CHIPS = WORD_CHIP + CHIP_GAP + CHIP;
 
     /**
      * The air between a row's detail and those controls.

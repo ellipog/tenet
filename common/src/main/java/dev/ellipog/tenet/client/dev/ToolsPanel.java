@@ -371,6 +371,14 @@ public final class ToolsPanel {
     private static void drawValue(GuiRenderer r, ToolsLayout.Action row, Slot slot, Slot onScreen,
                                   Measure measure) {
         int half = Math.max(0, slot.width() / 2);
+        if (row.label().isEmpty() && row.value() != null && !row.value().isEmpty()) {
+            // A row with no name is a line to read -- a pack problem, mostly -- and gets the whole width.
+            // In the value column it was cut to half the dock, which for a `file:line: message` left
+            // the file's path and nothing of what was wrong with it.
+            r.text(Measure.truncate(row.value(), Math.max(0, onScreen.width()), measure), onScreen.x(),
+                    textY(slot, onScreen, r), ArmatureTheme.faint());
+            return;
+        }
         r.text(Measure.truncate(Labels.of(row.label()), Math.max(0, half - 4), measure), onScreen.x(),
                 textY(slot, onScreen, r), ArmatureTheme.body());
         String value = row.value();

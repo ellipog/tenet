@@ -543,8 +543,19 @@ class ChapterPanelLayoutTest {
                 "a value row, so the screen builds no widget that could look live and do nothing");
         assertEquals("tenet.dev.chapter.chapter", rows.get(0).label(),
                 "the row's label is a key; the screen resolves it");
-        assertEquals("Edit mode is off", rows.get(0).value(),
+        assertEquals("Press Edit to change it", rows.get(0).value(),
                 "the value is resolved where it is built, so the test reads the sentence");
+    }
+
+    @Test
+    @DisplayName("the pack's problems are listed without edit mode, where the reload's toast points")
+    void notEditingListsProblems() {
+        List<ToolsLayout.Action> rows = ChapterPanelLayout.notEditing(
+                new ChapterPanelLayout.Problems(1, List.of("a.json:1:1: error: dangling")));
+
+        assertEquals(3, rows.size(), "the line, the heading and the fault: " + rows);
+        assertEquals(ChapterPanelLayout.PROBLEMS, rows.get(1).key());
+        assertEquals("a.json:1:1: error: dangling", rows.get(2).value());
     }
 
     @Test

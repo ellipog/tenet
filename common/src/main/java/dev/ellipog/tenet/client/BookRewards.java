@@ -1266,6 +1266,12 @@ final class BookRewards {
                     .onPreview(next -> previewQuestField(key, Math.round(next)))
                     .onCommit(next -> commitNumberField(key, Math.round(next)));
         }
+        if ("minWidth".equals(key)) {
+            // A panel width, in pixels. It used to fall through to the cooldown below and read "0 ticks".
+            return new dev.ellipog.tenet.client.dev.ScrubField(intField(quest, key, 0), 0, 4096, 1, " px")
+                    .onPreview(next -> previewQuestField(key, Math.round(next)))
+                    .onCommit(next -> commitNumberField(key, Math.round(next)));
+        }
         if ("minRequired".equals(key)) {
             int max = QuestPanelLayout.strings(quest, "dependsOn").size();
             return new dev.ellipog.tenet.client.dev.ScrubField(intField(quest, key, 0), 0,
@@ -5352,11 +5358,14 @@ final class BookRewards {
         boolean missingItem = !reward.hasItem() && !reward.itemId().isEmpty();
         boolean shut = !row.pressable();
 
-        // One line, no marker room: this row never folds. The payout is what the press takes, so when
-        // the two halves do not fit it wins and the quest yields — a row reading only its payout still
-        // collects correctly, while a row reading only its quest collects blind.
-        int textX = context.x() + QuestBookScreen.ROW_ICON + 5;
-        int avail = Math.max(0, context.width() - QuestBookScreen.ROW_ICON - 5);
+        // One line. It never folds, but it keeps the marker's room all the same: without it this row's
+        // icon stood in the arrow column of the quest rows around it, and the list's icons zigzagged.
+        // The payout is what the press takes, so when the two halves do not fit it wins and the quest
+        // yields — a row reading only its payout still collects correctly, while a row reading only
+        // its quest collects blind.
+        int iconX = context.x() + markerRoom(r);
+        int textX = iconX + QuestBookScreen.ROW_ICON + 5;
+        int avail = Math.max(0, context.right() - textX);
         String sep = " \u00b7 ";
         String shownTitle = Measure.truncate(row.label(),
                 Math.max(0, avail - r.textWidth(sep + payout)), book.textMeasure(r));
@@ -5364,10 +5373,10 @@ final class BookRewards {
         String shownPayout = hasTitle ? payout : Measure.truncate(payout, avail, book.textMeasure(r));
 
         if (missingItem) {
-            QuestBookScreen.drawItemPlaceholder(r, context.x(), iconY, QuestBookScreen.ROW_ICON);
+            QuestBookScreen.drawItemPlaceholder(r, iconX, iconY, QuestBookScreen.ROW_ICON);
         }
         else {
-            r.icon(reward.shown(), context.x(), iconY, QuestBookScreen.ROW_ICON);
+            r.icon(reward.shown(), iconX, iconY, QuestBookScreen.ROW_ICON);
         }
         int x = textX;
         if (hasTitle) {

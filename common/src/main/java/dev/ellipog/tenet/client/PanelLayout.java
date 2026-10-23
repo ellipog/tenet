@@ -81,8 +81,14 @@ public final class PanelLayout {
      */
     public static final int BODY_BOTTOM = BookGeometry.MODAL_FOOTER_HEIGHT + FOOTER_GAP;
 
-    /** The fold control's width. Fixed, and its label is truncated to it — see the screen's own rule. */
-    public static final int FOLD_WIDTH = 132;
+    /**
+     * The fold control's width. Fixed, and its label is truncated to it — see the screen's own rule.
+     *
+     * <p>Sized for its two words, "Fold" and "Back", like the settings card's Edit. It was 132 -- a
+     * footer button's width in a header -- and it took half a narrow column's band, so the picker beside
+     * it read "Choose the ..." over a button with one short word in it.
+     */
+    public static final int FOLD_WIDTH = 56;
 
     /** The fold control's height: an ordinary footer control's, so it reads as one. */
     public static final int FOLD_HEIGHT = BookGeometry.OVERLAY_CONTROL_HEIGHT;

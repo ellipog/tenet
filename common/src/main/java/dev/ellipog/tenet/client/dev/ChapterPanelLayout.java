@@ -768,8 +768,22 @@ public final class ChapterPanelLayout {
      * cannot show a field, a toggle or an arrow that looks pressable and silently does nothing.
      */
     public static List<ToolsLayout.Action> notEditing() {
-        return List.of(ToolsLayout.Action.value(VALUE_PREFIX + "notEditing", "tenet.dev.chapter.chapter",
+        return notEditing(null);
+    }
+
+    /**
+     * The not-editing line, and the pack's problems under it.
+     *
+     * <p>The problems are the pack's, not the chapter copy's, so they need no edit mode to be read -- and
+     * the reload's toast says "see Chapter tab" whether or not edit mode is on. Before this, an author who
+     * followed it out of edit mode found one line and no problems.
+     */
+    public static List<ToolsLayout.Action> notEditing(Problems problems) {
+        List<ToolsLayout.Action> rows = new ArrayList<>();
+        rows.add(ToolsLayout.Action.value(VALUE_PREFIX + "notEditing", "tenet.dev.chapter.chapter",
                 Labels.of("tenet.dev.chapter.not_editing")));
+        problems(rows, problems);
+        return List.copyOf(rows);
     }
 
     // ------------------------------------------------------------------

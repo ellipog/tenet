@@ -197,15 +197,12 @@ public final class QuestSettingsPanel {
                     Math.min(pane.bottom(), frame.caption().y()));
         }
 
-        String caption = Labels.of("tenet.dev.preview.caption",
-                shape.name().toLowerCase(java.util.Locale.ROOT), size);
-        if (view.rotation() != 0) {
-            caption += Labels.of("tenet.dev.preview.turned", view.rotation());
-        }
-        caption += Labels.of("tenet.dev.preview.icon", trim(iconScale));
-        if (zoom < 0.999) {
-            caption += Labels.of("tenet.dev.preview.shown_at", Math.round(zoom * 100));
-        }
+        // The one thing the picture cannot say for itself: whether it is the size the canvas will draw.
+        // The caption used to spell out the shape, size, turn and icon scale too, every one of which
+        // the control beside it already shows, and in a column this narrow it never got past the second.
+        String caption = zoom < 0.999
+                ? Labels.of("tenet.dev.preview.shown_at", Math.round(zoom * 100))
+                : Labels.of("tenet.dev.preview.actual");
         r.text(Measure.truncate(caption, frame.caption().width(),
                         Measure.of(r::textWidth, r.lineHeight())),
                 frame.caption().x(), frame.caption().y(), ArmatureTheme.faint());
@@ -280,10 +277,13 @@ public final class QuestSettingsPanel {
             int x = cell.x() + (cell.width() - swatch) / 2;
             int y = cell.y() + 2;
             if (hovered || selected) {
-                // The cell's own backdrop, so the pointer and the choice are visible before the shape
+                // The swatch's own backdrop, so the pointer and the choice are visible before the shape
                 // is looked at -- a ring around a shape that is itself an outline reads as part of it.
+                // Around the swatch and not the name: boxed in with it, the name had the cell's width
+                // less the ring's, which is what cut "pentagon" short, and the ring ran through its
+                // first and last letters besides.
                 ArmatureTheme.panel(r, cell.x() + 1, cell.y(), Math.max(0, cell.width() - 2),
-                        Math.max(0, cell.height() - 2),
+                        Math.min(swatch + 4, Math.max(0, cell.height() - 1)),
                         hovered ? Colour.lerp(ArmatureTheme.panel(), ArmatureTheme.raised(), 0.7F)
                                 : ArmatureTheme.raised(),
                         selected ? ArmatureTheme.selectedRing() : ArmatureTheme.panelEdge());
@@ -300,9 +300,9 @@ public final class QuestSettingsPanel {
             }
 
             String name = shape.name().toLowerCase(java.util.Locale.ROOT);
-            String shown = Measure.truncate(name, cell.width() - 2, measure);
+            String shown = Measure.truncate(name, cell.width(), measure);
             r.text(shown, cell.x() + (cell.width() - r.textWidth(shown)) / 2,
-                    cell.y() + cell.height() - 10,
+                    cell.y() + cell.height() - 12,
                     selected ? ArmatureTheme.title() : ArmatureTheme.body());
         }
     }

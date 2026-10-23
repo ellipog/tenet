@@ -950,7 +950,7 @@ final class BookQuestEditor {
                             // an author who has not chosen one sees the list and nothing under it. And which
                             // link: the same ordinary state, for the same reason, one list below.
                             BookScreenState.selectedElement, BookCanvas.selectedLink)
-                    : ChapterPanelLayout.notEditing();
+                    : ChapterPanelLayout.notEditing(packProblems());
             // The appearance section: the same rows the book tab shows, under one fold, writing the
             // chapter's own theme and patch. Absent for a reader -- there are no controls for a file
             // the server would refuse -- and the content keeps the layout it has always had.
@@ -1146,11 +1146,14 @@ final class BookQuestEditor {
 
         // Revert and Save are the book tab's alone: they write the player's own theme file, which is
         // not what a chapter is. The chapter's edits are the chapter file's, taken back with the
-        // editor's own undo.
-        book.control(ToolsLayout.revert(book.bookState.toolsFrame.actions()),
-                Component.translatable("tenet.dev.reset"), this::revertSelected);
-        book.control(ToolsLayout.save(book.bookState.toolsFrame.actions()),
-                Component.translatable("tenet.dev.save"), this::saveTheme);
+        // editor's own undo. And they are Advanced's, like the theme rows they act on: in Normal mode
+        // the tab shows no theme at all, and a Save theme under no theme was a button about nothing.
+        if (dev.ellipog.tenet.client.dev.Advanced.on()) {
+            book.control(ToolsLayout.revert(book.bookState.toolsFrame.actions()),
+                    Component.translatable("tenet.dev.reset"), this::revertSelected);
+            book.control(ToolsLayout.save(book.bookState.toolsFrame.actions()),
+                    Component.translatable("tenet.dev.save"), this::saveTheme);
+        }
 
         book.bookState.toolsView.apply(book.bookState.toolsLayout, book.bookState.toolsFrame.list().width());
     }
@@ -3122,8 +3125,6 @@ final class BookQuestEditor {
 
     /** The section's heading: folds or unfolds it. */
     private void fold(String key) {
-        // The rows are about to be rebuilt: a picker anchored to one of them closes with it.
-        book.closeColourPopover();
         // The rows are about to be rebuilt: a picker anchored to one of them closes with it.
         book.closeColourPopover();
         if (key.equals(ToolsLayout.COLOUR_SECTION)) {

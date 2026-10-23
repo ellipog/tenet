@@ -168,8 +168,13 @@ final class BookAssets {
     private List<AssetLine> assetsTableLines() {
         List<AssetLine> lines = new ArrayList<>();
         List<ClientQuestCache.TableSummary> loaded = ClientQuestCache.tables();
+        List<ClientQuestCache.RefusedTable> refused = ClientQuestCache.refusedTables();
         if (!loaded.isEmpty()) {
-            lines.add(AssetLine.heading("Tables"));
+            // A heading only to part them from the files that did not load: alone, "Tables" under the
+            // Tables tab was the tab's name said twice.
+            if (!refused.isEmpty()) {
+                lines.add(AssetLine.heading("Tables"));
+            }
             for (ClientQuestCache.TableSummary table : loaded) {
                 // The table's own icon, which the summary already carries: a table with none of its own
                 // shows the item its first entry grants, resolved server-side. And the row is built by the
@@ -177,7 +182,6 @@ final class BookAssets {
                 lines.add(AssetLine.table(table));
             }
         }
-        List<ClientQuestCache.RefusedTable> refused = ClientQuestCache.refusedTables();
         if (!refused.isEmpty()) {
             // The list no other panel has, because a refused file is not a table and is in nothing else.
             lines.add(AssetLine.heading("Not loaded"));
@@ -188,7 +192,7 @@ final class BookAssets {
         if (lines.isEmpty()) {
             lines.add(AssetLine.heading(ClientQuestCache.syncedAt() == 0
                     ? "Waiting for the pack's files"
-                    : "No reward tables yet - New table makes one"));
+                    : "No reward tables yet \u2014 New table makes one"));
         }
         return lines;
     }
@@ -335,9 +339,10 @@ final class BookAssets {
             if (chipped) {
                 String copy = Labels.of("tenet.dev.copy");
                 int chip = dev.ellipog.tenet.client.dev.AssetsLayout.CHIP;
+                int word = dev.ellipog.tenet.client.dev.AssetsLayout.WORD_CHIP;
                 int gap = dev.ellipog.tenet.client.dev.AssetsLayout.CHIP_GAP;
-                BookGeometry.Rect copyBox = BookGeometry.Rect.at(box.right() - chip * 2 - gap,
-                        box.y() + 1, chip - 1, height - 2);
+                BookGeometry.Rect copyBox = BookGeometry.Rect.at(box.right() - chip - gap - word,
+                        box.y() + 1, word - 1, height - 2);
                 BookGeometry.Rect removeBox = BookGeometry.Rect.at(box.right() - chip, box.y() + 1,
                         chip - 1, height - 2);
                 boolean copyHot = copyBox.contains(mouseX, mouseY);
