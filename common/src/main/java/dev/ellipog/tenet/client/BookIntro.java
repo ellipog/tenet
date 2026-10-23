@@ -102,25 +102,26 @@ final class BookIntro {
         int pad = 8;
         int lineHeight = r.lineHeight();
         int boxWidth = 240;
-        int buttonHeight = 13;
-        // Measured before placing, because the checkbox drops to its own row rather than
-        // overlapping the buttons: a centred button and a right-aligned checkbox share the
-        // middle of a narrow box, and a translation longer than the English makes even the
-        // left-aligned row collide. The box grows for the second row before it is placed, so
-        // the placement still holds wholly on screen.
+        int buttonHeight = BookGeometry.OVERLAY_CONTROL_HEIGHT;
+        int box = dev.ellipog.tenet.client.dev.EntryFormLayout.BUTTON;
+        // The bottom row reads like every other card's footer: the quiet choice on the left, the
+        // buttons on the right with the way forward last and accented. Measured before placing,
+        // because the checkbox takes a row of its own when the two do not fit side by side -- a
+        // translation longer than the English would otherwise run the box into the buttons -- and
+        // the box grows for that row before it is placed, so the placement still holds on screen.
         String keep = Component.translatable("tenet.screen.intro.keep").getString();
         String skip = Component.translatable("tenet.screen.intro.skip").getString();
         String next = Component.translatable("tenet.screen.intro.next").getString();
         String dont = Component.translatable("tenet.screen.intro.dontshow").getString();
-        int keepWidth = r.textWidth(keep) + 12;
-        int skipWidth = r.textWidth(skip) + 12;
-        int nextWidth = r.textWidth(next) + 12;
-        int dontWidth = 9 + 4 + r.textWidth(dont);
-        int buttonsEnd = pad + (done ? keepWidth : skipWidth + 6 + nextWidth);
-        boolean wrapped = buttonsEnd + 6 + dontWidth > boxWidth - pad;
-        int checkHeight = Math.max(9, lineHeight);
-        int boxHeight = pad + lineHeight + 4 + lineHeight * body.size() + 6 + buttonHeight + pad
-                + (wrapped ? 4 + checkHeight : 0);
+        int keepWidth = r.textWidth(keep) + 16;
+        int skipWidth = r.textWidth(skip) + 16;
+        int nextWidth = r.textWidth(next) + 16;
+        int dontWidth = box + 4 + r.textWidth(dont);
+        int buttonsWidth = done ? keepWidth : skipWidth + 4 + nextWidth;
+        boolean wrapped = dontWidth + 8 + buttonsWidth > boxWidth - pad * 2;
+        int checkRow = Math.max(box, lineHeight);
+        int boxHeight = pad + lineHeight + 4 + lineHeight * body.size() + 8 + buttonHeight + pad
+                + (wrapped ? 4 + checkRow : 0);
         int[] placed = placeIntroBox(anchor, boxWidth, boxHeight);
         int boxX = placed[0];
         int boxY = placed[1];
@@ -130,57 +131,51 @@ final class BookIntro {
                 ArmatureTheme.tooltipFill(), ArmatureTheme.tooltipEdge());
         int textY = boxY + pad;
         r.text(title, boxX + pad, textY, ArmatureTheme.title());
+        if (!done) {
+            // Where the author stands in the four: a coach that never says how far is left reads as one
+            // that may never end, which is the reason people press Skip.
+            String count = Component.translatable("tenet.screen.intro.step", step.ordinal() + 1,
+                    IntroGuide.Step.DONE.ordinal()).getString();
+            r.text(count, boxX + boxWidth - pad - r.textWidth(count), textY, ArmatureTheme.faint());
+        }
         textY += lineHeight + 4;
         for (String line : body) {
             r.text(line, boxX + pad, textY, ArmatureTheme.tooltipText());
             textY += lineHeight;
         }
-        int buttonsY = boxY + boxHeight - pad - buttonHeight - (wrapped ? 4 + checkHeight : 0);
+        int buttonsY = boxY + boxHeight - pad - buttonHeight;
+        int right = boxX + boxWidth - pad;
         if (done) {
-            int keepX = boxX + pad;
-            drawIntroButton(r, keepX, buttonsY, keepWidth, buttonHeight, keep,
-                    keepX <= mouseX && mouseX < keepX + keepWidth
-                            && buttonsY <= mouseY && mouseY < buttonsY + buttonHeight);
+            int keepX = right - keepWidth;
             introKeepBox = BookGeometry.Rect.at(keepX, buttonsY, keepWidth, buttonHeight);
+            drawIntroButton(r, introKeepBox, keep, true, introKeepBox.contains(mouseX, mouseY));
             introSkipBox = null;
             introNextBox = null;
         }
         else {
-            int skipX = boxX + pad;
-            int nextX = skipX + skipWidth + 6;
-            drawIntroButton(r, skipX, buttonsY, skipWidth, buttonHeight, skip,
-                    skipX <= mouseX && mouseX < skipX + skipWidth
-                            && buttonsY <= mouseY && mouseY < buttonsY + buttonHeight);
-            drawIntroButton(r, nextX, buttonsY, nextWidth, buttonHeight, next,
-                    nextX <= mouseX && mouseX < nextX + nextWidth
-                            && buttonsY <= mouseY && mouseY < buttonsY + buttonHeight);
+            int nextX = right - nextWidth;
+            int skipX = nextX - 4 - skipWidth;
             introSkipBox = BookGeometry.Rect.at(skipX, buttonsY, skipWidth, buttonHeight);
             introNextBox = BookGeometry.Rect.at(nextX, buttonsY, nextWidth, buttonHeight);
+            drawIntroButton(r, introSkipBox, skip, false, introSkipBox.contains(mouseX, mouseY));
+            drawIntroButton(r, introNextBox, next, true, introNextBox.contains(mouseX, mouseY));
             introKeepBox = null;
         }
-        // The "Don't show again" checkbox: on the button row when it fits beside the buttons,
-        // on its own row below when it does not. Either way right-aligned, and the durable flag
-        // and nothing else — checking it never ends the tour, it only stops the next one.
-        int dontX = boxX + boxWidth - pad - dontWidth;
-        int dontY = wrapped
-                ? buttonsY + buttonHeight + 4 + (checkHeight - 9) / 2
-                : buttonsY + (buttonHeight - 9) / 2;
-        boolean dontOn = IntroGuide.dontShowAgain();
-        boolean dontHover = dontX <= mouseX && mouseX < dontX + dontWidth
-                && dontY <= mouseY && mouseY < dontY + 9;
-        if (dontHover) {
-            r.fill(dontX - 2, dontY - 2, dontX + dontWidth + 2, dontY + 11, ArmatureTheme.rowHover());
+        // The "Don't show again" checkbox: on the button row's left when it fits, on its own row above
+        // the buttons when it does not. The durable flag and nothing else -- checking it never ends the
+        // tour, it only stops the next one. The square is the quest editor's own switch, so the one
+        // checkbox in the tour is not a smaller cousin of every other in the book.
+        int rowY = wrapped ? buttonsY - 4 - checkRow : buttonsY + (buttonHeight - checkRow) / 2;
+        int dontX = boxX + pad;
+        introDontBox = BookGeometry.Rect.at(dontX - 2, rowY - 2, dontWidth + 4, checkRow + 4);
+        if (introDontBox.contains(mouseX, mouseY)) {
+            r.fill(introDontBox.x(), introDontBox.y(), introDontBox.right(), introDontBox.bottom(),
+                    ArmatureTheme.rowHover());
         }
-        r.fill(dontX, dontY, dontX + 9, dontY + 1, ArmatureTheme.tooltipEdge());
-        r.fill(dontX, dontY + 8, dontX + 9, dontY + 9, ArmatureTheme.tooltipEdge());
-        r.fill(dontX, dontY, dontX + 1, dontY + 9, ArmatureTheme.tooltipEdge());
-        r.fill(dontX + 8, dontY, dontX + 9, dontY + 9, ArmatureTheme.tooltipEdge());
-        if (dontOn) {
-            r.fill(dontX + 2, dontY + 2, dontX + 7, dontY + 7, ArmatureTheme.title());
-        }
-        r.text(dont, dontX + 13, dontY + (9 - lineHeight) / 2, ArmatureTheme.tooltipText());
-        introDontBox = BookGeometry.Rect.at(dontX - 2, dontY - 2, dontWidth + 4,
-                Math.max(13, checkHeight + 4));
+        int lift = (dev.ellipog.tenet.client.dev.EntryFormLayout.LINE_HEIGHT - checkRow) / 2;
+        book.questEditor.drawSwitch(r, BookGeometry.Rect.at(dontX, rowY - lift, box, checkRow),
+                IntroGuide.dontShowAgain());
+        r.text(dont, dontX + box + 4, rowY + (checkRow - lineHeight) / 2, ArmatureTheme.tooltipText());
     }
 
     /**
@@ -211,15 +206,24 @@ final class BookIntro {
         };
     }
 
-    /** One of the tooltip's own buttons: a wash on hover and the label centred in it. */
-    private void drawIntroButton(GuiRenderer r, int x, int y, int w, int h, String label,
+    /**
+     * One of the tooltip's own buttons, in the book's button style: Skip plain, the way forward accented.
+     *
+     * <p>They were underlined words, the one place in the book a button was not a box -- and the only
+     * thing telling Next from Skip was its order.
+     */
+    private void drawIntroButton(GuiRenderer r, BookGeometry.Rect at, String label, boolean forward,
             boolean hovered) {
-        if (hovered) {
-            r.fill(x, y, x + w, y + h, ArmatureTheme.rowHover());
-        }
-        r.fill(x, y + h - 1, x + w, y + h, ArmatureTheme.tooltipEdge());
-        r.text(label, x + (w - r.textWidth(label)) / 2, y + (h - r.lineHeight()) / 2,
-                hovered ? ArmatureTheme.title() : ArmatureTheme.tooltipText());
+        dev.ellipog.armature.client.ArmatureControlStyle.Variant variant = forward
+                ? dev.ellipog.armature.client.ArmatureControlStyle.Variant.ACCENT
+                : dev.ellipog.armature.client.ArmatureControlStyle.Variant.PLAIN;
+        ArmatureTheme.panel(r, at.x(), at.y(), at.width(), at.height(),
+                dev.ellipog.armature.client.ArmatureControlStyle.fillAt(variant, true, false, hovered ? 1F : 0F),
+                dev.ellipog.armature.client.ArmatureControlStyle.edge(variant, true, false, hovered));
+        int ink = forward ? dev.ellipog.armature.client.ArmatureControlStyle.text(variant, true)
+                : hovered ? ArmatureTheme.title() : ArmatureTheme.body();
+        r.text(label, at.x() + (at.width() - r.textWidth(label)) / 2,
+                at.y() + (at.height() - r.lineHeight()) / 2 + 1, ink);
     }
 
     /**
@@ -249,9 +253,14 @@ final class BookIntro {
                 return at;
             }
         }
+        // Nowhere outside it: the anchor is most of the screen -- the canvas, for the quest and task
+        // rungs. Inside it then, along its bottom and centred, which is open canvas. The corner this used
+        // to clamp to was the anchor's own, and the canvas's corner is under the floating sidebar.
+        int insideX = anchor.x() + (anchor.width() - boxWidth) / 2;
+        int insideY = anchor.bottom() - boxHeight - gap * 2;
         return new int[] {
-                Math.max(margin, Math.min(candidates[0][0], book.width - boxWidth - margin)),
-                Math.max(margin, Math.min(candidates[0][1], book.height - boxHeight - margin))};
+                Math.max(margin, Math.min(insideX, book.width - boxWidth - margin)),
+                Math.max(margin, Math.min(insideY, book.height - boxHeight - margin))};
     }
 
     /**

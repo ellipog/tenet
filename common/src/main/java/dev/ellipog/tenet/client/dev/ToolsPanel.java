@@ -183,6 +183,10 @@ public final class ToolsPanel {
                     // there is no box beside it to leave room for. A text row and a row whose button opens
                     // something are the same shape: a label, and a control the screen places.
                     case FIELD, CHOICE, TEXT, BUTTON -> {
+                        if (row.labelOnButton()) {
+                            // The button says it; see `Action.action`.
+                            break;
+                        }
                         if (mode == InspectLayout.Mode.STACKED) {
                             drawStackedLabel(r, row, slot, list, measure);
                         }

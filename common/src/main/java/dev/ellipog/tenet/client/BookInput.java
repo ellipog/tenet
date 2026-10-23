@@ -2073,7 +2073,9 @@ final class BookInput {
             // node is claimed here but does not follow yet: that starts when the pointer has moved
             // further than a click's jitter, and until then this could still be a click.
             if (button == InputConstants.MOUSE_BUTTON_LEFT && under != null && book.mayEditNow()) {
-                if (book.bookState.pickingDependency) {
+                // The link-target pick is the same gesture and needs the same release: without it in this
+                // test, Pick from canvas and Add link both opened the clicked quest's card instead.
+                if (book.bookState.pickingDependency || book.bookCanvas.pendingLinkPick != null) {
                     // **While a pick is armed a press on a node is about the pair, not the node.** It
                     // claims nothing: no drag starts, the selection does not move, and the release lands
                     // the dependency -- which it could not do while the node was claimed, because the

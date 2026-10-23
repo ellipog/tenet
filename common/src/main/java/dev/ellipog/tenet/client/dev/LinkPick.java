@@ -24,6 +24,18 @@ import java.util.Objects;
  */
 public record LinkPick(String link, String chapter) {
 
+    /**
+     * The link a pick names when there is none yet: Add link arms the pick first and makes the link when
+     * it lands, because a link with no target is one the server refuses outright -- the old Add link
+     * sent exactly that, and every press of it ended in a toast quoting the validator.
+     */
+    public static final String NEW = "";
+
+    /** Whether this pick makes its link when it lands, rather than retargeting one. */
+    public boolean creates() {
+        return link.equals(NEW);
+    }
+
     public LinkPick {
         Objects.requireNonNull(link, "link");
         Objects.requireNonNull(chapter, "chapter");

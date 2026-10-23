@@ -3089,7 +3089,7 @@ public final class QuestBookScreen extends ArmatureScreen
         bookState.pickingDependency = true;
         bookCanvas.pendingLinkPick = null;
         closeOverlay();
-        status("Click the quest to depend on \u2014 any chapter or group \u2014 Escape cancels", false);
+        status("Click the quest to depend on \u2014 Esc cancels", false);
     }
 
     static JsonElement stringArray(List<String> values) {

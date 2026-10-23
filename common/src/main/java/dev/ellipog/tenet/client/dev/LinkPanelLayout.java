@@ -76,7 +76,7 @@ public final class LinkPanelLayout {
         }
         String id = read(link, "id", "");
         String heading = ChapterPanelLayout.LINK_PREFIX + id;
-        rows.add(ToolsLayout.Action.heading(heading, "link - " + nameOf(link, id)));
+        rows.add(ToolsLayout.Action.heading(heading, "Link \u2014 " + nameOf(link, id)));
         if (isFolded(folded, heading)) {
             return List.copyOf(rows);
         }
@@ -84,12 +84,10 @@ public final class LinkPanelLayout {
         section(rows, id, "target", "tenet.dev.link.section.target", folded, inner -> {
             text(inner, link, id, "quest", "tenet.dev.link.target");
             if (!Advanced.hidesLink("pick")) {
-                inner.add(ToolsLayout.Action.button(key(id, PICK_TARGET), "tenet.dev.link.pick",
-                        valueOf(link, "quest")));
+                inner.add(ToolsLayout.Action.action(key(id, PICK_TARGET), "tenet.dev.link.pick"));
             }
             if (!Advanced.hidesLink("jump")) {
-                inner.add(ToolsLayout.Action.button(key(id, JUMP_TARGET), "tenet.dev.link.jump",
-                        valueOf(link, "quest")));
+                inner.add(ToolsLayout.Action.action(key(id, JUMP_TARGET), "tenet.dev.link.jump"));
             }
         });
         section(rows, id, "place", "tenet.dev.link.section.place", folded, inner -> {
@@ -99,8 +97,7 @@ public final class LinkPanelLayout {
         });
         section(rows, id, "danger", "tenet.dev.link.section.danger", folded, inner -> {
             if (!Advanced.hidesLink("delete")) {
-                inner.add(ToolsLayout.Action.button(key(id, DELETE_LINK), "tenet.dev.link.delete",
-                        read(link, "id", "")));
+                inner.add(ToolsLayout.Action.action(key(id, DELETE_LINK), "tenet.dev.link.delete"));
             }
         });
         return List.copyOf(rows);

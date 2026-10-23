@@ -196,6 +196,13 @@ final class BookPins {
         if (pick == null || target == null) {
             return;
         }
+        if (pick.creates()) {
+            int[] at = book.bookCanvas.newLinkAt == null ? new int[] {0, 0} : book.bookCanvas.newLinkAt;
+            book.bookCanvas.newLinkAt = null;
+            book.questEditor.insertLink(pick.chapter(), at[0], at[1], target.id());
+            book.status("New link to \"" + target.id() + "\"", false);
+            return;
+        }
         draftLinkFieldFor(pick.chapter(), pick.link(), "quest", new JsonPrimitive(target.id()));
         book.bookInput.send(new EditorOp.SetLink(pick.link(), "quest", new JsonPrimitive(target.id())), pick.chapter());
         book.status("The link now points at \"" + target.id() + "\"", false);

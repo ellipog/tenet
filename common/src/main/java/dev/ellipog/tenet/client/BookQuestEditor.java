@@ -1016,7 +1016,9 @@ final class BookQuestEditor {
                         // icon pickers because none of them is choosing an item.
                         ArmatureButton linkButton = linkButton(row);
                         if (linkButton != null) {
-                            book.bookState.toolsView.put(row.key(), linkButton, InspectLayout::controlBand);
+                            // An action row is the button, the whole of it: there is no label band above.
+                            book.bookState.toolsView.put(row.key(), linkButton, row.labelOnButton()
+                                    ? ScrollView.Shape.IDENTITY : InspectLayout::controlBand);
                             break;
                         }
                         ArmatureButton pick = book.control(0, 0, 0, 0,
@@ -6223,11 +6225,14 @@ final class BookQuestEditor {
     }
 
     /**
-     * Adds a link at the canvas's middle, pointing nowhere yet.
+     * Add link: asks which quest the link mirrors, then makes it at the middle of the view.
      *
-     * <p>Pointing nowhere is a state the validator reports, so this is an unfinished edit rather than a
-     * broken one: the target row or the pick finishes it. The middle of the view is where the author is
-     * looking, which is the only honest default a canvas position has — snapped to the grid, like a drag.
+     * <p>The question comes first because a link pointing nowhere is not an unfinished edit the server
+     * keeps -- it refuses it, and the press used to end in a toast quoting the validator. So the press arms
+     * the canvas pick the link panel's own "Pick from canvas" uses, and {@link #insertLink} runs when it
+     * lands. The middle of the view is where the author is looking, which is the only honest default a
+     * canvas position has -- snapped to the grid, like a drag -- and it is taken now, not when the pick
+     * lands, because the author may travel to another chapter to find the quest.
      */
     private void createLink() {
         if (!book.mayEditNow() || QuestBookScreen.effectiveChapter() == null) {
@@ -6237,8 +6242,19 @@ final class BookQuestEditor {
                 (book.canvasLeft() + book.canvasRight()) / 2.0), BookGeometry.SNAP_GRID, true));
         int y = (int) Math.round(BookGeometry.snap(book.viewport().contentY(
                 (book.canvasTop() + book.canvasBottom()) / 2.0), BookGeometry.SNAP_GRID, true));
+        book.bookState.pickingDependency = false;
+        book.bookState.pendingPick = null;
+        book.bookCanvas.newLinkAt = new int[] {x, y};
+        book.bookCanvas.pendingLinkPick = new dev.ellipog.tenet.client.dev.LinkPick(
+                dev.ellipog.tenet.client.dev.LinkPick.NEW, QuestBookScreen.effectiveChapter());
+        book.status("Click a quest to link to \u2014 Esc cancels", false);
+        book.rebuildWidgets();
+    }
+
+    /** Makes a link in {@code chapter} at {@code x, y}, pointing at {@code quest}, and selects it. */
+    void insertLink(String chapter, int x, int y, String quest) {
         com.google.gson.JsonObject tree = new com.google.gson.JsonObject();
-        tree.addProperty("quest", "");
+        tree.addProperty("quest", quest);
         tree.addProperty("x", x);
         tree.addProperty("y", y);
         // The client's own guess, unique against the links on screen: the server prefers a free id,
@@ -6252,9 +6268,8 @@ final class BookQuestEditor {
         }
         tree.addProperty("id", id);
         QuestLink optimistic = QuestLink.fromJson(tree).orElse(null);
-        BookScreenState.linkDraft.insert(QuestBookScreen.effectiveChapter(), optimistic, Integer.MAX_VALUE,
-                Util.getMillis());
-        book.send(new EditorOp.InsertLink(Integer.MAX_VALUE, tree));
+        BookScreenState.linkDraft.insert(chapter, optimistic, Integer.MAX_VALUE, Util.getMillis());
+        book.bookInput.send(new EditorOp.InsertLink(Integer.MAX_VALUE, tree), chapter);
         BookCanvas.selectedLink = id;
         book.bookCanvas.linkConfirmingDelete = null;
         book.rebuildWidgets();
@@ -6276,7 +6291,7 @@ final class BookQuestEditor {
         book.bookState.pendingPick = null;
         book.bookCanvas.pendingLinkPick = new dev.ellipog.tenet.client.dev.LinkPick(id,
                 QuestBookScreen.effectiveChapter());
-        book.status("Click the quest to point the link at \u2014 any chapter \u2014 Escape cancels", false);
+        book.status("Click the link's new target \u2014 Esc cancels", false);
         book.rebuildWidgets();
     }
 

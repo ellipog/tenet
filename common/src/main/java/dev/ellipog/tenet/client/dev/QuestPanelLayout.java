@@ -1077,7 +1077,10 @@ public final class QuestPanelLayout {
         if (parts.size() >= 2) {
             out.insert(0, capitalised(parts.get(parts.size() - 2)) + " ");
         }
-        return out.toString();
+        // Sentence case, like every label the editor's own table names: the words were each
+        // capitalised, so a field this build does not name read "Icon Item" beside "Show title".
+        String words = out.toString().toLowerCase(Locale.ROOT);
+        return words.isEmpty() ? words : Character.toUpperCase(words.charAt(0)) + words.substring(1);
     }
 
     private static String capitalised(String word) {

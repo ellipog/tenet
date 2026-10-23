@@ -577,6 +577,22 @@ public final class ToolsLayout {
             return new Action(key, label, null, Kind.ROW, null, null);
         }
 
+        /**
+         * A button whose word is its own label: Add link, Pick from canvas, Delete.
+         *
+         * <p>A {@link Kind#BUTTON} with nothing to show but its name, so it is one band tall and draws no
+         * label of its own -- stacked, these rows printed the word twice, once over the button and once on
+         * it, which is the duplicate-string fault {@code drawRow}'s note records for {@link Kind#ROW}.
+         */
+        public static Action action(String key, String label) {
+            return new Action(key, label, label, Kind.BUTTON, null, "");
+        }
+
+        /** Whether this is an {@link #action}: a button that says its own name, with no label beside it. */
+        public boolean labelOnButton() {
+            return kind == Kind.BUTTON && label.equals(buttonLabel);
+        }
+
         public static Action heading(String key, String label) {
             return new Action(key, label, null, Kind.HEADING, null, null);
         }
@@ -1196,8 +1212,9 @@ public final class ToolsLayout {
                 // Every other kind that carries a control *beside* its label: one row tall side by side, or
                 // the label's band and the control's band beneath it when stacked. A pair is one widget in
                 // either composition -- see `pairLeft`, which splits the row it is given.
-                case FIELD, PAIR, CHOICE, CHIP, TEXT, BUTTON -> stack.row(row.key(),
-                        stacked ? InspectLayout.STACKED_ROW_HEIGHT : ROW_HEIGHT);
+                case FIELD, PAIR, CHOICE, CHIP, TEXT, BUTTON -> stack.row(row.key(), row.labelOnButton()
+                        ? (stacked ? InspectLayout.STACKED_CONTROL_HEIGHT : ROW_HEIGHT)
+                        : stacked ? InspectLayout.STACKED_ROW_HEIGHT : ROW_HEIGHT);
                 // And the two kinds that are one line in both compositions, for the same reason: a row that
                 // *is* the control draws its own label, so there is no second band for it to stack into --
                 // a label drawn above a widget that prints the same name is the duplicate-string fault

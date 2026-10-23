@@ -575,9 +575,17 @@ public final class ChapterPanelLayout {
     private static String typeName(JsonObject element) {
         String type = text(element, "type", "");
         int colon = type.indexOf(':');
-        // A namespaced type -- an addon's -- is drawn by its own name rather than as "unknown": the panel has
-        // no fields for it, which is a different fact from the file not saying what it is.
-        return colon < 0 ? type : type.substring(colon + 1);
+        // The canvas menu's nouns -- "Add box here" -- rather than the file's lower-case spelling, so the
+        // list, the menu and the element panel's header call one thing one name.
+        return switch (type) {
+            case "image" -> "Image";
+            case "rect" -> "Box";
+            case "text" -> "Text";
+            case "line" -> "Line";
+            // A namespaced type -- an addon's -- is drawn by its own name rather than as "unknown": the panel
+            // has no fields for it, which is a different fact from the file not saying what it is.
+            default -> colon < 0 ? type : type.substring(colon + 1);
+        };
     }
 
     /**
@@ -655,7 +663,7 @@ public final class ChapterPanelLayout {
     /** The list of links, the way in, then the selected one's own fields. */
     private static void linkList(List<ToolsLayout.Action> rows, List<JsonObject> links,
                                  String selectedLink, Set<String> folded) {
-        rows.add(ToolsLayout.Action.button(LinkPanelLayout.ADD_LINK, "tenet.dev.link.add", ""));
+        rows.add(ToolsLayout.Action.action(LinkPanelLayout.ADD_LINK, "tenet.dev.link.add"));
         int shown = Math.min(links.size(), LINK_LIST_LIMIT);
         for (int i = 0; i < shown; i++) {
             JsonObject link = links.get(i);
@@ -665,7 +673,7 @@ public final class ChapterPanelLayout {
             // value says what it is and the right-hand one where it points, so a list of six markers
             // is readable.
             rows.add(ToolsLayout.Action.value(VALUE_PREFIX + "link:" + id,
-                    "link", linkName(link, id)));
+                    "Link", linkName(link, id)));
         }
         if (links.size() > shown) {
             rows.add(ToolsLayout.Action.value(VALUE_PREFIX + "link:more", "\u2026",

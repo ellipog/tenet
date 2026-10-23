@@ -1097,6 +1097,9 @@ final class BookCanvas {
     /** A link-target pick in flight, or null. The next node click names the target; Escape cancels. */
     dev.ellipog.tenet.client.dev.LinkPick pendingLinkPick;
 
+    /** Where a {@code LinkPick.NEW} pick puts its link: the middle of the view when Add link was pressed. */
+    int[] newLinkAt;
+
     /** The element under the pointer, or empty. Published by the draw, read by the tooltip pass. */
     private String hoveredElement;
 

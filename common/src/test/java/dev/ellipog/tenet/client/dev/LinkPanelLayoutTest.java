@@ -106,16 +106,16 @@ class LinkPanelLayoutTest {
     }
 
     @Test
-    @DisplayName("the target row carries the quest it points at, and the pick carries it too")
+    @DisplayName("the target row carries the quest it points at, and the actions under it say only their names")
     void theTargetTravels() {
         assertEquals("the_deep",
                 rowOf(LinkPanelLayout.rows(marker()), "link.gate_hint.quest").value());
-        assertEquals("the_deep",
-                rowOf(LinkPanelLayout.rows(marker()), "link.gate_hint.pick").value(),
-                "the pick shows what it would replace");
-        assertEquals("the_deep",
-                rowOf(LinkPanelLayout.rows(marker()), "link.gate_hint.jump").value(),
-                "and the jump shows where it goes");
+        // The target is the field's to show, one row up: the two buttons print their own names and
+        // nothing else, so they carry no label band to print it a second time.
+        assertTrue(rowOf(LinkPanelLayout.rows(marker()), "link.gate_hint.pick").labelOnButton(),
+                "the pick is a button that says its own name");
+        assertTrue(rowOf(LinkPanelLayout.rows(marker()), "link.gate_hint.jump").labelOnButton(),
+                "and so is the jump");
     }
 
     @Test
