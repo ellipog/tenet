@@ -147,7 +147,8 @@ class LegacyMappingTest {
     @Test
     @DisplayName("item match speaks the legacy three words")
     void itemMatchSpeaksThreeWords() {
-        // the legacy `match_components` vocabulary, identical on both sides; strict stays the default.
+        // the legacy `match_components` vocabulary, identical on both sides. Tenet's default is strict;
+        // FTB reads an absent key as none, so the tool writes none explicitly.
         for (var row : List.of(
                 new String[]{"none", "NONE"}, new String[]{"fuzzy", "FUZZY"}, new String[]{"strict", "STRICT"})) {
             var parsed = assertInstanceOf(ItemTask.class,
