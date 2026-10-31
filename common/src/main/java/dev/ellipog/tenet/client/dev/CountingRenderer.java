@@ -402,6 +402,12 @@ public final class CountingRenderer implements GuiRenderer {
         return delegate.batched(draw);
     }
 
+    /** Forwarded, so the frame being counted holds its icons back the way an uncounted one does. */
+    @Override
+    public void iconsLast(Runnable draw) {
+        delegate.iconsLast(draw);
+    }
+
     @Override
     public Scoped clip(int left, int top, int right, int bottom) {
         // A scissor change ends the batch whether the context is managed or not -- `applyScissor` calls

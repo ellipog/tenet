@@ -5907,6 +5907,13 @@ public final class QuestBookScreen extends ArmatureScreen
         // By id or alias, in any letter case: the tree carries the aliases since version 16, and a
         // press naming a pre-rename spelling opens the quest rather than reporting a broken control.
         // An older server sends none, and the match falls back to the id alone.
+        //
+        // Through the folded index for a name, which is the per-frame case: the panel's rail asks for
+        // the open quest several times a frame. A "#tag" keeps the scan, because a tag is not a key the
+        // index holds, and nothing asks for one per frame.
+        if (!(questId.startsWith("#") && questId.length() > 1)) {
+            return ClientQuestCache.named(questId);
+        }
         return ClientQuestCache.entries().stream()
                 .filter(entry -> entry.matches(questId))
                 .findFirst()
@@ -27438,9 +27445,16 @@ public final class QuestBookScreen extends ArmatureScreen
         // Through the edge's own geometry rather than through `drawStyledPath(path, style, ...)`: the
         // rectangles and the arrowheads were worked out when this edge was built, so a frame re-issues
         // them and measures nothing. The origin is still added per fill — see `drawStyledPath`'s overload.
+        //
+        // Only the pieces that reach the canvas: a line that crosses its edge sends the pieces inside and
+        // drops the ones the scissor would have hidden entirely. See the overload.
+        int cLeft = canvasLeft();
+        int cTop = canvasTop();
+        int cRight = canvasRight();
+        int cBottom = canvasBottom();
         for (FrameEdge edge : edges) {
-            drawStyledPath(r, edge.geometry(), edge.path().get(0),
-                    lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now));
+            drawStyledPath(r, edge, edge.path().get(0),
+                    lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now), cLeft, cTop, cRight, cBottom);
             drawEdgePulse(r, edge, now);
         }
 
@@ -27460,10 +27474,25 @@ public final class QuestBookScreen extends ArmatureScreen
         // Optional, and mapping it per node allocates two throwaways per visible node per frame.
         String focusedId = canvasFocus.focused().orElse(null);
         List<FrameNode> nodes = frameNodes;
-        for (FrameNode node : nodes) {
-            float flash = node.id().equals(flashQuest)
-                    ? CanvasReveal.flash(now - flashStart, CanvasReveal.FLASH_MILLIS) : 0F;
-            drawNode(r, node, nodeHover.amount(node.id(), now), flash, detail, focusedId);
+        // Every icon after every shape when no two nodes overlap, so the shapes are one submission rather
+        // than one per icon: an item icon flushes everything queued before it. What a node draws over its
+        // own icon, the state's wash and the hidden mark, goes in a pass of its own after the icons, so
+        // each node still ends up shape, icon, wash, mark. Nodes that overlap draw one at a time as before,
+        // because a later node's shape has to cover an earlier one's icon. See GuiRenderer.iconsLast.
+        boolean iconsLast = canvasNodesApart;
+        Runnable nodePass = () -> {
+            for (FrameNode node : nodes) {
+                float flash = node.id().equals(flashQuest)
+                        ? CanvasReveal.flash(now - flashStart, CanvasReveal.FLASH_MILLIS) : 0F;
+                drawNode(r, node, nodeHover.amount(node.id(), now), flash, detail, focusedId, !iconsLast);
+            }
+        };
+        if (iconsLast) {
+            r.iconsLast(nodePass);
+            drawNodeCovers(r, nodes);
+        }
+        else {
+            nodePass.run();
         }
         // Titles in their own pass, after every node, so a label can see the other nodes -- see the
         // stamp for what happened when it could not. Placed, cut and collision-tested there; the
@@ -27594,8 +27623,12 @@ public final class QuestBookScreen extends ArmatureScreen
     // asked to solve a rendering problem. Two layers of forwarding around one pose-stack manipulation,
     // and the manipulation is the only part that had anything to say.
 
+    /**
+     * One node. With {@code covers} false the wash and the hidden mark are left out, for a node pass that
+     * holds its icons back: those two draw over the icon, so {@link #drawNodeCovers} draws them after.
+     */
     private void drawNode(GuiRenderer r, FrameNode node, float hover, float flash,
-                          CanvasDetail detail, String focusedId) {
+                          CanvasDetail detail, String focusedId, boolean covers) {
         int size = node.size();
         int x = node.x();
         int y = node.y();
@@ -27644,9 +27677,9 @@ public final class QuestBookScreen extends ArmatureScreen
                 // parity, resolved per chapter so one tierless chapter does not tierless the rest.
                 // One map lookup per node per frame, which is what the chapter index is for.
                 ClientQuestCache.lodDisabledFor(node.chapterId()),
-                edge, ring, wash));
+                edge, ring, covers ? wash : 0));
 
-        if (mayEditNow() && !questVisible(node.id())) {
+        if (covers && mayEditNow() && !questVisible(node.id())) {
             // Marked, because the author is looking at a node the reader's book does not draw -- and
             // without a mark the only way to find out would be to open the book as a player and notice
             // something missing. A dashed square, deliberately unlike every other ring on this canvas:
@@ -27680,6 +27713,48 @@ public final class QuestBookScreen extends ArmatureScreen
         QuestLinkArt.draw(new QuestLinkArt.Frame(r, viewport()), slot.slot(), slot.target().icon(),
                 slot.target().textureIcon(), slot.target().spriteIcon(), state, ring,
                 ClientQuestCache.lodDisabledFor(slot.target().chapterId()));
+    }
+
+    /**
+     * What each node draws over its own icon, after a node pass that held the icons back: the state's wash,
+     * then the hidden mark, in the order {@link #drawNode} draws them. The nodes do not overlap, so the
+     * order across nodes does not change a pixel.
+     */
+    private void drawNodeCovers(GuiRenderer r, List<FrameNode> nodes) {
+        boolean marks = mayEditNow();
+        for (FrameNode node : nodes) {
+            if (node.wash() != 0) {
+                QuestNodeArt.wash(r, node.x(), node.y(), node.size(), node.geometry(), node.wash());
+            }
+            if (marks && !questVisible(node.id())) {
+                drawHiddenMark(r, node.x(), node.y(), node.size());
+            }
+        }
+    }
+
+    /**
+     * Whether no node's ring reaches another node's box. The icon sits inside its node's box (see
+     * {@code Shape.iconBox}) and the ring is one pixel outside it, so that is every way a shape drawn
+     * after an icon could cover it.
+     *
+     * <p>Asked in doubled coordinates with every box grown by one, which is each grown by half a pixel:
+     * two half-grown boxes overlap exactly when one fully grown box overlaps the other plain one, so a
+     * one-pixel gap between two nodes still counts as apart.
+     */
+    private static boolean nodesApart(List<FrameNode> nodes) {
+        int n = nodes.size();
+        int[] l = new int[n];
+        int[] t = new int[n];
+        int[] r = new int[n];
+        int[] b = new int[n];
+        for (int i = 0; i < n; i++) {
+            FrameNode node = nodes.get(i);
+            l[i] = node.x() * 2 - 1;
+            t[i] = node.y() * 2 - 1;
+            r[i] = (node.x() + node.size()) * 2 + 1;
+            b[i] = (node.y() + node.size()) * 2 + 1;
+        }
+        return !CanvasOverlap.any(l, t, r, b, n);
     }
 
     /** A dashed one-pixel square around a node that is hidden from players. */
@@ -27842,6 +27917,9 @@ public final class QuestBookScreen extends ArmatureScreen
         /** Null until the first draw asks; see the class note. */
         private LineArt.EdgeGeometry geometry;
 
+        /** The box around {@link #geometry}'s pieces, in the same route coordinates; null until asked. */
+        private int[] inkBox;
+
         FrameEdge(String fromId, String toId, ClientQuestCache.Entry from, ClientQuestCache.Entry to,
                   DependencyStyle style, List<LineArt.Point> path, int baseColour) {
             this.fromId = fromId;
@@ -27899,6 +27977,33 @@ public final class QuestBookScreen extends ArmatureScreen
             if (held == null) {
                 held = LineArt.geometry(path, style, LineArt.ArrowSpec.of(style));
                 geometry = held;
+            }
+            return held;
+        }
+
+        /**
+         * The smallest box holding every piece of {@link #geometry}, lines and heads, as {@code left, top,
+         * right, bottom} in route coordinates, worked out once with the geometry. A route with no pieces
+         * answers an empty box at the origin, which no canvas reaches.
+         */
+        int[] inkBox() {
+            int[] held = inkBox;
+            if (held == null) {
+                LineArt.EdgeGeometry g = geometry();
+                int left = Integer.MAX_VALUE;
+                int top = Integer.MAX_VALUE;
+                int right = Integer.MIN_VALUE;
+                int bottom = Integer.MIN_VALUE;
+                for (List<LineArt.Fill> pieces : List.of(g.fills(), g.arrows())) {
+                    for (LineArt.Fill fill : pieces) {
+                        left = Math.min(left, Math.min(fill.x1(), fill.x2()));
+                        top = Math.min(top, Math.min(fill.y1(), fill.y2()));
+                        right = Math.max(right, Math.max(fill.x1(), fill.x2()));
+                        bottom = Math.max(bottom, Math.max(fill.y1(), fill.y2()));
+                    }
+                }
+                held = left > right ? new int[4] : new int[] { left, top, right, bottom };
+                inkBox = held;
             }
             return held;
         }
@@ -28017,6 +28122,12 @@ public final class QuestBookScreen extends ArmatureScreen
 
     /** The chapter's nodes as the frame draws them, in draw order. Rebuilt by the stamp. */
     private List<FrameNode> frameNodes = List.of();
+
+    /**
+     * Whether no two of {@link #frameNodes} overlap, ring included, which is what lets the frame draw every
+     * node's icon in one pass after every node's shape. Rebuilt with the nodes. See {@link #nodesApart}.
+     */
+    private boolean canvasNodesApart;
 
     /** The chapter's labels as the frame draws them, placed and cut. Rebuilt by the stamp. */
     private List<FrameLabel> frameLabels = List.of();
@@ -28301,6 +28412,7 @@ public final class QuestBookScreen extends ArmatureScreen
                     QuestNodeArt.edgeFor(state), QuestNodeArt.washFor(state), entry.hideLockIcon()));
         }
         frameNodes = List.copyOf(nodes);
+        canvasNodesApart = nodesApart(nodes);
         canvasCycling = cycling;
         canvasAnimSecond = nowSecond;
 
@@ -28858,6 +28970,50 @@ public final class QuestBookScreen extends ArmatureScreen
             r.fill(origin.x() + fill.x1(), origin.y() + fill.y1(),
                     origin.x() + fill.x2(), origin.y() + fill.y2(), colour);
         }
+    }
+
+    /**
+     * The same for a frame edge, sending only the pieces that touch the canvas.
+     *
+     * <p>Three answers from the ink's box, which the edge works out once with its geometry: wholly off the
+     * canvas sends nothing, wholly on it sends everything with no test per piece, and only a line that
+     * crosses the canvas edge pays the test per piece. A piece the canvas clips is still sent, so the
+     * clipped part draws as before; only pieces the scissor would have hidden entirely are dropped.
+     */
+    private static void drawStyledPath(GuiRenderer r, FrameEdge edge, LineArt.Point origin, int colour,
+                                       int left, int top, int right, int bottom) {
+        int ox = origin.x();
+        int oy = origin.y();
+        LineArt.EdgeGeometry geometry = edge.geometry();
+        int[] box = edge.inkBox();
+        if (box[0] + ox >= right || box[2] + ox <= left || box[1] + oy >= bottom || box[3] + oy <= top) {
+            return;
+        }
+        if (box[0] + ox >= left && box[2] + ox <= right && box[1] + oy >= top && box[3] + oy <= bottom) {
+            drawStyledPath(r, geometry, origin, colour);
+            return;
+        }
+        int l = left - ox;
+        int t = top - oy;
+        int rr = right - ox;
+        int b = bottom - oy;
+        for (LineArt.Fill fill : geometry.fills()) {
+            if (touches(fill, l, t, rr, b)) {
+                r.fill(ox + fill.x1(), oy + fill.y1(), ox + fill.x2(), oy + fill.y2(),
+                        MenuFlyoutArt.ink(fill.tone(), colour));
+            }
+        }
+        for (LineArt.Fill fill : geometry.arrows()) {
+            if (touches(fill, l, t, rr, b)) {
+                r.fill(ox + fill.x1(), oy + fill.y1(), ox + fill.x2(), oy + fill.y2(), colour);
+            }
+        }
+    }
+
+    /** Whether a piece, in route coordinates, shares a pixel with the box; either corner order counts. */
+    private static boolean touches(LineArt.Fill fill, int left, int top, int right, int bottom) {
+        return Math.min(fill.x1(), fill.x2()) < right && Math.max(fill.x1(), fill.x2()) > left
+                && Math.min(fill.y1(), fill.y2()) < bottom && Math.max(fill.y1(), fill.y2()) > top;
     }
 
     /** The same, for a drawn line whose path is already computed and whose ends sit on the rims. */
@@ -37811,6 +37967,8 @@ public final class QuestBookScreen extends ArmatureScreen
     @Override
     public void removed() {
         super.removed();
+        // The still world behind the book goes with it, so a book opened later takes a fresh one.
+        WorldFreeze.release();
         // Exits end with their world: any cleanup a close deferred runs now rather than never — several
         // free drafts and close commits, and there is no next settle coming.
         runAllTeardowns();

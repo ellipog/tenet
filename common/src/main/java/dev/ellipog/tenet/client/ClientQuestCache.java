@@ -1497,20 +1497,83 @@ public final class ClientQuestCache {
     private static volatile List<Entry> indexedFor;
     private static volatile Map<String, Entry> byId = Map.of();
 
+    /**
+     * The same quests by id <b>and</b> alias, in any letter case: the index behind {@link #named}.
+     *
+     * <p>Built in the same pass as {@link #byId} and published before the same key, so the two can never
+     * describe different lists. The keys are {@link #fold folded}, and each entry puts its id and then its
+     * aliases with {@code putIfAbsent} in list order, so a key holds the first entry the scan in
+     * {@link Entry#matches} would have stopped at.
+     */
+    private static volatile Map<String, Entry> byName = Map.of();
+
     private static Map<String, Entry> byId() {
+        index();
+        return byId;
+    }
+
+    private static void index() {
         List<Entry> current = entries;
         if (current != indexedFor) {
             Map<String, Entry> built = new java.util.HashMap<>(Math.max(16, current.size() * 2));
+            Map<String, Entry> names = new java.util.HashMap<>(Math.max(16, current.size() * 2));
             for (Entry entry : current) {
                 built.putIfAbsent(entry.id(), entry);
+                names.putIfAbsent(fold(entry.id()), entry);
+                for (String alias : entry.aliases()) {
+                    names.putIfAbsent(fold(alias), entry);
+                }
             }
-            // The map before the key that says it is current, and both volatile: a reader that sees
-            // `indexedFor == current` then sees the map built for `current` rather than one built for
+            // The maps before the key that says they are current, and all volatile: a reader that sees
+            // `indexedFor == current` then sees the maps built for `current` rather than ones built for
             // the list before it. That ordering is what makes the claim above true rather than likely.
             byId = Map.copyOf(built);
+            byName = Map.copyOf(names);
             indexedFor = current;
         }
-        return byId;
+    }
+
+    /**
+     * A string reduced to the one spelling {@link String#equalsIgnoreCase} cannot tell apart from it.
+     *
+     * <p>That method calls two characters equal when they are the same, have the same upper case, or have
+     * the same lower case of their upper case, and the third test contains the other two. So mapping every
+     * code point to the lower case of its upper case gives two strings the same key exactly when
+     * {@code equalsIgnoreCase} would match them. {@code toLowerCase(Locale.ROOT)} is not the same thing:
+     * it changes the length of some strings (a dotted capital I becomes two characters) and folds a few
+     * pairs that the character-by-character test keeps apart.
+     */
+    static String fold(String text) {
+        StringBuilder out = null;
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            int folded = Character.toLowerCase(Character.toUpperCase(cp));
+            if (folded != cp && out == null) {
+                out = new StringBuilder(text.length()).append(text, 0, i);
+            }
+            if (out != null) {
+                out.appendCodePoint(folded);
+            }
+            i += Character.charCount(cp);
+        }
+        return out == null ? text : out.toString();
+    }
+
+    /**
+     * The first quest whose id or alias is {@code idOrAlias} in any letter case, or null: the answer
+     * {@link Entry#matches} gives when asked of every entry in turn, without the walk.
+     *
+     * <p>A {@code "#tag"} is not a name, so it is not answered here; the caller keeps the scan for those.
+     * The book asks this many times a frame while a quest's panel is open (its rail's width depends on the
+     * quest), and the scan was a pass over every quest in the pack each time, which on a pack of a few
+     * thousand quests was a tenth of the book's frame.
+     */
+    public static Entry named(String idOrAlias) {
+        if (idOrAlias == null) {
+            return null;
+        }
+        index();
+        return byName.get(fold(idOrAlias));
     }
 
     /**

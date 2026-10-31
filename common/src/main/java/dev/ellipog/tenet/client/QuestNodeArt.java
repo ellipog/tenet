@@ -243,8 +243,16 @@ public final class QuestNodeArt {
             // The table is the panel's own, one pixel in -- `geometry.inner()` -- rather than the shape
             // sampled at `size - 2`, which is what used to let a wash spill past the outline it is meant
             // to be dimming.
-            ArmatureTheme.fillShape(r, x + 1, y + 1, size - 2, look.wash(), geometry.inner());
+            wash(r, x, y, size, geometry, look.wash());
         }
+    }
+
+    /**
+     * The state's wash over a node, one pixel inside its outline: the last thing {@link #draw} draws, and on
+     * its own for a canvas that draws every node's icon before any node's wash.
+     */
+    public static void wash(GuiRenderer r, int x, int y, int size, Shape geometry, int wash) {
+        ArmatureTheme.fillShape(r, x + 1, y + 1, size - 2, wash, geometry.inner());
     }
 
     /**

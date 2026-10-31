@@ -191,6 +191,8 @@ public final class TenetFabricClient implements ClientModInitializer {
         // same reason as the rest — a canvas drawn in the first second must not be drawn at the mod's
         // defaults because the file had not been read. See CanvasSettings.
         CanvasSettings.loadFromConfig();
+        // And whether the world behind an open book is held still. See WorldFreeze.
+        dev.ellipog.tenet.client.WorldFreeze.loadFromConfig();
 
         // The recipe-viewer seam: the content goes in as soon as the client exists, and whichever
         // viewer is installed reads it when it registers. No viewer is named here -- the seam is this
