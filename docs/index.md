@@ -1,6 +1,6 @@
 # Tenet documentation
 
-Tenet is a questing engine for Minecraft 1.21.1, on Fabric and NeoForge. A pack author describes a
+Tenet is a questing engine for Minecraft 26.3 and 1.21.1, on Fabric and NeoForge. A pack author describes a
 [[quest]] line in JSON, Tenet draws it on a pannable [[canvas]], and the server decides what counts
 as done. The client renders what it is told and nothing more, so no player can complete a quest by
 editing their own game.
@@ -9,11 +9,11 @@ editing their own game.
 
 | | |
 |---|---|
-| Minecraft | 1.21.1, on Fabric or NeoForge |
-| Fabric | Fabric Loader 0.16.9+, with Fabric API 0.109.0+1.21.1 |
-| NeoForge | 21.1.252+ |
-| Armature | 1.1.0+, required on both loaders ([[armature:index]] is the library Tenet is built on) |
-| KubeJS | optional, NeoForge only, 2101.7.2+ (see [[tenet:authoring/kubejs]]) |
+| Minecraft | 26.3 or 1.21.1, on Fabric or NeoForge. Each Minecraft version has its own jar |
+| Fabric | On 26.3: Fabric Loader 0.19.5+, with Fabric API 0.162.0+26.3. On 1.21.1: Fabric Loader 0.16.9+, with Fabric API 0.109.0+1.21.1 |
+| NeoForge | 26.3.0.76+ on 26.3, 21.1.252+ on 1.21.1 |
+| Armature | 1.2.0+ for the same Minecraft version, required on both loaders ([[armature:index]] is the library Tenet is built on) |
+| KubeJS | optional, NeoForge only: 26.1.2-8.0.6+ on 26.3, 2101.7.2+ on 1.21.1 (see [[tenet:authoring/kubejs]]) |
 
 Tenet ships no questlines of its own. It is an engine, and installing it does not put somebody else's
 content in your config; the worked questline lives in the repository under `tools/quests/`, as
