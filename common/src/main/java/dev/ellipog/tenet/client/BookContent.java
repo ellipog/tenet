@@ -324,6 +324,13 @@ final class BookContent {
         // By id or alias, in any letter case: the tree carries the aliases since version 16, and a
         // press naming a pre-rename spelling opens the quest rather than reporting a broken control.
         // An older server sends none, and the match falls back to the id alone.
+        //
+        // Through the folded index for a name, which is the per-frame case: the panel's rail asks for
+        // the open quest several times a frame. A "#tag" keeps the scan, because a tag is not a key the
+        // index holds, and nothing asks for one per frame.
+        if (!(questId.startsWith("#") && questId.length() > 1)) {
+            return ClientQuestCache.named(questId);
+        }
         return ClientQuestCache.entries().stream()
                 .filter(entry -> entry.matches(questId))
                 .findFirst()

@@ -5,6 +5,7 @@ import dev.ellipog.armature.client.Look;
 import dev.ellipog.armature.client.ArmatureTheme;
 import dev.ellipog.armature.client.ui.art.CanvasBackgroundArt;
 import dev.ellipog.armature.client.render.GuiRenderer;
+import dev.ellipog.armature.client.render.Hairlines;
 import dev.ellipog.armature.client.ui.kit.Colour;
 import dev.ellipog.armature.client.ui.kit.Hover;
 import dev.ellipog.armature.client.ui.kit.Layout;
@@ -629,12 +630,17 @@ final class BookCanvas {
         // Through the edge's own geometry rather than through `drawStyledPath(path, style, ...)`: the
         // rectangles and the arrowheads were worked out when this edge was built, so a frame re-issues
         // them and measures nothing. The pan-shifted origin is added per fill (see `drawStyledPath`'s overload).
+        //
+        // Culled twice. `reaches` is the cheap guess from the two nodes' boxes, so a line that passes it can
+        // still have most of its pieces off the canvas, and zoomed in that is most lines: a long route
+        // crossing the view sends every step of its staircase. The ink's own box answers the rest, see
+        // `drawStyledPath`. The scissor would hide those pieces anyway, so the picture does not change.
         for (FrameEdge edge : edges) {
             if (!edge.reaches(dx, dy, cLeft, cTop, cRight, cBottom)) {
                 continue;
             }
-            drawStyledPath(r, edge.geometry(), edge.origin(dx, dy),
-                    lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now));
+            drawStyledPath(r, edge, edge.origin(dx, dy),
+                    lineInk(edge.baseColour(), edge.fromId(), edge.toId(), now), cLeft, cTop, cRight, cBottom);
             drawEdgePulse(r, edge, now, dx, dy);
         }
 
@@ -658,16 +664,31 @@ final class BookCanvas {
         // Optional, and mapping it per node allocates two throwaways per visible node per frame.
         String focusedId = book.bookState.canvasFocus.focused().orElse(null);
         List<FrameNode> nodes = frameNodes;
-        for (FrameNode node : nodes) {
-            int nx = node.x() + dx;
-            int ny = node.y() + dy;
-            int nSize = node.size();
-            if (nx >= cRight || nx + nSize <= cLeft || ny >= cBottom || ny + nSize <= cTop) {
-                continue;
+        // The icons in one pass when the stamp found no two nodes overlapping: every shape first, then every
+        // icon, which the game files as one batch and one layer instead of a layer per node. With nothing
+        // overlapping, no shape drawn after an icon can cover it, so the picture is the same. The hidden
+        // marks sit on a node's rim, which a borderless node's icon can reach, so they follow the icons.
+        // Nodes that overlap keep the old order. See GuiRenderer.iconsLast.
+        boolean iconsLast = canvasNodesApart;
+        Runnable nodePass = () -> {
+            for (FrameNode node : nodes) {
+                int nx = node.x() + dx;
+                int ny = node.y() + dy;
+                int nSize = node.size();
+                if (nx >= cRight || nx + nSize <= cLeft || ny >= cBottom || ny + nSize <= cTop) {
+                    continue;
+                }
+                float flash = node.id().equals(book.bookState.flashQuest)
+                        ? CanvasReveal.flash(now - book.bookState.flashStart, CanvasReveal.FLASH_MILLIS) : 0F;
+                drawNode(r, node, nx, ny, nodeHover.amount(node.id(), now), flash, detail, focusedId, !iconsLast);
             }
-            float flash = node.id().equals(book.bookState.flashQuest)
-                    ? CanvasReveal.flash(now - book.bookState.flashStart, CanvasReveal.FLASH_MILLIS) : 0F;
-            drawNode(r, node, nx, ny, nodeHover.amount(node.id(), now), flash, detail, focusedId);
+        };
+        if (iconsLast) {
+            r.iconsLast(nodePass);
+            drawHiddenMarks(r, nodes, dx, dy, cLeft, cTop, cRight, cBottom);
+        }
+        else {
+            nodePass.run();
         }
         // Titles in their own pass, after every node, so a label can see the other nodes -- see the
         // stamp for what happened when it could not. Placed and cut there; the frame applies the pan
@@ -801,7 +822,7 @@ final class BookCanvas {
     // and the manipulation is the only part that had anything to say.
 
     private void drawNode(GuiRenderer r, FrameNode node, int x, int y, float hover, float flash,
-                          CanvasDetail detail, String focusedId) {
+                          CanvasDetail detail, String focusedId, boolean withMark) {
         int size = node.size();
         int edge = node.edge();
 
@@ -850,13 +871,57 @@ final class BookCanvas {
                 ClientQuestCache.lodDisabledFor(node.chapterId()),
                 edge, ring, wash));
 
-        if (book.mayEditNow() && !BookContent.questVisible(node.id())) {
+        if (withMark && book.mayEditNow() && !BookContent.questVisible(node.id())) {
             // Marked, because the author is looking at a node the reader's book does not draw -- and
             // without a mark the only way to find out would be to open the book as a player and notice
             // something missing. A dashed square, deliberately unlike every other ring on this canvas:
             // those mean selection or hover, and this means "you are seeing this and nobody else is".
             drawHiddenMark(r, x, y, size);
         }
+    }
+
+    /** The hidden marks on their own, after a node pass that held its icons back; see the node loop. */
+    private void drawHiddenMarks(GuiRenderer r, List<FrameNode> nodes, int dx, int dy,
+                                 int cLeft, int cTop, int cRight, int cBottom) {
+        if (!book.mayEditNow()) {
+            return;
+        }
+        for (FrameNode node : nodes) {
+            int nx = node.x() + dx;
+            int ny = node.y() + dy;
+            int nSize = node.size();
+            if (nx >= cRight || nx + nSize <= cLeft || ny >= cBottom || ny + nSize <= cTop) {
+                continue;
+            }
+            if (!BookContent.questVisible(node.id())) {
+                drawHiddenMark(r, nx, ny, nSize);
+            }
+        }
+    }
+
+    /**
+     * Whether no node's ring reaches another node's box. The icon sits inside its node's box (see
+     * {@code Shape.iconBox}) and the ring is one pixel outside it, so that is every way a shape drawn
+     * after an icon could cover it.
+     *
+     * <p>Asked in doubled coordinates with every box grown by one, which is each grown by half a pixel:
+     * two half-grown boxes overlap exactly when one fully grown box overlaps the other plain one, so a
+     * one-pixel gap between two nodes still counts as apart.
+     */
+    private static boolean nodesApart(List<FrameNode> nodes) {
+        int n = nodes.size();
+        int[] l = new int[n];
+        int[] t = new int[n];
+        int[] r = new int[n];
+        int[] b = new int[n];
+        for (int i = 0; i < n; i++) {
+            FrameNode node = nodes.get(i);
+            l[i] = node.x() * 2 - 1;
+            t[i] = node.y() * 2 - 1;
+            r[i] = (node.x() + node.size()) * 2 + 1;
+            b[i] = (node.y() + node.size()) * 2 + 1;
+        }
+        return !CanvasOverlap.any(l, t, r, b, n);
     }
 
     /**
@@ -1013,6 +1078,13 @@ final class BookCanvas {
 
     /** The chapter's nodes as the frame draws them, in draw order. Rebuilt by the stamp. */
     List<FrameNode> frameNodes = List.of();
+
+    /**
+     * Whether no two of {@link #frameNodes} overlap, ring included, which is what lets the frame draw every
+     * node's icon in one pass after every node's shape. Pan moves every node together, so the answer is the
+     * stamp's. See {@link #nodesApart}.
+     */
+    private boolean canvasNodesApart;
 
     /** The chapter's labels as the frame draws them, placed and cut. Rebuilt by the stamp. */
     private List<FrameLabel> frameLabels = List.of();
@@ -1315,6 +1387,7 @@ final class BookCanvas {
                     QuestNodeArt.edgeFor(state), QuestNodeArt.washFor(state), entry.hideLockIcon()));
         }
         frameNodes = List.copyOf(nodes);
+        canvasNodesApart = nodesApart(nodes);
         canvasCycling = cycling;
         canvasAnimSecond = nowSecond;
 
@@ -1807,6 +1880,62 @@ final class BookCanvas {
             r.fill(origin.x() + fill.x1(), origin.y() + fill.y1(),
                     origin.x() + fill.x2(), origin.y() + fill.y2(), colour);
         }
+    }
+
+    /**
+     * The same for a frame edge, sending only the pieces that touch the canvas.
+     *
+     * <p>Three answers from the ink's box, which the edge works out once with its geometry: wholly off the
+     * canvas sends nothing, wholly on it sends everything with no test per piece, and only a line that
+     * crosses the canvas edge pays the test per piece. A piece the canvas clips is still sent, so the
+     * clipped part draws as before; only pieces the scissor would have hidden entirely are dropped.
+     *
+     * <p>A line that can be drawn as {@link FrameEdge#hairline} is sent as its route instead of its pieces,
+     * on or across the canvas alike: the route is fewer calls than the pieces, and the scissor clips it to
+     * the same pixels. Its heads are still pieces.
+     */
+    private static void drawStyledPath(GuiRenderer r, FrameEdge edge, LineArt.Point origin, int colour,
+                                       int left, int top, int right, int bottom) {
+        int ox = origin.x();
+        int oy = origin.y();
+        LineArt.EdgeGeometry geometry = edge.geometry();
+        int[] box = edge.inkBox();
+        if (box[0] + ox >= right || box[2] + ox <= left || box[1] + oy >= bottom || box[3] + oy <= top) {
+            return;
+        }
+        boolean inside = box[0] + ox >= left && box[2] + ox <= right && box[1] + oy >= top
+                && box[3] + oy <= bottom;
+        int[] route = edge.hairline();
+        if (inside && route == null) {
+            drawStyledPath(r, geometry, origin, colour);
+            return;
+        }
+        int l = left - ox;
+        int t = top - oy;
+        int rr = right - ox;
+        int b = bottom - oy;
+        if (route != null) {
+            r.hairline(ox, oy, route, colour);
+        }
+        else {
+            for (LineArt.Fill fill : geometry.fills()) {
+                if (touches(fill, l, t, rr, b)) {
+                    r.fill(ox + fill.x1(), oy + fill.y1(), ox + fill.x2(), oy + fill.y2(),
+                            MenuFlyoutArt.ink(fill.tone(), colour));
+                }
+            }
+        }
+        for (LineArt.Fill fill : geometry.arrows()) {
+            if (inside || touches(fill, l, t, rr, b)) {
+                r.fill(ox + fill.x1(), oy + fill.y1(), ox + fill.x2(), oy + fill.y2(), colour);
+            }
+        }
+    }
+
+    /** Whether a piece, in route coordinates, shares a pixel with the box; either corner order counts. */
+    private static boolean touches(LineArt.Fill fill, int left, int top, int right, int bottom) {
+        return Math.min(fill.x1(), fill.x2()) < right && Math.max(fill.x1(), fill.x2()) > left
+                && Math.min(fill.y1(), fill.y2()) < bottom && Math.max(fill.y1(), fill.y2()) > top;
     }
 
     /** The same, for a drawn line whose path is already computed and whose ends sit on the rims. */
@@ -2355,6 +2484,13 @@ final class BookCanvas {
         /** Null until the first draw asks; see the class note. */
         private LineArt.EdgeGeometry geometry;
 
+        /** The box around {@link #geometry}'s pieces, in the same route coordinates; null until asked. */
+        private int[] inkBox;
+
+        /** Whether {@link #hairline} has been worked out, since null is one of its answers. */
+        private boolean hairlineAsked;
+        private int[] hairline;
+
         FrameEdge(String fromId, String toId, ClientQuestCache.Entry from, ClientQuestCache.Entry to,
                   DependencyStyle style, LineArt.Point endFrom, LineArt.Point endTo,
                   int reachLeft, int reachTop, int reachRight, int reachBottom,
@@ -2462,6 +2598,122 @@ final class BookCanvas {
             }
             return held;
         }
+
+        /**
+         * Left, top, right and bottom of every piece of ink and every arrowhead, measured from the route's
+         * first point like the pieces themselves. Tighter than {@link #reaches}, which is padded by both
+         * nodes' sizes, and fixed for the same reason the geometry is.
+         *
+         * <p>An edge with no pieces at all answers a zero box at the origin: it has nothing to send, so
+         * whichever way the cull answers, nothing is drawn.
+         */
+        int[] inkBox() {
+            int[] held = inkBox;
+            if (held == null) {
+                LineArt.EdgeGeometry g = geometry();
+                int left = Integer.MAX_VALUE;
+                int top = Integer.MAX_VALUE;
+                int right = Integer.MIN_VALUE;
+                int bottom = Integer.MIN_VALUE;
+                for (List<LineArt.Fill> pieces : List.of(g.fills(), g.arrows())) {
+                    for (LineArt.Fill fill : pieces) {
+                        left = Math.min(left, Math.min(fill.x1(), fill.x2()));
+                        top = Math.min(top, Math.min(fill.y1(), fill.y2()));
+                        right = Math.max(right, Math.max(fill.x1(), fill.x2()));
+                        bottom = Math.max(bottom, Math.max(fill.y1(), fill.y2()));
+                    }
+                }
+                held = left > right ? new int[4] : new int[] { left, top, right, bottom };
+                inkBox = held;
+            }
+            return held;
+        }
+
+        /**
+         * The route as {@link GuiRenderer#hairline} takes it, measured from the route's first point like the
+         * pieces, or null when the line is drawn from its pieces. Worked out once, like the geometry.
+         *
+         * @see #hairlineOf
+         */
+        int[] hairline() {
+            if (!hairlineAsked) {
+                hairline = hairlineOf(geometry(), style);
+                hairlineAsked = true;
+            }
+            return hairline;
+        }
+
+        /**
+         * A line's route for {@link GuiRenderer#hairline}, or null when its pieces must draw it.
+         *
+         * <p>A thin solid line's pieces are exactly the pixels of walking its route, and so is a hairline, so
+         * either draws the same picture. The route is only worth sending when it is fewer calls than the
+         * pieces: a route along the axes is already one piece per segment, and a curve is sampled every couple
+         * of pixels. A straight line's route is every pixel of its walk, so it is sent as its two ends, which
+         * walk to the same pixels.
+         *
+         * <p>One more condition, and it is about the picture rather than the cost. The pieces draw each pixel
+         * once, and a hairline draws a pixel once per time the route reaches it; a route that crosses its own
+         * ink would draw those pixels twice, which shows on a translucent line. So the pieces' area must be one
+         * pixel for the start and one per step, which is what a route that never revisits a pixel covers.
+         */
+        static int[] hairlineOf(LineArt.EdgeGeometry geometry, DependencyStyle style) {
+            if (style.weightOr(DependencyStyle.Weight.THIN) != DependencyStyle.Weight.THIN
+                    || style.dashOr(DependencyStyle.Dash.SOLID) != DependencyStyle.Dash.SOLID) {
+                return null;
+            }
+            List<LineArt.Point> route = straightEnds(geometry.route());
+            List<LineArt.Fill> fills = geometry.fills();
+            if (route.size() < 2 || route.size() - 1 >= fills.size()) {
+                return null;
+            }
+            int[] flat = new int[route.size() * 2];
+            long steps = 1;
+            for (int i = 0; i < route.size(); i++) {
+                LineArt.Point point = route.get(i);
+                flat[2 * i] = point.x();
+                flat[2 * i + 1] = point.y();
+                if (i > 0) {
+                    steps += Hairlines.steps(point.x() - flat[2 * i - 2], point.y() - flat[2 * i - 1]);
+                }
+            }
+            long area = 0;
+            for (LineArt.Fill fill : fills) {
+                if (fill.tone() != LineArt.Tone.MAIN) {
+                    return null;
+                }
+                area += (long) Math.abs(fill.x2() - fill.x1()) * Math.abs(fill.y2() - fill.y1());
+            }
+            return area == steps ? flat : null;
+        }
+
+        /**
+         * The route's two ends when the route is every pixel of the straight walk between them, as a straight
+         * line's is, and the route itself otherwise.
+         */
+        private static List<LineArt.Point> straightEnds(List<LineArt.Point> route) {
+            int n = route.size();
+            if (n <= 2) {
+                return route;
+            }
+            LineArt.Point first = route.get(0);
+            LineArt.Point last = route.get(n - 1);
+            int dx = last.x() - first.x();
+            int dy = last.y() - first.y();
+            int c = Hairlines.steps(dx, dy);
+            if (c + 1 != n) {
+                return route;
+            }
+            for (int i = 1; i < n - 1; i++) {
+                LineArt.Point point = route.get(i);
+                if (point.x() != first.x() + Hairlines.step(dx, i, c)
+                        || point.y() != first.y() + Hairlines.step(dy, i, c)) {
+                    return route;
+                }
+            }
+            return List.of(first, last);
+        }
+
 
         /** The key the hover and the hit test use: the dependency first, the dependent second. */
         String[] key() {

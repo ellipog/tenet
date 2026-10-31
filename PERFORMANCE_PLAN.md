@@ -2,6 +2,28 @@
 
 Written 2026-10-20 from a read-only review of `main` @ `bc645cd` (with Armature `main` @ `45638f7`). Nothing here is implemented yet. Line numbers are from that commit and will drift.
 
+## Done since (2026-10-31)
+
+- **Part of item 5, the line primitive.** Armature's `GuiRenderer.hairline` takes a one-pixel route. On 26.3 a diagonal segment is one quad, and its shader keeps the same pixels the fills drew. Tenet sends a dependency line this way when it is thin and solid and the route is fewer calls than its pieces (`FrameEdge.hairlineOf`), which covers straight lines and the chamfered default's bevels. Heavier, broken and curved lines are still fills.
+- **Line pieces outside the canvas are not sent.** Each edge keeps the box around its ink, so a line wholly off the canvas costs one test, and only a line crossing the canvas edge tests each piece.
+- **Node icons in one pass.** When no two nodes on the canvas overlap, the icons are held back (`iconsLast`) and drawn after all the shapes, so the shapes stay one batch. Before, each icon split the batch, so N icons were about 2N GUI layers.
+- **`entryFor` is indexed** (see Ruled out).
+- **The world behind the book can freeze.** `config/tenet/backdrop.json` (`off`, `paused` by default, or `always`) keeps the last world frame and skips both the world's extract and its render while the book is open. See `docs/hud.md`.
+- **Measured** with the Fabric client game test tour, on a flat test world at 1920x1080, as the median CPU frame time over 300 frames per scene. The scenes are three converted ATM10 chapters and the stress chapter, each at near and far zoom. The screenshots match the old build pixel for pixel, apart from animated icons.
+
+  | Scene | Before | All five, freeze off | Freeze `always` |
+  |---|---|---|---|
+  | Productive Bees, near | 925 µs | 1009 µs | 946 µs |
+  | Productive Bees, far | 856 µs | 864 µs | 826 µs |
+  | Eternal Starlight, near | 1536 µs | 1351 µs | 1183 µs |
+  | Eternal Starlight, far | 1438 µs | 1455 µs | 1309 µs |
+  | Mystical Agriculture, near | 1502 µs | 1303 µs | 1114 µs |
+  | Mystical Agriculture, far | 1708 µs | 1446 µs | 1376 µs |
+  | Stress, near | 6608 µs | 4449 µs | 4466 µs |
+  | Stress, far | 5031 µs | 4886 µs | 4667 µs |
+
+  Run to run noise is about 10%. The default `paused` mode changed nothing in this run, because the book only pauses the game when the pack turns on `pauseGame`. A flat world is cheap to draw, so the freeze saves more in a real modpack world than it does here.
+
 ## Step 0: find out which lag it is
 
 Profile before changing anything.
@@ -54,7 +76,7 @@ Profile before changing anything.
 
 - **Huge methods not getting JIT-compiled.** Measured with Temurin 25.0.4: the class has 1,348 methods and none reaches the 8000-byte HotSpot limit. The biggest are `mouseClicked` 4158, `stampCanvas` 1798, `keyPressed` 1486, `extractRenderState` 1339 and `drawCanvasContents` 934, and nothing in `common` is over 8000.
 - Splitting `QuestBookScreen` (38,016 lines, mostly comments) is worth doing for maintainability, not speed.
-- **`entryFor` stream scans.** About 50 call sites, but in the render path it only runs on hover, drag or tooltip, so it's cheap. If it is ever indexed, keep the case-insensitive alias and `#tag` matching and the first-match rule, because `ClientQuestCache.entry()`/`byId()` is exact-case only.
+- **`entryFor` stream scans.** Ruled out on 2026-10-20 as hover-only, but an open quest panel asks for it many times a frame (a rail's width depends on the quest), and on a pack of a few thousand quests the scans were about a tenth of the frame. So it is now indexed: `ClientQuestCache.named` looks ids and aliases up in a map with folded keys, built with the id index. It keeps the first-match rule and answers exactly what `equalsIgnoreCase` would. A `#tag` still scans.
 
 ## Build note
 

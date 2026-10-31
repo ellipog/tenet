@@ -159,6 +159,66 @@ class ClientQuestEntryTest {
     }
 
     @Test
+    @DisplayName("the folded key matches exactly the strings equalsIgnoreCase matches")
+    void foldIsEqualsIgnoreCase() {
+        // The awkward letters are the point: a dotted capital I, the Kelvin sign, a sharp s, a Greek final
+        // sigma and the Cyrillic and Georgian blocks are where "lower-case it" and the character test part.
+        List<String> words = List.of("stone", "STONE", "Stone", "st0ne", "", "#", "i", "I", "İ", "ı",
+                "k", "K", "K", "ss", "ß", "ẞ", "σ", "ς", "Σ", "д", "Д",
+                "ა", "Ა", "a𐐀", "A𐐨", "ǅ", "Ǆ", "ǆ");
+        for (String a : words) {
+            for (String b : words) {
+                assertEquals(a.equalsIgnoreCase(b), ClientQuestCache.fold(a).equals(ClientQuestCache.fold(b)),
+                        () -> "fold disagrees with equalsIgnoreCase for " + escape(a) + " and " + escape(b));
+            }
+        }
+    }
+
+    private static String escape(String text) {
+        StringBuilder out = new StringBuilder("\"");
+        text.codePoints().forEach(cp -> out.append(cp < 128 ? Character.toString(cp) : String.format("\\u%04X", cp)));
+        return out.append('"').toString();
+    }
+
+    @Test
+    @DisplayName("a lookup by id or alias in any case answers what the scan answered, first match included")
+    void namedAgreesWithTheScan() {
+        // Built by hand, like the duplicate above, so an alias can collide with a later quest's id and a
+        // second quest can claim an alias the first already holds: the cases where "first wins" decides.
+        QuestIndex index = Fixtures.indexOf(Fixtures.file(STONE, TABLE, OTHER));
+        JsonObject tree = JsonParser.parseString(
+                new String(QuestSync.treeAsJson(index), StandardCharsets.UTF_8)).getAsJsonObject();
+        JsonArray quests = tree.getAsJsonArray("quests");
+        for (int i = 0; i < quests.size(); i++) {
+            JsonObject quest = quests.get(i).getAsJsonObject();
+            JsonArray aliases = new JsonArray();
+            switch (quest.get("id").getAsString()) {
+                case "stone" -> {
+                    aliases.add("Old_Stone");
+                    aliases.add("table");
+                }
+                case "table" -> aliases.add("OLD_STONE");
+                case "other" -> aliases.add("Elsewhere");
+                default -> { }
+            }
+            quest.add("aliases", aliases);
+        }
+        ClientQuestCache.acceptTree(quests.size(), index.chapterCount(),
+                tree.toString().getBytes(StandardCharsets.UTF_8));
+
+        List<String> probes = List.of("stone", "STONE", "table", "Table", "other", "old_stone", "OLD_STONE",
+                "elsewhere", "ELSEWHERE", "nothing", "", "#", "st", "stones");
+        for (String probe : probes) {
+            ClientQuestCache.Entry scanned = ClientQuestCache.entries().stream()
+                    .filter(entry -> entry.matches(probe)).findFirst().orElse(null);
+            assertSame(scanned, ClientQuestCache.named(probe), "the index and the scan disagree about " + probe);
+        }
+        assertEquals("stone", ClientQuestCache.named("TABLE").id(),
+                "stone carries table as an alias and comes first, so the scan stops there and so must this");
+        assertNull(ClientQuestCache.named(null));
+    }
+
+    @Test
     @DisplayName("adoption cycling is the adopted icon's own walk, asked as a question")
     void adoptionCyclingMirrorsAdoption() {
         // A filter naming many frames cycles; a single-frame filter, a plain item

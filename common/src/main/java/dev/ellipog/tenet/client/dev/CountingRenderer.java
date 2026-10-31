@@ -260,6 +260,21 @@ public final class CountingRenderer implements GuiRenderer {
         fillNanos += System.nanoTime() - start;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Forwarded, so a counted frame draws its lines the way an uncounted one does, and counted as one fill:
+     * it is one call that lands in the fill batch, whatever number of pixels it covers.
+     */
+    @Override
+    public void hairline(int x, int y, int[] route, int argb) {
+        fills++;
+        drew(FILL);
+        long start = System.nanoTime();
+        delegate.hairline(x, y, route, argb);
+        fillNanos += System.nanoTime() - start;
+    }
+
     @Override
     public void text(String text, int x, int y, int argb) {
         texts++;
@@ -452,6 +467,12 @@ public final class CountingRenderer implements GuiRenderer {
     public <T> T batched(java.util.function.Supplier<T> draw) {
         batches++;
         return delegate.batched(draw);
+    }
+
+    /** Forwarded, so the frame being counted holds its icons back the way an uncounted one does. */
+    @Override
+    public void iconsLast(Runnable draw) {
+        delegate.iconsLast(draw);
     }
 
     @Override

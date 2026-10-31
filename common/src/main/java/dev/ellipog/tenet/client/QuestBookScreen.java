@@ -4487,6 +4487,8 @@ public final class QuestBookScreen extends ArmatureScreen
     @Override
     public void removed() {
         super.removed();
+        // The still world behind the book goes with it, so a book opened later takes a fresh one.
+        WorldFreeze.release();
         // Exits end with their world: any cleanup a close deferred runs now rather than never — several
         // free drafts and close commits, and there is no next settle coming.
         runAllTeardowns();
