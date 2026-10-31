@@ -166,7 +166,7 @@ order.
 
 ## The files beside them
 
-`hud.json` and `pinned.json` are two of seven client files under `config/tenet/`, all read at
+`hud.json` and `pinned.json` are two of eight client files under `config/tenet/`, all read at
 startup and all safe to hand-edit. The same tolerance everywhere: a file you have never touched
 does not exist, an unreadable one is reported and the defaults stand in, and unknown fields are
 ignored.
@@ -177,4 +177,5 @@ ignored.
 | `backdrop.json` | What the world behind the open book does. `{ "freeze": "paused" }` is the default: while the game is paused, the book keeps the last world frame and draws it again instead of rendering the world, which leaves the frame time to the book. The book only pauses the game in single player, and only when the pack turns on `pauseGame` in its [[tenet:authoring/quest-files|index settings]], so on most packs the default changes nothing. `"always"` does the same whenever the book is open, paused or not, as in multiplayer, where the world goes on: entities, weather and other players stop moving behind the book until it closes. `"off"` renders the world every frame, as before. Any other value, or no file, means `paused`. |
 | `client.json` | The editor's own preferences: the edit-mode flag (off unless turned on), the Advanced depth (off, since showing less cannot lie), the snap and the chapter progress bars (both on), the panel widths as a diff from the defaults, and the chapter list's own four: its dragged width (absent means today's 156-pixel column), whether it floats as a box on the canvas instead of docking down the panel's left (absent means floating pinned open), whether a floating box stays open (absent means pinned, and pinned never collapses), and whether it has slid away to its sliver (absent means expanded). The docked-or-floating choice lives in the settings card; the box carries its own pin dot. An unpinned box slides away when the pointer leaves it; hovering the sliver peeks the full box without writing anything. |
 | `canvas.json` | Three zoom thresholds: no hover or selection ring below `ringsBelow` (0.5), no titles and no reward badges below `blocksBelow` (0.3), and the stand-in block instead of the item below `iconMinBox` pixels (12). Out-of-range values take the nearest end. |
+| `component_templates.json` | The **Yours** half of the template shelf: every task, reward and condition setup this client saved (see [[tenet:authoring/templates]]). The ten shipped setups are not in it. A saved entry that names no kind, type or payload is skipped and reported, so one bad save does not cost the rest. |
 | `working.json` | Hints, not state: the table last opened, the Assets panel's section, the drawer's tab. A stale value is harmless, because every reader checks it is still true before using it, and the file is per client, not per world. |
