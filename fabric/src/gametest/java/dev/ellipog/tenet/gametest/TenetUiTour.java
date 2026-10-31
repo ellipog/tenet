@@ -52,7 +52,13 @@ import net.minecraft.client.gui.screens.Screen;
  *   book                    open the book unless it is already the screen
  *   close                   close every screen
  *   dump                    print the screen's class, its widgets and edit permission to the log
+ *   perf NAME TICKS         read the client's frame time once a tick for TICKS ticks and print the median,
+ *                           the tenth and ninetieth percentiles and the mean to the log
  * </pre>
+ *
+ * <p>{@code perf} reads {@code Minecraft#getFrameTimeNs}: the CPU time of one frame from the start of
+ * extraction to the end of the blit, without the wait for the next frame. That is the cost a drawing change
+ * moves, and it is the same number with the frame rate capped or not.
  *
  * <p>A step that throws is logged and skipped, so one wrong coordinate costs one picture, not the run.
  */
@@ -217,8 +223,23 @@ public final class TenetUiTour implements FabricClientGameTest {
                 context.waitTicks(2);
             }
             case "dump" -> System.out.println("TOUR: " + context.computeOnClient(TenetUiTour::describe));
+            case "perf" -> perf(context, arg[0], Integer.parseInt(arg[1]));
             default -> System.out.println("TOUR: unknown command " + word[0]);
         }
+    }
+
+    /** One frame time a tick, sorted, and the four numbers a comparison needs. */
+    private static void perf(ClientGameTestContext context, String name, int ticks) {
+        long[] frames = new long[ticks];
+        for (int i = 0; i < ticks; i++) {
+            context.waitTick();
+            frames[i] = context.computeOnClient(client -> client.getFrameTimeNs());
+        }
+        java.util.Arrays.sort(frames);
+        double mean = java.util.Arrays.stream(frames).average().orElse(0) / 1000.0;
+        System.out.printf(Locale.ROOT, "TOUR: perf %s frames=%d median=%.0fus p10=%.0fus p90=%.0fus mean=%.0fus%n",
+                name, ticks, frames[ticks / 2] / 1000.0, frames[ticks / 10] / 1000.0,
+                frames[ticks * 9 / 10] / 1000.0, mean);
     }
 
     /** Held across ticks like a hand would: Armature's buttons act on the release. */
