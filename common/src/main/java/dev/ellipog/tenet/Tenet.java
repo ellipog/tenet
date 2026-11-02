@@ -6,6 +6,7 @@ import dev.ellipog.armature.api.teams.TeamEvents;
 import dev.ellipog.armature.api.teams.Teams;
 
 import dev.ellipog.tenet.party.PartyStore;
+import dev.ellipog.tenet.party.PartyWatch;
 import dev.ellipog.tenet.progress.ProgressService;
 import dev.ellipog.tenet.progress.StarterBooks;
 import dev.ellipog.tenet.quest.TenetQuests;
@@ -213,6 +214,10 @@ public final class Tenet {
             // One reload and one tree broadcast per tick, however many edits arrived -- the coalesced
             // half of the editor's server work; see TreeRefresh.
             flushTree(server);
+            // Party changes nobody announced -- a parties mod's own commands, on a mod with no events --
+            // before the engine, so a leaver's kept progress is in place before anything is evaluated
+            // or sent. Once a second, and nothing at all unless somebody moved; see PartyWatch.
+            PartyWatch.tick(server);
             Set<UUID> changed = ProgressService.tick(server);
             if (!changed.isEmpty()) {
                 TenetNetworking.sendProgressToOwners(server, changed, ProgressSyncPayload.REASON_CHANGED);
@@ -368,9 +373,13 @@ public final class Tenet {
         //     party's empty progress. This listener was first written *declining* to subscribe to it,
         //     on the reasoning that "a new team is empty and nobody's progress belongs to it yet" --
         //     which is true of everybody except the one player who just created it.
+        //
+        // Each one settles PartyWatch for the players it handled, so the once-a-second check does not
+        // take an announced change for an unannounced one and send everything a second time.
         TeamEvents.TEAM_CREATED.register((eventServer, team) -> {
             Constants.LOG.info("team '{}' created; {} progress now comes from it",
                     team.name(), team.owner());
+            PartyWatch.settle(eventServer, team.memberIds());
             TenetNetworking.sendTeamChange(eventServer, team, null);
             // And the roster, beside the progress rather than instead of it. The two messages answer
             // different questions -- "what does my questline look like now" and "who is in my party"
@@ -382,6 +391,7 @@ public final class Tenet {
         TeamEvents.MEMBER_JOINED.register((eventServer, team, player) -> {
             Constants.LOG.info("{} joined team '{}'; progress now comes from team {}",
                     player, team.name(), team.id());
+            PartyWatch.settle(eventServer, Set.of(player));
             TenetNetworking.sendTeamChange(eventServer, team, null);
             TenetNetworking.sendPartyToTeam(eventServer, team.id());
             // A public party's member count moved, and the solo screen draws it.
@@ -397,6 +407,7 @@ public final class Tenet {
             // Every reason, including DISBANDED, which reaches here once per member with the team
             // already gone from the store but its progress record still keyed by the id below.
             ProgressService.retainFor(eventServer, player, team.id());
+            PartyWatch.settle(eventServer, Set.of(player));
 
             if (reason == TeamEvents.Reason.DISBANDED) {
                 TenetNetworking.sendProgressToPlayer(eventServer, player,

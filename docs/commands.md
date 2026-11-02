@@ -105,7 +105,8 @@ Tenet shows may be its own or another mod's, depending on what is installed.
 completed quest nodes are merged into the departing player's own record (union, best-of-both), so a
 progression-gated pack cannot soft-lock somebody who did a chain with friends and then went solo. A
 reward already collected in the party stays collected; one never claimed stays claimable. Joining a
-party still imports nothing.
+party still imports nothing. This holds however the membership ends, including through another
+parties mod's own commands and for a member removed while offline.
 
 **A party holds eight by default**, and both the invitation and the answer are refused past the cap,
 because a party can fill between the two. A server may set `teams.maxMembers` between 2 and 64 in
@@ -116,6 +117,13 @@ nobody to party with, and the refusal says so rather than failing silently.
 
 **On servers whose parties come from another mod**, the commands refuse with the source's name where
 their API cannot do the operation: Open Parties and Claims has no rename, transfer or policy, and a bridged read-only source stays read-only here. `mode` works everywhere, because how a party counts is Tenet's own.
+
+Players on those servers can also manage their party entirely through the other mod. Open Parties and
+Claims announces nothing when a party changes, so Tenet checks once a second for membership changes it
+was not told about. A join, leave, kick or disband through `/openpac` shares progress, keeps what a
+leaver earned, and refreshes every affected quest book and party panel within about a second. A server
+that had no Open Parties and Claims party when it started switches to that mod's parties as soon as the
+first one forms, without a restart.
 
 A party's mode decides what "the party has eight logs" means:
 

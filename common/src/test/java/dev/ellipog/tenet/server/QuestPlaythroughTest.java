@@ -9,6 +9,7 @@ import dev.ellipog.armature.api.platform.ArmaturePlatform;
 import dev.ellipog.armature.api.platform.PlatformKind;
 import dev.ellipog.armature.api.registry.Registrar;
 import dev.ellipog.armature.api.teams.Team;
+import dev.ellipog.armature.api.teams.TeamManager;
 import dev.ellipog.armature.api.teams.TeamPolicy;
 import dev.ellipog.armature.api.teams.TeamRole;
 import dev.ellipog.armature.api.teams.Teams;
@@ -18,6 +19,8 @@ import dev.ellipog.tenet.editor.EditPhases;
 import dev.ellipog.tenet.net.ClaimChoiceResultPayload;
 import dev.ellipog.tenet.progress.ClaimFilter;
 import dev.ellipog.tenet.progress.ProgressService;
+import dev.ellipog.tenet.progress.ProgressStore;
+import dev.ellipog.tenet.progress.QuestProgress;
 import dev.ellipog.tenet.progress.QuestState;
 import dev.ellipog.tenet.progress.StageService;
 import dev.ellipog.tenet.quest.QuestIndex;
@@ -28,8 +31,10 @@ import dev.ellipog.tenet.net.PartySnapshot;
 import dev.ellipog.tenet.net.ProgressSyncPayload;
 import dev.ellipog.tenet.net.QuestSync;
 import dev.ellipog.tenet.net.TenetNetworking;
+import dev.ellipog.tenet.party.PartyMemberships;
 import dev.ellipog.tenet.party.PartyMode;
 import dev.ellipog.tenet.party.PartyStore;
+import dev.ellipog.tenet.party.PartyWatch;
 
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceLocation;
@@ -67,6 +72,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -3451,6 +3457,140 @@ class QuestPlaythroughTest {
         }
         finally {
             dev.ellipog.armature.api.energy.EnergyAccesses.reset();
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Party changes nobody announced: a parties mod with no events, used through its own commands
+    // ------------------------------------------------------------------
+
+    /**
+     * The parties of a mod that announces nothing, which is Open Parties and Claims' shape: Tenet can
+     * read who is where, and is told nothing when it changes. Shared by the two tests below.
+     */
+    private static final SilentParties SILENT = new SilentParties();
+
+    /** Two players of their own for these tests, so nothing the playthrough built is disturbed. */
+    private static ServerPlayer watchedOwner;
+    private static ServerPlayer watchedMember;
+
+    @Test
+    @Order(227)
+    @DisplayName("a party joined and left through a silent parties mod keeps what was earned and tells everyone")
+    void aSilentPartyChangeIsNoticed() {
+        watchedOwner = server.spawnPlayer("tenet-watch-owner");
+        watchedMember = server.spawnPlayer("tenet-watch-member");
+        UUID owner = watchedOwner.getUUID();
+        UUID member = watchedMember.getUUID();
+
+        // The first look: two new players with no record are a baseline, whatever else it finds about
+        // the players the playthrough moved around through the stored source.
+        List<PartyWatch.Move> first = pollSilent();
+        assertTrue(first.stream().noneMatch(move -> move.player().equals(owner) || move.player().equals(member)),
+                () -> "two new solo players are a baseline, not a move. It found: " + first);
+        assertEquals(List.of(), pollSilent(), "and a second look with nothing changed finds nothing");
+
+        // They form a party through the parties mod's own command: nothing is announced.
+        UUID party = UUID.randomUUID();
+        SILENT.put(Team.created(party, "the-silent-crew", owner, 0L).withMember(member, TeamRole.MEMBER));
+        int memberSyncs = messagesSentTo(ProgressSyncPayload.REASON_TEAM_CHANGED, watchedMember);
+        assertEquals(Set.of(new PartyWatch.Move(owner, null, party), new PartyWatch.Move(member, null, party)),
+                Set.copyOf(pollSilent()),
+                "both joins are noticed within a look");
+        assertTrue(messagesSentTo(ProgressSyncPayload.REASON_TEAM_CHANGED, watchedMember) > memberSyncs,
+                "and the member's book is refreshed with a full sync, not left drawing their solo questline");
+
+        // The party earns something, then the owner kicks the member through the parties mod.
+        String earned = "party_watch_earned";
+        server.onServerThread(() -> {
+            ProgressStore store = ProgressStore.of(server.server());
+            store.put(party, store.progressOf(party)
+                    .withQuest(earned, QuestProgress.NONE.withState(QuestState.COMPLETED)));
+        });
+        SILENT.put(SILENT.byId(party).orElseThrow().withoutMember(member));
+
+        int ownerSyncs = messagesSentTo(ProgressSyncPayload.REASON_TEAM_CHANGED, watchedOwner);
+        memberSyncs = messagesSentTo(ProgressSyncPayload.REASON_TEAM_CHANGED, watchedMember);
+        int memberRosters = server.callOnServerThread(() -> TenetNetworking.rostersSentTo(member));
+
+        assertEquals(List.of(new PartyWatch.Move(member, party, null)), pollSilent(),
+                "the kick is noticed as the member leaving that party");
+        assertEquals(QuestState.COMPLETED, server.callOnServerThread(() ->
+                        ProgressStore.of(server.server()).progressOf(member).progressOfId(earned).state()),
+                "the member keeps what the party earned in their own record, as a Tenet kick would");
+        assertTrue(messagesSentTo(ProgressSyncPayload.REASON_TEAM_CHANGED, watchedMember) > memberSyncs,
+                "the member's book is refreshed");
+        assertTrue(messagesSentTo(ProgressSyncPayload.REASON_TEAM_CHANGED, watchedOwner) > ownerSyncs,
+                "and so is the remaining owner's, whose party just changed");
+        assertTrue(server.callOnServerThread(() -> TenetNetworking.rostersSentTo(member)) > memberRosters,
+                "and the member's party panel is told they are in no party now");
+
+        // Once, not every second: the move was recorded, so the next look finds nothing to do.
+        int settled = messagesSentTo(ProgressSyncPayload.REASON_TEAM_CHANGED, watchedMember);
+        assertEquals(List.of(), pollSilent(), "a handled move is not found again");
+        assertEquals(settled, messagesSentTo(ProgressSyncPayload.REASON_TEAM_CHANGED, watchedMember),
+                "and nothing is sent twice");
+        note("a join and a kick through a silent parties mod were noticed, kept and pushed once each");
+    }
+
+    @Test
+    @Order(228)
+    @DisplayName("a member removed while offline keeps what was earned, from the saved record")
+    void anOfflineMemberRemovedSilentlyStillKeeps() {
+        // Somebody who is not online and was in a party in an earlier session: only the saved record
+        // knows they were there, which is the case it is saved for.
+        UUID away = UUID.randomUUID();
+        UUID party = UUID.randomUUID();
+        String earned = "party_watch_earned_away";
+        SILENT.put(Team.created(party, "the-away-crew", away, 0L));
+        server.onServerThread(() -> {
+            PartyMemberships.of(server.server()).record(away, party);
+            ProgressStore store = ProgressStore.of(server.server());
+            store.put(party, store.progressOf(party)
+                    .withQuest(earned, QuestProgress.NONE.withState(QuestState.COMPLETED)));
+        });
+
+        SILENT.remove(party);
+
+        assertEquals(List.of(new PartyWatch.Move(away, party, null)), pollSilent(),
+                "an offline member's party ending is noticed from the saved record");
+        assertEquals(QuestState.COMPLETED, server.callOnServerThread(() ->
+                        ProgressStore.of(server.server()).progressOf(away).progressOfId(earned).state()),
+                "and they keep what it earned now, not whatever it holds by their next login");
+        assertNull(server.callOnServerThread(() -> PartyMemberships.of(server.server()).partyOf(away)),
+                "and the record says they are solo, so it is not noticed again");
+        note("an offline member removed through a silent parties mod kept what the party earned");
+    }
+
+    private static List<PartyWatch.Move> pollSilent() {
+        return server.callOnServerThread(() -> PartyWatch.poll(server.server(), SILENT));
+    }
+
+    /** A parties mod that can be read and announces nothing: {@code firesEvents()} keeps its default. */
+    private static final class SilentParties implements TeamManager {
+        private final java.util.Map<UUID, Team> parties = new java.util.concurrent.ConcurrentHashMap<>();
+
+        void put(Team team) {
+            parties.put(team.id(), team);
+        }
+
+        void remove(UUID id) {
+            parties.remove(id);
+        }
+
+        @Override
+        public java.util.Collection<Team> teams() {
+            return List.copyOf(parties.values());
+        }
+
+        @Override
+        public Optional<Team> byId(UUID id) {
+            return Optional.ofNullable(parties.get(id));
+        }
+
+        @Override
+        public String name() {
+            return "silent-test-parties";
         }
     }
 

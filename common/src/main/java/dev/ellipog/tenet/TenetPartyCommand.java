@@ -17,6 +17,7 @@ import dev.ellipog.tenet.net.ProgressSyncPayload;
 import dev.ellipog.tenet.net.TenetNetworking;
 import dev.ellipog.tenet.party.PartyMode;
 import dev.ellipog.tenet.party.PartyStore;
+import dev.ellipog.tenet.party.PartyWatch;
 import dev.ellipog.tenet.progress.ProgressService;
 
 import net.minecraft.commands.CommandSourceStack;
@@ -923,14 +924,17 @@ public final class TenetPartyCommand {
                                              Set<UUID> before,
                                              Set<UUID> after,
                                              UUID subject) {
+        Set<UUID> affected = new LinkedHashSet<>(before);
+        affected.addAll(after);
+        affected.add(subject);
+        // Recorded either way, before the early return: this command has handled the change, so
+        // PartyWatch's once-a-second check must not take it for one nobody announced and push again.
+        PartyWatch.settle(source.getServer(), affected);
         if (teams.firesEvents()) {
             // The source's own event carries this, and Tenet's listener acts on it. Doing it here as
             // well would be two syncs for one change.
             return;
         }
-        Set<UUID> affected = new LinkedHashSet<>(before);
-        affected.addAll(after);
-        affected.add(subject);
         pushTo(source, affected);
     }
 
