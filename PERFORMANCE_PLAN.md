@@ -2,6 +2,27 @@
 
 Written 2026-10-20 from a read-only review of `main` @ `bc645cd` (with Armature `main` @ `45638f7`). Nothing here is implemented yet. Line numbers are from that commit and will drift.
 
+## Done since (2026-11-07): the server's event and push paths
+
+From a perf sweep of the server side, TEN-66. Every change keeps the same states, messages and stored progress.
+
+- **A resolve builds what the index alone decides once per index.** The cap's map from each quest to its dependents, every dependency's target, and the exclusive groups were rebuilt on every resolve (`ProgressionEngine.IndexFacts`). The cap pass alone was over half of a resolve.
+- **Kills and breaks check cheapest first.** `onEntityDeath` and `onBlockBroken` resolved the whole graph before the pure checks that turn most events away. They now ask for a resolution only when a site would count, and take the tick's cached one while it is current (`ProgressService.resolutionFor`).
+- **The handlers no longer hash chapters.** They kept the quests an event moved in a map keyed by `QuestEntry`, a record that holds its whole chapter, so every lookup hashed every quest in that chapter: 0.1 to 0.16 ms per open site per event on a 960-quest chapter. Keyed by quest id now.
+- **Event pushes wait for the player tick.** A counted kill or break pushed straight away, so a grinder sweep or a vein miner's burst built a whole push per event. They are collected in `EventPushes` and sent with the tick's own push, one per team. The client hears at most one tick later.
+- **A push encodes the team's text once.** Every quest was encoded again for every member (`QuestSync.TeamText`), and a push now takes the tick's cached resolution when it still describes the progress.
+- **Snapshots and the index's quest lookup are hash maps.** `Map.copyOf` probes linearly, and ids that differ only in a trailing number cluster in it: looking up every id of a 960-quest pack of numbered ids took 0.11 to 0.19 ms there against 5 us in a `HashMap`. The client's cache has the same shape (TEN-69).
+- **`progressOwner` asks Armature 1.3.0's `TeamManager.teamIdOf`**, which names the team without building it.
+- **Measured** with `PerfBenchTest` (`TENET_BENCH=1`, see its javadoc): a 960-quest pack shaped like the stress pack, a team part way through, warm JIT. Main and this change were run alternately, six runs of main and three of the final change; the ranges are the medians of those runs.
+
+  | Scenario | Before | After |
+  |---|---|---|
+  | Resolve the quest graph | 553 to 782 us | 87 to 134 us |
+  | Progress delta to one player, nothing moved | 848 to 1387 us | 437 to 575 us |
+  | Push to a party of four | 3628 to 6049 us | 652 to 860 us |
+
+  Not measured: the kill and break handlers themselves, which need a server. A death nothing counts no longer resolves or hashes anything, so it costs the site loop's pure checks.
+
 ## Done since (2026-10-31)
 
 - **Part of item 5, the line primitive.** Armature's `GuiRenderer.hairline` takes a one-pixel route. On 26.3 a diagonal segment is one quad, and its shader keeps the same pixels the fills drew. Tenet sends a dependency line this way when it is thin and solid and the route is fewer calls than its pieces (`FrameEdge.hairlineOf`), which covers straight lines and the chamfered default's bevels. Heavier, broken and curved lines are still fills.

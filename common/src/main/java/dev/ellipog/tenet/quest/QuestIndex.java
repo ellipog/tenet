@@ -173,7 +173,12 @@ public final class QuestIndex {
         this.chapters = List.copyOf(chapters);
         this.quests = List.copyOf(quests);
         this.questsByChapterId = Map.copyOf(questsByChapterId);
-        this.byIdentifier = Map.copyOf(byIdentifier);
+        // A hash map behind a read-only view rather than Map.copyOf, for the quest lookup alone. The
+        // immutable map probes linearly, and ids that differ only in a trailing number (`quest_10`,
+        // `quest_11`, every quest of a generated pack) have neighbouring hash codes, which it packs
+        // into long runs: on a 960-quest pack of such ids a lookup cost about forty times what the
+        // same lookup costs in a HashMap. Every `quest(id)` call pays it. The lookups answer the same.
+        this.byIdentifier = java.util.Collections.unmodifiableMap(new java.util.HashMap<>(byIdentifier));
         this.chaptersByIdentifier = Map.copyOf(chaptersByIdentifier);
         this.groupsByIdentifier = Map.copyOf(groupsByIdentifier);
     }

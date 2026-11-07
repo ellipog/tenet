@@ -11,6 +11,7 @@ import dev.ellipog.tenet.progress.ProgressService;
 import dev.ellipog.tenet.progress.StarterBooks;
 import dev.ellipog.tenet.quest.TenetQuests;
 import dev.ellipog.tenet.quest.TreeRefresh;
+import dev.ellipog.tenet.net.EventPushes;
 import dev.ellipog.tenet.net.ProgressSyncPayload;
 import dev.ellipog.tenet.net.QuestSync;
 import dev.ellipog.tenet.net.TenetNetworking;
@@ -152,6 +153,9 @@ public final class Tenet {
             // The snapshots are static, and in single player the next world runs in this same JVM:
             // without this every player the last world ever saw stays held until the client exits.
             QuestSync.forgetAll();
+            // And the owners an event moved that no tick has told yet: the next world is told about
+            // its own events, not this one's.
+            EventPushes.clear();
         });
 
         ArmatureEvents.PLAYER_JOIN.register(player -> {
@@ -225,7 +229,10 @@ public final class Tenet {
             // before the engine, so a leaver's kept progress is in place before anything is evaluated
             // or sent. Once a second, and nothing at all unless somebody moved; see PartyWatch.
             PartyWatch.tick(server);
-            Set<UUID> changed = ProgressService.tick(server);
+            // And the teams a kill or a break moved since the last player tick, in the same push: a
+            // burst of counted events is one message per team rather than one per event. See
+            // EventPushes.
+            Set<UUID> changed = EventPushes.drainWith(ProgressService.tick(server));
             if (!changed.isEmpty()) {
                 TenetNetworking.sendProgressToOwners(server, changed, ProgressSyncPayload.REASON_CHANGED);
             }
@@ -239,16 +246,15 @@ public final class Tenet {
         // The kill task's hook. Quiet in the log -- a mob farm would otherwise fill it -- but the
         // engine hears every death: ProgressService.onEntityDeath records into the ordinary task
         // progress and answers which teams to push, because the tick that usually reports movement
-        // would see the recorded count already satisfied and say nothing.
+        // would see the recorded count already satisfied and say nothing. They are pushed on the
+        // next player tick rather than here, so a sweep through a grinder is one push. See
+        // EventPushes.
         ArmatureEvents.ENTITY_DEATH.register((entity, source) -> {
             var server = entity.level().getServer();
             if (server == null) {
                 return;
             }
-            Set<UUID> changed = ProgressService.onEntityDeath(server, entity, source);
-            if (!changed.isEmpty()) {
-                TenetNetworking.sendProgressToOwners(server, changed, ProgressSyncPayload.REASON_CHANGED);
-            }
+            EventPushes.add(ProgressService.onEntityDeath(server, entity, source));
             // The quest book's own afterlife: the legacy `drop_book_on_death`. A player who fell
             // with the file's flag on finds a fresh book where they fell, so death cannot take the
             // pack away with it. Beside the kill task's hook rather than in it, because this is
@@ -264,16 +270,13 @@ public final class Tenet {
         // The break task's hook. Quiet in the log for the same reason as the kill hook's — a
         // quarry would otherwise fill it — and the same push shape: the tick would find the
         // recorded count already satisfied and say nothing, so the event answers which teams
-        // moved and they are told here.
+        // moved and they are told on the next player tick, a vein miner's whole burst in one push.
         ArmatureEvents.BLOCK_BROKEN.register((player, state) -> {
             var server = player.level().getServer();
             if (server == null) {
                 return;
             }
-            Set<UUID> changed = ProgressService.onBlockBroken(server, player, state);
-            if (!changed.isEmpty()) {
-                TenetNetworking.sendProgressToOwners(server, changed, ProgressSyncPayload.REASON_CHANGED);
-            }
+            EventPushes.add(ProgressService.onBlockBroken(server, player, state));
         });
 
         ArmatureEvents.COMMANDS_REGISTER.register((dispatcher, context, selection) -> {

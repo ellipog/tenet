@@ -11,6 +11,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -126,9 +127,128 @@ public final class ProgressionEngine {
         return satisfied >= PrerequisiteMode.requiredCount(effective, quest.minRequired(), counted);
     }
 
+    // ------------------------------------------------------------------
+    // What the loaded quests alone decide
+    // ------------------------------------------------------------------
+
+    /**
+     * The parts of a resolve that depend on the loaded quests and nothing else, kept for the index
+     * they were built from.
+     *
+     * <p>A resolve used to rebuild all of it every time: the map from each quest to its dependents for
+     * the caps, every dependency looked up by a lowercased id, and the exclusive groups found by
+     * walking every quest. On a pack of a thousand quests that was over half of what a resolve cost,
+     * for answers that cannot change until the files do. Keyed on the index's identity, the rule the
+     * kill and break site lists in {@code ProgressService} follow: a reload makes a new index, and
+     * nothing else does.
+     *
+     * <p>Every answer here is the one the per-resolve walk gave, computed the same way once. A
+     * dependency that does not resolve is still a null target, and a cap's dependent that does not
+     * resolve still counts as unfinished.
+     *
+     * @param grouped every quest with an exclusive group, in index order, with its group's key
+     * @param caps    every prerequisite with a dependents cap, in the order the old walk met them
+     * @param targets for each quest, its dependencies resolved in declaration order, null where one
+     *                names nothing. Keyed by identity: a quest is a record, and hashing one hashes
+     *                every field it has
+     * @param entries for each quest, the entry its own id resolves to, for the linear walk
+     */
+    private record IndexFacts(QuestIndex index,
+                              List<Grouped> grouped,
+                              List<Cap> caps,
+                              Map<Quest, QuestIndex.QuestEntry[]> targets,
+                              Map<Quest, QuestIndex.QuestEntry> entries) {
+
+        /** One quest's resolved dependencies, looked up again only for a quest this index never held. */
+        QuestIndex.QuestEntry[] targetsOf(Quest quest) {
+            QuestIndex.QuestEntry[] known = targets.get(quest);
+            return known != null ? known : resolveTargets(index, quest);
+        }
+
+        /** The entry a quest's own id resolves to, or null, as {@code index.quest(id)} answers it. */
+        QuestIndex.QuestEntry entryOf(Quest quest) {
+            if (entries.containsKey(quest)) {
+                return entries.get(quest);
+            }
+            return index.quest(quest.id()).orElse(null);
+        }
+    }
+
+    /** A quest in an exclusive group, and the group's key. */
+    private record Grouped(QuestIndex.QuestEntry entry, String key) {
+    }
+
+    /** A prerequisite's cap on its dependents, and those dependents. */
+    private record Cap(int max, List<Dependent> dependents) {
+    }
+
+    /** One dependent, by the id the dependency map held and the entry that id resolves to, or null. */
+    private record Dependent(String id, QuestIndex.QuestEntry entry) {
+    }
+
+    /** The facts for the last index asked about. One index is live at a time, so one slot is enough. */
+    private static volatile IndexFacts lastFacts;
+
+    private static IndexFacts factsFor(QuestIndex index) {
+        IndexFacts known = lastFacts;
+        if (known != null && known.index() == index) {
+            return known;
+        }
+        IndexFacts built = buildFacts(index);
+        lastFacts = built;
+        return built;
+    }
+
+    private static IndexFacts buildFacts(QuestIndex index) {
+        List<Grouped> grouped = new ArrayList<>();
+        Map<Quest, QuestIndex.QuestEntry[]> targets = new IdentityHashMap<>();
+        Map<Quest, QuestIndex.QuestEntry> entries = new IdentityHashMap<>();
+        // Quest id to the ids of the quests that depend on it, in the order the dependencies are met.
+        Map<String, List<String>> dependents = new LinkedHashMap<>();
+        for (QuestIndex.QuestEntry entry : index.quests()) {
+            Quest quest = entry.quest();
+            quest.exclusiveGroup().ifPresent(group ->
+                    grouped.add(new Grouped(entry, exclusiveKey(entry.chapterId(), group))));
+            targets.put(quest, resolveTargets(index, quest));
+            entries.put(quest, index.quest(quest.id()).orElse(null));
+            for (QuestRef dependency : quest.dependencies()) {
+                index.quest(dependency.id()).ifPresent(target -> dependents
+                        .computeIfAbsent(target.quest().id(), key -> new ArrayList<>())
+                        .add(quest.id()));
+            }
+        }
+
+        List<Cap> caps = new ArrayList<>();
+        for (Map.Entry<String, List<String>> each : dependents.entrySet()) {
+            int cap = index.quest(each.getKey())
+                    .map(found -> found.quest().rules().maxCompletableDependents())
+                    .orElse(0);
+            if (cap <= 0) {
+                continue;
+            }
+            List<Dependent> list = new ArrayList<>(each.getValue().size());
+            for (String id : each.getValue()) {
+                list.add(new Dependent(id, index.quest(id).orElse(null)));
+            }
+            caps.add(new Cap(cap, List.copyOf(list)));
+        }
+        return new IndexFacts(index, List.copyOf(grouped), List.copyOf(caps), targets, entries);
+    }
+
+    /** One quest's dependencies as the index resolves them, null where a name resolves to nothing. */
+    private static QuestIndex.QuestEntry[] resolveTargets(QuestIndex index, Quest quest) {
+        List<QuestRef> dependencies = quest.dependencies();
+        QuestIndex.QuestEntry[] resolved = new QuestIndex.QuestEntry[dependencies.size()];
+        for (int i = 0; i < resolved.length; i++) {
+            resolved[i] = index.quest(dependencies.get(i).id()).orElse(null);
+        }
+        return resolved;
+    }
+
     /** Resolves every quest in the index. */
     public static Resolution resolve(QuestIndex index, TeamProgress progress, long now) {
-        Map<String, QuestState> states = new LinkedHashMap<>();
+        IndexFacts facts = factsFor(index);
+        Map<String, QuestState> states = LinkedHashMap.newLinkedHashMap(index.quests().size());
         Map<String, Long> cooldowns = new LinkedHashMap<>();
 
         // The chapters first, and in one direction: a chapter's state is a function of stored progress
@@ -139,48 +259,39 @@ public final class ProgressionEngine {
         // Which quest has completed in each exclusive group, keyed by chapter and group so that a
         // group name is scoped to the chapter that declared it. Without the chapter in the key,
         // "smithing" in two chapters would silently exclude across both.
-        Set<String> takenExclusiveGroups = new HashSet<>();
-
+        //
         // First pass: find the groups that are already decided, so a quest in one is locked even if
         // its dependencies are met. Done before resolving anything, because the answer must not
         // depend on the order the graph happens to be walked in.
-        for (QuestIndex.QuestEntry entry : index.quests()) {
-            Quest quest = entry.quest();
-            Optional<String> group = quest.exclusiveGroup();
-            if (group.isEmpty()) {
-                continue;
-            }
-            if (satisfiedForDependents(quest, progress)) {
-                takenExclusiveGroups.add(exclusiveKey(entry.chapterId(), group.get()));
-            }
-        }
+        Set<String> takenExclusiveGroups = takenGroups(facts, progress);
 
         // Which quests a prerequisite's cap has cut off, decided in the same first pass for the same
         // reason: a cap is a statement about a quest's dependents as a group, so the answer must not
         // depend on which of them the walk happens to reach first.
-        Set<String> cappedOut = cappedDependents(index, progress);
+        Set<String> cappedOut = cappedDependents(facts, progress);
 
-        // Quest position within its chapter, needed by linear progression.
-        //
-        // Taken from each entry rather than recounted from a chapter walk, and that is a fix rather
-        // than a tidy-up. The position is what a LINEAR chapter gates on: a version counted from a
-        // *different* list than the one the chapter's quests were assembled in can be a prefix that is
-        // wrong in the permissive direction, and the way that fails is the way nothing catches -- the
-        // chapter unlocks several quests at once, or every quest at once, with no error and no log
-        // line, because nothing about the computation looks wrong. One position, written where the
-        // chapter's own list is built.
-        Map<String, Integer> positionInChapter = new LinkedHashMap<>();
-        for (QuestIndex.QuestEntry entry : index.quests()) {
-            positionInChapter.put(entry.quest().id(), entry.orderInChapter());
-        }
-
+        // One cycle guard for the whole walk. Every top-level call leaves it empty again, because
+        // each push is popped in a finally, so a fresh one per quest was an allocation per quest for
+        // the same empty deque.
+        Deque<String> visiting = new ArrayDeque<>();
         for (QuestIndex.QuestEntry entry : index.quests()) {
             resolveOne(index, entry, progress, now, states, cooldowns, takenExclusiveGroups,
-                    cappedOut, positionInChapter, chapterStates, new ArrayDeque<>());
+                    cappedOut, facts, chapterStates, visiting);
         }
 
         return new Resolution(states, chapterStates, cooldowns,
-                excludedIds(index, progress, takenExclusiveGroups, cappedOut));
+                excludedIds(facts, progress, takenExclusiveGroups, cappedOut));
+    }
+
+    /** The exclusive groups a completed quest has already decided, by group key. */
+    private static Set<String> takenGroups(IndexFacts facts, TeamProgress progress) {
+        Set<String> taken = new HashSet<>();
+        for (Grouped each : facts.grouped()) {
+            if (satisfiedForDependents(each.entry().quest(), progress)) {
+                taken.add(each.key());
+            }
+        }
+        return taken;
     }
 
     /**
@@ -198,7 +309,7 @@ public final class ProgressionEngine {
                                          Map<String, Long> cooldowns,
                                          Set<String> takenExclusiveGroups,
                                          Set<String> cappedOut,
-                                         Map<String, Integer> positionInChapter,
+                                         IndexFacts facts,
                                          Map<String, QuestState> chapterStates,
                                          Deque<String> visiting) {
 
@@ -245,7 +356,7 @@ public final class ProgressionEngine {
             // itself out for good as soon as the cooldown elapsed (the fall-through at 158-165 above).
             // The group locks siblings; the quest that took it is not its own sibling.
             Optional<String> group = quest.exclusiveGroup();
-            if (group.isPresent()
+            if (group.isPresent() && !takenExclusiveGroups.isEmpty()
                     && takenExclusiveGroups.contains(exclusiveKey(entry.chapterId(), group.get()))
                     && !(quest.repeatable() && satisfiedForDependents(quest, progress))) {
                 states.put(quest.id(), QuestState.LOCKED);
@@ -270,16 +381,15 @@ public final class ProgressionEngine {
 
             int satisfied = 0;
             int counted = 0;
-            for (var dependency : quest.dependencies()) {
-                Optional<QuestIndex.QuestEntry> target = index.quest(dependency.id());
+            for (QuestIndex.QuestEntry target : facts.targetsOf(quest)) {
                 counted++;
                 // Unresolved by the loader's reading: index.quest missed, so this resolves to
-                // LOCKED, which is what resolveById answers for a name nothing holds. The loader
+                // LOCKED, which is what resolveEarlier answers for a name nothing holds. The loader
                 // reports the dangling reference as an error; the engine reads it as unmet.
-                QuestState dependencyState = target.map(found -> resolveOne(index, found, progress,
-                                now, states, cooldowns, takenExclusiveGroups, cappedOut, positionInChapter,
-                                chapterStates, visiting))
-                        .orElse(QuestState.LOCKED);
+                QuestState dependencyState = target == null
+                        ? QuestState.LOCKED
+                        : resolveOne(index, target, progress, now, states, cooldowns, takenExclusiveGroups,
+                                cappedOut, facts, chapterStates, visiting);
                 if (dependencyState.isAtLeast(QuestState.bar(effective))) {
                     satisfied++;
                 }
@@ -299,7 +409,17 @@ public final class ProgressionEngine {
             }
 
             // Linear progression: every quest earlier in the chapter must be complete as well.
-            int position = positionInChapter.getOrDefault(quest.id(), -1);
+            //
+            // The position is the entry's own, rather than recounted from a chapter walk, and that is a
+            // fix rather than a tidy-up. The position is what a LINEAR chapter gates on: a version
+            // counted from a *different* list than the one the chapter's quests were assembled in can be
+            // a prefix that is wrong in the permissive direction, and the way that fails is the way
+            // nothing catches -- the chapter unlocks several quests at once, or every quest at once,
+            // with no error and no log line, because nothing about the computation looks wrong. One
+            // position, written where the chapter's own list is built. (It was copied into a map keyed
+            // by quest id on every resolve; ids are unique in an index, so the entry's own number is
+            // the one that map held.)
+            int position = entry.orderInChapter();
             if (position > 0) {
                 // The chapter off the entry, rather than looked up: `entry.chapter()` is the very
                 // object whose `quests()` list `orderInChapter` was read from, so the position and the
@@ -307,8 +427,8 @@ public final class ProgressionEngine {
                 Chapter chapter = entry.chapter();
                 if (chapter.progressionMode() == ProgressionMode.LINEAR) {
                     for (Quest earlier : chapter.questsBefore(position)) {
-                        QuestState earlierState = resolveById(index, earlier.id(), entry, progress, now, states,
-                                cooldowns, takenExclusiveGroups, cappedOut, positionInChapter, chapterStates,
+                        QuestState earlierState = resolveEarlier(index, earlier, progress, now, states,
+                                cooldowns, takenExclusiveGroups, cappedOut, facts, chapterStates,
                                 visiting);
                         if (earlierState != QuestState.COMPLETED) {
                             states.put(quest.id(), QuestState.LOCKED);
@@ -331,28 +451,27 @@ public final class ProgressionEngine {
         }
     }
 
-    /** Resolves a dependency by id or alias. An unresolved dependency locks the dependent. */
-    private static QuestState resolveById(QuestIndex index,
-                                          String idOrAlias,
-                                          QuestIndex.QuestEntry dependent,
-                                          TeamProgress progress,
-                                          long now,
-                                          Map<String, QuestState> states,
-                                          Map<String, Long> cooldowns,
-                                          Set<String> takenExclusiveGroups,
-                                          Set<String> cappedOut,
-                                          Map<String, Integer> positionInChapter,
-                                          Map<String, QuestState> chapterStates,
-                                          Deque<String> visiting) {
-        Optional<QuestIndex.QuestEntry> found = index.quest(idOrAlias);
-        if (found.isEmpty()) {
+    /** Resolves an earlier quest of a linear chapter by its own id. An unresolved one locks the dependent. */
+    private static QuestState resolveEarlier(QuestIndex index,
+                                             Quest earlier,
+                                             TeamProgress progress,
+                                             long now,
+                                             Map<String, QuestState> states,
+                                             Map<String, Long> cooldowns,
+                                             Set<String> takenExclusiveGroups,
+                                             Set<String> cappedOut,
+                                             IndexFacts facts,
+                                             Map<String, QuestState> chapterStates,
+                                             Deque<String> visiting) {
+        QuestIndex.QuestEntry found = facts.entryOf(earlier);
+        if (found == null) {
             // The loader reports this as an error at load time. Locking the dependent is the safe
             // reading: a quest that cannot be unlocked is visible as broken, whereas one that
             // unlocks for the wrong reason is not.
             return QuestState.LOCKED;
         }
-        return resolveOne(index, found.get(), progress, now, states, cooldowns, takenExclusiveGroups,
-                cappedOut, positionInChapter, chapterStates, visiting);
+        return resolveOne(index, found, progress, now, states, cooldowns, takenExclusiveGroups,
+                cappedOut, facts, chapterStates, visiting);
     }
 
     /**
@@ -436,37 +555,24 @@ public final class ProgressionEngine {
      * <p>A dependent that has already completed keeps its completion: it holds a slot, and the quests
      * still available are the ones the cap leaves. That is what "at most N can be completed" means --
      * it is not a rule about which branches a player may start.
+     *
+     * <p>Which quests have a cap, and who their dependents are, is the index's business and is worked
+     * out once per index (see {@link IndexFacts}). A pack without caps pays nothing here.
      */
-    private static Set<String> cappedDependents(QuestIndex index, TeamProgress progress) {
-        Map<String, List<String>> dependents = new LinkedHashMap<>();
-        for (QuestIndex.QuestEntry entry : index.quests()) {
-            for (QuestRef dependency : entry.quest().dependencies()) {
-                index.quest(dependency.id()).ifPresent(target -> dependents
-                        .computeIfAbsent(target.quest().id(), key -> new ArrayList<>())
-                        .add(entry.quest().id()));
-            }
-        }
-
+    private static Set<String> cappedDependents(IndexFacts facts, TeamProgress progress) {
         Set<String> capped = new HashSet<>();
-        for (Map.Entry<String, List<String>> entry : dependents.entrySet()) {
-            int cap = index.quest(entry.getKey())
-                    .map(quest -> quest.quest().rules().maxCompletableDependents())
-                    .orElse(0);
-            if (cap <= 0) {
-                continue;
-            }
+        for (Cap cap : facts.caps()) {
             List<String> unfinished = new ArrayList<>();
             int completed = 0;
-            for (String id : entry.getValue()) {
-                if (index.quest(id).map(quest -> satisfiedForDependents(quest.quest(), progress))
-                        .orElse(false)) {
+            for (Dependent dependent : cap.dependents()) {
+                if (dependent.entry() != null && satisfiedForDependents(dependent.entry().quest(), progress)) {
                     completed++;
                 }
                 else {
-                    unfinished.add(id);
+                    unfinished.add(dependent.id());
                 }
             }
-            if (completed >= cap) {
+            if (completed >= cap.max()) {
                 capped.addAll(unfinished);
             }
         }
@@ -489,18 +595,8 @@ public final class ProgressionEngine {
      * progress, and resolution stays the only thing that grants or refuses.
      */
     public static Set<String> excludedIds(QuestIndex index, TeamProgress progress) {
-        Set<String> taken = new HashSet<>();
-        for (QuestIndex.QuestEntry entry : index.quests()) {
-            Quest quest = entry.quest();
-            Optional<String> group = quest.exclusiveGroup();
-            if (group.isEmpty()) {
-                continue;
-            }
-            if (satisfiedForDependents(quest, progress)) {
-                taken.add(exclusiveKey(entry.chapterId(), group.get()));
-            }
-        }
-        return excludedIds(index, progress, taken, cappedDependents(index, progress));
+        IndexFacts facts = factsFor(index);
+        return excludedIds(facts, progress, takenGroups(facts, progress), cappedDependents(facts, progress));
     }
 
     /**
@@ -511,16 +607,16 @@ public final class ProgressionEngine {
      * the same states. Same rule, same sets — the mark and the LOCKED state cannot disagree
      * because they come from one pass.
      */
-    private static Set<String> excludedIds(QuestIndex index, TeamProgress progress,
+    private static Set<String> excludedIds(IndexFacts facts, TeamProgress progress,
                                            Set<String> taken, Set<String> capped) {
         Set<String> excluded = new HashSet<>(capped);
-        for (QuestIndex.QuestEntry entry : index.quests()) {
-            Quest quest = entry.quest();
-            Optional<String> group = quest.exclusiveGroup();
+        // Only the quests that have a group can be in a taken one, so only they are walked.
+        for (Grouped each : taken.isEmpty() ? List.<Grouped>of() : facts.grouped()) {
+            Quest quest = each.entry().quest();
             // The resolver's own rule, restated: in a taken group, and not the one that took it.
             // A repeatable quest that is satisfied for its dependents is still playable after its
             // cooldown, so it is not shut out — the same exception the resolver makes.
-            if (group.isPresent() && taken.contains(exclusiveKey(entry.chapterId(), group.get()))
+            if (taken.contains(each.key())
                     && !(quest.repeatable() && satisfiedForDependents(quest, progress))
                     && !satisfiedForDependents(quest, progress)) {
                 excluded.add(quest.id());
