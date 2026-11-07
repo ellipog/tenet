@@ -27,6 +27,7 @@ import dev.ellipog.tenet.quest.QuestIndex;
 import dev.ellipog.tenet.quest.QuestLoader;
 import dev.ellipog.tenet.quest.QuestFiles;
 import dev.ellipog.tenet.quest.TenetQuests;
+import dev.ellipog.tenet.net.EventPushes;
 import dev.ellipog.tenet.net.PartySnapshot;
 import dev.ellipog.tenet.net.ProgressSyncPayload;
 import dev.ellipog.tenet.net.QuestSync;
@@ -3321,6 +3322,37 @@ class QuestPlaythroughTest {
                 "four ripe breaks are a harvest");
 
         note("logs completed by tag; only ripe wheat counted");
+    }
+
+    @Test
+    @Order(229)
+    @DisplayName("a burst of counted breaks is told in one push, not one per break")
+    void aBurstOfBreaksIsOnePush() {
+        // What the break hook and the player tick do between them, without a loader to fire either:
+        // each break adds its owner to EventPushes, and the tick drains them into the push it makes.
+        // A vein miner's burst used to be a whole push per block.
+        asOperator("/tenet party leave");
+        asOperator("/tenet reset break_stone");
+        var stone = Blocks.STONE.defaultBlockState();
+        int before = messagesSentTo(ProgressSyncPayload.REASON_CHANGED, player);
+
+        server.onServerThread(() -> {
+            // Three of the quest's four, so nothing completes and only the breaks are being counted.
+            for (int i = 0; i < 3; i++) {
+                EventPushes.add(ProgressService.onBlockBroken(server.server(), player, stone));
+            }
+            TenetNetworking.sendProgressToOwners(server.server(), EventPushes.drainWith(Set.of()),
+                    ProgressSyncPayload.REASON_CHANGED);
+        });
+
+        assertEquals(3, recordedTask("break_stone", 0), "every break is still recorded at once");
+        assertEquals(before + 1, messagesSentTo(ProgressSyncPayload.REASON_CHANGED, player),
+                "three counted breaks are one message to the player who made them");
+        assertTrue(server.callOnServerThread(() -> EventPushes.drainWith(Set.of()).isEmpty()),
+                "and the push takes everything pending with it");
+
+        asOperator("/tenet reset break_stone");
+        note("three counted breaks, one push");
     }
 
     @Test

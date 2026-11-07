@@ -252,8 +252,15 @@ public final class ProgressService {
         return (questId, taskIndex) -> mine.getOrDefault(keyOf(questId, taskIndex), 0);
     }
 
+    /**
+     * Whose progress a player's counts toward: their team's id, or their own for a solo player.
+     *
+     * <p>Asked per player per tick, per event and per push, and it needs the id alone, so it asks
+     * Armature for the id rather than for a team to read one field off. The answer is the same:
+     * {@code teamIdOf} is {@code teamOf(player).id()} without building the team.
+     */
     public static UUID progressOwner(MinecraftServer server, ServerPlayer player) {
-        return Teams.teamOf(server, player.getUUID()).id();
+        return Teams.of(server).teamIdOf(player.getUUID());
     }
 
     /**
@@ -294,9 +301,21 @@ public final class ProgressService {
 
     /** Every quest's state, for whoever's progress this is. */
     public static ProgressionEngine.Resolution resolutionFor(MinecraftServer server, UUID owner) {
-        QuestIndex index = TenetQuests.index();
-        TeamProgress progress = ProgressStore.of(server).progressOf(owner);
-        return ProgressionEngine.resolve(index, progress, server.overworld().getGameTime());
+        return resolutionFor(server, owner, TenetQuests.index(), ProgressStore.of(server).progressOf(owner),
+                server.overworld().getGameTime());
+    }
+
+    /**
+     * The same, for a caller that has already read the index, the progress and the clock.
+     *
+     * <p>On this line it resolves every time: the per-team tick cache the 26.3 line answers from here
+     * (its {@code TEAM_SCHEDULES}) is not part of 1.21.1. The kill and break paths still gain what
+     * matters most, because they ask for a resolution only once a site would count.
+     */
+    public static ProgressionEngine.Resolution resolutionFor(MinecraftServer server, UUID owner,
+                                                             QuestIndex index, TeamProgress progress,
+                                                             long now) {
+        return ProgressionEngine.resolve(index, progress, now);
     }
 
     public static TeamProgress progressFor(MinecraftServer server, UUID owner) {
@@ -441,6 +460,18 @@ public final class ProgressService {
      * round like everything else -- and the caller pushes the change to the team, because the tick
      * that normally does that would find recorded progress already satisfied and report nothing.
      *
+     * <h2>What a death costs, in order of price</h2>
+     *
+     * <p>Most deaths on a busy server count for nothing: a mob farm kills all day, and the kill tasks
+     * that could care are few. So the checks run cheapest first. Whether the task is already done and
+     * whether this mob is the one it wants are both pure and cheap, and they turn most deaths away.
+     * Only a death some unfinished task would count asks for the resolution, and that comes from the
+     * tick's own cached one while it is still current ({@link #resolutionFor}). This used to resolve
+     * the whole quest graph first, for every player kill once the pack had a single kill task.
+     *
+     * <p>The order changes no answer. Every check is a read, so the sites that count are the same
+     * sites, and the conditions are still asked at the moment of the death.
+     *
      * @return the owners whose progress moved, for the caller to push
      */
     public static Set<UUID> onEntityDeath(MinecraftServer server, LivingEntity entity, DamageSource source) {
@@ -452,22 +483,32 @@ public final class ProgressService {
         UUID owner = progressOwner(server, killer);
         ProgressStore store = ProgressStore.of(server);
         TeamProgress working = store.progressOf(owner);
-        long now = server.overworld().getGameTime();
-        ProgressionEngine.Resolution resolution = ProgressionEngine.resolve(TenetQuests.index(), working, now);
+        QuestIndex index = TenetQuests.index();
+        // Asked for when the first site would count, and not before. See the note above.
+        ProgressionEngine.Resolution resolution = null;
 
-        Map<QuestIndex.QuestEntry, QuestProgress> touched = new LinkedHashMap<>();
-        boolean changed = false;
+        // Keyed by quest id rather than by entry: an entry is a record holding its whole chapter, so
+        // hashing one hashed every quest in that chapter, once per site.
+        Map<String, Touched> touched = new LinkedHashMap<>();
         // One context for the whole event rather than one per site: the killer, the server and the
         // owner cannot move between sites of the same death, so per-site contexts were one
         // allocation per task for an identical answer.
         ConditionContext death = new ConditionContext(killer, server, owner);
         for (KillSite site : sites) {
             Quest quest = site.entry().quest();
-            if (!resolution.stateOf(quest).isPlayable()) {
+            Touched earlier = touched.get(quest.id());
+            QuestProgress before = earlier != null ? earlier.progress() : working.progressOf(quest);
+            if (ProgressionEngine.isTaskSatisfied(quest, site.taskIndex(), before)) {
                 continue;
             }
-            QuestProgress before = touched.getOrDefault(site.entry(), working.progressOf(quest));
-            if (ProgressionEngine.isTaskSatisfied(quest, site.taskIndex(), before)) {
+            int delta = KillTask.BEHAVIOUR.onEntityDeath(site.task(), killer, entity);
+            if (delta <= 0) {
+                continue;
+            }
+            if (resolution == null) {
+                resolution = resolutionFor(server, owner, index, working, server.overworld().getGameTime());
+            }
+            if (!resolution.stateOf(quest).isPlayable()) {
                 continue;
             }
             // At event time, which is the only moment the kill is real: a condition that was unmet
@@ -476,13 +517,8 @@ public final class ProgressService {
             if (!Conditions.passes(site.task().common().conditions(), death)) {
                 continue;
             }
-            int delta = KillTask.BEHAVIOUR.onEntityDeath(site.task(), killer, entity);
-            if (delta <= 0) {
-                continue;
-            }
             QuestProgress after = before.addTask(site.taskIndex(), delta);
-            touched.put(site.entry(), after);
-            changed = true;
+            touched.put(quest.id(), new Touched(site.entry(), after));
 
             if (ProgressionEngine.isTaskSatisfied(quest, site.taskIndex(), after)) {
                 TenetEvents.TASK_COMPLETED.invoker().onTaskCompleted(killer, quest, site.taskIndex());
@@ -491,23 +527,39 @@ public final class ProgressService {
                 TenetEvents.QUEST_STARTED.invoker().onQuestStarted(killer, quest);
             }
         }
-        if (!changed) {
+        if (touched.isEmpty()) {
             return Set.of();
         }
 
-        for (Map.Entry<QuestIndex.QuestEntry, QuestProgress> each : touched.entrySet()) {
-            Quest quest = each.getKey().quest();
-            if (ProgressionEngine.tasksSatisfied(quest, each.getValue()) && canComplete(quest, working)
-                    && gateOpenForFlexible(TenetQuests.index(), each.getKey(), quest,
-                            resolution.states())) {
-                working = complete(server, owner, killer, each.getKey(), working.put(quest, each.getValue()));
+        store.put(owner, recordTouched(server, owner, killer, working, touched, resolution));
+        return Set.of(owner);
+    }
+
+    /** A quest an event moved, and its progress after the event. */
+    private record Touched(QuestIndex.QuestEntry entry, QuestProgress progress) {
+    }
+
+    /**
+     * Writes what an event moved into the team's progress, completing what it finished.
+     *
+     * <p>The kill and the break share this half: by the time a quest is here its tasks are counted,
+     * and whether it completes is the same question for both.
+     */
+    private static TeamProgress recordTouched(MinecraftServer server, UUID owner, ServerPlayer player,
+                                              TeamProgress working,
+                                              Map<String, Touched> touched,
+                                              ProgressionEngine.Resolution resolution) {
+        for (Touched each : touched.values()) {
+            Quest quest = each.entry().quest();
+            if (ProgressionEngine.tasksSatisfied(quest, each.progress()) && canComplete(quest, working)
+                    && gateOpenForFlexible(TenetQuests.index(), each.entry(), quest, resolution.states())) {
+                working = complete(server, owner, player, each.entry(), working.put(quest, each.progress()));
             }
             else {
-                working = working.put(quest, each.getValue());
+                working = working.put(quest, each.progress());
             }
         }
-        store.put(owner, working);
-        return Set.of(owner);
+        return working;
     }
 
     /** One break-task task, with where it lives: the work list for the break event. */
@@ -563,21 +615,32 @@ public final class ProgressService {
         UUID owner = progressOwner(server, player);
         ProgressStore store = ProgressStore.of(server);
         TeamProgress working = store.progressOf(owner);
-        long now = server.overworld().getGameTime();
-        ProgressionEngine.Resolution resolution = ProgressionEngine.resolve(TenetQuests.index(), working, now);
+        QuestIndex index = TenetQuests.index();
+        // Cheapest checks first, and the resolution only for a break some unfinished task would
+        // count, exactly as the death path beside it. A vein miner's sixty-four blocks used to be
+        // sixty-four resolves of the whole quest graph before any of them was looked at.
+        ProgressionEngine.Resolution resolution = null;
 
-        Map<QuestIndex.QuestEntry, QuestProgress> touched = new LinkedHashMap<>();
-        boolean changed = false;
+        // By quest id, for the reason the death path gives: hashing an entry hashes its chapter.
+        Map<String, Touched> touched = new LinkedHashMap<>();
         // One context for the whole event, like the death path beside it: the player, the server
         // and the owner are fixed for the break.
         ConditionContext broke = new ConditionContext(player, server, owner);
         for (BreakSite site : sites) {
             Quest quest = site.entry().quest();
-            if (!resolution.stateOf(quest).isPlayable()) {
+            Touched earlier = touched.get(quest.id());
+            QuestProgress before = earlier != null ? earlier.progress() : working.progressOf(quest);
+            if (ProgressionEngine.isTaskSatisfied(quest, site.taskIndex(), before)) {
                 continue;
             }
-            QuestProgress before = touched.getOrDefault(site.entry(), working.progressOf(quest));
-            if (ProgressionEngine.isTaskSatisfied(quest, site.taskIndex(), before)) {
+            int delta = BreakTask.BEHAVIOUR.onBlockBroken(site.task(), player, state);
+            if (delta <= 0) {
+                continue;
+            }
+            if (resolution == null) {
+                resolution = resolutionFor(server, owner, index, working, server.overworld().getGameTime());
+            }
+            if (!resolution.stateOf(quest).isPlayable()) {
                 continue;
             }
             // At event time, which is the only moment the break is real: a condition that was unmet
@@ -586,13 +649,8 @@ public final class ProgressService {
             if (!Conditions.passes(site.task().common().conditions(), broke)) {
                 continue;
             }
-            int delta = BreakTask.BEHAVIOUR.onBlockBroken(site.task(), player, state);
-            if (delta <= 0) {
-                continue;
-            }
             QuestProgress after = before.addTask(site.taskIndex(), delta);
-            touched.put(site.entry(), after);
-            changed = true;
+            touched.put(quest.id(), new Touched(site.entry(), after));
 
             if (ProgressionEngine.isTaskSatisfied(quest, site.taskIndex(), after)) {
                 TenetEvents.TASK_COMPLETED.invoker().onTaskCompleted(player, quest, site.taskIndex());
@@ -601,22 +659,11 @@ public final class ProgressService {
                 TenetEvents.QUEST_STARTED.invoker().onQuestStarted(player, quest);
             }
         }
-        if (!changed) {
+        if (touched.isEmpty()) {
             return Set.of();
         }
 
-        for (Map.Entry<QuestIndex.QuestEntry, QuestProgress> each : touched.entrySet()) {
-            Quest quest = each.getKey().quest();
-            if (ProgressionEngine.tasksSatisfied(quest, each.getValue()) && canComplete(quest, working)
-                    && gateOpenForFlexible(TenetQuests.index(), each.getKey(), quest,
-                            resolution.states())) {
-                working = complete(server, owner, player, each.getKey(), working.put(quest, each.getValue()));
-            }
-            else {
-                working = working.put(quest, each.getValue());
-            }
-        }
-        store.put(owner, working);
+        store.put(owner, recordTouched(server, owner, player, working, touched, resolution));
         return Set.of(owner);
     }
 

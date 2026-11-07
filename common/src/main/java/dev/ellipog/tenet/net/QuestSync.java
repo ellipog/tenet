@@ -1328,8 +1328,118 @@ public final class QuestSync {
                                       java.util.Set<String> stageLocked,
                                       Map<String, ProgressService.LockView> locks,
                                       ProgressService.Live live) {
+        return progressDelta(resolution, progress, index, previous, contributors, stageLocked, locks, live,
+                null);
+    }
+
+    /**
+     * Every quest's text as it reads with no per-player overlay: the team's half of a progress message.
+     *
+     * <p>A quest's text is a function of the team's progress, the resolution, the contributors and the
+     * live counts, plus two per-player overlays: whether this player's stage gate shuts the quest, and
+     * which of its rows this player's conditions shut. For a quest neither overlay touches, every
+     * member of a team is sent the same text. A push used to encode it again for each member, so a
+     * party of four paid four encodes of the whole pack per push. Built once per push and handed to
+     * each member's {@link #progressDelta}, it is encoded once, and a member re-encodes only the quests
+     * their own overlays touch.
+     *
+     * <p>It remembers what it was built from, and a delta built against anything else ignores it, so it
+     * cannot be applied to the wrong team or the wrong moment.
+     */
+    public static final class TeamText {
+        private final ProgressionEngine.Resolution resolution;
+        private final TeamProgress progress;
+        private final QuestIndex index;
+        private final ProgressService.Contributors contributors;
+        private final ProgressService.Live live;
+        /** One text per quest, in {@code index.quests()} order. */
+        private final String[] quests;
+
+        private TeamText(ProgressionEngine.Resolution resolution, TeamProgress progress, QuestIndex index,
+                         ProgressService.Contributors contributors, ProgressService.Live live, String[] quests) {
+            this.resolution = resolution;
+            this.progress = progress;
+            this.index = index;
+            this.contributors = contributors;
+            this.live = live;
+            this.quests = quests;
+        }
+
+        /** The snapshot of a member no overlay touches, built on first use and shared after. */
+        private Map<String, String> snapshot;
+
+        private boolean builtFrom(ProgressionEngine.Resolution resolution, TeamProgress progress,
+                                  QuestIndex index, ProgressService.Contributors contributors,
+                                  ProgressService.Live live) {
+            return this.resolution == resolution && this.progress == progress && this.index == index
+                    && this.contributors == contributors && this.live == live;
+        }
+
+        /** Every quest id and the team's text for it, as {@link #progressDelta} would collect them. */
+        private Map<String, String> snapshot() {
+            if (snapshot == null) {
+                List<QuestIndex.QuestEntry> entries = index.quests();
+                Map<String, String> all = java.util.HashMap.newHashMap(entries.size());
+                for (int i = 0; i < quests.length; i++) {
+                    all.put(entries.get(i).quest().id(), quests[i]);
+                }
+                snapshot = java.util.Collections.unmodifiableMap(all);
+            }
+            return snapshot;
+        }
+    }
+
+    /** Builds one team's {@link TeamText}: every quest encoded once, with no overlay. */
+    public static TeamText teamText(ProgressionEngine.Resolution resolution,
+                                    TeamProgress progress,
+                                    QuestIndex index,
+                                    ProgressService.Contributors contributors,
+                                    ProgressService.Live live) {
+        java.util.Set<String> excluded = resolution.excluded();
+        List<QuestIndex.QuestEntry> entries = index.quests();
+        String[] quests = new String[entries.size()];
+        for (int i = 0; i < quests.length; i++) {
+            QuestIndex.QuestEntry entry = entries.get(i);
+            Quest quest = entry.quest();
+            quests[i] = oneQuestAsJson(resolution, progress, quest, contributors, java.util.Set.of(),
+                    ProgressService.LockView.NONE, live, chapterConsumes(entry), excluded.contains(quest.id()));
+        }
+        return new TeamText(resolution, progress, index, contributors, live, quests);
+    }
+
+    /** Whether a quest's chapter, or the pack, takes the items its tasks ask for by default. */
+    private static boolean chapterConsumes(QuestIndex.QuestEntry entry) {
+        return entry.chapter().defaultConsumeItems() || TenetQuests.settings().defaultConsumeItems();
+    }
+
+    /**
+     * The same, reusing the team's shared text for every quest this player's overlays leave alone.
+     *
+     * <p>{@code team} may be null, or built from other inputs, and then every quest is encoded here
+     * as before. Either way the bytes and the snapshot are the same: a quest's text depends on the
+     * overlays only through {@code stageLocked.contains(id)} and {@code locks.get(id)}, so a quest in
+     * neither reads exactly as its no-overlay text.
+     */
+    public static Delta progressDelta(ProgressionEngine.Resolution resolution,
+                                      TeamProgress progress,
+                                      QuestIndex index,
+                                      Map<String, String> previous,
+                                      ProgressService.Contributors contributors,
+                                      java.util.Set<String> stageLocked,
+                                      Map<String, ProgressService.LockView> locks,
+                                      ProgressService.Live live,
+                                      TeamText team) {
         JsonObject changed = new JsonObject();
-        Map<String, String> snapshot = new LinkedHashMap<>();
+        String[] shared = team != null && team.builtFrom(resolution, progress, index, contributors, live)
+                ? team.quests
+                : null;
+        // A member no overlay touches is sent the team's text for every quest, so their snapshot is the
+        // team's snapshot, and one copy serves every such member instead of a map built per member.
+        boolean bare = shared != null && stageLocked.isEmpty() && locks.isEmpty();
+        // A hash map rather than Map.copyOf, because the next message looks every quest up in it: the
+        // immutable map probes linearly, and ids that differ only in a trailing number cluster in it,
+        // which made each lookup about forty times dearer on a pack of numbered ids. See QuestIndex.
+        Map<String, String> snapshot = bare ? team.snapshot() : java.util.HashMap.newHashMap(index.quests().size());
 
         // Which quests an exclusive choice has shut out for good, decided once per message rather
         // than once per quest: the engine's own first pass over stored progress, which is also
@@ -1338,15 +1448,19 @@ public final class QuestSync {
         // same pass, rather than re-derived per message.
         java.util.Set<String> excluded = resolution.excluded();
 
-        for (QuestIndex.QuestEntry entry : index.quests()) {
+        List<QuestIndex.QuestEntry> entries = index.quests();
+        for (int i = 0; i < entries.size(); i++) {
+            QuestIndex.QuestEntry entry = entries.get(i);
             Quest quest = entry.quest();
-            boolean consumes = entry.chapter().defaultConsumeItems()
-                    || TenetQuests.settings().defaultConsumeItems();
-            String encoded = oneQuestAsJson(resolution, progress, quest, contributors, stageLocked,
-                    locks.getOrDefault(quest.id(), ProgressService.LockView.NONE), live,
-                    consumes, excluded.contains(quest.id()));
+            String encoded = shared != null && !stageLocked.contains(quest.id()) && !locks.containsKey(quest.id())
+                    ? shared[i]
+                    : oneQuestAsJson(resolution, progress, quest, contributors, stageLocked,
+                            locks.getOrDefault(quest.id(), ProgressService.LockView.NONE), live,
+                            chapterConsumes(entry), excluded.contains(quest.id()));
 
-            snapshot.put(quest.id(), encoded);
+            if (!bare) {
+                snapshot.put(quest.id(), encoded);
+            }
             if (previous == null || !encoded.equals(previous.get(quest.id()))) {
                 changed.add(quest.id(), JsonParser.parseString(encoded));
             }
@@ -1386,7 +1500,8 @@ public final class QuestSync {
             }
         }
 
-        return new Delta(root.toString().getBytes(StandardCharsets.UTF_8), Map.copyOf(snapshot));
+        return new Delta(root.toString().getBytes(StandardCharsets.UTF_8),
+                bare ? snapshot : java.util.Collections.unmodifiableMap(snapshot));
     }
 
     /**
@@ -1824,7 +1939,7 @@ public final class QuestSync {
         }
 
         UUID owner = ProgressService.progressOwner(server, player);
-        sendProgress(server, player, reason, pushFor(server, owner));
+        sendProgress(server, player, reason, pushFor(server, owner, 1));
     }
 
     /**
@@ -1840,20 +1955,37 @@ public final class QuestSync {
      * maps, the delta builds a fresh document, and the closures read static maps no send path
      * writes. A push that resolved per member and one that shares therefore send byte-identical
      * messages, which the suites assert.
+     *
+     * <p>The quests' text is shared the same way ({@link TeamText}): encoded once for the team, and
+     * again per member only for the quests that member's own gates touch.
      */
     private record TeamPush(QuestIndex index, UUID owner, long gameTime, TeamProgress progress,
                             ProgressionEngine.Resolution resolution,
-                            ProgressService.Contributors contributors, ProgressService.Live live) {
+                            ProgressService.Contributors contributors, ProgressService.Live live,
+                            TeamText text) {
     }
 
-    /** The shared half of one team's push, resolved once. See {@link TeamPush}. */
-    private static TeamPush pushFor(MinecraftServer server, UUID owner) {
+    /**
+     * The shared half of one team's push, resolved once. See {@link TeamPush}.
+     *
+     * <p>The resolution is the tick's cached one when it still describes this progress, which is the
+     * usual case for a push that follows a tick: a team whose contribution picture moved, or whose
+     * events the tick has just evaluated, resolved this same progress a moment ago.
+     *
+     * @param members how many players this push goes to. The shared text is built only for two or
+     *                more: one member encodes every quest once either way, and building it for one
+     *                would encode twice each quest that member's own gates touch
+     */
+    private static TeamPush pushFor(MinecraftServer server, UUID owner, int members) {
         QuestIndex index = TenetQuests.index();
         long gameTime = server.overworld().getGameTime();
         TeamProgress progress = ProgressService.progressFor(server, owner);
-        return new TeamPush(index, owner, gameTime, progress,
-                ProgressionEngine.resolve(index, progress, gameTime),
-                ProgressService.contributors(owner), ProgressService.live(owner));
+        ProgressionEngine.Resolution resolution =
+                ProgressService.resolutionFor(server, owner, index, progress, gameTime);
+        ProgressService.Contributors contributors = ProgressService.contributors(owner);
+        ProgressService.Live live = ProgressService.live(owner);
+        return new TeamPush(index, owner, gameTime, progress, resolution, contributors, live,
+                members > 1 ? teamText(resolution, progress, index, contributors, live) : null);
     }
 
     /** One member's message from the team's shared push. See {@link TeamPush}. */
@@ -1881,7 +2013,9 @@ public final class QuestSync {
                 locks,
                 // And how much the tasks that wait for a press are holding right now, since none of it
                 // is recorded yet. See oneQuestAsJson.
-                push.live());
+                push.live(),
+                // The team's text, encoded once for every member of this push. See TeamText.
+                push.text());
         SENT.put(player.getUUID(), new Sent(owner, delta.snapshot(), lockText(locks)));
 
         // Counted here rather than at the `send` calls below. One logical message can be several
@@ -2073,7 +2207,7 @@ public final class QuestSync {
                     empty -> new ArrayList<>()).add(player);
         }
         for (Map.Entry<UUID, List<ServerPlayer>> group : byOwner.entrySet()) {
-            TeamPush push = pushFor(server, group.getKey());
+            TeamPush push = pushFor(server, group.getKey(), group.getValue().size());
             for (ServerPlayer member : group.getValue()) {
                 sendProgress(server, member, reason, push);
             }
