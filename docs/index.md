@@ -12,7 +12,7 @@ editing their own game.
 | Minecraft | 26.3 or 1.21.1, on Fabric or NeoForge. Each Minecraft version has its own jar |
 | Fabric | On 26.3: Fabric Loader 0.19.5+, with Fabric API 0.162.0+26.3. On 1.21.1: Fabric Loader 0.16.9+, with Fabric API 0.109.0+1.21.1 |
 | NeoForge | 26.3.0.76+ on 26.3, 21.1.252+ on 1.21.1 |
-| Armature | 1.2.1+ for the same Minecraft version, required on both loaders ([[armature:index]] is the library Tenet is built on) |
+| Armature | 1.3.0+ on 26.3, 1.2.1+ on 1.21.1, required on both loaders ([[armature:index]] is the library Tenet is built on) |
 | KubeJS | optional, NeoForge only: 26.1.2-8.0.6+ on 26.3, 2101.7.2+ on 1.21.1 (see [[tenet:authoring/kubejs]]) |
 
 Tenet ships no questlines of its own. It is an engine, and installing it does not put somebody else's
