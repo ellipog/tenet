@@ -1,4 +1,4 @@
-# JSON `clickEvent` research (the legacy mod 1.21.1 · vanilla 1.21.1 · Tenet)
+# JSON clickEvent research
 
 > [!NOTE]
 > **A research note, not the manual.** Sections 1–3 record what the legacy mod and vanilla 1.21.1 do,
@@ -7,7 +7,8 @@
 > instead of dropping them. For what the reader's card does today, see
 > [[tenet:authoring/quests#rich-text-codes]].
 
-Primary sources only: the legacy mod's `1.21.1/main` GitHub source, local legacy jars
+Compares the legacy mod on 1.21.1, vanilla 1.21.1 and Tenet. Primary sources only: the
+legacy mod's `1.21.1/main` GitHub source, local legacy jars
 (`ftb-quests-neoforge-2101.1.34.jar`, `ftb-library-neoforge-2101.1.35.jar`) via
 `javap -c`, Mojang-mapped 1.21.1 merged jar in `tenet/.gradle/loom-cache` via
 `javap -c`, and Tenet/Armature sources below.
