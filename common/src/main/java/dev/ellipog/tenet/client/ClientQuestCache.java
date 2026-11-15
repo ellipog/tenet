@@ -1527,10 +1527,25 @@ public final class ClientQuestCache {
             // The maps before the key that says they are current, and all volatile: a reader that sees
             // `indexedFor == current` then sees the maps built for `current` rather than ones built for
             // the list before it. That ordering is what makes the claim above true rather than likely.
-            byId = Map.copyOf(built);
-            byName = Map.copyOf(names);
+            byId = lookupMap(built);
+            byName = lookupMap(names);
             indexedFor = current;
         }
+    }
+
+    /**
+     * A read-only map for a lookup by quest or chapter id, backed by a hash map rather than
+     * {@code Map.copyOf}.
+     *
+     * <p>The immutable map probes linearly, and ids that differ only in a trailing number
+     * ({@code quest_10}, {@code quest_11}, every quest of a generated pack) have neighbouring hash
+     * codes, which it packs into long runs. An open book asks these maps per quest per frame, so on a
+     * 960-quest pack of numbered ids that was over 100 us a pass against a few in a {@code HashMap}
+     * (TEN-69, measured with {@code PerfBenchTest}). The server's index and snapshots made the same
+     * change in TEN-66. The lookups answer the same; nothing reads these maps' iteration order.
+     */
+    private static <V> Map<String, V> lookupMap(Map<String, V> entries) {
+        return java.util.Collections.unmodifiableMap(new java.util.HashMap<>(entries));
     }
 
     /**
@@ -1803,7 +1818,7 @@ public final class ClientQuestCache {
             for (ChapterEntry entry : current) {
                 built.putIfAbsent(entry.id(), entry);
             }
-            chaptersById = Map.copyOf(built);
+            chaptersById = lookupMap(built);
             chaptersIndexedFor = current;
         }
         return chaptersById;
@@ -3488,7 +3503,7 @@ public final class ClientQuestCache {
                         one.has("excluded") && one.get("excluded").getAsBoolean()));
             }
         }
-        progress = Map.copyOf(next);
+        progress = lookupMap(next);
 
         // And how far each chapter has got. Replaced rather than merged, and rejected as a whole if it
         // is not an object: a half-read chapter map is a chapter drawn shut on no evidence, and the

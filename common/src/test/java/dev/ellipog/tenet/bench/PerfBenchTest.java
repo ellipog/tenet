@@ -1,5 +1,6 @@
 package dev.ellipog.tenet.bench;
 
+import dev.ellipog.tenet.client.ClientQuestCache;
 import dev.ellipog.tenet.net.QuestSync;
 import dev.ellipog.tenet.progress.ProgressService;
 import dev.ellipog.tenet.progress.ProgressionEngine;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.LongSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -173,6 +175,36 @@ class PerfBenchTest {
         bench("push to one player, walk cached: 1 delta", () ->
                 QuestSync.progressDelta(resolution, progress, index, sent, nobody, Set.of(), Map.of(), none, null)
                         .json().length);
+
+        // The client's side of the same lookups (TEN-69): the tree and a full sync go through the
+        // payload handlers' own entry points, then every id is asked for once, the way an open book
+        // asks per quest per frame.
+        ClientQuestCache.clear();
+        ClientQuestCache.acceptTree(index.questCount(), index.chapterCount(), QuestSync.treeAsJson(index));
+        ClientQuestCache.acceptProgress(new UUID(0L, 960L), NOW,
+                QuestSync.progressDelta(resolution, progress, index, null).json(), 0L);
+        bench("client: entry() for every id", () -> {
+            long found = 0;
+            for (String id : ids) {
+                found += ClientQuestCache.entry(id).id().length();
+            }
+            return found;
+        });
+        bench("client: named() for every id", () -> {
+            long found = 0;
+            for (String id : ids) {
+                found += ClientQuestCache.named(id).id().length();
+            }
+            return found;
+        });
+        bench("client: stateOf() for every id", () -> {
+            long found = 0;
+            for (String id : ids) {
+                found += ClientQuestCache.stateOf(id).ordinal();
+            }
+            return found;
+        });
+        ClientQuestCache.clear();
 
         write();
     }
