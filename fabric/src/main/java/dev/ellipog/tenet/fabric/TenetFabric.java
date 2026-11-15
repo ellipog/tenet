@@ -40,6 +40,25 @@ public final class TenetFabric implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        // Armature first, through the loader rather than by calling it: `main` order between
+        // mods is not dependency-ordered (loader 0.16 shuffles the mod list in a dev run, and
+        // nothing promises the order in production), and everything below needs its platform
+        // installed. Its entry point tolerates running twice (ARM-26), so whichever of this
+        // trigger and the loader's own invocation comes second is a no-op (TEN-75). Loader API
+        // only, with no reflection into Armature's loader module, which common code must not name.
+        //
+        // Only when Armature has not run yet. An Armature from before ARM-26 throws when its entry
+        // point runs a second time, so triggering it after the loader already did would crash the
+        // usual order, the one that always worked. Asked through platform() and not isInstalled(),
+        // which those versions do not have.
+        if (!armatureInstalled()) {
+            for (var container : net.fabricmc.loader.api.FabricLoader.getInstance()
+                    .getEntrypointContainers("main", net.fabricmc.api.ModInitializer.class)) {
+                if (container.getProvider().getMetadata().getId().equals("armature")) {
+                    ((net.fabricmc.api.ModInitializer) container.getEntrypoint()).onInitialize();
+                }
+            }
+        }
         // Declares the payloads. Must precede the install below.
         Tenet.init();
 
@@ -81,5 +100,16 @@ public final class TenetFabric implements ModInitializer {
         FabricNetworking.registerReceivers();
         dev.ellipog.tenet.Constants.LOG.info("Fabric networking ready ({} payload(s))",
                 TenetNetworking.declaredCount());
+    }
+
+    /** Whether Armature's entry point has installed its platform yet. */
+    private static boolean armatureInstalled() {
+        try {
+            dev.ellipog.armature.api.ArmatureApi.platform();
+            return true;
+        }
+        catch (IllegalStateException e) {
+            return false;
+        }
     }
 }

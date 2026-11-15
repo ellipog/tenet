@@ -30,12 +30,13 @@ dependencies {
     // requires armature ${armature_version} or above". The NeoForge module carries the same line
     // for the same reason; this is the Fabric half.
     //
-    // With it, a dev run gets one step further and stops on Fabric API's *own* access widener:
-    // "Namespace (intermediary) does not match current runtime namespace (named)". That is the dev
-    // toolchain's business rather than this mod's -- it happens while the loader reads Fabric API's
-    // jar, before Tenet is constructed -- and it does not affect a deployed profile, where the
-    // runtime namespace is intermediary.
-    runtimeOnly "dev.ellipog:armature-fabric-${minecraft_version}:${armature_version}"
+    // `modRuntimeOnly`, not plain `runtimeOnly`: Armature's Fabric jar is a mod built against
+    // intermediary names, so Loom has to remap it to the dev run's named namespace -- and so does the
+    // Fabric API its POM depends on. As plain `runtimeOnly`, neither was remapped, and every dev run
+    // died before the title screen reading Fabric API's access widener: "Namespace (intermediary)
+    // does not match current runtime namespace (named)" (TEN-75). A deployed profile never saw it,
+    // because its runtime namespace is intermediary.
+    modRuntimeOnly "dev.ellipog:armature-fabric-${minecraft_version}:${armature_version}"
 }
 
 loom {
