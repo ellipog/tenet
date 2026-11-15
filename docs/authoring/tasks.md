@@ -234,8 +234,14 @@ other missing item: the id is kept and the quest still loads.
 | `value` | `1` | How many kills count as enough, 1 to 1,000,000. |
 | `customName` | none | Only count a mob with this name. |
 | `nbtFilter` | none | An SNBT filter, for the mobs an id cannot pick out. |
+| `countFakePlayers` | `false` | Count kills by automation too, a contraption's hands as well as a person's. Off unless a pack asks, so a mob farm finishes nothing by default; set it for the "build a mob farm" quest. |
 
 With neither `entity` nor `entityTypeTag`, any mob counts.
+
+A kill counts for the player who dealt the killing blow. Kills by a fake player (a mob
+grinder, a turtle, a deployer) count only with `countFakePlayers`, as with `tenet:break`. A
+fake player is in no team, so its kills count toward its own record, not toward the player
+who built the machine.
 
 ## `tenet:location`
 

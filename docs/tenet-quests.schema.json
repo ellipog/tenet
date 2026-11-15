@@ -1205,7 +1205,7 @@
         "countFakePlayers": {
           "type": "boolean",
           "default": false,
-          "description": "tenet:break (task): count breaks by automation too, not only by a person. Off unless a pack asks, so machines farm nothing by default."
+          "description": "tenet:break and tenet:kill (task): count breaks or kills by automation too, not only by a person. Off unless a pack asks, so machines farm nothing by default."
         },
         "id": {
           "type": "string",

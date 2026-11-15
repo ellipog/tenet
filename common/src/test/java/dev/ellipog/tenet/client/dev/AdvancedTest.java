@@ -439,7 +439,8 @@ class AdvancedTest {
         for (EditorField field : deep) {
             deepNames.add(field.path());
         }
-        assertEquals(Set.of("entity", "entityTypeTag", "value", "customName", "nbtFilter", "optional",
+        assertEquals(Set.of("entity", "entityTypeTag", "value", "customName", "nbtFilter", "countFakePlayers",
+                        "optional",
                         "disableToast", "title", "icon", "tags", "autoSubmitTicks"), deepNames,
                 "the kill task's own fields, plus the six every task carries");
         assertEquals(Set.of("entity", "value", "optional", "disableToast", "title", "icon", "tags"),

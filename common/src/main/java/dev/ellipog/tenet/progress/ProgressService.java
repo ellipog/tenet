@@ -27,6 +27,7 @@ import dev.ellipog.tenet.quest.reward.RewardContext;
 import dev.ellipog.tenet.quest.reward.RewardFeedback;
 import dev.ellipog.tenet.quest.reward.RewardTypes;
 import dev.ellipog.tenet.quest.reward.TableReward;
+import dev.ellipog.tenet.quest.task.Automation;
 import dev.ellipog.tenet.quest.task.BreakTask;
 import dev.ellipog.tenet.quest.task.KillTask;
 import dev.ellipog.tenet.quest.task.TaskTypes;
@@ -532,6 +533,8 @@ public final class ProgressService {
 
     private static QuestIndex killSiteIndex;
     private static List<KillSite> killSites = List.of();
+    /** Whether any loaded kill task counts a fake player's kills. Rebuilt with {@link #killSites}. */
+    private static boolean killSitesCountFake;
 
     /**
      * The loaded tree's kill tasks, rebuilt when the index is replaced.
@@ -544,15 +547,18 @@ public final class ProgressService {
         QuestIndex index = TenetQuests.index();
         if (index != killSiteIndex) {
             List<KillSite> found = new ArrayList<>();
+            boolean countFake = false;
             for (QuestIndex.QuestEntry entry : index.quests()) {
                 List<QuestTask> tasks = entry.quest().tasks();
                 for (int i = 0; i < tasks.size(); i++) {
                     if (tasks.get(i) instanceof KillTask kill) {
                         found.add(new KillSite(entry, i, kill));
+                        countFake |= kill.countFakePlayers();
                     }
                 }
             }
             killSites = List.copyOf(found);
+            killSitesCountFake = countFake;
             killSiteIndex = index;
         }
         return killSites;
@@ -583,6 +589,12 @@ public final class ProgressService {
     public static Set<UUID> onEntityDeath(MinecraftServer server, LivingEntity entity, DamageSource source) {
         List<KillSite> sites = killSites();
         if (sites.isEmpty() || !(source.getEntity() instanceof ServerPlayer killer) || killer.isSpectator()) {
+            return Set.of();
+        }
+        // A fake player's kill counts only for a task that opts in (TEN-67), so when none does, a mob
+        // farm's kills stop here: before the owner, the store or a single site is looked at. Read with
+        // the site list, which rebuilt the flag for this index.
+        if (!killSitesCountFake && Automation.isFakePlayer(killer)) {
             return Set.of();
         }
 
@@ -1032,8 +1044,12 @@ public final class ProgressService {
                 }
                 continue;
             }
-            lastEvaluated.put(key, now);
-            long dueAt = now + stepInterval;
+            // Recorded on the task's own phase rather than at `now`, so the next check lands within one
+            // interval and the team's tasks do not all land on the tick they were first seen. See
+            // `onPhase`.
+            long recordedAt = onPhase(now, phaseOf(owner, quest.id(), stepInterval), stepInterval);
+            lastEvaluated.put(key, recordedAt);
+            long dueAt = recordedAt + stepInterval;
             if (dueAt < nextDueAt) {
                 nextDueAt = dueAt;
             }
@@ -2875,6 +2891,52 @@ public final class ProgressService {
      */
     static boolean isDue(long now, Long lastAt, int interval) {
         return lastAt == null || now < lastAt || now - lastAt >= interval;
+    }
+
+    /**
+     * Which tick of every {@code interval} a team's quest is checked on: a number in
+     * {@code [0, interval)}, fixed by the team and the quest.
+     *
+     * <h2>Why a quest has a phase at all (TEN-68)</h2>
+     *
+     * <p>Without one, a task was recorded as checked at {@code now} and checked again an interval
+     * later, so it kept the phase of its first check. Every task a team sees for the first time is
+     * first checked on the same tick (the team's first tick, or the server's first), so all of a
+     * team's item tasks walked its inventories on one tick a second and none on the other nineteen,
+     * and every team online when the server started shared that tick too.
+     *
+     * <p>The phase spreads them over the interval without changing how often each runs. By quest
+     * rather than by task, so a quest's tasks still come due together and the quest is evaluated once
+     * per interval, as before. A hash rather than a counter, so it needs no state, survives a reset,
+     * and a team that leaves and comes back keeps the phase it had.
+     */
+    static int phaseOf(UUID owner, String questId, int interval) {
+        if (interval <= 1) {
+            return 0;
+        }
+        int hash = owner.hashCode() * 31 + questId.hashCode();
+        // Mixed, because ids that differ only in a trailing digit have hashes one apart, and the low
+        // bits alone would put a numbered chapter's quests on consecutive ticks in id order.
+        hash ^= hash >>> 16;
+        hash *= 0x45d9f3b;
+        hash ^= hash >>> 16;
+        return Math.floorMod(hash, interval);
+    }
+
+    /**
+     * The latest tick at or before {@code now} that falls on {@code phase}: what a task checked now
+     * is recorded as checked at, so its next check is due on its phase, at most one interval away.
+     *
+     * <p>A task checked on its phase records {@code now} itself, which is every check after the
+     * first. The first check still happens at once, since a task never checked is always due; only
+     * the second moves, and by less than one interval. A team returning after a long absence is
+     * checked at once too, and goes back onto its phase rather than onto the tick it rejoined.
+     */
+    static long onPhase(long now, int phase, int interval) {
+        if (interval <= 1) {
+            return now;
+        }
+        return now - Math.floorMod(now - phase, (long) interval);
     }
 
     /**
