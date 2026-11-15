@@ -150,8 +150,11 @@ public final class Tenet {
         ArmatureEvents.SERVER_STOPPING.register(server -> {
             Constants.LOG.info("server stopping; {} loaded, nothing to save yet",
                     TenetQuests.summary());
-            // The owners an event moved that no tick has told yet: the next world is told about its
-            // own events, not this one's. In single player that next world runs in this same JVM.
+            // The snapshots are static, and in single player the next world runs in this same JVM:
+            // without this every player the last world ever saw stays held until the client exits.
+            QuestSync.forgetAll();
+            // And the owners an event moved that no tick has told yet: the next world is told about
+            // its own events, not this one's.
             EventPushes.clear();
         });
 
@@ -191,6 +194,9 @@ public final class Tenet {
 
         ArmatureEvents.PLAYER_LEAVE.register(player -> {
             Constants.LOG.info("{} left", player.getScoreboardName());
+            // Their last-sent snapshot is a copy of every quest's text. A rejoin forgets it anyway, so
+            // holding it after they leave buys nothing and costs a pack's worth per departed player.
+            QuestSync.forget(player.getUUID());
             // The other half: a player leaving takes their Invite row with them, and their dot off
             // every roster they were on.
             TenetNetworking.sendRostersToAllParties(player.getServer());

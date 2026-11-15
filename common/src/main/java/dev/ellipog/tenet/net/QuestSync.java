@@ -120,7 +120,8 @@ public final class QuestSync {
     private static final ProgressService.Live NO_LIVE = (questId, taskIndex) -> 0;
 
     /** One player's last sent state: the team, the exact JSON sent per quest, and the locks it carried. */
-    private record Sent(UUID teamId, Map<String, String> quests, String locks) {
+    private record Sent(UUID teamId, Map<String, String> quests,
+                        Map<String, ProgressService.LockView> locks, long lockInputsFingerprint) {
     }
 
     /**
@@ -2002,6 +2003,7 @@ public final class QuestSync {
 
         Map<String, ProgressService.LockView> locks =
                 ProgressService.lockView(server, push.index(), player, owner);
+        long lockFingerprint = ProgressService.lockInputsFingerprint(server, push.index(), owner);
 
         Delta delta = progressDelta(push.resolution(), push.progress(), push.index(),
                 full ? null : last.quests(),
@@ -2016,7 +2018,7 @@ public final class QuestSync {
                 push.live(),
                 // The team's text, encoded once for every member of this push. See TeamText.
                 push.text());
-        SENT.put(player.getUUID(), new Sent(owner, delta.snapshot(), lockText(locks)));
+        SENT.put(player.getUUID(), new Sent(owner, delta.snapshot(), locks, lockFingerprint));
 
         // Counted here rather than at the `send` calls below. One logical message can be several
         // chunks, and it is counted once for all of them: "how many times did the server have
@@ -2079,26 +2081,20 @@ public final class QuestSync {
         if (index.isEmpty() || !ProgressService.hasConditions(index)) {
             return;
         }
+        boolean onlyStageAndParty = ProgressService.onlyStageAndPartyConditions(index);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             UUID owner = ProgressService.progressOwner(server, player);
-            String picture = lockText(ProgressService.lockView(server, index, player, owner));
             Sent sent = SENT.get(player.getUUID());
-            if (sent != null && picture.equals(sent.locks())) {
+            if (sent != null && onlyStageAndParty
+                    && sent.lockInputsFingerprint() == ProgressService.lockInputsFingerprint(server, index, owner)) {
+                continue;
+            }
+            Map<String, ProgressService.LockView> locks = ProgressService.lockView(server, index, player, owner);
+            if (sent != null && locks.equals(sent.locks())) {
                 continue;
             }
             sendProgress(server, player, ProgressSyncPayload.REASON_CHANGED);
         }
-    }
-
-    /**
-     * The canonical text of a lock picture.
-     *
-     * <p>What the refresh compares, so equal pictures must produce equal strings: the map is sorted and
-     * every list in it is ascending by construction. This is the same property the per-quest delta text
-     * rests on, and its failure looks the same from the outside — a quest resent forever.
-     */
-    private static String lockText(Map<String, ProgressService.LockView> locks) {
-        return new java.util.TreeMap<>(locks).toString();
     }
 
     /** A JSON array of integers, for the sparse lock fields. */
@@ -2144,12 +2140,11 @@ public final class QuestSync {
     /**
      * Forgets every snapshot, so the next sync to anybody is a full one.
      *
-     * <p><b>Nothing calls this, and the reload path does not need it.</b> A reload is
-     * {@code REASON_RELOAD}, and {@link #sendProgress} sends a full sync for that reason on its own —
-     * so a caller that forgot every snapshot first would change nothing, and it would also forget the
-     * snapshots of players the reload is not about. It is kept because forcing a full sync for a
-     * player who never disconnected is exactly what it does and the next reason to want that will not
-     * be a reload; the reader who finds it dead should feel free to delete it.
+     * <p><b>The server's stop calls this, and the reload path does not need it.</b> The map is static,
+     * and in single player the next world runs in the same JVM, so a stop that left it alone would keep
+     * every snapshot the last world made. A reload is {@code REASON_RELOAD}, and {@link #sendProgress}
+     * sends a full sync for that reason on its own — so a caller that forgot every snapshot first would
+     * change nothing, and it would also forget the snapshots of players the reload is not about.
      */
     public static void forgetAll() {
         SENT.clear();
