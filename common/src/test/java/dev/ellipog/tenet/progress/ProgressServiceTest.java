@@ -3,6 +3,7 @@ package dev.ellipog.tenet.progress;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -86,5 +87,67 @@ class ProgressServiceTest {
         assertTrue(wrapped < INTERVAL,
                 "now - Long.MIN_VALUE must wrap to a value below the interval for this to be the bug it "
                         + "was: " + wrapped);
+    }
+
+    @Test
+    @DisplayName("a check is recorded on the quest's phase: never in the future, at most one interval back")
+    void recordedOnPhase() {
+        for (int phase = 0; phase < INTERVAL; phase++) {
+            for (long now = 0; now < 3L * INTERVAL; now++) {
+                long recorded = ProgressService.onPhase(now, phase, INTERVAL);
+                assertTrue(recorded <= now && now - recorded < INTERVAL,
+                        "now " + now + ", phase " + phase + ": recorded " + recorded);
+                assertEquals(phase, Math.floorMod(recorded, INTERVAL), "on the phase itself");
+                // So the next check is due on the phase, within one interval, and not sooner.
+                assertTrue(ProgressService.isDue(recorded + INTERVAL, recorded, INTERVAL));
+            }
+        }
+        assertEquals(140L, ProgressService.onPhase(140L, 0, INTERVAL), "a check on its phase records now");
+        assertEquals(7L, ProgressService.onPhase(7L, 3, 1), "an every-tick task has no phase");
+        assertEquals(0, ProgressService.phaseOf(java.util.UUID.randomUUID(), "q", 1));
+    }
+
+    @Test
+    @DisplayName("a team's quests, first seen on one tick, are spread over the interval rather than bunched")
+    void firstChecksAreSpread() {
+        // The TEN-68 shape: eight teams online when the server starts, each with 200 item quests of
+        // numbered ids, all first checked on tick 1000. Then every check for 200 ticks, counted per
+        // tick, by the engine's own two rules. Before the phase, every check landed on ticks
+        // 1000, 1020, 1040 and so on, and the other nineteen ticks of each second had none.
+        int teams = 8;
+        int quests = 200;
+        long start = 1_000L;
+        long ticks = 200L;
+        int[] perTick = new int[(int) ticks];
+        java.util.Random random = new java.util.Random(68L);
+        for (int team = 0; team < teams; team++) {
+            java.util.UUID owner = new java.util.UUID(random.nextLong(), random.nextLong());
+            for (int quest = 0; quest < quests; quest++) {
+                String id = String.format(java.util.Locale.ROOT, "stress_00_%03d", quest);
+                int phase = ProgressService.phaseOf(owner, id, INTERVAL);
+                Long lastAt = null;
+                for (long now = start; now < start + ticks; now++) {
+                    if (ProgressService.isDue(now, lastAt, INTERVAL)) {
+                        lastAt = ProgressService.onPhase(now, phase, INTERVAL);
+                        perTick[(int) (now - start)]++;
+                    }
+                }
+            }
+        }
+        // The first tick checks everything once, as it always did: a quest never checked is due.
+        assertEquals(teams * quests, perTick[0], "every quest is still checked at once");
+        // After it, no tick carries more than twice its share of a second's checks.
+        int share = teams * quests / INTERVAL;
+        int busiest = 0;
+        int total = 0;
+        for (int i = 1; i < perTick.length; i++) {
+            busiest = Math.max(busiest, perTick[i]);
+            total += perTick[i];
+        }
+        assertTrue(busiest <= 2 * share, "busiest tick " + busiest + " against a share of " + share);
+        // And how often each quest runs is unchanged: one check a second each, give or take the edges.
+        int seconds = (int) (ticks / INTERVAL);
+        assertTrue(Math.abs(total - teams * quests * (seconds - 1)) <= teams * quests,
+                "checks after the first tick: " + total);
     }
 }

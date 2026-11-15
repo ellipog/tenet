@@ -41,15 +41,28 @@ import java.util.function.Function;
  * <p>{@code current} is therefore always zero: the count lives in recorded progress, which is what
  * makes it survive a restart, pool across a party and reset with a repeatable round, without this
  * type owning a single counter of its own.
+ *
+ * <p>Kills by a fake player (a contraption's hands rather than a person's) count only when the task
+ * opts in with {@code countFakePlayers}, as the break task has it. The default is off: a fake player
+ * is in no team, so its kills would land in a record nobody plays, and a mob farm built on one would
+ * write there all day. A pack that wants "build a mob farm" sets the flag. The death handler turns a
+ * fake killer away before any work when no loaded kill task opts in (TEN-67).
  */
 public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
                        Optional<ResourceLocation> entityTypeTag, int value,
-                       Optional<String> customName, Optional<String> nbtFilter) implements QuestTask {
+                       Optional<String> customName, Optional<String> nbtFilter,
+                       boolean countFakePlayers) implements QuestTask {
 
     public static final ResourceLocation TYPE = ResourceLocation.fromNamespaceAndPath(Tenet.MOD_ID, "kill");
 
     public static final Set<String> FIELDS =
-            Set.of("entity", "entityTypeTag", "value", "customName", "nbtFilter");
+            Set.of("entity", "entityTypeTag", "value", "customName", "nbtFilter", "countFakePlayers");
+
+    /** A task without the automation flag: what every file written before it decodes to. */
+    public KillTask(TaskCommon common, Optional<ResourceLocation> entity, Optional<ResourceLocation> entityTypeTag,
+                    int value, Optional<String> customName, Optional<String> nbtFilter) {
+        this(common, entity, entityTypeTag, value, customName, nbtFilter, false);
+    }
 
     public static final MapCodec<KillTask> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
             TaskCommon.mapCodec(20).forGetter(KillTask::common),
@@ -60,7 +73,9 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
             ResourceLocation.CODEC.optionalFieldOf("entityTypeTag").forGetter(KillTask::entityTypeTag),
             Codec.intRange(1, 1_000_000).optionalFieldOf("value", 1).forGetter(KillTask::value),
             Codec.STRING.optionalFieldOf("customName").forGetter(KillTask::customName),
-            Codec.STRING.optionalFieldOf("nbtFilter").forGetter(KillTask::nbtFilter)
+            Codec.STRING.optionalFieldOf("nbtFilter").forGetter(KillTask::nbtFilter),
+            // Off unless a pack asks, like the break task's: automation farms nothing by default.
+            Codec.BOOL.optionalFieldOf("countFakePlayers", false).forGetter(KillTask::countFakePlayers)
     ).apply(instance, KillTask::new));
 
     @Override
@@ -152,9 +167,20 @@ public record KillTask(TaskCommon common, Optional<ResourceLocation> entity,
 
         @Override
         public int onEntityDeath(KillTask task, ServerPlayer killer, LivingEntity killed) {
+            if (!countsKiller(task, Automation.isFakePlayer(killer))) {
+                return 0;
+            }
             return task.matches(killed) ? 1 : 0;
         }
     };
+
+    /**
+     * Whether this killer counts for this task: a person always does, and a fake player only for a
+     * task that opts in. Pure, so a test can hold the decision table without a loader.
+     */
+    static boolean countsKiller(KillTask task, boolean fake) {
+        return Automation.counts(task.countFakePlayers(), fake);
+    }
 
     public static final Function<KillTask, TaskDisplay> DISPLAY = task -> {
         // The mob is the subject; the count rides the row's own progress chip, so the sentence

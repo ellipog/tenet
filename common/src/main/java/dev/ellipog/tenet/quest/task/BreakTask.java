@@ -4,7 +4,6 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
-import dev.ellipog.armature.api.ArmatureApi;
 import dev.ellipog.tenet.Tenet;
 import dev.ellipog.tenet.quest.ItemRef;
 import dev.ellipog.tenet.quest.QuestTask;
@@ -137,7 +136,7 @@ public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
 
         @Override
         public int onBlockBroken(BreakTask task, ServerPlayer player, BlockState state) {
-            if (!countsBreaker(task, isFakeBreaker(player))) {
+            if (!countsBreaker(task, Automation.isFakePlayer(player))) {
                 return 0;
             }
             return task.matches(state) ? 1 : 0;
@@ -150,22 +149,7 @@ public record BreakTask(TaskCommon common, Optional<ResourceLocation> block,
      * a loader — the platform call stays a one-liner in the behaviour above.
      */
     static boolean countsBreaker(BreakTask task, boolean fake) {
-        return !fake || task.countFakePlayers();
-    }
-
-    /**
-     * Whether this breaker is a fake player. The platform layer is not installed in headless
-     * unit tests — and there are no fake players there — so an uninstalled platform reads as
-     * a person rather than throwing. The same shape as the config-dir read: see
-     * {@code PinnedQuests}, which answers an unreadable platform the same way.
-     */
-    private static boolean isFakeBreaker(ServerPlayer player) {
-        try {
-            return ArmatureApi.platform().isFakePlayer(player);
-        }
-        catch (RuntimeException e) {
-            return false;
-        }
+        return Automation.counts(task.countFakePlayers(), fake);
     }
 
     public static final Function<BreakTask, TaskDisplay> DISPLAY = task -> {

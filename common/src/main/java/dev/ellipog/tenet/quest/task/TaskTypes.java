@@ -302,7 +302,9 @@ public final class TaskTypes {
                     EditorField.text("customName", "Named", "only counts a mob with this name")
                             .hint("only counts a mob with this name"),
                     EditorField.text("nbtFilter", "NBT", "an SNBT filter, for what an id cannot say")
-                            .hint("an SNBT filter, for the mobs an id cannot pick out")),
+                            .hint("an SNBT filter, for the mobs an id cannot pick out"),
+                    EditorField.flag("countFakePlayers", "Automation counts")
+                            .hint("a contraption's kills count too, for the build-a-mob-farm quest")),
             KillTask.BEHAVIOUR,
             new ItemRef(ResourceLocation.withDefaultNamespace("iron_sword"), 1), KillTask.DISPLAY,
             () -> new KillTask(new TaskCommon(false, 20),

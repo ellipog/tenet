@@ -119,5 +119,28 @@ class KillTaskTest {
         assertEquals(Optional.empty(), plain.entityTypeTag());
         assertEquals(Optional.empty(), plain.customName());
         assertEquals(Optional.empty(), plain.nbtFilter());
+        assertFalse(plain.countFakePlayers(), "absent means a mob farm's kills count for nothing");
+
+        var flagged = assertInstanceOf(KillTask.class, decoded(
+                "{\"type\": \"tenet:kill\", \"entity\": \"minecraft:zombie\","
+                        + " \"countFakePlayers\": true}"));
+        assertTrue(flagged.countFakePlayers(), "the build-a-mob-farm quest opts in");
+    }
+
+    @Test
+    @DisplayName("automation's kills count only for the quest that asks for them")
+    void fakePlayersNeedTheFlag() {
+        KillTask plain = byId("minecraft:zombie", 100);
+        KillTask automation = new KillTask(new TaskCommon(false, 20),
+                Optional.of(ResourceLocation.parse("minecraft:zombie")), Optional.empty(), 100,
+                Optional.empty(), Optional.empty(), true);
+
+        assertTrue(KillTask.countsKiller(plain, false), "a person always counts");
+        assertTrue(KillTask.countsKiller(automation, false),
+                "a person counts for an automation quest too");
+        assertFalse(KillTask.countsKiller(plain, true),
+                "a mob farm does not finish an ordinary quest");
+        assertTrue(KillTask.countsKiller(automation, true),
+                "a mob farm counts for the quest that names it");
     }
 }

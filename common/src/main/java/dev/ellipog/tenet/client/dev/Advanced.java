@@ -69,8 +69,9 @@ public final class Advanced {
      * <p>Each of these is a refinement of a value the author has already given, or an escape hatch: the
      * cadence a task is re-checked at, how strictly a carried stack must match, whether only crafted items
      * count, one criterion of an advancement rather than the whole thing, the three filters a kill task can
-     * carry, how long an observation has to last, the permission a reward's command runs at, and the ways a
-     * reward can be made quiet, random, extra or exclusive. What stays basic is what the entry <i>is</i> --
+     * carry, whether a kill or a break by automation counts, how long an observation has to last, the
+     * permission a reward's command runs at, and the ways a reward can be made quiet, random, extra or
+     * exclusive. What stays basic is what the entry <i>is</i> --
      * the item, the count, the dimension, the target, the value.
      *
      * <p>So the rule for a new field is the one this list states: if it says <b>what</b>, it is basic; if it
@@ -84,6 +85,8 @@ public final class Advanced {
             "criterion",
             // What a kill counts, beyond the entity's id.
             "entityTypeTag", "customName", "nbtFilter",
+            // Whether a kill or a break by automation counts too.
+            "countFakePlayers",
             // How long an observation lasts.
             "timer",
             // A command reward: the permission it runs at, and whether it says so in chat.
