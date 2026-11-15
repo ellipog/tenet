@@ -73,5 +73,13 @@ dependencies {
     // And for the dev runs, so the plugin can actually be exercised: KubeJS is optional at runtime, which
     // is exactly why the test has to run with it present. `runtimeOnly` puts it on the run classpath and
     // nowhere near the published jar.
-    runtimeOnly "dev.latvian.mods:kubejs-neoforge:${kubejs_version}"
+    //
+    // Only when asked for, with `-PwithKubeJS`. The newest KubeJS is built for 26.1.2, and its client
+    // mixin finds no target on 26.3 ("Critical injection failure: @Inject annotation on
+    // kjs$endResourceReload could not find any targets"), so with it on the classpath every NeoForge
+    // dev client stopped before the title screen (TEN-73). Make it the default again once KubeJS ships
+    // a build for this Minecraft.
+    if (project.hasProperty('withKubeJS')) {
+        runtimeOnly "dev.latvian.mods:kubejs-neoforge:${kubejs_version}"
+    }
 }

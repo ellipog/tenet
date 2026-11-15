@@ -123,6 +123,10 @@ attaches, and a JS arrow function passed to `registerTask`/`registerReward` conv
 handler and appears in `customTaskIds()`/`customRewardIds()`). The load reports 0 errors and 0
 warnings.
 
+KubeJS is on the dev run classpath only when the build is asked for it: `gradlew -PwithKubeJS
+:neoforge:runServer`. The newest KubeJS is built for 26.1.2, and its client mixin stops a 26.3
+NeoForge dev client before the title screen, so it is left off by default until a 26.3 build ships.
+
 What that run cannot prove, said plainly: no player exists at server start, so a handler's body
 running against a real quest is the pack's own test, and the client-side look of a stage-gated quest
 is on the manual playtest list in `TESTING.md`.
